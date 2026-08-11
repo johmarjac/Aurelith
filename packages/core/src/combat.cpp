@@ -1,0 +1,129 @@
+// Kampf im Stil von Metin2: ein Schlag ist kein Zielangriff, sondern ein
+// Bereich. Alles, was im Kegel vor der Figur und in Reichweite steht, wird
+// getroffen und nimmt Schaden — daraus ergibt sich das ganze Spielgefühl, weil
+// Positionierung und das Gruppieren von Gegnern zur eigentlichen Fertigkeit
+// werden.
+//
+// Ablauf eines Schlags:
+//   1. `tryStartSwing` prüft die Abklingzeit und setzt `swingTimer` auf die
+//      Vorlaufzeit. Ab hier ist die Figur gebunden und langsam.
+//   2. Der Tick zählt `swingTimer` herunter.
+//   3. Bei Null ruft der Tick `resolveSwing` — erst jetzt entsteht Schaden.
+//
+// Die Vorlaufzeit ist der Grund, warum Ausweichen überhaupt möglich ist.
+
+#include <algorithm>
+
+#include "aurelith/world.hpp"
+
+namespace aur {
+namespace {
+
+constexpr float kCritChance = 0.12f;
+constexpr float kCritMultiplier = 1.75f;
+
+}  // namespace
+
+bool World::tryStartSwing(Entity& e) {
+  if (!isAlive(e) || e.attackCooldown > 0.0f || e.swingTimer >= 0.0f) return false;
+  e.swingTimer = e.attackWindupSec;
+  e.attackCooldown = e.attackCooldownSec;
+  e.state = kStateAttack;
+  return true;
+}
+
+void World::resolveSwing(Entity& attacker) {
+  if (!isAlive(attacker)) return;
+
+  const float halfArc = attacker.attackArc * 0.5f;
+  int hits = 0;
+
+  // Über Indizes statt Referenzen laufen: `applyDamage` verändert nur
+  // bestehende Einträge, aber die Absicht bleibt so auch dann klar, wenn
+  // später Entities im Treffer entstehen.
+  for (size_t i = 0; i < entities_.size() && hits < kMaxTargetsPerSwing; ++i) {
+    Entity& target = entities_[i];
+    if (!isHostile(attacker, target) || !isAlive(target)) continue;
+
+    const float dx = target.x - attacker.x;
+    const float dz = target.z - attacker.z;
+    const float dist = std::sqrt(dx * dx + dz * dz);
+
+    // Reichweite gilt bis zur Hülle des Ziels, nicht bis zu seinem Mittelpunkt.
+    if (dist > attacker.attackRange + target.radius) continue;
+
+    // Direkt am Körper klebende Gegner werden immer getroffen, sonst müsste
+    // man sich exakt zu ihnen drehen, während sie einen bereits umringen.
+    if (dist > attacker.radius + target.radius + 0.2f) {
+      const float toTarget = std::atan2(dx, dz);
+      if (std::fabs(angleDelta(attacker.yaw, toTarget)) > halfArc) continue;
+    }
+
+    applyDamage(attacker, target);
+    ++hits;
+  }
+}
+
+void World::applyDamage(Entity& attacker, Entity& target) {
+  float damage = computeDamage(attacker.attackDamage, target.defense, rng_.next());
+
+  uint8_t flags = kCombatNone;
+  if (rng_.next() < kCritChance) {
+    damage = std::floor(damage * kCritMultiplier + 0.5f);
+    flags |= kCombatCritical;
+  }
+
+  target.hp = std::max(0.0f, target.hp - damage);
+  target.hitStun = kHitStunSeconds;
+
+  // Ein angegriffenes Monster ohne Ziel schlägt zurück — auch friedliche.
+  if (target.type == kEntityMonster && target.targetId == 0) {
+    target.targetId = attacker.id;
+  }
+
+  const bool died = target.hp <= 0.0f;
+  if (died) flags |= kCombatKilling;
+
+  EventView hit{};
+  hit.type = kEventHit;
+  hit.flags = flags;
+  hit.a = attacker.id;
+  hit.b = target.id;
+  hit.value = damage;
+  hit.x = target.x;
+  hit.y = target.y + target.height * 0.6f;
+  hit.z = target.z;
+  events_.push_back(hit);
+
+  if (!died) return;
+
+  target.state = kStateDead;
+  target.targetId = 0;
+  target.swingTimer = -1.0f;
+  target.vx = 0.0f;
+  target.vz = 0.0f;
+
+  EventView death{};
+  death.type = kEventDeath;
+  death.a = target.id;
+  death.b = attacker.id;
+  death.x = target.x;
+  death.y = target.y;
+  death.z = target.z;
+  events_.push_back(death);
+
+  if (attacker.type == kEntityPlayer && target.type == kEntityMonster) {
+    // Die Stufenabhängigkeit der Erfahrung rechnet TypeScript aus — sie ist
+    // Balancing und gehört nicht in den Kern. Hier geht der Grundwert raus.
+    EventView exp{};
+    exp.type = kEventExp;
+    exp.a = attacker.id;
+    exp.b = target.id;
+    exp.value = target.expReward;
+    exp.value2 = std::floor(target.goldReward * (0.7f + rng_.next() * 0.6f) + 0.5f);
+    if (exp.value2 < 1.0f) exp.value2 = 1.0f;
+    events_.push_back(exp);
+  }
+}
+
+}  // namespace aur

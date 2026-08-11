@@ -1,0 +1,35 @@
+{
+  "name": "aurelith",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Browserbasiertes 3D-MMORPG. Autoritativer Server, geteilte Simulation, manifestgetriebenes Asset-Streaming.",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/core",
+    "packages/shared",
+    "packages/server",
+    "packages/client",
+    "packages/editor"
+  ],
+  "scripts": {
+    "dev": "node tools/dev.mjs",
+    "core": "node tools/build-core.mjs",
+    "core:test": "node tools/build-core.mjs --native",
+    "maps": "node tools/gen-maps.mjs",
+    "dev:server": "npm run dev --workspace @aurelith/server",
+    "dev:client": "npm run dev --workspace @aurelith/client",
+    "dev:editor": "npm run dev --workspace @aurelith/editor",
+    "build": "npm run core && npm run manifest && npm run build --workspace @aurelith/client",
+    "manifest": "node tools/build-manifest.mjs",
+    "typecheck": "tsc --build --force",
+    "db:migrate": "npm run migrate --workspace @aurelith/server"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}

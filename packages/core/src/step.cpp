@@ -1,0 +1,152 @@
+// Der Tick.
+//
+// Eine Funktion, zwei Aufrufer: der Server treibt damit die autoritative Welt,
+// der Client dieselbe Funktion über eine Welt, die nur seine eigene Figur
+// enthält. Beide führen dieselbe wasm-Binärdatei aus.
+//
+// Die Reihenfolge ist Vertrag:
+//   1. Zeitgeber herunterzählen, fällige Schläge auflösen
+//   2. Monster entscheiden
+//   3. Überlappungen auflösen
+//   4. Regeneration
+//   5. Respawn
+
+#include <algorithm>
+
+#include "aurelith/world.hpp"
+
+namespace aur {
+
+void World::advanceTimers(Entity& e, float dt) {
+  if (e.attackCooldown > 0.0f) e.attackCooldown = std::max(0.0f, e.attackCooldown - dt);
+  if (e.hitStun > 0.0f) e.hitStun = std::max(0.0f, e.hitStun - dt);
+
+  if (e.swingTimer >= 0.0f) {
+    e.swingTimer -= dt;
+    if (e.swingTimer < 0.0f) {
+      e.swingTimer = -1.0f;
+      resolveSwing(e);
+      if (e.state == kStateAttack) e.state = kStateIdle;
+    }
+  }
+}
+
+void World::resolveOverlaps() {
+  if (entities_.size() > static_cast<size_t>(kSeparationEntityLimit)) return;
+
+  // Weiche Trennung zweier sich überlappender Entities. Verhindert Stapel.
+  for (size_t i = 0; i < entities_.size(); ++i) {
+    Entity& a = entities_[i];
+    if (a.type == kEntityNpc || !isAlive(a)) continue;
+
+    for (size_t j = i + 1; j < entities_.size(); ++j) {
+      Entity& b = entities_[j];
+      if (b.type == kEntityNpc || !isAlive(b)) continue;
+
+      const float dx = b.x - a.x;
+      const float dz = b.z - a.z;
+      const float minDist = a.radius + b.radius;
+      const float d2 = dx * dx + dz * dz;
+      if (d2 >= minDist * minDist || d2 < 1e-8f) continue;
+
+      const float d = std::sqrt(d2);
+      const float push = (minDist - d) * 0.5f;
+      const float ux = dx / d;
+      const float uz = dz / d;
+
+      a.x = clampToMap(a.x - ux * push, terrain_);
+      a.z = clampToMap(a.z - uz * push, terrain_);
+      b.x = clampToMap(b.x + ux * push, terrain_);
+      b.z = clampToMap(b.z + uz * push, terrain_);
+      a.y = terrainHeight(a.x, a.z, terrain_);
+      b.y = terrainHeight(b.x, b.z, terrain_);
+    }
+  }
+}
+
+void World::regenerate(float dt) {
+  for (Entity& e : entities_) {
+    if (!isAlive(e) || e.type == kEntityNpc) continue;
+    const bool inCombat =
+        e.hitStun > 0.0f || e.swingTimer >= 0.0f || e.attackCooldown > 0.0f || e.targetId != 0;
+    if (inCombat) continue;
+
+    if (e.hp < e.maxHp) e.hp = std::min(e.maxHp, e.hp + e.maxHp * kOutOfCombatRegen * dt);
+    if (e.mp < e.maxMp) e.mp = std::min(e.maxMp, e.mp + e.maxMp * kOutOfCombatRegen * dt);
+  }
+}
+
+void World::respawnMonster(Entity& e) {
+  const Spawner* spawner =
+      e.spawnerIndex < spawners_.size() ? &spawners_[e.spawnerIndex] : nullptr;
+
+  // Etwas versetzt zum Ursprung, damit ein leergeräumter Spawner nicht jedes
+  // Mal exakt dasselbe Bild ergibt.
+  if (spawner != nullptr) {
+    const float angle = rng_.next() * kTau;
+    const float r = std::sqrt(rng_.next()) * spawner->radius;
+    e.homeX = spawner->x + std::cos(angle) * r;
+    e.homeZ = spawner->z + std::sin(angle) * r;
+  }
+
+  e.x = clampToMap(e.homeX, terrain_);
+  e.z = clampToMap(e.homeZ, terrain_);
+  e.y = terrainHeight(e.x, e.z, terrain_);
+  e.yaw = rng_.next() * kTau;
+  e.hp = e.maxHp;
+  e.mp = e.maxMp;
+  e.state = kStateIdle;
+  e.targetId = 0;
+  e.swingTimer = -1.0f;
+  e.attackCooldown = 0.0f;
+  e.hitStun = 0.0f;
+  e.respawnTick = 0;
+  e.vx = 0.0f;
+  e.vz = 0.0f;
+
+  EventView ev{};
+  ev.type = kEventSpawn;
+  ev.a = e.id;
+  ev.x = e.x;
+  ev.y = e.y;
+  ev.z = e.z;
+  events_.push_back(ev);
+}
+
+void World::handleRespawns() {
+  for (Entity& e : entities_) {
+    if (e.type != kEntityMonster || e.state != kStateDead) continue;
+
+    // Erster Tick nach dem Tod: Zeitpunkt festlegen.
+    if (e.respawnTick == 0) {
+      const Spawner* spawner =
+          e.spawnerIndex < spawners_.size() ? &spawners_[e.spawnerIndex] : nullptr;
+      const float respawnSec = spawner != nullptr ? spawner->respawnSec : 12.0f;
+      uint32_t delay = static_cast<uint32_t>(respawnSec * static_cast<float>(kTickRate));
+      if (delay < 1u) delay = 1u;
+      e.respawnTick = tick_ + delay;
+      continue;
+    }
+
+    if (tick_ < e.respawnTick) continue;
+    respawnMonster(e);
+  }
+}
+
+void World::step(float dt) {
+  ++tick_;
+
+  for (Entity& e : entities_) {
+    advanceTimers(e, dt);
+  }
+
+  for (size_t i = 0; i < entities_.size(); ++i) {
+    if (entities_[i].type == kEntityMonster) updateMonsterAi(entities_[i], dt);
+  }
+
+  resolveOverlaps();
+  regenerate(dt);
+  handleRespawns();
+}
+
+}  // namespace aur

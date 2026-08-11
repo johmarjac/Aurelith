@@ -1,0 +1,22 @@
+{
+  "name": "@aurelith/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Autoritativer Spielserver. Treibt die geteilte Simulation und ist die einzige Quelle der Wahrheit.",
+  "main": "./src/index.ts",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "migrate": "tsx src/db/migrate.ts"
+  },
+  "dependencies": {
+    "@aurelith/shared": "*",
+    "pg": "^8.16.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.15.0",
+    "@types/ws": "^8.18.0"
+  }
+}

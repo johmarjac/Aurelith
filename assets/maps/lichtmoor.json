@@ -1,0 +1,7790 @@
+{
+  "format": "aurelith.map",
+  "version": 1,
+  "id": "lichtmoor",
+  "name": "Lichtmoor",
+  "environment": {
+    "skyColor": 9356270,
+    "horizonColor": 14478585,
+    "fogColor": 12901616,
+    "fogNear": 110,
+    "fogFar": 340,
+    "sunDirection": [
+      0.42,
+      0.82,
+      0.38
+    ],
+    "sunColor": 16774366,
+    "sunIntensity": 1.55,
+    "ambientColor": 11060445,
+    "ambientIntensity": 0.9
+  },
+  "terrain": {
+    "size": 512,
+    "cellSize": 4,
+    "seed": 19529,
+    "heightScale": 11,
+    "featureScale": 0.011,
+    "waterLevel": -3.5,
+    "grassColor": 6989909,
+    "grassColorAlt": 5212734,
+    "rockColor": 9077880,
+    "sandColor": 13812372
+  },
+  "spawn": {
+    "x": 0,
+    "z": 0,
+    "yaw": 0
+  },
+  "props": [
+    {
+      "id": "p_0001",
+      "model": "tree_pine",
+      "position": [
+        114.71,
+        0,
+        -109.71
+      ],
+      "rotation": [
+        0,
+        3.27,
+        0
+      ],
+      "scale": 1.23,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0002",
+      "model": "tree_broad",
+      "position": [
+        33.06,
+        0,
+        145.45
+      ],
+      "rotation": [
+        0,
+        2.99,
+        0
+      ],
+      "scale": 1.01,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0003",
+      "model": "tree_broad",
+      "position": [
+        -86.94,
+        0,
+        134.56
+      ],
+      "rotation": [
+        0,
+        6.1,
+        0
+      ],
+      "scale": 1.3,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0004",
+      "model": "tree_broad",
+      "position": [
+        -31.27,
+        0,
+        -219.93
+      ],
+      "rotation": [
+        0,
+        0.29,
+        0
+      ],
+      "scale": 1.01,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0005",
+      "model": "tree_broad",
+      "position": [
+        -73.28,
+        0,
+        135.46
+      ],
+      "rotation": [
+        0,
+        2.83,
+        0
+      ],
+      "scale": 1.01,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0006",
+      "model": "tree_broad",
+      "position": [
+        132.52,
+        0,
+        206.89
+      ],
+      "rotation": [
+        0,
+        2.03,
+        0
+      ],
+      "scale": 1.26,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0007",
+      "model": "tree_pine",
+      "position": [
+        34.16,
+        0,
+        -10.05
+      ],
+      "rotation": [
+        0,
+        5.61,
+        0
+      ],
+      "scale": 1.44,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0008",
+      "model": "tree_broad",
+      "position": [
+        209.07,
+        0,
+        190.26
+      ],
+      "rotation": [
+        0,
+        0.51,
+        0
+      ],
+      "scale": 1.04,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0009",
+      "model": "tree_broad",
+      "position": [
+        123.96,
+        0,
+        196.24
+      ],
+      "rotation": [
+        0,
+        4.27,
+        0
+      ],
+      "scale": 1.35,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0010",
+      "model": "tree_broad",
+      "position": [
+        -56.25,
+        0,
+        13.56
+      ],
+      "rotation": [
+        0,
+        1.37,
+        0
+      ],
+      "scale": 1.13,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0011",
+      "model": "tree_pine",
+      "position": [
+        -227.63,
+        0,
+        155.92
+      ],
+      "rotation": [
+        0,
+        3.81,
+        0
+      ],
+      "scale": 1.3,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0012",
+      "model": "tree_pine",
+      "position": [
+        56.01,
+        0,
+        197.56
+      ],
+      "rotation": [
+        0,
+        4.91,
+        0
+      ],
+      "scale": 0.98,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0013",
+      "model": "tree_broad",
+      "position": [
+        -80.11,
+        0,
+        63.96
+      ],
+      "rotation": [
+        0,
+        6,
+        0
+      ],
+      "scale": 1.32,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0014",
+      "model": "tree_broad",
+      "position": [
+        170.95,
+        0,
+        57.02
+      ],
+      "rotation": [
+        0,
+        2.96,
+        0
+      ],
+      "scale": 1.4,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0015",
+      "model": "tree_pine",
+      "position": [
+        94.92,
+        0,
+        74.94
+      ],
+      "rotation": [
+        0,
+        0.77,
+        0
+      ],
+      "scale": 1.04,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0016",
+      "model": "tree_pine",
+      "position": [
+        -114.87,
+        0,
+        85.66
+      ],
+      "rotation": [
+        0,
+        4.5,
+        0
+      ],
+      "scale": 1.13,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0017",
+      "model": "tree_broad",
+      "position": [
+        -172.9,
+        0,
+        226.48
+      ],
+      "rotation": [
+        0,
+        4.72,
+        0
+      ],
+      "scale": 1.32,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0018",
+      "model": "tree_pine",
+      "position": [
+        60.58,
+        0,
+        213.68
+      ],
+      "rotation": [
+        0,
+        1.36,
+        0
+      ],
+      "scale": 1.2,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0019",
+      "model": "tree_pine",
+      "position": [
+        -21.59,
+        0,
+        -85.35
+      ],
+      "rotation": [
+        0,
+        5.95,
+        0
+      ],
+      "scale": 1.02,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0020",
+      "model": "tree_pine",
+      "position": [
+        117.32,
+        0,
+        84.51
+      ],
+      "rotation": [
+        0,
+        4.23,
+        0
+      ],
+      "scale": 1.24,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0021",
+      "model": "tree_pine",
+      "position": [
+        20.17,
+        0,
+        -162.68
+      ],
+      "rotation": [
+        0,
+        0.64,
+        0
+      ],
+      "scale": 0.86,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0022",
+      "model": "tree_pine",
+      "position": [
+        177.43,
+        0,
+        228.44
+      ],
+      "rotation": [
+        0,
+        0.89,
+        0
+      ],
+      "scale": 1.2,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0023",
+      "model": "tree_broad",
+      "position": [
+        -63.82,
+        0,
+        -174.71
+      ],
+      "rotation": [
+        0,
+        1.81,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0024",
+      "model": "tree_broad",
+      "position": [
+        166.69,
+        0,
+        -97.18
+      ],
+      "rotation": [
+        0,
+        1.19,
+        0
+      ],
+      "scale": 1.44,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0025",
+      "model": "tree_pine",
+      "position": [
+        70.09,
+        0,
+        -132.21
+      ],
+      "rotation": [
+        0,
+        0.74,
+        0
+      ],
+      "scale": 0.82,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0026",
+      "model": "tree_broad",
+      "position": [
+        -29.63,
+        0,
+        165.26
+      ],
+      "rotation": [
+        0,
+        0.38,
+        0
+      ],
+      "scale": 0.88,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0027",
+      "model": "tree_pine",
+      "position": [
+        134.88,
+        0,
+        -17.89
+      ],
+      "rotation": [
+        0,
+        1.45,
+        0
+      ],
+      "scale": 1.13,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0028",
+      "model": "tree_pine",
+      "position": [
+        -102.9,
+        0,
+        -205.53
+      ],
+      "rotation": [
+        0,
+        0.06,
+        0
+      ],
+      "scale": 1.03,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0029",
+      "model": "tree_broad",
+      "position": [
+        170.64,
+        0,
+        -76.09
+      ],
+      "rotation": [
+        0,
+        2.25,
+        0
+      ],
+      "scale": 1.19,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0030",
+      "model": "tree_pine",
+      "position": [
+        -29.75,
+        0,
+        -147.62
+      ],
+      "rotation": [
+        0,
+        2.42,
+        0
+      ],
+      "scale": 1.43,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0031",
+      "model": "tree_pine",
+      "position": [
+        -216.46,
+        0,
+        215.3
+      ],
+      "rotation": [
+        0,
+        1.08,
+        0
+      ],
+      "scale": 1.34,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0032",
+      "model": "tree_pine",
+      "position": [
+        97.96,
+        0,
+        88.37
+      ],
+      "rotation": [
+        0,
+        4.08,
+        0
+      ],
+      "scale": 1.42,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0033",
+      "model": "tree_pine",
+      "position": [
+        147.28,
+        0,
+        -68.68
+      ],
+      "rotation": [
+        0,
+        5.46,
+        0
+      ],
+      "scale": 0.93,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0034",
+      "model": "tree_pine",
+      "position": [
+        211.28,
+        0,
+        -140.19
+      ],
+      "rotation": [
+        0,
+        3.38,
+        0
+      ],
+      "scale": 0.98,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0035",
+      "model": "tree_broad",
+      "position": [
+        -42.76,
+        0,
+        -174.6
+      ],
+      "rotation": [
+        0,
+        3.2,
+        0
+      ],
+      "scale": 0.97,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0036",
+      "model": "tree_broad",
+      "position": [
+        208.88,
+        0,
+        -185.59
+      ],
+      "rotation": [
+        0,
+        2.86,
+        0
+      ],
+      "scale": 1.15,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0037",
+      "model": "tree_broad",
+      "position": [
+        -47.55,
+        0,
+        -192.52
+      ],
+      "rotation": [
+        0,
+        0.96,
+        0
+      ],
+      "scale": 1.29,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0038",
+      "model": "tree_pine",
+      "position": [
+        182.52,
+        0,
+        -164.35
+      ],
+      "rotation": [
+        0,
+        5.34,
+        0
+      ],
+      "scale": 1.05,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0039",
+      "model": "tree_pine",
+      "position": [
+        25.44,
+        0,
+        -114.96
+      ],
+      "rotation": [
+        0,
+        5.44,
+        0
+      ],
+      "scale": 1.12,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0040",
+      "model": "tree_broad",
+      "position": [
+        -79.57,
+        0,
+        -12.93
+      ],
+      "rotation": [
+        0,
+        1.2,
+        0
+      ],
+      "scale": 1.41,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0041",
+      "model": "tree_broad",
+      "position": [
+        -197.91,
+        0,
+        65.28
+      ],
+      "rotation": [
+        0,
+        4.66,
+        0
+      ],
+      "scale": 1.28,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0042",
+      "model": "tree_broad",
+      "position": [
+        -137.66,
+        0,
+        200.39
+      ],
+      "rotation": [
+        0,
+        1.88,
+        0
+      ],
+      "scale": 1.11,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0043",
+      "model": "tree_broad",
+      "position": [
+        -180.31,
+        0,
+        42.19
+      ],
+      "rotation": [
+        0,
+        4.84,
+        0
+      ],
+      "scale": 1.25,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0044",
+      "model": "tree_broad",
+      "position": [
+        208.68,
+        0,
+        15.01
+      ],
+      "rotation": [
+        0,
+        1.46,
+        0
+      ],
+      "scale": 1.39,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0045",
+      "model": "tree_broad",
+      "position": [
+        71.88,
+        0,
+        166.95
+      ],
+      "rotation": [
+        0,
+        2.64,
+        0
+      ],
+      "scale": 1.17,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0046",
+      "model": "tree_broad",
+      "position": [
+        -136.45,
+        0,
+        -62.88
+      ],
+      "rotation": [
+        0,
+        1.86,
+        0
+      ],
+      "scale": 1.4,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0047",
+      "model": "tree_pine",
+      "position": [
+        -23.08,
+        0,
+        101.83
+      ],
+      "rotation": [
+        0,
+        0.58,
+        0
+      ],
+      "scale": 1.44,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0048",
+      "model": "tree_broad",
+      "position": [
+        216.28,
+        0,
+        -120.66
+      ],
+      "rotation": [
+        0,
+        2.5,
+        0
+      ],
+      "scale": 1.27,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0049",
+      "model": "tree_pine",
+      "position": [
+        -188.54,
+        0,
+        -146.12
+      ],
+      "rotation": [
+        0,
+        1.83,
+        0
+      ],
+      "scale": 0.92,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0050",
+      "model": "tree_broad",
+      "position": [
+        171.55,
+        0,
+        -189.13
+      ],
+      "rotation": [
+        0,
+        5.6,
+        0
+      ],
+      "scale": 0.97,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0051",
+      "model": "tree_broad",
+      "position": [
+        -111.46,
+        0,
+        121.21
+      ],
+      "rotation": [
+        0,
+        0.77,
+        0
+      ],
+      "scale": 1.15,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0052",
+      "model": "tree_pine",
+      "position": [
+        -232.49,
+        0,
+        97.45
+      ],
+      "rotation": [
+        0,
+        3.61,
+        0
+      ],
+      "scale": 1.2,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0053",
+      "model": "tree_broad",
+      "position": [
+        169.38,
+        0,
+        -44.83
+      ],
+      "rotation": [
+        0,
+        2.9,
+        0
+      ],
+      "scale": 1.14,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0054",
+      "model": "tree_pine",
+      "position": [
+        28.61,
+        0,
+        20.47
+      ],
+      "rotation": [
+        0,
+        4.13,
+        0
+      ],
+      "scale": 0.85,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0055",
+      "model": "tree_pine",
+      "position": [
+        -211.93,
+        0,
+        84.53
+      ],
+      "rotation": [
+        0,
+        5.96,
+        0
+      ],
+      "scale": 1.43,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0056",
+      "model": "tree_pine",
+      "position": [
+        -45.74,
+        0,
+        65.09
+      ],
+      "rotation": [
+        0,
+        6.28,
+        0
+      ],
+      "scale": 1.35,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0057",
+      "model": "tree_pine",
+      "position": [
+        51.71,
+        0,
+        118.45
+      ],
+      "rotation": [
+        0,
+        4.63,
+        0
+      ],
+      "scale": 0.86,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0058",
+      "model": "tree_broad",
+      "position": [
+        233.29,
+        0,
+        -234.99
+      ],
+      "rotation": [
+        0,
+        4.36,
+        0
+      ],
+      "scale": 0.91,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0059",
+      "model": "tree_broad",
+      "position": [
+        -193.92,
+        0,
+        122.17
+      ],
+      "rotation": [
+        0,
+        2.34,
+        0
+      ],
+      "scale": 0.85,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0060",
+      "model": "tree_broad",
+      "position": [
+        -187.86,
+        0,
+        15.01
+      ],
+      "rotation": [
+        0,
+        0.35,
+        0
+      ],
+      "scale": 1.14,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0061",
+      "model": "tree_pine",
+      "position": [
+        93.53,
+        0,
+        210.81
+      ],
+      "rotation": [
+        0,
+        5.16,
+        0
+      ],
+      "scale": 1.28,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0062",
+      "model": "tree_pine",
+      "position": [
+        102.94,
+        0,
+        97.43
+      ],
+      "rotation": [
+        0,
+        0.09,
+        0
+      ],
+      "scale": 1.02,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0063",
+      "model": "tree_broad",
+      "position": [
+        -182.12,
+        0,
+        -17.65
+      ],
+      "rotation": [
+        0,
+        6.14,
+        0
+      ],
+      "scale": 0.9,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0064",
+      "model": "tree_pine",
+      "position": [
+        -163.11,
+        0,
+        221.53
+      ],
+      "rotation": [
+        0,
+        0.22,
+        0
+      ],
+      "scale": 1.22,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0065",
+      "model": "tree_pine",
+      "position": [
+        -173.88,
+        0,
+        77.99
+      ],
+      "rotation": [
+        0,
+        3.65,
+        0
+      ],
+      "scale": 1.36,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0066",
+      "model": "tree_broad",
+      "position": [
+        -17.67,
+        0,
+        19.86
+      ],
+      "rotation": [
+        0,
+        2.06,
+        0
+      ],
+      "scale": 1.2,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0067",
+      "model": "tree_broad",
+      "position": [
+        -149.57,
+        0,
+        99.84
+      ],
+      "rotation": [
+        0,
+        2.16,
+        0
+      ],
+      "scale": 0.85,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0068",
+      "model": "tree_pine",
+      "position": [
+        151.63,
+        0,
+        -150.5
+      ],
+      "rotation": [
+        0,
+        3.91,
+        0
+      ],
+      "scale": 1.16,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0069",
+      "model": "tree_broad",
+      "position": [
+        72.68,
+        0,
+        -110.46
+      ],
+      "rotation": [
+        0,
+        1.7,
+        0
+      ],
+      "scale": 0.83,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0070",
+      "model": "tree_pine",
+      "position": [
+        68.53,
+        0,
+        -179.33
+      ],
+      "rotation": [
+        0,
+        1.25,
+        0
+      ],
+      "scale": 1.41,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0071",
+      "model": "tree_pine",
+      "position": [
+        -181.42,
+        0,
+        105.83
+      ],
+      "rotation": [
+        0,
+        3.09,
+        0
+      ],
+      "scale": 1.38,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0072",
+      "model": "tree_pine",
+      "position": [
+        44.37,
+        0,
+        -177.72
+      ],
+      "rotation": [
+        0,
+        3.93,
+        0
+      ],
+      "scale": 1.32,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0073",
+      "model": "tree_pine",
+      "position": [
+        155.49,
+        0,
+        -126.87
+      ],
+      "rotation": [
+        0,
+        2.53,
+        0
+      ],
+      "scale": 1.36,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0074",
+      "model": "tree_pine",
+      "position": [
+        40.38,
+        0,
+        192.27
+      ],
+      "rotation": [
+        0,
+        5.44,
+        0
+      ],
+      "scale": 0.86,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0075",
+      "model": "tree_broad",
+      "position": [
+        149.66,
+        0,
+        -102.7
+      ],
+      "rotation": [
+        0,
+        5.17,
+        0
+      ],
+      "scale": 1.11,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0076",
+      "model": "tree_pine",
+      "position": [
+        -233.24,
+        0,
+        116.49
+      ],
+      "rotation": [
+        0,
+        3.59,
+        0
+      ],
+      "scale": 0.92,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0077",
+      "model": "tree_broad",
+      "position": [
+        -234.1,
+        0,
+        179.1
+      ],
+      "rotation": [
+        0,
+        4.4,
+        0
+      ],
+      "scale": 0.85,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0078",
+      "model": "tree_pine",
+      "position": [
+        -46.34,
+        0,
+        118.65
+      ],
+      "rotation": [
+        0,
+        6.15,
+        0
+      ],
+      "scale": 1.32,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0079",
+      "model": "tree_broad",
+      "position": [
+        -110.37,
+        0,
+        -76.21
+      ],
+      "rotation": [
+        0,
+        1.73,
+        0
+      ],
+      "scale": 1.15,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0080",
+      "model": "tree_broad",
+      "position": [
+        58.87,
+        0,
+        162.46
+      ],
+      "rotation": [
+        0,
+        0.33,
+        0
+      ],
+      "scale": 1.29,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0081",
+      "model": "tree_pine",
+      "position": [
+        221.22,
+        0,
+        -57.16
+      ],
+      "rotation": [
+        0,
+        4.33,
+        0
+      ],
+      "scale": 1.36,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0082",
+      "model": "tree_broad",
+      "position": [
+        -132.62,
+        0,
+        56.93
+      ],
+      "rotation": [
+        0,
+        0.83,
+        0
+      ],
+      "scale": 1.24,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0083",
+      "model": "tree_pine",
+      "position": [
+        -103.92,
+        0,
+        -225.05
+      ],
+      "rotation": [
+        0,
+        2.22,
+        0
+      ],
+      "scale": 0.9,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0084",
+      "model": "tree_broad",
+      "position": [
+        139.86,
+        0,
+        -2.69
+      ],
+      "rotation": [
+        0,
+        4.78,
+        0
+      ],
+      "scale": 0.91,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0085",
+      "model": "tree_pine",
+      "position": [
+        57.59,
+        0,
+        -82.11
+      ],
+      "rotation": [
+        0,
+        3.55,
+        0
+      ],
+      "scale": 1.16,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0086",
+      "model": "tree_broad",
+      "position": [
+        231.15,
+        0,
+        -164.3
+      ],
+      "rotation": [
+        0,
+        0.82,
+        0
+      ],
+      "scale": 0.94,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0087",
+      "model": "tree_broad",
+      "position": [
+        -147.75,
+        0,
+        -101.18
+      ],
+      "rotation": [
+        0,
+        2.59,
+        0
+      ],
+      "scale": 1.21,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0088",
+      "model": "tree_pine",
+      "position": [
+        91.37,
+        0,
+        -162.92
+      ],
+      "rotation": [
+        0,
+        5.17,
+        0
+      ],
+      "scale": 0.86,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0089",
+      "model": "tree_broad",
+      "position": [
+        163.99,
+        0,
+        3.31
+      ],
+      "rotation": [
+        0,
+        1.06,
+        0
+      ],
+      "scale": 1.06,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0090",
+      "model": "tree_pine",
+      "position": [
+        -130.97,
+        0,
+        17.14
+      ],
+      "rotation": [
+        0,
+        0.96,
+        0
+      ],
+      "scale": 1.26,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0091",
+      "model": "tree_pine",
+      "position": [
+        89.73,
+        0,
+        -135.13
+      ],
+      "rotation": [
+        0,
+        5.53,
+        0
+      ],
+      "scale": 0.9,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0092",
+      "model": "tree_pine",
+      "position": [
+        94.9,
+        0,
+        -222.3
+      ],
+      "rotation": [
+        0,
+        5.92,
+        0
+      ],
+      "scale": 1.01,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0093",
+      "model": "tree_broad",
+      "position": [
+        122.63,
+        0,
+        113.14
+      ],
+      "rotation": [
+        0,
+        1.08,
+        0
+      ],
+      "scale": 1.12,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0094",
+      "model": "tree_broad",
+      "position": [
+        217.28,
+        0,
+        -192.82
+      ],
+      "rotation": [
+        0,
+        3.1,
+        0
+      ],
+      "scale": 1.27,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0095",
+      "model": "tree_broad",
+      "position": [
+        195.99,
+        0,
+        -19.36
+      ],
+      "rotation": [
+        0,
+        0.7,
+        0
+      ],
+      "scale": 1.29,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0096",
+      "model": "tree_broad",
+      "position": [
+        191.58,
+        0,
+        39.48
+      ],
+      "rotation": [
+        0,
+        4.65,
+        0
+      ],
+      "scale": 0.95,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0097",
+      "model": "tree_broad",
+      "position": [
+        -191.3,
+        0,
+        225.71
+      ],
+      "rotation": [
+        0,
+        5.77,
+        0
+      ],
+      "scale": 0.98,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0098",
+      "model": "tree_pine",
+      "position": [
+        67.53,
+        0,
+        -88.51
+      ],
+      "rotation": [
+        0,
+        1.9,
+        0
+      ],
+      "scale": 1.37,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0099",
+      "model": "tree_pine",
+      "position": [
+        -229.15,
+        0,
+        25.3
+      ],
+      "rotation": [
+        0,
+        4.19,
+        0
+      ],
+      "scale": 0.95,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0100",
+      "model": "tree_broad",
+      "position": [
+        98.99,
+        0,
+        -176.73
+      ],
+      "rotation": [
+        0,
+        2.42,
+        0
+      ],
+      "scale": 0.85,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0101",
+      "model": "tree_broad",
+      "position": [
+        -52.63,
+        0,
+        149.82
+      ],
+      "rotation": [
+        0,
+        5.05,
+        0
+      ],
+      "scale": 1.31,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0102",
+      "model": "tree_broad",
+      "position": [
+        108.47,
+        0,
+        -21
+      ],
+      "rotation": [
+        0,
+        1.81,
+        0
+      ],
+      "scale": 0.85,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0103",
+      "model": "tree_pine",
+      "position": [
+        70.06,
+        0,
+        -209.59
+      ],
+      "rotation": [
+        0,
+        0.32,
+        0
+      ],
+      "scale": 0.89,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0104",
+      "model": "tree_broad",
+      "position": [
+        2.46,
+        0,
+        -146.23
+      ],
+      "rotation": [
+        0,
+        0.63,
+        0
+      ],
+      "scale": 1.29,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0105",
+      "model": "tree_broad",
+      "position": [
+        -50.74,
+        0,
+        -167.4
+      ],
+      "rotation": [
+        0,
+        0.27,
+        0
+      ],
+      "scale": 1.2,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0106",
+      "model": "tree_pine",
+      "position": [
+        97.2,
+        0,
+        -81.11
+      ],
+      "rotation": [
+        0,
+        2.21,
+        0
+      ],
+      "scale": 0.91,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0107",
+      "model": "tree_pine",
+      "position": [
+        104.23,
+        0,
+        51.8
+      ],
+      "rotation": [
+        0,
+        1.43,
+        0
+      ],
+      "scale": 1.41,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0108",
+      "model": "tree_pine",
+      "position": [
+        153.52,
+        0,
+        0.58
+      ],
+      "rotation": [
+        0,
+        3.54,
+        0
+      ],
+      "scale": 1.29,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0109",
+      "model": "tree_broad",
+      "position": [
+        90.98,
+        0,
+        -17.42
+      ],
+      "rotation": [
+        0,
+        4.52,
+        0
+      ],
+      "scale": 1.06,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0110",
+      "model": "tree_pine",
+      "position": [
+        177.91,
+        0,
+        -146.25
+      ],
+      "rotation": [
+        0,
+        4.86,
+        0
+      ],
+      "scale": 0.94,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0111",
+      "model": "tree_pine",
+      "position": [
+        178.09,
+        0,
+        -209.2
+      ],
+      "rotation": [
+        0,
+        0.71,
+        0
+      ],
+      "scale": 1.43,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0112",
+      "model": "tree_broad",
+      "position": [
+        -121.44,
+        0,
+        -12.28
+      ],
+      "rotation": [
+        0,
+        1.47,
+        0
+      ],
+      "scale": 1.01,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0113",
+      "model": "tree_pine",
+      "position": [
+        -96.4,
+        0,
+        210.35
+      ],
+      "rotation": [
+        0,
+        4.89,
+        0
+      ],
+      "scale": 1.44,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0114",
+      "model": "tree_pine",
+      "position": [
+        -199.15,
+        0,
+        151.6
+      ],
+      "rotation": [
+        0,
+        0.22,
+        0
+      ],
+      "scale": 0.96,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0115",
+      "model": "tree_pine",
+      "position": [
+        -147.23,
+        0,
+        -174.34
+      ],
+      "rotation": [
+        0,
+        1.01,
+        0
+      ],
+      "scale": 1.09,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0116",
+      "model": "tree_pine",
+      "position": [
+        -110.14,
+        0,
+        -31.75
+      ],
+      "rotation": [
+        0,
+        2.52,
+        0
+      ],
+      "scale": 0.96,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0117",
+      "model": "tree_pine",
+      "position": [
+        69.43,
+        0,
+        -68.34
+      ],
+      "rotation": [
+        0,
+        0.1,
+        0
+      ],
+      "scale": 0.9,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0118",
+      "model": "tree_pine",
+      "position": [
+        -72.85,
+        0,
+        43.08
+      ],
+      "rotation": [
+        0,
+        2.63,
+        0
+      ],
+      "scale": 1.1,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0119",
+      "model": "tree_broad",
+      "position": [
+        131.06,
+        0,
+        -179.34
+      ],
+      "rotation": [
+        0,
+        5.37,
+        0
+      ],
+      "scale": 1.22,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0120",
+      "model": "tree_broad",
+      "position": [
+        200.73,
+        0,
+        -102.31
+      ],
+      "rotation": [
+        0,
+        2.11,
+        0
+      ],
+      "scale": 0.93,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0121",
+      "model": "tree_broad",
+      "position": [
+        -176.24,
+        0,
+        -36.43
+      ],
+      "rotation": [
+        0,
+        4.31,
+        0
+      ],
+      "scale": 1.17,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0122",
+      "model": "tree_pine",
+      "position": [
+        32.16,
+        0,
+        -214.28
+      ],
+      "rotation": [
+        0,
+        4,
+        0
+      ],
+      "scale": 1.16,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0123",
+      "model": "tree_pine",
+      "position": [
+        -55.55,
+        0,
+        -91.05
+      ],
+      "rotation": [
+        0,
+        3.27,
+        0
+      ],
+      "scale": 1.07,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0124",
+      "model": "tree_broad",
+      "position": [
+        133.69,
+        0,
+        167.58
+      ],
+      "rotation": [
+        0,
+        0.1,
+        0
+      ],
+      "scale": 0.84,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0125",
+      "model": "tree_broad",
+      "position": [
+        204.29,
+        0,
+        61.78
+      ],
+      "rotation": [
+        0,
+        0.82,
+        0
+      ],
+      "scale": 1.38,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0126",
+      "model": "tree_broad",
+      "position": [
+        110.57,
+        0,
+        188.86
+      ],
+      "rotation": [
+        0,
+        1.92,
+        0
+      ],
+      "scale": 1.15,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0127",
+      "model": "tree_broad",
+      "position": [
+        208.08,
+        0,
+        -36.1
+      ],
+      "rotation": [
+        0,
+        5.81,
+        0
+      ],
+      "scale": 0.85,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0128",
+      "model": "tree_broad",
+      "position": [
+        209.88,
+        0,
+        161.72
+      ],
+      "rotation": [
+        0,
+        2.92,
+        0
+      ],
+      "scale": 0.96,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0129",
+      "model": "tree_broad",
+      "position": [
+        9.45,
+        0,
+        174.4
+      ],
+      "rotation": [
+        0,
+        3.09,
+        0
+      ],
+      "scale": 1.14,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0130",
+      "model": "tree_pine",
+      "position": [
+        -233.53,
+        0,
+        -139.92
+      ],
+      "rotation": [
+        0,
+        3.55,
+        0
+      ],
+      "scale": 1.23,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0131",
+      "model": "tree_broad",
+      "position": [
+        -71.27,
+        0,
+        -63.98
+      ],
+      "rotation": [
+        0,
+        4.17,
+        0
+      ],
+      "scale": 0.96,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0132",
+      "model": "tree_broad",
+      "position": [
+        -96.33,
+        0,
+        -138.63
+      ],
+      "rotation": [
+        0,
+        5.56,
+        0
+      ],
+      "scale": 1.05,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0133",
+      "model": "tree_pine",
+      "position": [
+        124.25,
+        0,
+        66.87
+      ],
+      "rotation": [
+        0,
+        2.12,
+        0
+      ],
+      "scale": 1.4,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0134",
+      "model": "tree_broad",
+      "position": [
+        163.23,
+        0,
+        130.94
+      ],
+      "rotation": [
+        0,
+        3.51,
+        0
+      ],
+      "scale": 0.94,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0135",
+      "model": "tree_pine",
+      "position": [
+        112.99,
+        0,
+        218.08
+      ],
+      "rotation": [
+        0,
+        4.77,
+        0
+      ],
+      "scale": 1.36,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0136",
+      "model": "tree_broad",
+      "position": [
+        83.37,
+        0,
+        -51.03
+      ],
+      "rotation": [
+        0,
+        0.22,
+        0
+      ],
+      "scale": 1.18,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0137",
+      "model": "tree_broad",
+      "position": [
+        232.97,
+        0,
+        194.3
+      ],
+      "rotation": [
+        0,
+        2.86,
+        0
+      ],
+      "scale": 0.98,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0138",
+      "model": "tree_broad",
+      "position": [
+        -55.95,
+        0,
+        -213.97
+      ],
+      "rotation": [
+        0,
+        1.44,
+        0
+      ],
+      "scale": 0.95,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0139",
+      "model": "tree_pine",
+      "position": [
+        -63.24,
+        0,
+        51.87
+      ],
+      "rotation": [
+        0,
+        5.85,
+        0
+      ],
+      "scale": 1.13,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0140",
+      "model": "tree_pine",
+      "position": [
+        -109.46,
+        0,
+        -214.04
+      ],
+      "rotation": [
+        0,
+        3.1,
+        0
+      ],
+      "scale": 0.85,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0141",
+      "model": "tree_broad",
+      "position": [
+        -212.76,
+        0,
+        63.35
+      ],
+      "rotation": [
+        0,
+        5.94,
+        0
+      ],
+      "scale": 1.36,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0142",
+      "model": "tree_broad",
+      "position": [
+        -199.4,
+        0,
+        138.22
+      ],
+      "rotation": [
+        0,
+        0.96,
+        0
+      ],
+      "scale": 1.19,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0143",
+      "model": "tree_pine",
+      "position": [
+        -182.97,
+        0,
+        -234.87
+      ],
+      "rotation": [
+        0,
+        5.39,
+        0
+      ],
+      "scale": 1.15,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0144",
+      "model": "tree_pine",
+      "position": [
+        24.66,
+        0,
+        66.63
+      ],
+      "rotation": [
+        0,
+        3.29,
+        0
+      ],
+      "scale": 1.02,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0145",
+      "model": "tree_broad",
+      "position": [
+        217.44,
+        0,
+        138.51
+      ],
+      "rotation": [
+        0,
+        5.37,
+        0
+      ],
+      "scale": 1.39,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0146",
+      "model": "tree_pine",
+      "position": [
+        33.16,
+        0,
+        10.22
+      ],
+      "rotation": [
+        0,
+        1.33,
+        0
+      ],
+      "scale": 1.12,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0147",
+      "model": "tree_pine",
+      "position": [
+        -152.4,
+        0,
+        1.78
+      ],
+      "rotation": [
+        0,
+        3.37,
+        0
+      ],
+      "scale": 1.41,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0148",
+      "model": "tree_pine",
+      "position": [
+        128.7,
+        0,
+        -86.79
+      ],
+      "rotation": [
+        0,
+        5.67,
+        0
+      ],
+      "scale": 1.06,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0149",
+      "model": "tree_pine",
+      "position": [
+        99.45,
+        0,
+        36.41
+      ],
+      "rotation": [
+        0,
+        3.42,
+        0
+      ],
+      "scale": 1.03,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0150",
+      "model": "tree_broad",
+      "position": [
+        54.16,
+        0,
+        131.83
+      ],
+      "rotation": [
+        0,
+        5,
+        0
+      ],
+      "scale": 1.15,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0151",
+      "model": "tree_broad",
+      "position": [
+        -57.58,
+        0,
+        224.3
+      ],
+      "rotation": [
+        0,
+        3.63,
+        0
+      ],
+      "scale": 0.92,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0152",
+      "model": "tree_pine",
+      "position": [
+        82.3,
+        0,
+        223.04
+      ],
+      "rotation": [
+        0,
+        3.27,
+        0
+      ],
+      "scale": 1.33,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0153",
+      "model": "tree_broad",
+      "position": [
+        11.84,
+        0,
+        42.08
+      ],
+      "rotation": [
+        0,
+        4.4,
+        0
+      ],
+      "scale": 1.15,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0154",
+      "model": "tree_pine",
+      "position": [
+        -15.15,
+        0,
+        -175.05
+      ],
+      "rotation": [
+        0,
+        1.13,
+        0
+      ],
+      "scale": 1.32,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0155",
+      "model": "tree_broad",
+      "position": [
+        -154.84,
+        0,
+        87.31
+      ],
+      "rotation": [
+        0,
+        3.97,
+        0
+      ],
+      "scale": 1.41,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0156",
+      "model": "tree_pine",
+      "position": [
+        -212.07,
+        0,
+        -11.95
+      ],
+      "rotation": [
+        0,
+        6.02,
+        0
+      ],
+      "scale": 1.02,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0157",
+      "model": "tree_broad",
+      "position": [
+        -128.38,
+        0,
+        -133.8
+      ],
+      "rotation": [
+        0,
+        3.67,
+        0
+      ],
+      "scale": 1.05,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0158",
+      "model": "tree_broad",
+      "position": [
+        44.84,
+        0,
+        226.84
+      ],
+      "rotation": [
+        0,
+        4.89,
+        0
+      ],
+      "scale": 1.19,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0159",
+      "model": "tree_broad",
+      "position": [
+        -111.73,
+        0,
+        210.61
+      ],
+      "rotation": [
+        0,
+        4.52,
+        0
+      ],
+      "scale": 1.08,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0160",
+      "model": "tree_pine",
+      "position": [
+        81.73,
+        0,
+        163.03
+      ],
+      "rotation": [
+        0,
+        3.6,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0161",
+      "model": "tree_pine",
+      "position": [
+        -104.9,
+        0,
+        -101.46
+      ],
+      "rotation": [
+        0,
+        3.94,
+        0
+      ],
+      "scale": 1.17,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0162",
+      "model": "tree_broad",
+      "position": [
+        214.56,
+        0,
+        -100.76
+      ],
+      "rotation": [
+        0,
+        2.19,
+        0
+      ],
+      "scale": 0.82,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0163",
+      "model": "tree_broad",
+      "position": [
+        179.55,
+        0,
+        -27.41
+      ],
+      "rotation": [
+        0,
+        0.68,
+        0
+      ],
+      "scale": 0.86,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0164",
+      "model": "tree_pine",
+      "position": [
+        -69.29,
+        0,
+        -146.56
+      ],
+      "rotation": [
+        0,
+        0.08,
+        0
+      ],
+      "scale": 0.92,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0165",
+      "model": "tree_broad",
+      "position": [
+        18.76,
+        0,
+        200.13
+      ],
+      "rotation": [
+        0,
+        0.07,
+        0
+      ],
+      "scale": 1.08,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0166",
+      "model": "tree_broad",
+      "position": [
+        -35.12,
+        0,
+        60.72
+      ],
+      "rotation": [
+        0,
+        1.52,
+        0
+      ],
+      "scale": 1.05,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0167",
+      "model": "tree_broad",
+      "position": [
+        -6.86,
+        0,
+        -201.18
+      ],
+      "rotation": [
+        0,
+        5.71,
+        0
+      ],
+      "scale": 1.09,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0168",
+      "model": "tree_broad",
+      "position": [
+        -12.1,
+        0,
+        66.04
+      ],
+      "rotation": [
+        0,
+        4.71,
+        0
+      ],
+      "scale": 1.03,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0169",
+      "model": "tree_pine",
+      "position": [
+        102.1,
+        0,
+        -67.82
+      ],
+      "rotation": [
+        0,
+        0.43,
+        0
+      ],
+      "scale": 0.9,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0170",
+      "model": "tree_pine",
+      "position": [
+        -180.99,
+        0,
+        -83.68
+      ],
+      "rotation": [
+        0,
+        1.67,
+        0
+      ],
+      "scale": 1.45,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0171",
+      "model": "tree_pine",
+      "position": [
+        95.67,
+        0,
+        -145.42
+      ],
+      "rotation": [
+        0,
+        2.83,
+        0
+      ],
+      "scale": 1.17,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0172",
+      "model": "tree_broad",
+      "position": [
+        228.75,
+        0,
+        183.8
+      ],
+      "rotation": [
+        0,
+        3.87,
+        0
+      ],
+      "scale": 1.29,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0173",
+      "model": "tree_pine",
+      "position": [
+        233.14,
+        0,
+        133.7
+      ],
+      "rotation": [
+        0,
+        4.78,
+        0
+      ],
+      "scale": 0.81,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0174",
+      "model": "tree_broad",
+      "position": [
+        -37,
+        0,
+        124.59
+      ],
+      "rotation": [
+        0,
+        1.34,
+        0
+      ],
+      "scale": 1.04,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0175",
+      "model": "tree_pine",
+      "position": [
+        1.5,
+        0,
+        121.76
+      ],
+      "rotation": [
+        0,
+        1.83,
+        0
+      ],
+      "scale": 1.21,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6989909
+    },
+    {
+      "id": "p_0176",
+      "model": "tree_pine",
+      "position": [
+        -181.89,
+        0,
+        -199.88
+      ],
+      "rotation": [
+        0,
+        1.25,
+        0
+      ],
+      "scale": 1.35,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0177",
+      "model": "tree_broad",
+      "position": [
+        152.29,
+        0,
+        18.79
+      ],
+      "rotation": [
+        0,
+        2.88,
+        0
+      ],
+      "scale": 1.42,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0178",
+      "model": "tree_pine",
+      "position": [
+        52.96,
+        0,
+        -182.67
+      ],
+      "rotation": [
+        0,
+        0.07,
+        0
+      ],
+      "scale": 0.88,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0179",
+      "model": "tree_pine",
+      "position": [
+        -156.23,
+        0,
+        -163.7
+      ],
+      "rotation": [
+        0,
+        5.47,
+        0
+      ],
+      "scale": 1.14,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0180",
+      "model": "tree_broad",
+      "position": [
+        -10.12,
+        0,
+        218.11
+      ],
+      "rotation": [
+        0,
+        0.63,
+        0
+      ],
+      "scale": 1.45,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0181",
+      "model": "tree_pine",
+      "position": [
+        -37.85,
+        0,
+        -67
+      ],
+      "rotation": [
+        0,
+        0.84,
+        0
+      ],
+      "scale": 1.25,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0182",
+      "model": "tree_pine",
+      "position": [
+        35.77,
+        0,
+        103.41
+      ],
+      "rotation": [
+        0,
+        4.72,
+        0
+      ],
+      "scale": 1.35,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0183",
+      "model": "tree_pine",
+      "position": [
+        -97.02,
+        0,
+        -94.63
+      ],
+      "rotation": [
+        0,
+        1.01,
+        0
+      ],
+      "scale": 1.11,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0184",
+      "model": "tree_broad",
+      "position": [
+        189.07,
+        0,
+        -132.33
+      ],
+      "rotation": [
+        0,
+        5.27,
+        0
+      ],
+      "scale": 1.16,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0185",
+      "model": "tree_pine",
+      "position": [
+        -198.7,
+        0,
+        -54.15
+      ],
+      "rotation": [
+        0,
+        5.97,
+        0
+      ],
+      "scale": 0.94,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0186",
+      "model": "tree_pine",
+      "position": [
+        -202.69,
+        0,
+        166.58
+      ],
+      "rotation": [
+        0,
+        1.41,
+        0
+      ],
+      "scale": 1.45,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0187",
+      "model": "tree_broad",
+      "position": [
+        -95.76,
+        0,
+        183.1
+      ],
+      "rotation": [
+        0,
+        0.2,
+        0
+      ],
+      "scale": 1.38,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0188",
+      "model": "tree_pine",
+      "position": [
+        132.93,
+        0,
+        -141.93
+      ],
+      "rotation": [
+        0,
+        3.64,
+        0
+      ],
+      "scale": 0.82,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.1,
+      "tint": 4422198
+    },
+    {
+      "id": "p_0189",
+      "model": "tree_broad",
+      "position": [
+        158.98,
+        0,
+        55.11
+      ],
+      "rotation": [
+        0,
+        4.61,
+        0
+      ],
+      "scale": 1.4,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 5212734
+    },
+    {
+      "id": "p_0190",
+      "model": "tree_broad",
+      "position": [
+        45.94,
+        0,
+        -39.17
+      ],
+      "rotation": [
+        0,
+        4.5,
+        0
+      ],
+      "scale": 1.27,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.4,
+      "tint": 6265418
+    },
+    {
+      "id": "p_0191",
+      "model": "rock_small",
+      "position": [
+        50.73,
+        0,
+        197.53
+      ],
+      "rotation": [
+        0,
+        5.88,
+        0
+      ],
+      "scale": 0.71,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0192",
+      "model": "rock_small",
+      "position": [
+        29.47,
+        0,
+        -71.58
+      ],
+      "rotation": [
+        0,
+        2.55,
+        0
+      ],
+      "scale": 1.07,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0193",
+      "model": "rock_large",
+      "position": [
+        -40.51,
+        0,
+        -6.29
+      ],
+      "rotation": [
+        0,
+        6.12,
+        0
+      ],
+      "scale": 0.98,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0194",
+      "model": "rock_large",
+      "position": [
+        75.32,
+        0,
+        -222.21
+      ],
+      "rotation": [
+        0,
+        0.17,
+        0
+      ],
+      "scale": 1.58,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0195",
+      "model": "rock_large",
+      "position": [
+        -30.98,
+        0,
+        -15.74
+      ],
+      "rotation": [
+        0,
+        4.71,
+        0
+      ],
+      "scale": 1.36,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0196",
+      "model": "rock_large",
+      "position": [
+        34.16,
+        0,
+        -107.49
+      ],
+      "rotation": [
+        0,
+        1.14,
+        0
+      ],
+      "scale": 1.39,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0197",
+      "model": "rock_small",
+      "position": [
+        -160.59,
+        0,
+        -92.74
+      ],
+      "rotation": [
+        0,
+        3.54,
+        0
+      ],
+      "scale": 0.73,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0198",
+      "model": "rock_large",
+      "position": [
+        215.14,
+        0,
+        72.69
+      ],
+      "rotation": [
+        0,
+        2.56,
+        0
+      ],
+      "scale": 0.74,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0199",
+      "model": "rock_large",
+      "position": [
+        -187.49,
+        0,
+        57.63
+      ],
+      "rotation": [
+        0,
+        6.1,
+        0
+      ],
+      "scale": 0.93,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0200",
+      "model": "rock_small",
+      "position": [
+        44.74,
+        0,
+        137.28
+      ],
+      "rotation": [
+        0,
+        1.74,
+        0
+      ],
+      "scale": 1.34,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0201",
+      "model": "rock_small",
+      "position": [
+        -211.3,
+        0,
+        -100.11
+      ],
+      "rotation": [
+        0,
+        3.06,
+        0
+      ],
+      "scale": 1.16,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0202",
+      "model": "rock_small",
+      "position": [
+        225.28,
+        0,
+        -176.63
+      ],
+      "rotation": [
+        0,
+        5.94,
+        0
+      ],
+      "scale": 1.5,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0203",
+      "model": "rock_small",
+      "position": [
+        78.33,
+        0,
+        -134.49
+      ],
+      "rotation": [
+        0,
+        6,
+        0
+      ],
+      "scale": 0.9,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0204",
+      "model": "rock_small",
+      "position": [
+        -31.14,
+        0,
+        58.39
+      ],
+      "rotation": [
+        0,
+        1.17,
+        0
+      ],
+      "scale": 0.89,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0205",
+      "model": "rock_large",
+      "position": [
+        -189.7,
+        0,
+        -207.03
+      ],
+      "rotation": [
+        0,
+        0.94,
+        0
+      ],
+      "scale": 0.83,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0206",
+      "model": "rock_large",
+      "position": [
+        97.57,
+        0,
+        43.52
+      ],
+      "rotation": [
+        0,
+        3.2,
+        0
+      ],
+      "scale": 0.88,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0207",
+      "model": "rock_small",
+      "position": [
+        124.8,
+        0,
+        -20.04
+      ],
+      "rotation": [
+        0,
+        5.32,
+        0
+      ],
+      "scale": 1.39,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0208",
+      "model": "rock_small",
+      "position": [
+        -184.2,
+        0,
+        -202.52
+      ],
+      "rotation": [
+        0,
+        3.28,
+        0
+      ],
+      "scale": 0.99,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0209",
+      "model": "rock_large",
+      "position": [
+        -171.12,
+        0,
+        -225.38
+      ],
+      "rotation": [
+        0,
+        4.5,
+        0
+      ],
+      "scale": 1.55,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0210",
+      "model": "rock_small",
+      "position": [
+        -51.53,
+        0,
+        -124.7
+      ],
+      "rotation": [
+        0,
+        5.12,
+        0
+      ],
+      "scale": 1.14,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0211",
+      "model": "rock_small",
+      "position": [
+        207.7,
+        0,
+        79.36
+      ],
+      "rotation": [
+        0,
+        5.41,
+        0
+      ],
+      "scale": 1.17,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0212",
+      "model": "rock_large",
+      "position": [
+        -124.35,
+        0,
+        -83.55
+      ],
+      "rotation": [
+        0,
+        2.62,
+        0
+      ],
+      "scale": 1.04,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0213",
+      "model": "rock_large",
+      "position": [
+        191.06,
+        0,
+        65.15
+      ],
+      "rotation": [
+        0,
+        4.54,
+        0
+      ],
+      "scale": 1.06,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0214",
+      "model": "rock_large",
+      "position": [
+        135.7,
+        0,
+        230.12
+      ],
+      "rotation": [
+        0,
+        5.14,
+        0
+      ],
+      "scale": 0.79,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0215",
+      "model": "rock_small",
+      "position": [
+        -80.4,
+        0,
+        -143.11
+      ],
+      "rotation": [
+        0,
+        2.46,
+        0
+      ],
+      "scale": 0.69,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0216",
+      "model": "rock_small",
+      "position": [
+        162.62,
+        0,
+        -233.92
+      ],
+      "rotation": [
+        0,
+        3.78,
+        0
+      ],
+      "scale": 1.3,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0217",
+      "model": "rock_large",
+      "position": [
+        115.94,
+        0,
+        200.8
+      ],
+      "rotation": [
+        0,
+        5.69,
+        0
+      ],
+      "scale": 0.95,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0218",
+      "model": "rock_large",
+      "position": [
+        -99.39,
+        0,
+        -195.76
+      ],
+      "rotation": [
+        0,
+        3.96,
+        0
+      ],
+      "scale": 1.3,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0219",
+      "model": "rock_small",
+      "position": [
+        10.39,
+        0,
+        -79.19
+      ],
+      "rotation": [
+        0,
+        5.62,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0220",
+      "model": "rock_large",
+      "position": [
+        -142.22,
+        0,
+        146.18
+      ],
+      "rotation": [
+        0,
+        3.19,
+        0
+      ],
+      "scale": 0.68,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0221",
+      "model": "rock_large",
+      "position": [
+        -46.05,
+        0,
+        124.16
+      ],
+      "rotation": [
+        0,
+        2.7,
+        0
+      ],
+      "scale": 1.28,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0222",
+      "model": "rock_small",
+      "position": [
+        130.08,
+        0,
+        -164.67
+      ],
+      "rotation": [
+        0,
+        1.02,
+        0
+      ],
+      "scale": 0.93,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0223",
+      "model": "rock_large",
+      "position": [
+        94.2,
+        0,
+        -123.64
+      ],
+      "rotation": [
+        0,
+        0.72,
+        0
+      ],
+      "scale": 1.16,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0224",
+      "model": "rock_large",
+      "position": [
+        -92.96,
+        0,
+        -220.13
+      ],
+      "rotation": [
+        0,
+        5.02,
+        0
+      ],
+      "scale": 0.94,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0225",
+      "model": "rock_large",
+      "position": [
+        173.81,
+        0,
+        74.74
+      ],
+      "rotation": [
+        0,
+        5.93,
+        0
+      ],
+      "scale": 1.51,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0226",
+      "model": "rock_large",
+      "position": [
+        -43.42,
+        0,
+        68.39
+      ],
+      "rotation": [
+        0,
+        2.24,
+        0
+      ],
+      "scale": 1.44,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0227",
+      "model": "rock_small",
+      "position": [
+        -226.24,
+        0,
+        176.75
+      ],
+      "rotation": [
+        0,
+        5.19,
+        0
+      ],
+      "scale": 1.43,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0228",
+      "model": "rock_large",
+      "position": [
+        139.74,
+        0,
+        140.47
+      ],
+      "rotation": [
+        0,
+        1.08,
+        0
+      ],
+      "scale": 1.13,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0229",
+      "model": "rock_small",
+      "position": [
+        115.3,
+        0,
+        18.32
+      ],
+      "rotation": [
+        0,
+        2.78,
+        0
+      ],
+      "scale": 1.56,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0230",
+      "model": "rock_small",
+      "position": [
+        -23.22,
+        0,
+        -15.16
+      ],
+      "rotation": [
+        0,
+        5.14,
+        0
+      ],
+      "scale": 1.16,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0231",
+      "model": "rock_large",
+      "position": [
+        -103.92,
+        0,
+        -46.77
+      ],
+      "rotation": [
+        0,
+        4.93,
+        0
+      ],
+      "scale": 1.59,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0232",
+      "model": "rock_small",
+      "position": [
+        110.91,
+        0,
+        -207.11
+      ],
+      "rotation": [
+        0,
+        5.28,
+        0
+      ],
+      "scale": 1.43,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0233",
+      "model": "rock_large",
+      "position": [
+        155.29,
+        0,
+        -219.65
+      ],
+      "rotation": [
+        0,
+        2.5,
+        0
+      ],
+      "scale": 0.64,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0234",
+      "model": "rock_large",
+      "position": [
+        -221.1,
+        0,
+        -168.07
+      ],
+      "rotation": [
+        0,
+        5.38,
+        0
+      ],
+      "scale": 0.96,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0235",
+      "model": "rock_large",
+      "position": [
+        -123.87,
+        0,
+        -221.01
+      ],
+      "rotation": [
+        0,
+        0.72,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0236",
+      "model": "rock_large",
+      "position": [
+        -8.62,
+        0,
+        -226.82
+      ],
+      "rotation": [
+        0,
+        1.51,
+        0
+      ],
+      "scale": 1.05,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0237",
+      "model": "rock_large",
+      "position": [
+        -181.18,
+        0,
+        -43.54
+      ],
+      "rotation": [
+        0,
+        0.3,
+        0
+      ],
+      "scale": 0.98,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0238",
+      "model": "rock_large",
+      "position": [
+        -114.92,
+        0,
+        193.4
+      ],
+      "rotation": [
+        0,
+        1.17,
+        0
+      ],
+      "scale": 1.24,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0239",
+      "model": "rock_small",
+      "position": [
+        27.56,
+        0,
+        -155.43
+      ],
+      "rotation": [
+        0,
+        0.86,
+        0
+      ],
+      "scale": 0.87,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0240",
+      "model": "rock_large",
+      "position": [
+        25.74,
+        0,
+        77.85
+      ],
+      "rotation": [
+        0,
+        0.63,
+        0
+      ],
+      "scale": 1.47,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0241",
+      "model": "rock_large",
+      "position": [
+        -31.69,
+        0,
+        172.3
+      ],
+      "rotation": [
+        0,
+        0.02,
+        0
+      ],
+      "scale": 0.96,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0242",
+      "model": "rock_small",
+      "position": [
+        -24.07,
+        0,
+        -214.16
+      ],
+      "rotation": [
+        0,
+        6.17,
+        0
+      ],
+      "scale": 1.49,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0243",
+      "model": "rock_small",
+      "position": [
+        -151.38,
+        0,
+        -98.12
+      ],
+      "rotation": [
+        0,
+        0.53,
+        0
+      ],
+      "scale": 1.35,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0244",
+      "model": "rock_small",
+      "position": [
+        -157.63,
+        0,
+        219.41
+      ],
+      "rotation": [
+        0,
+        0.31,
+        0
+      ],
+      "scale": 0.79,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0245",
+      "model": "rock_large",
+      "position": [
+        222.24,
+        0,
+        116.05
+      ],
+      "rotation": [
+        0,
+        4.19,
+        0
+      ],
+      "scale": 1.37,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0246",
+      "model": "rock_small",
+      "position": [
+        -127.73,
+        0,
+        64.53
+      ],
+      "rotation": [
+        0,
+        4.46,
+        0
+      ],
+      "scale": 1.54,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0247",
+      "model": "rock_large",
+      "position": [
+        129,
+        0,
+        48.19
+      ],
+      "rotation": [
+        0,
+        4.74,
+        0
+      ],
+      "scale": 0.94,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0248",
+      "model": "rock_large",
+      "position": [
+        6.88,
+        0,
+        -105.95
+      ],
+      "rotation": [
+        0,
+        5.39,
+        0
+      ],
+      "scale": 0.94,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0249",
+      "model": "rock_small",
+      "position": [
+        -27.42,
+        0,
+        -60.8
+      ],
+      "rotation": [
+        0,
+        5.95,
+        0
+      ],
+      "scale": 0.64,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0250",
+      "model": "rock_large",
+      "position": [
+        180.18,
+        0,
+        -143.66
+      ],
+      "rotation": [
+        0,
+        2.25,
+        0
+      ],
+      "scale": 0.9,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0251",
+      "model": "rock_large",
+      "position": [
+        -71.24,
+        0,
+        163.66
+      ],
+      "rotation": [
+        0,
+        4.3,
+        0
+      ],
+      "scale": 0.74,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0252",
+      "model": "rock_small",
+      "position": [
+        5.39,
+        0,
+        -229.6
+      ],
+      "rotation": [
+        0,
+        2.94,
+        0
+      ],
+      "scale": 0.93,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0253",
+      "model": "rock_large",
+      "position": [
+        -80.57,
+        0,
+        0.61
+      ],
+      "rotation": [
+        0,
+        0.64,
+        0
+      ],
+      "scale": 0.65,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0254",
+      "model": "rock_large",
+      "position": [
+        -140.74,
+        0,
+        -128.46
+      ],
+      "rotation": [
+        0,
+        2.2,
+        0
+      ],
+      "scale": 1.04,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0255",
+      "model": "rock_large",
+      "position": [
+        -195.41,
+        0,
+        -225.46
+      ],
+      "rotation": [
+        0,
+        4.98,
+        0
+      ],
+      "scale": 1.14,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0256",
+      "model": "rock_small",
+      "position": [
+        -68.03,
+        0,
+        187.91
+      ],
+      "rotation": [
+        0,
+        4.27,
+        0
+      ],
+      "scale": 1.44,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0257",
+      "model": "rock_large",
+      "position": [
+        178.21,
+        0,
+        -230.44
+      ],
+      "rotation": [
+        0,
+        3.79,
+        0
+      ],
+      "scale": 0.62,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.9
+    },
+    {
+      "id": "p_0258",
+      "model": "rock_small",
+      "position": [
+        45.69,
+        0,
+        102.9
+      ],
+      "rotation": [
+        0,
+        3.62,
+        0
+      ],
+      "scale": 1.36,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0259",
+      "model": "rock_small",
+      "position": [
+        -160.49,
+        0,
+        0.65
+      ],
+      "rotation": [
+        0,
+        4.93,
+        0
+      ],
+      "scale": 1.34,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0260",
+      "model": "rock_small",
+      "position": [
+        -61.35,
+        0,
+        -205.17
+      ],
+      "rotation": [
+        0,
+        4.5,
+        0
+      ],
+      "scale": 0.81,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 0.8
+    },
+    {
+      "id": "p_0261",
+      "model": "grass_tuft",
+      "position": [
+        -226.31,
+        0,
+        166.15
+      ],
+      "rotation": [
+        0,
+        3.34,
+        0
+      ],
+      "scale": 0.92,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0262",
+      "model": "grass_tuft",
+      "position": [
+        -82.69,
+        0,
+        41.94
+      ],
+      "rotation": [
+        0,
+        0.95,
+        0
+      ],
+      "scale": 1.26,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0263",
+      "model": "grass_tuft",
+      "position": [
+        -147.89,
+        0,
+        44.18
+      ],
+      "rotation": [
+        0,
+        1.54,
+        0
+      ],
+      "scale": 0.97,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0264",
+      "model": "grass_tuft",
+      "position": [
+        -165.43,
+        0,
+        -35.85
+      ],
+      "rotation": [
+        0,
+        4.93,
+        0
+      ],
+      "scale": 1.08,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0265",
+      "model": "bush",
+      "position": [
+        -125.88,
+        0,
+        -108.7
+      ],
+      "rotation": [
+        0,
+        4.01,
+        0
+      ],
+      "scale": 1.16,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0266",
+      "model": "grass_tuft",
+      "position": [
+        -200.05,
+        0,
+        55.66
+      ],
+      "rotation": [
+        0,
+        1.9,
+        0
+      ],
+      "scale": 1.01,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0267",
+      "model": "grass_tuft",
+      "position": [
+        -158.37,
+        0,
+        -78.38
+      ],
+      "rotation": [
+        0,
+        2.76,
+        0
+      ],
+      "scale": 0.87,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0268",
+      "model": "grass_tuft",
+      "position": [
+        -100.47,
+        0,
+        161.27
+      ],
+      "rotation": [
+        0,
+        6.03,
+        0
+      ],
+      "scale": 1.06,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0269",
+      "model": "stump",
+      "position": [
+        -28.48,
+        0,
+        -111.82
+      ],
+      "rotation": [
+        0,
+        3.15,
+        0
+      ],
+      "scale": 0.83,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0270",
+      "model": "bush",
+      "position": [
+        145.74,
+        0,
+        43.72
+      ],
+      "rotation": [
+        0,
+        3.18,
+        0
+      ],
+      "scale": 0.91,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0271",
+      "model": "stump",
+      "position": [
+        -133.43,
+        0,
+        92.55
+      ],
+      "rotation": [
+        0,
+        4.76,
+        0
+      ],
+      "scale": 1.28,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0272",
+      "model": "grass_tuft",
+      "position": [
+        -141.35,
+        0,
+        19.69
+      ],
+      "rotation": [
+        0,
+        2.15,
+        0
+      ],
+      "scale": 1.08,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0273",
+      "model": "stump",
+      "position": [
+        113.24,
+        0,
+        195.13
+      ],
+      "rotation": [
+        0,
+        1.26,
+        0
+      ],
+      "scale": 1.04,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0274",
+      "model": "grass_tuft",
+      "position": [
+        40.84,
+        0,
+        139.13
+      ],
+      "rotation": [
+        0,
+        4.67,
+        0
+      ],
+      "scale": 1.05,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0275",
+      "model": "bush",
+      "position": [
+        144.67,
+        0,
+        19.02
+      ],
+      "rotation": [
+        0,
+        5.87,
+        0
+      ],
+      "scale": 0.98,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0276",
+      "model": "stump",
+      "position": [
+        -213.64,
+        0,
+        17.08
+      ],
+      "rotation": [
+        0,
+        1.08,
+        0
+      ],
+      "scale": 1.25,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0277",
+      "model": "bush",
+      "position": [
+        -160.14,
+        0,
+        188.94
+      ],
+      "rotation": [
+        0,
+        4.5,
+        0
+      ],
+      "scale": 0.73,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0278",
+      "model": "stump",
+      "position": [
+        -65.73,
+        0,
+        -180.16
+      ],
+      "rotation": [
+        0,
+        1.69,
+        0
+      ],
+      "scale": 0.83,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0279",
+      "model": "grass_tuft",
+      "position": [
+        141.93,
+        0,
+        7.36
+      ],
+      "rotation": [
+        0,
+        0.65,
+        0
+      ],
+      "scale": 0.86,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0280",
+      "model": "grass_tuft",
+      "position": [
+        97.05,
+        0,
+        128.24
+      ],
+      "rotation": [
+        0,
+        5.92,
+        0
+      ],
+      "scale": 0.92,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0281",
+      "model": "grass_tuft",
+      "position": [
+        -174.5,
+        0,
+        71.63
+      ],
+      "rotation": [
+        0,
+        0.33,
+        0
+      ],
+      "scale": 1.05,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0282",
+      "model": "bush",
+      "position": [
+        55.59,
+        0,
+        51.23
+      ],
+      "rotation": [
+        0,
+        4.28,
+        0
+      ],
+      "scale": 1.04,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0283",
+      "model": "grass_tuft",
+      "position": [
+        -55.77,
+        0,
+        -220.1
+      ],
+      "rotation": [
+        0,
+        4.19,
+        0
+      ],
+      "scale": 0.7,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0284",
+      "model": "stump",
+      "position": [
+        -166.61,
+        0,
+        -61.72
+      ],
+      "rotation": [
+        0,
+        2.2,
+        0
+      ],
+      "scale": 0.97,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0285",
+      "model": "bush",
+      "position": [
+        -180.67,
+        0,
+        124.71
+      ],
+      "rotation": [
+        0,
+        2.28,
+        0
+      ],
+      "scale": 1.05,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0286",
+      "model": "stump",
+      "position": [
+        -157.81,
+        0,
+        181.99
+      ],
+      "rotation": [
+        0,
+        5.36,
+        0
+      ],
+      "scale": 1.24,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0287",
+      "model": "stump",
+      "position": [
+        68.24,
+        0,
+        88.37
+      ],
+      "rotation": [
+        0,
+        0.45,
+        0
+      ],
+      "scale": 0.94,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0288",
+      "model": "grass_tuft",
+      "position": [
+        -177.1,
+        0,
+        222.12
+      ],
+      "rotation": [
+        0,
+        0.64,
+        0
+      ],
+      "scale": 0.78,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0289",
+      "model": "bush",
+      "position": [
+        -58.45,
+        0,
+        133.78
+      ],
+      "rotation": [
+        0,
+        4.54,
+        0
+      ],
+      "scale": 1.09,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0290",
+      "model": "bush",
+      "position": [
+        -68.84,
+        0,
+        -224.17
+      ],
+      "rotation": [
+        0,
+        5.51,
+        0
+      ],
+      "scale": 1.13,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0291",
+      "model": "grass_tuft",
+      "position": [
+        -157.46,
+        0,
+        -55.38
+      ],
+      "rotation": [
+        0,
+        4.39,
+        0
+      ],
+      "scale": 0.99,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0292",
+      "model": "bush",
+      "position": [
+        -63.37,
+        0,
+        51.02
+      ],
+      "rotation": [
+        0,
+        3.81,
+        0
+      ],
+      "scale": 1.01,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0293",
+      "model": "grass_tuft",
+      "position": [
+        -117.21,
+        0,
+        46.82
+      ],
+      "rotation": [
+        0,
+        5.18,
+        0
+      ],
+      "scale": 0.76,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0294",
+      "model": "bush",
+      "position": [
+        -233.95,
+        0,
+        205
+      ],
+      "rotation": [
+        0,
+        1.54,
+        0
+      ],
+      "scale": 1.08,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0295",
+      "model": "stump",
+      "position": [
+        185.26,
+        0,
+        30.62
+      ],
+      "rotation": [
+        0,
+        3.25,
+        0
+      ],
+      "scale": 0.81,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0296",
+      "model": "bush",
+      "position": [
+        -7.82,
+        0,
+        -49.01
+      ],
+      "rotation": [
+        0,
+        0.18,
+        0
+      ],
+      "scale": 0.99,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0297",
+      "model": "stump",
+      "position": [
+        -70,
+        0,
+        -128.7
+      ],
+      "rotation": [
+        0,
+        3.76,
+        0
+      ],
+      "scale": 1.03,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0298",
+      "model": "grass_tuft",
+      "position": [
+        47.68,
+        0,
+        -49.57
+      ],
+      "rotation": [
+        0,
+        2.19,
+        0
+      ],
+      "scale": 0.72,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0299",
+      "model": "grass_tuft",
+      "position": [
+        87.56,
+        0,
+        30.58
+      ],
+      "rotation": [
+        0,
+        3.01,
+        0
+      ],
+      "scale": 1.05,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0300",
+      "model": "bush",
+      "position": [
+        127.38,
+        0,
+        -221.8
+      ],
+      "rotation": [
+        0,
+        3.8,
+        0
+      ],
+      "scale": 1.15,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0301",
+      "model": "bush",
+      "position": [
+        233.89,
+        0,
+        -63.22
+      ],
+      "rotation": [
+        0,
+        1.94,
+        0
+      ],
+      "scale": 1.14,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0302",
+      "model": "grass_tuft",
+      "position": [
+        145.01,
+        0,
+        -80.89
+      ],
+      "rotation": [
+        0,
+        2.02,
+        0
+      ],
+      "scale": 0.71,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0303",
+      "model": "grass_tuft",
+      "position": [
+        171.46,
+        0,
+        150.74
+      ],
+      "rotation": [
+        0,
+        3.64,
+        0
+      ],
+      "scale": 1.19,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0304",
+      "model": "bush",
+      "position": [
+        -49.66,
+        0,
+        175.76
+      ],
+      "rotation": [
+        0,
+        3.58,
+        0
+      ],
+      "scale": 1.17,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0305",
+      "model": "grass_tuft",
+      "position": [
+        66.01,
+        0,
+        190.91
+      ],
+      "rotation": [
+        0,
+        0.19,
+        0
+      ],
+      "scale": 1.24,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0306",
+      "model": "bush",
+      "position": [
+        178.04,
+        0,
+        -21.89
+      ],
+      "rotation": [
+        0,
+        2.8,
+        0
+      ],
+      "scale": 1.07,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0307",
+      "model": "stump",
+      "position": [
+        221.63,
+        0,
+        55.63
+      ],
+      "rotation": [
+        0,
+        3.59,
+        0
+      ],
+      "scale": 0.82,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0308",
+      "model": "grass_tuft",
+      "position": [
+        -54.43,
+        0,
+        -120.73
+      ],
+      "rotation": [
+        0,
+        4.83,
+        0
+      ],
+      "scale": 1.17,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0309",
+      "model": "grass_tuft",
+      "position": [
+        138.12,
+        0,
+        36.26
+      ],
+      "rotation": [
+        0,
+        5.21,
+        0
+      ],
+      "scale": 0.93,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0310",
+      "model": "stump",
+      "position": [
+        -188.7,
+        0,
+        73.51
+      ],
+      "rotation": [
+        0,
+        0.54,
+        0
+      ],
+      "scale": 0.91,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0311",
+      "model": "stump",
+      "position": [
+        57.79,
+        0,
+        4.94
+      ],
+      "rotation": [
+        0,
+        0.18,
+        0
+      ],
+      "scale": 0.75,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0312",
+      "model": "grass_tuft",
+      "position": [
+        -35.42,
+        0,
+        -23.15
+      ],
+      "rotation": [
+        0,
+        3.72,
+        0
+      ],
+      "scale": 1.03,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0313",
+      "model": "bush",
+      "position": [
+        -232.64,
+        0,
+        151.08
+      ],
+      "rotation": [
+        0,
+        2.12,
+        0
+      ],
+      "scale": 1.13,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0314",
+      "model": "stump",
+      "position": [
+        -160.58,
+        0,
+        7.73
+      ],
+      "rotation": [
+        0,
+        6.23,
+        0
+      ],
+      "scale": 1.24,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0315",
+      "model": "grass_tuft",
+      "position": [
+        196.52,
+        0,
+        -132.74
+      ],
+      "rotation": [
+        0,
+        5.99,
+        0
+      ],
+      "scale": 0.78,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0316",
+      "model": "stump",
+      "position": [
+        -213.74,
+        0,
+        83.07
+      ],
+      "rotation": [
+        0,
+        1.4,
+        0
+      ],
+      "scale": 1.24,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0317",
+      "model": "grass_tuft",
+      "position": [
+        42.65,
+        0,
+        -23
+      ],
+      "rotation": [
+        0,
+        1.68,
+        0
+      ],
+      "scale": 1.27,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0318",
+      "model": "grass_tuft",
+      "position": [
+        -220.46,
+        0,
+        0.66
+      ],
+      "rotation": [
+        0,
+        3.23,
+        0
+      ],
+      "scale": 1.26,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0319",
+      "model": "grass_tuft",
+      "position": [
+        100.23,
+        0,
+        103.2
+      ],
+      "rotation": [
+        0,
+        1.24,
+        0
+      ],
+      "scale": 0.98,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0320",
+      "model": "bush",
+      "position": [
+        22.02,
+        0,
+        207.18
+      ],
+      "rotation": [
+        0,
+        3.72,
+        0
+      ],
+      "scale": 1.15,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0321",
+      "model": "bush",
+      "position": [
+        -56.98,
+        0,
+        -187.06
+      ],
+      "rotation": [
+        0,
+        4.29,
+        0
+      ],
+      "scale": 0.84,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0322",
+      "model": "grass_tuft",
+      "position": [
+        80.83,
+        0,
+        194.55
+      ],
+      "rotation": [
+        0,
+        4.78,
+        0
+      ],
+      "scale": 1.23,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0323",
+      "model": "stump",
+      "position": [
+        207.1,
+        0,
+        125.7
+      ],
+      "rotation": [
+        0,
+        5.28,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0324",
+      "model": "bush",
+      "position": [
+        -228.43,
+        0,
+        90.56
+      ],
+      "rotation": [
+        0,
+        0.75,
+        0
+      ],
+      "scale": 1.09,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0325",
+      "model": "stump",
+      "position": [
+        -174.61,
+        0,
+        -8.28
+      ],
+      "rotation": [
+        0,
+        6.08,
+        0
+      ],
+      "scale": 1.21,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0326",
+      "model": "grass_tuft",
+      "position": [
+        124.31,
+        0,
+        220.27
+      ],
+      "rotation": [
+        0,
+        5.4,
+        0
+      ],
+      "scale": 0.72,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0327",
+      "model": "bush",
+      "position": [
+        93.91,
+        0,
+        234.08
+      ],
+      "rotation": [
+        0,
+        2.54,
+        0
+      ],
+      "scale": 0.78,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0328",
+      "model": "grass_tuft",
+      "position": [
+        -91.57,
+        0,
+        174.82
+      ],
+      "rotation": [
+        0,
+        4.71,
+        0
+      ],
+      "scale": 1.26,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0329",
+      "model": "stump",
+      "position": [
+        -80.14,
+        0,
+        -141.31
+      ],
+      "rotation": [
+        0,
+        6.13,
+        0
+      ],
+      "scale": 0.81,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0330",
+      "model": "grass_tuft",
+      "position": [
+        45.05,
+        0,
+        225.06
+      ],
+      "rotation": [
+        0,
+        0.3,
+        0
+      ],
+      "scale": 0.98,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0331",
+      "model": "grass_tuft",
+      "position": [
+        -126.98,
+        0,
+        90.28
+      ],
+      "rotation": [
+        0,
+        3.77,
+        0
+      ],
+      "scale": 1.05,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0332",
+      "model": "bush",
+      "position": [
+        -120.21,
+        0,
+        -37.82
+      ],
+      "rotation": [
+        0,
+        5.87,
+        0
+      ],
+      "scale": 0.86,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0333",
+      "model": "bush",
+      "position": [
+        68.11,
+        0,
+        -98.73
+      ],
+      "rotation": [
+        0,
+        3.69,
+        0
+      ],
+      "scale": 0.87,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0334",
+      "model": "stump",
+      "position": [
+        -219.4,
+        0,
+        169.62
+      ],
+      "rotation": [
+        0,
+        0.76,
+        0
+      ],
+      "scale": 1.2,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0335",
+      "model": "bush",
+      "position": [
+        -210.56,
+        0,
+        -211.09
+      ],
+      "rotation": [
+        0,
+        3.25,
+        0
+      ],
+      "scale": 0.75,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0336",
+      "model": "grass_tuft",
+      "position": [
+        -23.53,
+        0,
+        228.53
+      ],
+      "rotation": [
+        0,
+        2.18,
+        0
+      ],
+      "scale": 1.04,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0337",
+      "model": "stump",
+      "position": [
+        -151.23,
+        0,
+        -120.66
+      ],
+      "rotation": [
+        0,
+        6.11,
+        0
+      ],
+      "scale": 0.8,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0338",
+      "model": "stump",
+      "position": [
+        60.17,
+        0,
+        24.98
+      ],
+      "rotation": [
+        0,
+        4.43,
+        0
+      ],
+      "scale": 1.11,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0339",
+      "model": "bush",
+      "position": [
+        -11.52,
+        0,
+        151.89
+      ],
+      "rotation": [
+        0,
+        1.08,
+        0
+      ],
+      "scale": 1.02,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0340",
+      "model": "stump",
+      "position": [
+        64.13,
+        0,
+        -143.87
+      ],
+      "rotation": [
+        0,
+        3.42,
+        0
+      ],
+      "scale": 1.15,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0341",
+      "model": "grass_tuft",
+      "position": [
+        -220.76,
+        0,
+        16.62
+      ],
+      "rotation": [
+        0,
+        0.61,
+        0
+      ],
+      "scale": 0.88,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0342",
+      "model": "bush",
+      "position": [
+        117.76,
+        0,
+        232.59
+      ],
+      "rotation": [
+        0,
+        3.21,
+        0
+      ],
+      "scale": 0.94,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0343",
+      "model": "stump",
+      "position": [
+        -106.23,
+        0,
+        195.91
+      ],
+      "rotation": [
+        0,
+        4.16,
+        0
+      ],
+      "scale": 1.17,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0344",
+      "model": "grass_tuft",
+      "position": [
+        50.32,
+        0,
+        -167.82
+      ],
+      "rotation": [
+        0,
+        2.36,
+        0
+      ],
+      "scale": 0.85,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0345",
+      "model": "stump",
+      "position": [
+        160.47,
+        0,
+        -159.75
+      ],
+      "rotation": [
+        0,
+        0.01,
+        0
+      ],
+      "scale": 1.12,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0346",
+      "model": "stump",
+      "position": [
+        149.85,
+        0,
+        -179.99
+      ],
+      "rotation": [
+        0,
+        4.94,
+        0
+      ],
+      "scale": 0.74,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0347",
+      "model": "bush",
+      "position": [
+        208.51,
+        0,
+        -156.66
+      ],
+      "rotation": [
+        0,
+        1.34,
+        0
+      ],
+      "scale": 0.81,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0348",
+      "model": "stump",
+      "position": [
+        -160.09,
+        0,
+        -91.13
+      ],
+      "rotation": [
+        0,
+        0.64,
+        0
+      ],
+      "scale": 0.84,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0349",
+      "model": "stump",
+      "position": [
+        -155.31,
+        0,
+        -40.62
+      ],
+      "rotation": [
+        0,
+        1.97,
+        0
+      ],
+      "scale": 1.28,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0350",
+      "model": "stump",
+      "position": [
+        167.29,
+        0,
+        -186.84
+      ],
+      "rotation": [
+        0,
+        2.93,
+        0
+      ],
+      "scale": 0.81,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0351",
+      "model": "grass_tuft",
+      "position": [
+        113.19,
+        0,
+        124.72
+      ],
+      "rotation": [
+        0,
+        4.31,
+        0
+      ],
+      "scale": 1.02,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0352",
+      "model": "grass_tuft",
+      "position": [
+        -156.86,
+        0,
+        50.06
+      ],
+      "rotation": [
+        0,
+        3.81,
+        0
+      ],
+      "scale": 0.76,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0353",
+      "model": "bush",
+      "position": [
+        -33.72,
+        0,
+        207.15
+      ],
+      "rotation": [
+        0,
+        4.54,
+        0
+      ],
+      "scale": 0.78,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0354",
+      "model": "grass_tuft",
+      "position": [
+        235,
+        0,
+        86
+      ],
+      "rotation": [
+        0,
+        1.98,
+        0
+      ],
+      "scale": 1.11,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0355",
+      "model": "stump",
+      "position": [
+        -182.22,
+        0,
+        30.68
+      ],
+      "rotation": [
+        0,
+        4.64,
+        0
+      ],
+      "scale": 1.04,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0356",
+      "model": "grass_tuft",
+      "position": [
+        -171.4,
+        0,
+        -189.22
+      ],
+      "rotation": [
+        0,
+        0.77,
+        0
+      ],
+      "scale": 1.24,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0357",
+      "model": "grass_tuft",
+      "position": [
+        -56.43,
+        0,
+        92.7
+      ],
+      "rotation": [
+        0,
+        5.53,
+        0
+      ],
+      "scale": 0.78,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0358",
+      "model": "bush",
+      "position": [
+        225.69,
+        0,
+        42.81
+      ],
+      "rotation": [
+        0,
+        1.42,
+        0
+      ],
+      "scale": 1.14,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0359",
+      "model": "grass_tuft",
+      "position": [
+        10.73,
+        0,
+        37.07
+      ],
+      "rotation": [
+        0,
+        2.28,
+        0
+      ],
+      "scale": 1.06,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0360",
+      "model": "grass_tuft",
+      "position": [
+        137.53,
+        0,
+        -126.28
+      ],
+      "rotation": [
+        0,
+        5.4,
+        0
+      ],
+      "scale": 0.78,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0361",
+      "model": "grass_tuft",
+      "position": [
+        -49,
+        0,
+        119.65
+      ],
+      "rotation": [
+        0,
+        2.06,
+        0
+      ],
+      "scale": 0.85,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0362",
+      "model": "bush",
+      "position": [
+        213.28,
+        0,
+        -154.73
+      ],
+      "rotation": [
+        0,
+        0.98,
+        0
+      ],
+      "scale": 1.3,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0363",
+      "model": "bush",
+      "position": [
+        -107.18,
+        0,
+        234.8
+      ],
+      "rotation": [
+        0,
+        3.16,
+        0
+      ],
+      "scale": 0.99,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0364",
+      "model": "bush",
+      "position": [
+        153.77,
+        0,
+        20.08
+      ],
+      "rotation": [
+        0,
+        4.51,
+        0
+      ],
+      "scale": 0.95,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0365",
+      "model": "stump",
+      "position": [
+        166.92,
+        0,
+        -153.94
+      ],
+      "rotation": [
+        0,
+        4.6,
+        0
+      ],
+      "scale": 1.25,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0366",
+      "model": "bush",
+      "position": [
+        -221.57,
+        0,
+        -59.08
+      ],
+      "rotation": [
+        0,
+        3.94,
+        0
+      ],
+      "scale": 0.85,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0367",
+      "model": "bush",
+      "position": [
+        32.44,
+        0,
+        -89.16
+      ],
+      "rotation": [
+        0,
+        0.36,
+        0
+      ],
+      "scale": 0.84,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0368",
+      "model": "stump",
+      "position": [
+        -53.9,
+        0,
+        22.54
+      ],
+      "rotation": [
+        0,
+        5.43,
+        0
+      ],
+      "scale": 0.75,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0369",
+      "model": "stump",
+      "position": [
+        -164.38,
+        0,
+        193.07
+      ],
+      "rotation": [
+        0,
+        0.43,
+        0
+      ],
+      "scale": 0.85,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0370",
+      "model": "grass_tuft",
+      "position": [
+        -125.41,
+        0,
+        -163.73
+      ],
+      "rotation": [
+        0,
+        4.55,
+        0
+      ],
+      "scale": 0.78,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0371",
+      "model": "bush",
+      "position": [
+        58.45,
+        0,
+        180.27
+      ],
+      "rotation": [
+        0,
+        1.07,
+        0
+      ],
+      "scale": 0.81,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0372",
+      "model": "stump",
+      "position": [
+        32.09,
+        0,
+        -210.01
+      ],
+      "rotation": [
+        0,
+        0.61,
+        0
+      ],
+      "scale": 0.88,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0373",
+      "model": "grass_tuft",
+      "position": [
+        -147.33,
+        0,
+        -73.15
+      ],
+      "rotation": [
+        0,
+        3.8,
+        0
+      ],
+      "scale": 0.72,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0374",
+      "model": "bush",
+      "position": [
+        113.39,
+        0,
+        67.12
+      ],
+      "rotation": [
+        0,
+        3,
+        0
+      ],
+      "scale": 0.9,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0375",
+      "model": "stump",
+      "position": [
+        180.92,
+        0,
+        124.84
+      ],
+      "rotation": [
+        0,
+        1.43,
+        0
+      ],
+      "scale": 0.72,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0376",
+      "model": "stump",
+      "position": [
+        207.33,
+        0,
+        -148.79
+      ],
+      "rotation": [
+        0,
+        1.55,
+        0
+      ],
+      "scale": 1.07,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0377",
+      "model": "stump",
+      "position": [
+        -153.68,
+        0,
+        119.16
+      ],
+      "rotation": [
+        0,
+        2.4,
+        0
+      ],
+      "scale": 1.11,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0378",
+      "model": "stump",
+      "position": [
+        87.88,
+        0,
+        113.29
+      ],
+      "rotation": [
+        0,
+        5.84,
+        0
+      ],
+      "scale": 0.96,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0379",
+      "model": "stump",
+      "position": [
+        -202.73,
+        0,
+        -78.45
+      ],
+      "rotation": [
+        0,
+        1.62,
+        0
+      ],
+      "scale": 0.72,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0380",
+      "model": "grass_tuft",
+      "position": [
+        -34.96,
+        0,
+        -167.84
+      ],
+      "rotation": [
+        0,
+        2.9,
+        0
+      ],
+      "scale": 0.96,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0381",
+      "model": "grass_tuft",
+      "position": [
+        -201.33,
+        0,
+        -150.02
+      ],
+      "rotation": [
+        0,
+        1.31,
+        0
+      ],
+      "scale": 1.15,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0382",
+      "model": "grass_tuft",
+      "position": [
+        44.94,
+        0,
+        -225.24
+      ],
+      "rotation": [
+        0,
+        3.33,
+        0
+      ],
+      "scale": 0.79,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0383",
+      "model": "bush",
+      "position": [
+        38.85,
+        0,
+        -103.14
+      ],
+      "rotation": [
+        0,
+        2.32,
+        0
+      ],
+      "scale": 0.99,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0384",
+      "model": "bush",
+      "position": [
+        71.18,
+        0,
+        -209.06
+      ],
+      "rotation": [
+        0,
+        5.86,
+        0
+      ],
+      "scale": 0.83,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0385",
+      "model": "bush",
+      "position": [
+        13.15,
+        0,
+        -160.31
+      ],
+      "rotation": [
+        0,
+        4.1,
+        0
+      ],
+      "scale": 0.96,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0386",
+      "model": "grass_tuft",
+      "position": [
+        -114.85,
+        0,
+        -224.32
+      ],
+      "rotation": [
+        0,
+        4.49,
+        0
+      ],
+      "scale": 1.13,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0387",
+      "model": "grass_tuft",
+      "position": [
+        -169.15,
+        0,
+        56.51
+      ],
+      "rotation": [
+        0,
+        1.69,
+        0
+      ],
+      "scale": 0.9,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0388",
+      "model": "bush",
+      "position": [
+        -44.07,
+        0,
+        -149.03
+      ],
+      "rotation": [
+        0,
+        0.03,
+        0
+      ],
+      "scale": 1.17,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0389",
+      "model": "bush",
+      "position": [
+        23.72,
+        0,
+        110.79
+      ],
+      "rotation": [
+        0,
+        2.26,
+        0
+      ],
+      "scale": 1.3,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0390",
+      "model": "bush",
+      "position": [
+        -214.73,
+        0,
+        52.14
+      ],
+      "rotation": [
+        0,
+        6,
+        0
+      ],
+      "scale": 1.23,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0391",
+      "model": "grass_tuft",
+      "position": [
+        202.56,
+        0,
+        -30.69
+      ],
+      "rotation": [
+        0,
+        3.25,
+        0
+      ],
+      "scale": 0.95,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0392",
+      "model": "stump",
+      "position": [
+        -63.59,
+        0,
+        41.67
+      ],
+      "rotation": [
+        0,
+        5.64,
+        0
+      ],
+      "scale": 1.08,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0393",
+      "model": "grass_tuft",
+      "position": [
+        143.8,
+        0,
+        218.4
+      ],
+      "rotation": [
+        0,
+        3.01,
+        0
+      ],
+      "scale": 0.78,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0394",
+      "model": "grass_tuft",
+      "position": [
+        135.78,
+        0,
+        -56.57
+      ],
+      "rotation": [
+        0,
+        0.51,
+        0
+      ],
+      "scale": 0.85,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0395",
+      "model": "stump",
+      "position": [
+        -175.13,
+        0,
+        106.49
+      ],
+      "rotation": [
+        0,
+        2.33,
+        0
+      ],
+      "scale": 0.98,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0396",
+      "model": "stump",
+      "position": [
+        113.33,
+        0,
+        -22.56
+      ],
+      "rotation": [
+        0,
+        5.46,
+        0
+      ],
+      "scale": 1.12,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0397",
+      "model": "stump",
+      "position": [
+        26.61,
+        0,
+        189.08
+      ],
+      "rotation": [
+        0,
+        5.56,
+        0
+      ],
+      "scale": 1.01,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0398",
+      "model": "stump",
+      "position": [
+        -94.75,
+        0,
+        98.72
+      ],
+      "rotation": [
+        0,
+        5.66,
+        0
+      ],
+      "scale": 1.14,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0399",
+      "model": "grass_tuft",
+      "position": [
+        -87.69,
+        0,
+        121.33
+      ],
+      "rotation": [
+        0,
+        3.84,
+        0
+      ],
+      "scale": 1.05,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0400",
+      "model": "grass_tuft",
+      "position": [
+        -193.79,
+        0,
+        -205.55
+      ],
+      "rotation": [
+        0,
+        5.05,
+        0
+      ],
+      "scale": 0.84,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0401",
+      "model": "bush",
+      "position": [
+        122.11,
+        0,
+        119.79
+      ],
+      "rotation": [
+        0,
+        1.31,
+        0
+      ],
+      "scale": 1.05,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0402",
+      "model": "stump",
+      "position": [
+        228.99,
+        0,
+        -228.02
+      ],
+      "rotation": [
+        0,
+        4.58,
+        0
+      ],
+      "scale": 0.86,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0403",
+      "model": "bush",
+      "position": [
+        202.21,
+        0,
+        140.09
+      ],
+      "rotation": [
+        0,
+        4.31,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0404",
+      "model": "bush",
+      "position": [
+        -184.76,
+        0,
+        215.08
+      ],
+      "rotation": [
+        0,
+        3.41,
+        0
+      ],
+      "scale": 1.17,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0405",
+      "model": "grass_tuft",
+      "position": [
+        234.14,
+        0,
+        -153.97
+      ],
+      "rotation": [
+        0,
+        2.37,
+        0
+      ],
+      "scale": 0.87,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0406",
+      "model": "grass_tuft",
+      "position": [
+        -18.65,
+        0,
+        100.64
+      ],
+      "rotation": [
+        0,
+        0.39,
+        0
+      ],
+      "scale": 0.94,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0407",
+      "model": "bush",
+      "position": [
+        -73.4,
+        0,
+        -98.49
+      ],
+      "rotation": [
+        0,
+        1.75,
+        0
+      ],
+      "scale": 1.24,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0408",
+      "model": "stump",
+      "position": [
+        -133.38,
+        0,
+        180.49
+      ],
+      "rotation": [
+        0,
+        1.96,
+        0
+      ],
+      "scale": 1.22,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0409",
+      "model": "bush",
+      "position": [
+        -52.75,
+        0,
+        40.32
+      ],
+      "rotation": [
+        0,
+        2.77,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0410",
+      "model": "grass_tuft",
+      "position": [
+        -60.95,
+        0,
+        -214.67
+      ],
+      "rotation": [
+        0,
+        1.67,
+        0
+      ],
+      "scale": 0.99,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_well",
+      "model": "well",
+      "position": [
+        0,
+        0,
+        14
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2.2
+    },
+    {
+      "id": "p_sign_start",
+      "model": "signpost",
+      "position": [
+        3.5,
+        0,
+        4
+      ],
+      "rotation": [
+        0,
+        0.6,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 0.4
+    },
+    {
+      "id": "p_gate_arch",
+      "model": "gate_arch",
+      "position": [
+        0,
+        0,
+        204
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "scale": 1.4,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 0
+    }
+  ],
+  "spawners": [
+    {
+      "id": "s_mote_a",
+      "mob": "mote",
+      "position": [
+        -46,
+        38
+      ],
+      "radius": 26,
+      "count": 7,
+      "respawnMs": 9000
+    },
+    {
+      "id": "s_mote_b",
+      "mob": "mote",
+      "position": [
+        52,
+        30
+      ],
+      "radius": 24,
+      "count": 6,
+      "respawnMs": 9000
+    },
+    {
+      "id": "s_mote_c",
+      "mob": "mote",
+      "position": [
+        -8,
+        78
+      ],
+      "radius": 28,
+      "count": 7,
+      "respawnMs": 9000
+    },
+    {
+      "id": "s_pup_a",
+      "mob": "burrow_pup",
+      "position": [
+        70,
+        96
+      ],
+      "radius": 26,
+      "count": 6,
+      "respawnMs": 13000
+    },
+    {
+      "id": "s_pup_b",
+      "mob": "burrow_pup",
+      "position": [
+        -84,
+        104
+      ],
+      "radius": 26,
+      "count": 6,
+      "respawnMs": 13000
+    },
+    {
+      "id": "s_boar",
+      "mob": "thistle_boar",
+      "position": [
+        12,
+        150
+      ],
+      "radius": 30,
+      "count": 5,
+      "respawnMs": 20000
+    }
+  ],
+  "npcs": [
+    {
+      "id": "n_guide",
+      "def": "npc_guide",
+      "position": [
+        7,
+        9
+      ],
+      "yaw": 3.4
+    },
+    {
+      "id": "n_merchant",
+      "def": "npc_merchant",
+      "position": [
+        -12,
+        13
+      ],
+      "yaw": 2.2
+    },
+    {
+      "id": "n_smith",
+      "def": "npc_smith",
+      "position": [
+        16,
+        -7
+      ],
+      "yaw": 4.4
+    },
+    {
+      "id": "n_gate",
+      "def": "npc_gatekeeper",
+      "position": [
+        4,
+        196
+      ],
+      "yaw": 3.14
+    }
+  ],
+  "portals": [
+    {
+      "id": "g_dornwald",
+      "kind": "gate",
+      "position": [
+        0,
+        204
+      ],
+      "radius": 4,
+      "label": "Dornwald",
+      "target": {
+        "map": "dornwald",
+        "x": 0,
+        "z": -186,
+        "yaw": 0
+      },
+      "minLevel": 0
+    }
+  ]
+}

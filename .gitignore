@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env
+.env.local
+.DS_Store
+assets/manifest.json
+
+# Bauergebnisse des C++-Kerns. Werden aus der Quelle erzeugt, nicht versioniert.
+packages/core/build/
+packages/core/dist/
+assets/core/

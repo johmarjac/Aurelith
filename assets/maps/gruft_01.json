@@ -1,0 +1,3263 @@
+{
+  "format": "aurelith.map",
+  "version": 1,
+  "id": "gruft_01",
+  "name": "Schattengruft",
+  "environment": {
+    "skyColor": 856600,
+    "horizonColor": 1779505,
+    "fogColor": 1186338,
+    "fogNear": 18,
+    "fogFar": 110,
+    "sunDirection": [
+      0.2,
+      0.9,
+      -0.3
+    ],
+    "sunColor": 7180208,
+    "sunIntensity": 0.45,
+    "ambientColor": 2832969,
+    "ambientIntensity": 0.6
+  },
+  "terrain": {
+    "size": 256,
+    "cellSize": 3,
+    "seed": 18258,
+    "heightScale": 7,
+    "featureScale": 0.02,
+    "waterLevel": -20,
+    "grassColor": 3816002,
+    "grassColorAlt": 2894900,
+    "rockColor": 4868690,
+    "sandColor": 5591114
+  },
+  "spawn": {
+    "x": 0,
+    "z": -96,
+    "yaw": 0
+  },
+  "props": [
+    {
+      "id": "p_0001",
+      "model": "rock_large",
+      "position": [
+        17.09,
+        0,
+        -107.2
+      ],
+      "rotation": [
+        0,
+        3.76,
+        0
+      ],
+      "scale": 2.06,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0002",
+      "model": "rock_large",
+      "position": [
+        -7.28,
+        0,
+        89.46
+      ],
+      "rotation": [
+        0,
+        4.14,
+        0
+      ],
+      "scale": 1.61,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0003",
+      "model": "rock_large",
+      "position": [
+        107.85,
+        0,
+        -26.42
+      ],
+      "rotation": [
+        0,
+        5.5,
+        0
+      ],
+      "scale": 1.56,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0004",
+      "model": "rock_large",
+      "position": [
+        -91.27,
+        0,
+        62.28
+      ],
+      "rotation": [
+        0,
+        1.99,
+        0
+      ],
+      "scale": 1.54,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0005",
+      "model": "pillar",
+      "position": [
+        48.92,
+        0,
+        -15.67
+      ],
+      "rotation": [
+        0,
+        1.29,
+        0
+      ],
+      "scale": 1.8,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0006",
+      "model": "pillar",
+      "position": [
+        -57.77,
+        0,
+        -102.88
+      ],
+      "rotation": [
+        0,
+        2.54,
+        0
+      ],
+      "scale": 1.27,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0007",
+      "model": "rock_large",
+      "position": [
+        -95.74,
+        0,
+        -2.97
+      ],
+      "rotation": [
+        0,
+        0.2,
+        0
+      ],
+      "scale": 1.36,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0008",
+      "model": "pillar",
+      "position": [
+        22.52,
+        0,
+        49.54
+      ],
+      "rotation": [
+        0,
+        6.02,
+        0
+      ],
+      "scale": 1.84,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0009",
+      "model": "pillar",
+      "position": [
+        116,
+        0,
+        53.48
+      ],
+      "rotation": [
+        0,
+        3.16,
+        0
+      ],
+      "scale": 1.38,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0010",
+      "model": "pillar",
+      "position": [
+        -1.12,
+        0,
+        -45.72
+      ],
+      "rotation": [
+        0,
+        5.58,
+        0
+      ],
+      "scale": 1.9,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0011",
+      "model": "pillar",
+      "position": [
+        -65.84,
+        0,
+        49.85
+      ],
+      "rotation": [
+        0,
+        5.68,
+        0
+      ],
+      "scale": 1.75,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0012",
+      "model": "rock_large",
+      "position": [
+        10.35,
+        0,
+        -70.08
+      ],
+      "rotation": [
+        0,
+        1,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0013",
+      "model": "pillar",
+      "position": [
+        -97.85,
+        0,
+        50.01
+      ],
+      "rotation": [
+        0,
+        5.19,
+        0
+      ],
+      "scale": 1.41,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0014",
+      "model": "pillar",
+      "position": [
+        -99.66,
+        0,
+        76.45
+      ],
+      "rotation": [
+        0,
+        3.86,
+        0
+      ],
+      "scale": 0.95,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0015",
+      "model": "rock_large",
+      "position": [
+        -44.93,
+        0,
+        -15.01
+      ],
+      "rotation": [
+        0,
+        1.34,
+        0
+      ],
+      "scale": 1.51,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0016",
+      "model": "pillar",
+      "position": [
+        12.01,
+        0,
+        -78.62
+      ],
+      "rotation": [
+        0,
+        3.13,
+        0
+      ],
+      "scale": 1.77,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0017",
+      "model": "pillar",
+      "position": [
+        23.46,
+        0,
+        -21.37
+      ],
+      "rotation": [
+        0,
+        3.07,
+        0
+      ],
+      "scale": 0.97,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0018",
+      "model": "pillar",
+      "position": [
+        -112.16,
+        0,
+        -58.15
+      ],
+      "rotation": [
+        0,
+        2.21,
+        0
+      ],
+      "scale": 1.14,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0019",
+      "model": "rock_large",
+      "position": [
+        -84.26,
+        0,
+        -29.1
+      ],
+      "rotation": [
+        0,
+        1.32,
+        0
+      ],
+      "scale": 1.24,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0020",
+      "model": "rock_large",
+      "position": [
+        -51.1,
+        0,
+        -41.82
+      ],
+      "rotation": [
+        0,
+        5.35,
+        0
+      ],
+      "scale": 1.77,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0021",
+      "model": "rock_large",
+      "position": [
+        -89.37,
+        0,
+        -13.13
+      ],
+      "rotation": [
+        0,
+        3.05,
+        0
+      ],
+      "scale": 2.05,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0022",
+      "model": "rock_large",
+      "position": [
+        14.04,
+        0,
+        -22.32
+      ],
+      "rotation": [
+        0,
+        5.57,
+        0
+      ],
+      "scale": 1.14,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0023",
+      "model": "rock_large",
+      "position": [
+        35.17,
+        0,
+        50.57
+      ],
+      "rotation": [
+        0,
+        5.33,
+        0
+      ],
+      "scale": 1.43,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0024",
+      "model": "pillar",
+      "position": [
+        65.44,
+        0,
+        -104.95
+      ],
+      "rotation": [
+        0,
+        3.68,
+        0
+      ],
+      "scale": 2.06,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0025",
+      "model": "rock_large",
+      "position": [
+        -107.88,
+        0,
+        -46.13
+      ],
+      "rotation": [
+        0,
+        4.11,
+        0
+      ],
+      "scale": 1.57,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0026",
+      "model": "rock_large",
+      "position": [
+        -39.94,
+        0,
+        -114.71
+      ],
+      "rotation": [
+        0,
+        4.78,
+        0
+      ],
+      "scale": 1.15,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0027",
+      "model": "pillar",
+      "position": [
+        70.24,
+        0,
+        117.69
+      ],
+      "rotation": [
+        0,
+        1.07,
+        0
+      ],
+      "scale": 1.3,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0028",
+      "model": "pillar",
+      "position": [
+        -28.9,
+        0,
+        -79.79
+      ],
+      "rotation": [
+        0,
+        6.1,
+        0
+      ],
+      "scale": 1.44,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0029",
+      "model": "pillar",
+      "position": [
+        90.19,
+        0,
+        61.8
+      ],
+      "rotation": [
+        0,
+        2.99,
+        0
+      ],
+      "scale": 1.17,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0030",
+      "model": "pillar",
+      "position": [
+        -79.29,
+        0,
+        -61.24
+      ],
+      "rotation": [
+        0,
+        1.8,
+        0
+      ],
+      "scale": 1.12,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0031",
+      "model": "rock_large",
+      "position": [
+        -92.05,
+        0,
+        19.55
+      ],
+      "rotation": [
+        0,
+        2.79,
+        0
+      ],
+      "scale": 2.06,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0032",
+      "model": "rock_large",
+      "position": [
+        -13.2,
+        0,
+        111.53
+      ],
+      "rotation": [
+        0,
+        0.92,
+        0
+      ],
+      "scale": 1.46,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0033",
+      "model": "pillar",
+      "position": [
+        -106.18,
+        0,
+        66.6
+      ],
+      "rotation": [
+        0,
+        4.29,
+        0
+      ],
+      "scale": 2.19,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0034",
+      "model": "rock_large",
+      "position": [
+        -37.75,
+        0,
+        55.4
+      ],
+      "rotation": [
+        0,
+        4.53,
+        0
+      ],
+      "scale": 1.27,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0035",
+      "model": "pillar",
+      "position": [
+        56.95,
+        0,
+        107.08
+      ],
+      "rotation": [
+        0,
+        2.97,
+        0
+      ],
+      "scale": 2.07,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0036",
+      "model": "pillar",
+      "position": [
+        -77.96,
+        0,
+        -11.82
+      ],
+      "rotation": [
+        0,
+        6.01,
+        0
+      ],
+      "scale": 2.06,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0037",
+      "model": "pillar",
+      "position": [
+        -90.32,
+        0,
+        -62.09
+      ],
+      "rotation": [
+        0,
+        5.44,
+        0
+      ],
+      "scale": 1.53,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0038",
+      "model": "rock_large",
+      "position": [
+        -58.39,
+        0,
+        2.05
+      ],
+      "rotation": [
+        0,
+        2.41,
+        0
+      ],
+      "scale": 1.04,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0039",
+      "model": "rock_large",
+      "position": [
+        53.16,
+        0,
+        54.69
+      ],
+      "rotation": [
+        0,
+        1.67,
+        0
+      ],
+      "scale": 2.14,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0040",
+      "model": "pillar",
+      "position": [
+        -29.72,
+        0,
+        -87.67
+      ],
+      "rotation": [
+        0,
+        3.37,
+        0
+      ],
+      "scale": 1.42,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0041",
+      "model": "rock_large",
+      "position": [
+        51.24,
+        0,
+        76.01
+      ],
+      "rotation": [
+        0,
+        4.17,
+        0
+      ],
+      "scale": 1.79,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0042",
+      "model": "rock_large",
+      "position": [
+        -13.1,
+        0,
+        98.88
+      ],
+      "rotation": [
+        0,
+        4.94,
+        0
+      ],
+      "scale": 1.7,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0043",
+      "model": "pillar",
+      "position": [
+        -77.7,
+        0,
+        -84.59
+      ],
+      "rotation": [
+        0,
+        2.76,
+        0
+      ],
+      "scale": 2.11,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0044",
+      "model": "pillar",
+      "position": [
+        31.25,
+        0,
+        42.96
+      ],
+      "rotation": [
+        0,
+        5.44,
+        0
+      ],
+      "scale": 1.29,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0045",
+      "model": "rock_large",
+      "position": [
+        78.74,
+        0,
+        -1.6
+      ],
+      "rotation": [
+        0,
+        1.17,
+        0
+      ],
+      "scale": 2.17,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0046",
+      "model": "pillar",
+      "position": [
+        -87.26,
+        0,
+        33.85
+      ],
+      "rotation": [
+        0,
+        5.54,
+        0
+      ],
+      "scale": 1.94,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0047",
+      "model": "rock_large",
+      "position": [
+        -109.24,
+        0,
+        -110.43
+      ],
+      "rotation": [
+        0,
+        2.33,
+        0
+      ],
+      "scale": 1.26,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0048",
+      "model": "pillar",
+      "position": [
+        40.36,
+        0,
+        27.24
+      ],
+      "rotation": [
+        0,
+        4.36,
+        0
+      ],
+      "scale": 1.08,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0049",
+      "model": "pillar",
+      "position": [
+        94.16,
+        0,
+        -94.19
+      ],
+      "rotation": [
+        0,
+        0.49,
+        0
+      ],
+      "scale": 1.27,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0050",
+      "model": "rock_large",
+      "position": [
+        10.6,
+        0,
+        93.64
+      ],
+      "rotation": [
+        0,
+        3.06,
+        0
+      ],
+      "scale": 2.02,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0051",
+      "model": "pillar",
+      "position": [
+        -75.3,
+        0,
+        -117.72
+      ],
+      "rotation": [
+        0,
+        6.2,
+        0
+      ],
+      "scale": 1.85,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0052",
+      "model": "rock_large",
+      "position": [
+        -113.32,
+        0,
+        -8.1
+      ],
+      "rotation": [
+        0,
+        3.17,
+        0
+      ],
+      "scale": 2.15,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0053",
+      "model": "pillar",
+      "position": [
+        42.12,
+        0,
+        107.54
+      ],
+      "rotation": [
+        0,
+        4.27,
+        0
+      ],
+      "scale": 1.52,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0054",
+      "model": "rock_large",
+      "position": [
+        -74.82,
+        0,
+        115.9
+      ],
+      "rotation": [
+        0,
+        1.76,
+        0
+      ],
+      "scale": 0.92,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0055",
+      "model": "pillar",
+      "position": [
+        48.82,
+        0,
+        -0.63
+      ],
+      "rotation": [
+        0,
+        2.21,
+        0
+      ],
+      "scale": 1.74,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0056",
+      "model": "rock_large",
+      "position": [
+        -73.13,
+        0,
+        -78.24
+      ],
+      "rotation": [
+        0,
+        1.65,
+        0
+      ],
+      "scale": 2.17,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0057",
+      "model": "pillar",
+      "position": [
+        -106.26,
+        0,
+        107.77
+      ],
+      "rotation": [
+        0,
+        1.9,
+        0
+      ],
+      "scale": 1.39,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0058",
+      "model": "pillar",
+      "position": [
+        51.85,
+        0,
+        -41.16
+      ],
+      "rotation": [
+        0,
+        0.67,
+        0
+      ],
+      "scale": 1.62,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0059",
+      "model": "rock_large",
+      "position": [
+        -49.06,
+        0,
+        -61.13
+      ],
+      "rotation": [
+        0,
+        4.21,
+        0
+      ],
+      "scale": 2.03,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0060",
+      "model": "pillar",
+      "position": [
+        -20.55,
+        0,
+        65.94
+      ],
+      "rotation": [
+        0,
+        0.68,
+        0
+      ],
+      "scale": 2.19,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0061",
+      "model": "pillar",
+      "position": [
+        99.25,
+        0,
+        -79.59
+      ],
+      "rotation": [
+        0,
+        1.85,
+        0
+      ],
+      "scale": 1.46,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0062",
+      "model": "rock_large",
+      "position": [
+        -23.79,
+        0,
+        -58.8
+      ],
+      "rotation": [
+        0,
+        1.56,
+        0
+      ],
+      "scale": 1.46,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0063",
+      "model": "pillar",
+      "position": [
+        108.14,
+        0,
+        29.01
+      ],
+      "rotation": [
+        0,
+        3.32,
+        0
+      ],
+      "scale": 2.18,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0064",
+      "model": "rock_large",
+      "position": [
+        -88.08,
+        0,
+        56.98
+      ],
+      "rotation": [
+        0,
+        3.9,
+        0
+      ],
+      "scale": 2,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0065",
+      "model": "pillar",
+      "position": [
+        87.68,
+        0,
+        78.48
+      ],
+      "rotation": [
+        0,
+        4.77,
+        0
+      ],
+      "scale": 1.4,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0066",
+      "model": "pillar",
+      "position": [
+        45.08,
+        0,
+        45.22
+      ],
+      "rotation": [
+        0,
+        5.08,
+        0
+      ],
+      "scale": 1.19,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0067",
+      "model": "pillar",
+      "position": [
+        6.18,
+        0,
+        28.22
+      ],
+      "rotation": [
+        0,
+        1.12,
+        0
+      ],
+      "scale": 1.48,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0068",
+      "model": "rock_large",
+      "position": [
+        -67.94,
+        0,
+        -2.03
+      ],
+      "rotation": [
+        0,
+        1.03,
+        0
+      ],
+      "scale": 2.14,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0069",
+      "model": "rock_large",
+      "position": [
+        82.47,
+        0,
+        93.51
+      ],
+      "rotation": [
+        0,
+        2.32,
+        0
+      ],
+      "scale": 2.1,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0070",
+      "model": "pillar",
+      "position": [
+        113.69,
+        0,
+        -4.78
+      ],
+      "rotation": [
+        0,
+        1.17,
+        0
+      ],
+      "scale": 1.02,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0071",
+      "model": "pillar",
+      "position": [
+        -48.92,
+        0,
+        -49.31
+      ],
+      "rotation": [
+        0,
+        3.61,
+        0
+      ],
+      "scale": 0.91,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0072",
+      "model": "rock_large",
+      "position": [
+        -110.95,
+        0,
+        39.19
+      ],
+      "rotation": [
+        0,
+        1.84,
+        0
+      ],
+      "scale": 1.34,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0073",
+      "model": "pillar",
+      "position": [
+        112.15,
+        0,
+        38.41
+      ],
+      "rotation": [
+        0,
+        3.89,
+        0
+      ],
+      "scale": 1.75,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0074",
+      "model": "rock_large",
+      "position": [
+        18.94,
+        0,
+        -48.29
+      ],
+      "rotation": [
+        0,
+        4.1,
+        0
+      ],
+      "scale": 1.19,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0075",
+      "model": "rock_large",
+      "position": [
+        26.14,
+        0,
+        -116.5
+      ],
+      "rotation": [
+        0,
+        1.59,
+        0
+      ],
+      "scale": 1.02,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0076",
+      "model": "pillar",
+      "position": [
+        76.91,
+        0,
+        -34.53
+      ],
+      "rotation": [
+        0,
+        2.15,
+        0
+      ],
+      "scale": 1.85,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0077",
+      "model": "pillar",
+      "position": [
+        -71.53,
+        0,
+        23.47
+      ],
+      "rotation": [
+        0,
+        5.09,
+        0
+      ],
+      "scale": 2.05,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0078",
+      "model": "rock_large",
+      "position": [
+        48.18,
+        0,
+        -52.17
+      ],
+      "rotation": [
+        0,
+        3.42,
+        0
+      ],
+      "scale": 1.99,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0079",
+      "model": "rock_large",
+      "position": [
+        -107.42,
+        0,
+        15.87
+      ],
+      "rotation": [
+        0,
+        0.92,
+        0
+      ],
+      "scale": 1.56,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0080",
+      "model": "rock_large",
+      "position": [
+        -70.42,
+        0,
+        110.16
+      ],
+      "rotation": [
+        0,
+        0.64,
+        0
+      ],
+      "scale": 1.58,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0081",
+      "model": "rock_large",
+      "position": [
+        -54.76,
+        0,
+        -22.22
+      ],
+      "rotation": [
+        0,
+        0.04,
+        0
+      ],
+      "scale": 1.05,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0082",
+      "model": "rock_large",
+      "position": [
+        -112.65,
+        0,
+        -33.22
+      ],
+      "rotation": [
+        0,
+        3.41,
+        0
+      ],
+      "scale": 1.44,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0083",
+      "model": "pillar",
+      "position": [
+        -69.94,
+        0,
+        -27.39
+      ],
+      "rotation": [
+        0,
+        5.89,
+        0
+      ],
+      "scale": 1.2,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0084",
+      "model": "rock_large",
+      "position": [
+        113.28,
+        0,
+        -107.2
+      ],
+      "rotation": [
+        0,
+        2.9,
+        0
+      ],
+      "scale": 1.54,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0085",
+      "model": "pillar",
+      "position": [
+        -53.24,
+        0,
+        95.72
+      ],
+      "rotation": [
+        0,
+        4.58,
+        0
+      ],
+      "scale": 1.06,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0086",
+      "model": "pillar",
+      "position": [
+        -114.02,
+        0,
+        -75.82
+      ],
+      "rotation": [
+        0,
+        2.78,
+        0
+      ],
+      "scale": 0.95,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0087",
+      "model": "pillar",
+      "position": [
+        101.77,
+        0,
+        52.1
+      ],
+      "rotation": [
+        0,
+        2.27,
+        0
+      ],
+      "scale": 1.43,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0088",
+      "model": "rock_large",
+      "position": [
+        30.84,
+        0,
+        -1.47
+      ],
+      "rotation": [
+        0,
+        2.64,
+        0
+      ],
+      "scale": 1.72,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0089",
+      "model": "rock_large",
+      "position": [
+        24.38,
+        0,
+        92.04
+      ],
+      "rotation": [
+        0,
+        1.72,
+        0
+      ],
+      "scale": 1.64,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 2
+    },
+    {
+      "id": "p_0090",
+      "model": "pillar",
+      "position": [
+        -13.68,
+        0,
+        -79.87
+      ],
+      "rotation": [
+        0,
+        5.55,
+        0
+      ],
+      "scale": 1.73,
+      "snapToGround": true,
+      "collision": "circle",
+      "collisionRadius": 1.3
+    },
+    {
+      "id": "p_0091",
+      "model": "crystal",
+      "position": [
+        44.48,
+        0,
+        115.18
+      ],
+      "rotation": [
+        0,
+        0.64,
+        0
+      ],
+      "scale": 1.12,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 10125288
+    },
+    {
+      "id": "p_0092",
+      "model": "mushroom_large",
+      "position": [
+        -58.04,
+        0,
+        -115.43
+      ],
+      "rotation": [
+        0,
+        4.07,
+        0
+      ],
+      "scale": 0.9,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 7320792
+    },
+    {
+      "id": "p_0093",
+      "model": "crystal",
+      "position": [
+        -93.26,
+        0,
+        5.76
+      ],
+      "rotation": [
+        0,
+        0.73,
+        0
+      ],
+      "scale": 0.95,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 7320792
+    },
+    {
+      "id": "p_0094",
+      "model": "rock_small",
+      "position": [
+        -23.25,
+        0,
+        57.43
+      ],
+      "rotation": [
+        0,
+        5.42,
+        0
+      ],
+      "scale": 0.96,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 7320792
+    },
+    {
+      "id": "p_0095",
+      "model": "crystal",
+      "position": [
+        -12.91,
+        0,
+        35.82
+      ],
+      "rotation": [
+        0,
+        3.14,
+        0
+      ],
+      "scale": 0.73,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0096",
+      "model": "rock_small",
+      "position": [
+        10.46,
+        0,
+        -67.89
+      ],
+      "rotation": [
+        0,
+        5.35,
+        0
+      ],
+      "scale": 1.31,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 10125288
+    },
+    {
+      "id": "p_0097",
+      "model": "rock_small",
+      "position": [
+        -36.55,
+        0,
+        51.34
+      ],
+      "rotation": [
+        0,
+        5.17,
+        0
+      ],
+      "scale": 0.99,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0098",
+      "model": "crystal",
+      "position": [
+        -60.7,
+        0,
+        65.11
+      ],
+      "rotation": [
+        0,
+        3.03,
+        0
+      ],
+      "scale": 1.07,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0099",
+      "model": "crystal",
+      "position": [
+        -91.64,
+        0,
+        -19.06
+      ],
+      "rotation": [
+        0,
+        5.29,
+        0
+      ],
+      "scale": 1.16,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0100",
+      "model": "mushroom_large",
+      "position": [
+        -97.94,
+        0,
+        68.57
+      ],
+      "rotation": [
+        0,
+        0.97,
+        0
+      ],
+      "scale": 0.93,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0101",
+      "model": "crystal",
+      "position": [
+        -22.31,
+        0,
+        -1.65
+      ],
+      "rotation": [
+        0,
+        5.07,
+        0
+      ],
+      "scale": 1.05,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 10125288
+    },
+    {
+      "id": "p_0102",
+      "model": "crystal",
+      "position": [
+        96.86,
+        0,
+        -0.34
+      ],
+      "rotation": [
+        0,
+        2.17,
+        0
+      ],
+      "scale": 1.38,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 10125288
+    },
+    {
+      "id": "p_0103",
+      "model": "mushroom_large",
+      "position": [
+        -53.87,
+        0,
+        80.59
+      ],
+      "rotation": [
+        0,
+        1.25,
+        0
+      ],
+      "scale": 0.95,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 7320792
+    },
+    {
+      "id": "p_0104",
+      "model": "mushroom_large",
+      "position": [
+        -68.27,
+        0,
+        -109.68
+      ],
+      "rotation": [
+        0,
+        1.76,
+        0
+      ],
+      "scale": 1.14,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 10125288
+    },
+    {
+      "id": "p_0105",
+      "model": "mushroom_large",
+      "position": [
+        -30.41,
+        0,
+        -46.51
+      ],
+      "rotation": [
+        0,
+        1.78,
+        0
+      ],
+      "scale": 1.17,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 10125288
+    },
+    {
+      "id": "p_0106",
+      "model": "crystal",
+      "position": [
+        -10.63,
+        0,
+        -10.1
+      ],
+      "rotation": [
+        0,
+        0.24,
+        0
+      ],
+      "scale": 1.38,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 7320792
+    },
+    {
+      "id": "p_0107",
+      "model": "crystal",
+      "position": [
+        24.74,
+        0,
+        -82.41
+      ],
+      "rotation": [
+        0,
+        0.29,
+        0
+      ],
+      "scale": 1.11,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 7320792
+    },
+    {
+      "id": "p_0108",
+      "model": "rock_small",
+      "position": [
+        72.19,
+        0,
+        -48.96
+      ],
+      "rotation": [
+        0,
+        0.91,
+        0
+      ],
+      "scale": 0.89,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0109",
+      "model": "mushroom_large",
+      "position": [
+        -47.05,
+        0,
+        77.66
+      ],
+      "rotation": [
+        0,
+        2.81,
+        0
+      ],
+      "scale": 1.13,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0110",
+      "model": "crystal",
+      "position": [
+        -47.36,
+        0,
+        -80.2
+      ],
+      "rotation": [
+        0,
+        2.31,
+        0
+      ],
+      "scale": 0.84,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0111",
+      "model": "mushroom_large",
+      "position": [
+        -2.06,
+        0,
+        26.82
+      ],
+      "rotation": [
+        0,
+        4.65,
+        0
+      ],
+      "scale": 1.12,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 7320792
+    },
+    {
+      "id": "p_0112",
+      "model": "mushroom_large",
+      "position": [
+        -98.6,
+        0,
+        -5.82
+      ],
+      "rotation": [
+        0,
+        3.35,
+        0
+      ],
+      "scale": 0.95,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0113",
+      "model": "mushroom_large",
+      "position": [
+        92.86,
+        0,
+        -112.55
+      ],
+      "rotation": [
+        0,
+        0.53,
+        0
+      ],
+      "scale": 1.32,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0114",
+      "model": "mushroom_large",
+      "position": [
+        -44.77,
+        0,
+        -107.22
+      ],
+      "rotation": [
+        0,
+        5.73,
+        0
+      ],
+      "scale": 1.33,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0115",
+      "model": "rock_small",
+      "position": [
+        81.95,
+        0,
+        21.42
+      ],
+      "rotation": [
+        0,
+        3.96,
+        0
+      ],
+      "scale": 1.44,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 10125288
+    },
+    {
+      "id": "p_0116",
+      "model": "mushroom_large",
+      "position": [
+        -73.35,
+        0,
+        62.49
+      ],
+      "rotation": [
+        0,
+        4.6,
+        0
+      ],
+      "scale": 1.17,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 7320792
+    },
+    {
+      "id": "p_0117",
+      "model": "mushroom_large",
+      "position": [
+        -25.81,
+        0,
+        106.86
+      ],
+      "rotation": [
+        0,
+        0.15,
+        0
+      ],
+      "scale": 0.84,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 7320792
+    },
+    {
+      "id": "p_0118",
+      "model": "crystal",
+      "position": [
+        84.1,
+        0,
+        77.27
+      ],
+      "rotation": [
+        0,
+        6.11,
+        0
+      ],
+      "scale": 1.21,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 10125288
+    },
+    {
+      "id": "p_0119",
+      "model": "rock_small",
+      "position": [
+        7.89,
+        0,
+        23.64
+      ],
+      "rotation": [
+        0,
+        4.9,
+        0
+      ],
+      "scale": 1.48,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 7320792
+    },
+    {
+      "id": "p_0120",
+      "model": "crystal",
+      "position": [
+        20.28,
+        0,
+        5.34
+      ],
+      "rotation": [
+        0,
+        0.7,
+        0
+      ],
+      "scale": 0.77,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 10125288
+    },
+    {
+      "id": "p_0121",
+      "model": "mushroom_large",
+      "position": [
+        35.59,
+        0,
+        -74.5
+      ],
+      "rotation": [
+        0,
+        2.48,
+        0
+      ],
+      "scale": 1.02,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 7320792
+    },
+    {
+      "id": "p_0122",
+      "model": "rock_small",
+      "position": [
+        -11.47,
+        0,
+        105.08
+      ],
+      "rotation": [
+        0,
+        0.24,
+        0
+      ],
+      "scale": 1.11,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 10125288
+    },
+    {
+      "id": "p_0123",
+      "model": "rock_small",
+      "position": [
+        -56.67,
+        0,
+        94.99
+      ],
+      "rotation": [
+        0,
+        3.47,
+        0
+      ],
+      "scale": 1.06,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 7320792
+    },
+    {
+      "id": "p_0124",
+      "model": "crystal",
+      "position": [
+        -98.61,
+        0,
+        91.38
+      ],
+      "rotation": [
+        0,
+        4.6,
+        0
+      ],
+      "scale": 0.84,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0125",
+      "model": "crystal",
+      "position": [
+        56.92,
+        0,
+        3.39
+      ],
+      "rotation": [
+        0,
+        4.72,
+        0
+      ],
+      "scale": 1.11,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 10125288
+    },
+    {
+      "id": "p_0126",
+      "model": "rock_small",
+      "position": [
+        0.3,
+        0,
+        -33.39
+      ],
+      "rotation": [
+        0,
+        1.49,
+        0
+      ],
+      "scale": 0.79,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0127",
+      "model": "mushroom_large",
+      "position": [
+        -33.43,
+        0,
+        -31.31
+      ],
+      "rotation": [
+        0,
+        0.34,
+        0
+      ],
+      "scale": 0.79,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 10125288
+    },
+    {
+      "id": "p_0128",
+      "model": "crystal",
+      "position": [
+        -104.5,
+        0,
+        111.24
+      ],
+      "rotation": [
+        0,
+        2.67,
+        0
+      ],
+      "scale": 1.29,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0129",
+      "model": "mushroom_large",
+      "position": [
+        -113.56,
+        0,
+        -73.31
+      ],
+      "rotation": [
+        0,
+        5.38,
+        0
+      ],
+      "scale": 1.32,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0130",
+      "model": "rock_small",
+      "position": [
+        23.53,
+        0,
+        114.98
+      ],
+      "rotation": [
+        0,
+        5.72,
+        0
+      ],
+      "scale": 1.46,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 7320792
+    },
+    {
+      "id": "p_0131",
+      "model": "mushroom_large",
+      "position": [
+        29.81,
+        0,
+        -83.78
+      ],
+      "rotation": [
+        0,
+        2.91,
+        0
+      ],
+      "scale": 0.7,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0132",
+      "model": "crystal",
+      "position": [
+        -30.04,
+        0,
+        59.69
+      ],
+      "rotation": [
+        0,
+        4.98,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 10125288
+    },
+    {
+      "id": "p_0133",
+      "model": "crystal",
+      "position": [
+        -13.24,
+        0,
+        -54.96
+      ],
+      "rotation": [
+        0,
+        4.7,
+        0
+      ],
+      "scale": 1.42,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 7320792
+    },
+    {
+      "id": "p_0134",
+      "model": "mushroom_large",
+      "position": [
+        -108,
+        0,
+        -80.41
+      ],
+      "rotation": [
+        0,
+        2.79,
+        0
+      ],
+      "scale": 1.4,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0135",
+      "model": "crystal",
+      "position": [
+        10.24,
+        0,
+        -14
+      ],
+      "rotation": [
+        0,
+        2.22,
+        0
+      ],
+      "scale": 1.45,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0136",
+      "model": "crystal",
+      "position": [
+        -110.21,
+        0,
+        -104.55
+      ],
+      "rotation": [
+        0,
+        1.19,
+        0
+      ],
+      "scale": 1.32,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0137",
+      "model": "rock_small",
+      "position": [
+        1,
+        0,
+        86.93
+      ],
+      "rotation": [
+        0,
+        3.56,
+        0
+      ],
+      "scale": 1.17,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0138",
+      "model": "crystal",
+      "position": [
+        -30.42,
+        0,
+        -85.71
+      ],
+      "rotation": [
+        0,
+        3.31,
+        0
+      ],
+      "scale": 1.41,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0139",
+      "model": "mushroom_large",
+      "position": [
+        -4.01,
+        0,
+        -63.57
+      ],
+      "rotation": [
+        0,
+        0.18,
+        0
+      ],
+      "scale": 0.79,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 7320792
+    },
+    {
+      "id": "p_0140",
+      "model": "mushroom_large",
+      "position": [
+        -66.11,
+        0,
+        10.19
+      ],
+      "rotation": [
+        0,
+        2.26,
+        0
+      ],
+      "scale": 1.24,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 7320792
+    },
+    {
+      "id": "p_0141",
+      "model": "mushroom_large",
+      "position": [
+        -46.45,
+        0,
+        -54.64
+      ],
+      "rotation": [
+        0,
+        4.55,
+        0
+      ],
+      "scale": 0.99,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 7320792
+    },
+    {
+      "id": "p_0142",
+      "model": "mushroom_large",
+      "position": [
+        89.51,
+        0,
+        48.68
+      ],
+      "rotation": [
+        0,
+        2.79,
+        0
+      ],
+      "scale": 1.01,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 7320792
+    },
+    {
+      "id": "p_0143",
+      "model": "mushroom_large",
+      "position": [
+        -88.31,
+        0,
+        -80.56
+      ],
+      "rotation": [
+        0,
+        6.03,
+        0
+      ],
+      "scale": 1.08,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 10125288
+    },
+    {
+      "id": "p_0144",
+      "model": "mushroom_large",
+      "position": [
+        60.96,
+        0,
+        62.25
+      ],
+      "rotation": [
+        0,
+        4.73,
+        0
+      ],
+      "scale": 1.41,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0145",
+      "model": "rock_small",
+      "position": [
+        -51.91,
+        0,
+        -29.88
+      ],
+      "rotation": [
+        0,
+        2.85,
+        0
+      ],
+      "scale": 1.17,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 7320792
+    },
+    {
+      "id": "p_0146",
+      "model": "rock_small",
+      "position": [
+        -40.9,
+        0,
+        -79.99
+      ],
+      "rotation": [
+        0,
+        3.67,
+        0
+      ],
+      "scale": 0.99,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0147",
+      "model": "crystal",
+      "position": [
+        102.3,
+        0,
+        6.12
+      ],
+      "rotation": [
+        0,
+        2.65,
+        0
+      ],
+      "scale": 1.44,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 8378600
+    },
+    {
+      "id": "p_0148",
+      "model": "mushroom_large",
+      "position": [
+        92.33,
+        0,
+        59.87
+      ],
+      "rotation": [
+        0,
+        3.99,
+        0
+      ],
+      "scale": 1.05,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 10125288
+    },
+    {
+      "id": "p_0149",
+      "model": "crystal",
+      "position": [
+        112.73,
+        0,
+        56.23
+      ],
+      "rotation": [
+        0,
+        1.19,
+        0
+      ],
+      "scale": 1.32,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 7320792
+    },
+    {
+      "id": "p_0150",
+      "model": "mushroom_large",
+      "position": [
+        -17.13,
+        0,
+        -113.9
+      ],
+      "rotation": [
+        0,
+        4.2,
+        0
+      ],
+      "scale": 0.96,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1,
+      "tint": 10125288
+    },
+    {
+      "id": "p_0151",
+      "model": "brazier",
+      "position": [
+        -116.69,
+        0,
+        100.24
+      ],
+      "rotation": [
+        0,
+        1.68,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0152",
+      "model": "brazier",
+      "position": [
+        -94.87,
+        0,
+        73.29
+      ],
+      "rotation": [
+        0,
+        4.94,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0153",
+      "model": "brazier",
+      "position": [
+        34.86,
+        0,
+        -19.34
+      ],
+      "rotation": [
+        0,
+        6.16,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0154",
+      "model": "brazier",
+      "position": [
+        57.31,
+        0,
+        -114.08
+      ],
+      "rotation": [
+        0,
+        5.99,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0155",
+      "model": "brazier",
+      "position": [
+        67.08,
+        0,
+        -16.82
+      ],
+      "rotation": [
+        0,
+        3.14,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0156",
+      "model": "brazier",
+      "position": [
+        -31.57,
+        0,
+        49.39
+      ],
+      "rotation": [
+        0,
+        0.85,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0157",
+      "model": "brazier",
+      "position": [
+        54.41,
+        0,
+        -58.04
+      ],
+      "rotation": [
+        0,
+        1.74,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0158",
+      "model": "brazier",
+      "position": [
+        63.77,
+        0,
+        93.13
+      ],
+      "rotation": [
+        0,
+        2.23,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0159",
+      "model": "brazier",
+      "position": [
+        -53.16,
+        0,
+        50.7
+      ],
+      "rotation": [
+        0,
+        2.95,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0160",
+      "model": "brazier",
+      "position": [
+        49.06,
+        0,
+        -75.23
+      ],
+      "rotation": [
+        0,
+        2.95,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0161",
+      "model": "brazier",
+      "position": [
+        -82.85,
+        0,
+        -20.98
+      ],
+      "rotation": [
+        0,
+        2.63,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0162",
+      "model": "brazier",
+      "position": [
+        61.91,
+        0,
+        30.53
+      ],
+      "rotation": [
+        0,
+        2.91,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0163",
+      "model": "brazier",
+      "position": [
+        -68.9,
+        0,
+        -96.83
+      ],
+      "rotation": [
+        0,
+        2.53,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0164",
+      "model": "brazier",
+      "position": [
+        -33.09,
+        0,
+        103.05
+      ],
+      "rotation": [
+        0,
+        5.83,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0165",
+      "model": "brazier",
+      "position": [
+        -22.73,
+        0,
+        -88.54
+      ],
+      "rotation": [
+        0,
+        5.73,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0166",
+      "model": "brazier",
+      "position": [
+        83.13,
+        0,
+        -89.36
+      ],
+      "rotation": [
+        0,
+        1.17,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0167",
+      "model": "brazier",
+      "position": [
+        -39.39,
+        0,
+        -26.4
+      ],
+      "rotation": [
+        0,
+        1.38,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0168",
+      "model": "brazier",
+      "position": [
+        40.19,
+        0,
+        -60.64
+      ],
+      "rotation": [
+        0,
+        5.67,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0169",
+      "model": "brazier",
+      "position": [
+        -80.36,
+        0,
+        -2.84
+      ],
+      "rotation": [
+        0,
+        5.41,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0170",
+      "model": "brazier",
+      "position": [
+        93.98,
+        0,
+        -66.78
+      ],
+      "rotation": [
+        0,
+        4.87,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0171",
+      "model": "brazier",
+      "position": [
+        19.61,
+        0,
+        -102.47
+      ],
+      "rotation": [
+        0,
+        1.4,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    },
+    {
+      "id": "p_0172",
+      "model": "brazier",
+      "position": [
+        113.56,
+        0,
+        -21.58
+      ],
+      "rotation": [
+        0,
+        3.79,
+        0
+      ],
+      "scale": 1,
+      "snapToGround": true,
+      "collision": "none",
+      "collisionRadius": 1
+    }
+  ],
+  "spawners": [
+    {
+      "id": "s_crawler_a",
+      "mob": "cave_crawler",
+      "position": [
+        -30,
+        -20
+      ],
+      "radius": 22,
+      "count": 6,
+      "respawnMs": 25000
+    },
+    {
+      "id": "s_crawler_b",
+      "mob": "cave_crawler",
+      "position": [
+        34,
+        18
+      ],
+      "radius": 22,
+      "count": 6,
+      "respawnMs": 25000
+    },
+    {
+      "id": "s_crawler_c",
+      "mob": "cave_crawler",
+      "position": [
+        -8,
+        56
+      ],
+      "radius": 20,
+      "count": 5,
+      "respawnMs": 25000
+    },
+    {
+      "id": "s_warden",
+      "mob": "dungeon_warden",
+      "position": [
+        0,
+        92
+      ],
+      "radius": 6,
+      "count": 1,
+      "respawnMs": 120000
+    }
+  ],
+  "npcs": [],
+  "portals": [
+    {
+      "id": "g_exit",
+      "kind": "return",
+      "position": [
+        0,
+        -104
+      ],
+      "radius": 5,
+      "label": "Dornwald",
+      "target": {
+        "map": "dornwald",
+        "x": 96,
+        "z": 140,
+        "yaw": 3.14159
+      },
+      "minLevel": 0
+    }
+  ]
+}
