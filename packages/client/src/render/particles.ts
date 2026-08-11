@@ -294,7 +294,7 @@ export function burstHit(
     // man die Zahl liest.
     color: options.critical ? 0xffe9a0 : 0xffb45a,
     speed: 5.5 * (options.killing ? 1.4 : 1),
-    size: 3.4 * (options.critical ? 1.25 : 1),
+    size: 1.9 * (options.critical ? 1.25 : 1),
     life: 0.42,
     lift: 0.35,
   });
@@ -305,7 +305,7 @@ export function burstHit(
     count: Math.max(3, Math.round(options.budget * 0.15 * scale)),
     color: options.killing ? 0xff6a3a : 0xc4622a,
     speed: 2.4,
-    size: 5.0,
+    size: 2.8,
     life: 0.62,
     lift: 0.55,
   });
