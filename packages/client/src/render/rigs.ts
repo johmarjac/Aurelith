@@ -90,11 +90,18 @@ const WEAPON_SPECS: Record<Exclude<HumanoidConfig['weapon'], 'none'>, WeaponSpec
         { geometry: box(0.22, 0.06, 0.06), color: 0x5d4324, position: [0, 0.02, 0] },
         { geometry: box(0.06, 0.22, 0.06), color: 0x3f2d18, position: [0, -0.12, 0] },
       ]),
-    // Etwas mehr als eine Vierteldrehung: die Klinge zeigt nach vorn und
-    // leicht nach unten, wie eine locker getragene Waffe — und vor allem vom
-    // Arm weg statt an ihm entlang.
+    // Zwei Drehungen, zwei Gründe.
+    //
+    // Um X: etwas mehr als eine Vierteldrehung, damit die Klinge nach vorn und
+    // leicht nach unten zeigt — vom Arm weg statt an ihm entlang.
+    //
+    // Um Y: eine Vierteldrehung, damit die *Schneide* in Schwingrichtung
+    // zeigt. Der Arm dreht um X, die Klinge zieht also durch die YZ-Ebene.
+    // Die Breite der Klinge (0,07 in X) muss in dieser Ebene liegen, sonst
+    // schlägt die Figur mit der flachen Seite zu. Die Parierstange dreht als
+    // Teil derselben Geometrie mit und bleibt dadurch richtig zur Schneide.
     position: [0.02, 0, 0.04],
-    rotation: [Math.PI * 0.66, 0, 0],
+    rotation: [Math.PI * 0.66, Math.PI / 2, 0],
   },
 
   club: {
