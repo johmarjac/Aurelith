@@ -132,8 +132,21 @@ const executablePath = findChromium();
 const browser = await chromium.launch({
   headless: !args.has('--headed'),
   ...(executablePath ? { executablePath } : {}),
-  // SwiftShader liefert WebGL 2 ohne GPU — anders wäre der Test hier blind.
-  args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox'],
+  args: [
+    // SwiftShader liefert WebGL 2 ohne GPU — anders wäre der Test hier blind.
+    '--use-gl=angle',
+    '--use-angle=swiftshader',
+    '--enable-unsafe-swiftshader',
+    '--no-sandbox',
+    // Chromium friert Seiten im Hintergrund ein und drosselt dort
+    // requestAnimationFrame. Die Spielschleife laeuft darauf — ohne diese
+    // Flaggen misst der Test an einer stehenden Simulation und meldet
+    // sporadisch Bewegungen von null.
+    '--disable-background-timer-throttling',
+    '--disable-backgrounding-occluded-windows',
+    '--disable-renderer-backgrounding',
+    '--disable-features=CalculateNativeWinOcclusion',
+  ],
 });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 
@@ -364,6 +377,70 @@ const after = await page.evaluate(() => ({
 
 check(after.status.length > 0, 'Statusanzeige bleibt lesbar');
 
+// --- Chatbefehl /connect --------------------------------------------------
+//
+// Der eigentliche Zweck: auf einer statisch ausgelieferten Seite ist die
+// Serveradresse beim Bauen eingebacken. Ohne einen Weg, sie zur Laufzeit zu
+// setzen, muesste fuer jede andere Adresse neu gebaut und veroeffentlicht
+// werden.
+
+async function chat(text) {
+  await page.click('.chat-input');
+  await page.fill('.chat-input', text);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(400);
+}
+
+const chatText = () =>
+  page.evaluate(() => [...document.querySelectorAll('.chat-line')].map((n) => n.textContent).join(' | '));
+
+await chat('/disconnect');
+const afterDisconnect = await page.evaluate(() => ({
+  state: document.querySelector('.status')?.getAttribute('data-state'),
+  localId: window.aurelith.localId,
+  stored: localStorage.getItem('aurelith.server'),
+}));
+check(afterDisconnect.state === 'getrennt', `/disconnect trennt (${afterDisconnect.state})`);
+check(afterDisconnect.localId === 0, '/disconnect raeumt die Sitzung ab');
+check(afterDisconnect.stored === null, '/disconnect loescht die gespeicherte Adresse');
+
+// Eine Adresse, die kein WebSocket ist, muss abgelehnt werden — und zwar
+// bevor irgendetwas versucht wird.
+await chat('/connect http://example.com');
+const rejected = await chatText();
+check(
+  rejected.includes('ws:// oder wss://'),
+  'ungueltige Adresse wird mit Begruendung abgelehnt',
+);
+check(
+  (await page.evaluate(() => localStorage.getItem('aurelith.server'))) === null,
+  'abgelehnte Adresse wird nicht gespeichert',
+);
+
+// Jetzt die echte: direkt auf den Spielserver, nicht ueber den Vite-Proxy.
+await chat('/connect ws://127.0.0.1:8787/ws');
+
+let reconnected = true;
+try {
+  await page.waitForFunction(() => window.aurelith.localId > 0, { timeout: 20000 });
+} catch {
+  reconnected = false;
+}
+const afterConnect = await page.evaluate(() => ({
+  state: document.querySelector('.status')?.getAttribute('data-state'),
+  localId: window.aurelith.localId,
+  stored: localStorage.getItem('aurelith.server'),
+  entities: window.aurelith.entityCount,
+}));
+
+check(reconnected && afterConnect.localId > 0, `/connect verbindet neu (Entity ${afterConnect.localId})`);
+check(afterConnect.state === 'verbunden', `/connect meldet verbunden (${afterConnect.state})`);
+check(
+  afterConnect.stored === 'ws://127.0.0.1:8787/ws',
+  `Adresse bleibt gespeichert (${afterConnect.stored})`,
+);
+check(afterConnect.entities > 1, `Welt kommt wieder an (${afterConnect.entities} Entities)`);
+
 // --- Mobil: Joystick und Zwei-Finger-Zoom ---------------------------------
 //
 // Ein zweiter Kontext mit Beruehrungsbedienung. Die Zeigerereignisse werden von
@@ -431,6 +508,7 @@ if (mobileMode.hasJoystick && mobileReady) {
       );
 
     const start = { ...window.aurelith.player };
+    const framesBefore = window.aurelith.frames;
     send(canvas, 'pointerdown', 1, 90, 640);
     await new Promise((r) => setTimeout(r, 80));
     send(canvas, 'pointermove', 1, 90, 560);
@@ -440,11 +518,19 @@ if (mobileMode.hasJoystick && mobileReady) {
     await new Promise((r) => setTimeout(r, 200));
 
     const end = { ...window.aurelith.player };
-    return { visible, moved: Math.hypot(end.x - start.x, end.z - start.z) };
+    return {
+      visible,
+      moved: Math.hypot(end.x - start.x, end.z - start.z),
+      frames: window.aurelith.frames - framesBefore,
+    };
   });
 
   check(joystickResult.visible, 'Mobil: Joystick erscheint unter dem Daumen');
-  check(joystickResult.moved > 1, `Mobil: Joystick bewegt die Figur (${joystickResult.moved.toFixed(2)} Einheiten)`);
+  check(
+    joystickResult.moved > 1,
+    `Mobil: Joystick bewegt die Figur (${joystickResult.moved.toFixed(2)} Einheiten, ` +
+      `${joystickResult.frames} Bilder gezeichnet)`,
+  );
 
   // Zwei Finger zusammenziehen.
   const pinch = await mobilePage.evaluate(async () => {

@@ -77,6 +77,14 @@ export class Connection {
   private retryTimer?: number;
   private pingTimer?: number;
   private closedByUs = false;
+  /**
+   * Nach `close()` wird nichts mehr nach oben gemeldet.
+   *
+   * Wichtig beim Wechsel des Servers über `/connect`: eine alte Verbindung
+   * kann noch ein Paket im Flug haben, und dessen Snapshot würde sonst die
+   * frische Sitzung durcheinanderbringen.
+   */
+  private disposed = false;
 
   constructor(
     private readonly url: string,
@@ -85,6 +93,7 @@ export class Connection {
   ) {}
 
   connect(): void {
+    if (this.disposed) return;
     this.closedByUs = false;
     this.setStatus('verbindet');
 
@@ -122,6 +131,7 @@ export class Connection {
 
     socket.onclose = () => {
       this.stopPinging();
+      if (this.disposed) return;
       this.setStatus('getrennt');
       if (!this.closedByUs) this.scheduleRetry();
     };
@@ -151,6 +161,7 @@ export class Connection {
   }
 
   private handleFrame(data: Uint8Array): void {
+    if (this.disposed) return;
     const frame = decodeFrame(data, this.suite);
     for (const raw of frame.packets) {
       const { opcode, reader } = readPacket(raw);
@@ -198,6 +209,7 @@ export class Connection {
   }
 
   private setStatus(status: ConnectionStatus, detail?: string): void {
+    if (this.disposed) return;
     this.status = status;
     this.handlers.onStatus?.(status, detail);
   }
@@ -237,6 +249,7 @@ export class Connection {
   }
 
   close(): void {
+    this.disposed = true;
     this.closedByUs = true;
     this.stopPinging();
     if (this.retryTimer !== undefined) window.clearTimeout(this.retryTimer);

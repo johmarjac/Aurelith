@@ -24,24 +24,120 @@ export const ASSET_BASE =
   (import.meta.env?.VITE_ASSET_BASE as string | undefined) ??
   (import.meta.env?.BASE_URL ?? '/').replace(/\/$/, '');
 
-/** Wurde eine Serveradresse mitgegeben? Siehe `serverUrl`. */
-export const SERVER_CONFIGURED = Boolean(import.meta.env?.VITE_SERVER_URL);
+/** Schlüssel, unter dem eine im Spiel gesetzte Serveradresse liegt. */
+const SERVER_STORAGE_KEY = 'aurelith.server';
 
 /**
- * Adresse des Spielservers.
+ * Serveradresse, die der Spieler über `/connect` gesetzt hat.
  *
- * Ohne Angabe wird derselbe Host angenommen — das stimmt im
- * Entwicklungsbetrieb, wo Vite `/ws` durchreicht. Auf einer rein statischen
- * Auslieferung wie GitHub Pages stimmt es nicht: dort gibt es keinen
- * WebSocket-Endpunkt, und weil die Seite über HTTPS kommt, verbietet der
- * Browser ohnehin ein unverschlüsseltes `ws://`. Der Spielserver muss dann
- * über `VITE_SERVER_URL` benannt werden und `wss://` sprechen.
+ * Sie geht der Build-Variablen vor. Der Grund ist der Betrieb auf einer rein
+ * statischen Auslieferung: dort ist `VITE_SERVER_URL` beim Bauen eingebacken,
+ * und für jede andere Adresse müsste neu gebaut und veröffentlicht werden.
+ */
+export function storedServerUrl(): string | null {
+  try {
+    return localStorage.getItem(SERVER_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredServerUrl(url: string | null): void {
+  try {
+    if (url) localStorage.setItem(SERVER_STORAGE_KEY, url);
+    else localStorage.removeItem(SERVER_STORAGE_KEY);
+  } catch {
+    // Privater Modus ohne Storage — die Adresse gilt dann nur diese Sitzung.
+  }
+}
+
+/** Wurde überhaupt eine Serveradresse benannt? Siehe `serverUrl`. */
+export function isServerConfigured(): boolean {
+  return Boolean(storedServerUrl() ?? import.meta.env?.VITE_SERVER_URL);
+}
+
+/**
+ * Adresse des Spielservers, in dieser Reihenfolge:
+ *
+ *   1. was der Spieler mit `/connect` gesetzt hat
+ *   2. `VITE_SERVER_URL` aus dem Build
+ *   3. derselbe Host wie die Seite
+ *
+ * Der dritte Fall stimmt im Entwicklungsbetrieb, wo Vite `/ws` durchreicht.
+ * Auf einer statischen Auslieferung wie GitHub Pages stimmt er nicht — dort
+ * gibt es keinen WebSocket-Endpunkt.
  */
 export function serverUrl(): string {
+  const stored = storedServerUrl();
+  if (stored) return stored;
   const configured = import.meta.env?.VITE_SERVER_URL as string | undefined;
   if (configured) return configured;
   const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
   return `${scheme}//${location.host}/ws`;
+}
+
+export interface ServerUrlCheck {
+  ok: boolean;
+  url: string;
+  /** Hinweis, der den Spieler vor einem absehbaren Fehlschlag warnt. */
+  warning?: string;
+  error?: string;
+}
+
+/**
+ * Prüft eine eingegebene Adresse, bevor überhaupt verbunden wird.
+ *
+ * Der Mixed-Content-Fall ist der wichtigste: eine über HTTPS ausgelieferte
+ * Seite darf keine unverschlüsselte `ws://`-Verbindung öffnen. Ausgenommen ist
+ * die Loopback-Adresse, die Browser als vertrauenswürdig behandeln — dort
+ * funktioniert es in Chrome und Edge, in Safari nicht zuverlässig.
+ */
+export function checkServerUrl(raw: string): ServerUrlCheck {
+  const url = raw.trim();
+  if (!url) return { ok: false, url, error: 'Keine Adresse angegeben.' };
+
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { ok: false, url, error: `"${url}" ist keine gültige Adresse.` };
+  }
+
+  if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') {
+    return {
+      ok: false,
+      url,
+      error: `Adresse muss mit ws:// oder wss:// beginnen, nicht mit ${parsed.protocol}`,
+    };
+  }
+
+  const loopback =
+    parsed.hostname === 'localhost' ||
+    parsed.hostname === '127.0.0.1' ||
+    parsed.hostname === '[::1]' ||
+    parsed.hostname.endsWith('.localhost');
+
+  if (location.protocol === 'https:' && parsed.protocol === 'ws:' && !loopback) {
+    return {
+      ok: false,
+      url,
+      error:
+        'Diese Seite läuft über HTTPS und darf keine unverschlüsselte ws://-Verbindung ' +
+        'öffnen. Der Server braucht wss:// — oder du rufst den Client über http:// auf.',
+    };
+  }
+
+  if (location.protocol === 'https:' && parsed.protocol === 'ws:' && loopback) {
+    return {
+      ok: true,
+      url,
+      warning:
+        'ws:// auf localhost von einer HTTPS-Seite: Chrome und Edge erlauben das, ' +
+        'Safari nicht zuverlässig.',
+    };
+  }
+
+  return { ok: true, url };
 }
 
 /** Map, die vor der ersten Antwort des Servers gezeichnet wird. */

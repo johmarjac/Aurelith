@@ -38,10 +38,13 @@ import {
 import {
   BOOTSTRAP_MAP,
   QUALITY,
-  SERVER_CONFIGURED,
+  checkServerUrl,
   guessQuality,
+  isServerConfigured,
   isTouchDevice,
   serverUrl,
+  setStoredServerUrl,
+  storedServerUrl,
 } from '../config.ts';
 import { AssetStreamer } from '../assets/streamer.ts';
 import { loadClientCore, type ClientCore } from './coreLoader.ts';
@@ -189,7 +192,7 @@ export class Game {
     this.ui = new UI(uiHost, touch);
     this.input = new InputManager(canvas, this.scene, touch, uiHost);
 
-    this.ui.onChatSubmit = (text) => this.connection?.sendChat(text);
+    this.ui.onChatSubmit = (text) => this.onChatInput(text);
     this.ui.onRespawn = () => this.connection?.sendRespawn();
     this.ui.onAttackHold = (held) => this.input.setAttackButton(held);
     this.input.onPick = (x, y) => this.pickTarget(x, y);
@@ -276,9 +279,16 @@ export class Game {
   // -------------------------------------------------------------------------
 
   private connect(accountName: string): void {
-    let explainedMissingServer = false;
+    // Eine bestehende Verbindung zuerst abraeumen: nach `close()` meldet sie
+    // nichts mehr nach oben, also kann kein Paket im Flug die frische Sitzung
+    // durcheinanderbringen.
+    this.connection?.close();
+    this.resetSession();
 
-    this.connection = new Connection(serverUrl(), accountName, {
+    let explainedMissingServer = false;
+    const url = serverUrl();
+
+    this.connection = new Connection(url, accountName, {
       onStatus: (status, detail) => {
         this.ui.setConnection(status, detail);
 
@@ -287,13 +297,13 @@ export class Game {
         // ist. Der Hinweis kommt erst, wenn die Verbindung tatsächlich
         // scheitert — im Entwicklungsbetrieb ist dieselbe Vermutung richtig
         // und soll nichts melden.
-        if (status === 'getrennt' && !SERVER_CONFIGURED && !explainedMissingServer) {
+        if (status === 'getrennt' && !isServerConfigured() && !explainedMissingServer) {
           explainedMissingServer = true;
           this.ui.addChat(
             0,
             '',
             'Kein Spielserver hinterlegt — die Welt ist sichtbar, aber ohne Verbindung. ' +
-              'Beim Bauen VITE_SERVER_URL auf eine wss://-Adresse setzen.',
+              'Mit  /connect ws://localhost:8787/ws  eine Adresse setzen.',
           );
         }
       },
@@ -335,6 +345,94 @@ export class Game {
     });
 
     this.connection.connect();
+  }
+
+  /**
+   * Chateingabe. Alles, was mit einem Schraegstrich beginnt, ist ein Befehl und
+   * geht nicht an den Server.
+   *
+   * `/connect` gibt es, weil die Serveradresse auf einer statisch
+   * ausgelieferten Seite sonst beim Bauen eingebacken waere — fuer jede andere
+   * Adresse muesste neu gebaut und veroeffentlicht werden.
+   */
+  private onChatInput(text: string): void {
+    if (!text.startsWith('/')) {
+      this.connection?.sendChat(text);
+      return;
+    }
+
+    const [command, ...rest] = text.slice(1).trim().split(/\s+/);
+    const argument = rest.join(' ');
+
+    switch ((command ?? '').toLowerCase()) {
+      case 'connect':
+        this.commandConnect(argument);
+        break;
+      case 'disconnect':
+        this.commandDisconnect();
+        break;
+      case 'server':
+        this.systemLine(`Aktuelle Adresse: ${serverUrl()}`);
+        break;
+      case 'help':
+        this.systemLine(
+          '/connect <adresse> — mit einem Server verbinden, z. B. /connect ws://localhost:8787/ws',
+        );
+        this.systemLine('/disconnect — gespeicherte Adresse loeschen und trennen');
+        this.systemLine('/server — aktuelle Adresse anzeigen');
+        break;
+      default:
+        this.systemLine(`Unbekannter Befehl: /${command}. /help zeigt die Liste.`);
+        break;
+    }
+  }
+
+  private commandConnect(argument: string): void {
+    if (!argument) {
+      this.systemLine(`Aktuelle Adresse: ${serverUrl()}`);
+      this.systemLine('Zum Wechseln: /connect ws://localhost:8787/ws');
+      return;
+    }
+
+    const checked = checkServerUrl(argument);
+    if (!checked.ok) {
+      this.systemLine(checked.error ?? 'Adresse nicht verwendbar.');
+      return;
+    }
+    if (checked.warning) this.systemLine(checked.warning);
+
+    setStoredServerUrl(checked.url);
+    this.systemLine(`Verbinde mit ${checked.url} …`);
+    this.connect(this.playerName);
+  }
+
+  private commandDisconnect(): void {
+    const stored = storedServerUrl();
+    setStoredServerUrl(null);
+    this.connection?.close();
+    this.connection = undefined;
+    this.resetSession();
+    this.ui.setConnection('getrennt', 'getrennt');
+    this.systemLine(
+      stored ? `Getrennt, gespeicherte Adresse ${stored} geloescht.` : 'Getrennt.',
+    );
+  }
+
+  /** Alles verwerfen, was zur alten Sitzung gehoerte. Boden und Props bleiben. */
+  private resetSession(): void {
+    this.view.clearEntities();
+    this.pending = [];
+    this.inputSeq = 0;
+    this.localId = 0;
+    this.targetId = 0;
+    this.poseValid = false;
+    this.dead = false;
+    this.ui.setDead(false);
+    this.ui.setTarget(undefined);
+  }
+
+  private systemLine(text: string): void {
+    this.ui.addChat(0, '', text);
   }
 
   private applySnapshot(msg: {

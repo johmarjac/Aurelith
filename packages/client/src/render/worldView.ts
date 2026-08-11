@@ -291,6 +291,15 @@ export class WorldView {
     }
   }
 
+  /** Entfernt alle Figuren, behält aber Boden und Props. Für Serverwechsel. */
+  clearEntities(): void {
+    for (const e of this.entities.values()) {
+      this.root.remove(e.rig.root);
+      e.rig.dispose();
+    }
+    this.entities.clear();
+  }
+
   clear(): void {
     for (const e of this.entities.values()) {
       this.root.remove(e.rig.root);

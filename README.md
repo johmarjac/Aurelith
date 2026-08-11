@@ -224,6 +224,37 @@ Ohne diese Variable wird trotzdem veröffentlicht: die Welt ist sichtbar und
 begehbar-still, und der Client schreibt in den Chat, dass keine Serveradresse
 hinterlegt ist. Für eine Schaufenster-Seite reicht das.
 
+Achtung bei der Variablen: der Workflow liest `vars.AURELITH_SERVER_URL` und
+reicht sie als `VITE_SERVER_URL` in den Bau. Der Name im Repository muss also
+`AURELITH_SERVER_URL` lauten, und sie muss als **Repository**-Variable
+angelegt sein — eine Variable, die nur an der Umgebung `github-pages` hängt,
+sieht der Bau-Job nicht, weil nur der Deploy-Job diese Umgebung benennt. Und
+weil Vite den Wert beim Bauen einbackt, greift eine Änderung erst nach einem
+neuen Lauf.
+
+### Serveradresse zur Laufzeit setzen
+
+Weil eine eingebackene Adresse für alle Besucher dieselbe ist — und
+`localhost` damit für jeden auf *dessen* eigenen Rechner zeigt —, lässt sich
+die Adresse im Spiel setzen:
+
+```
+/connect ws://localhost:8787/ws    mit einem Server verbinden
+/disconnect                        Adresse löschen und trennen
+/server                            aktuelle Adresse anzeigen
+/help                              Liste der Befehle
+```
+
+Die Adresse landet in `localStorage` und geht der Build-Variablen vor. Damit
+kommt man von der veröffentlichten Seite aus an einen lokal laufenden Server,
+ohne neu zu bauen.
+
+Ein Vorbehalt bleibt: die Seite kommt über HTTPS, und eine HTTPS-Seite darf
+keine unverschlüsselte `ws://`-Verbindung öffnen. Für die Loopback-Adresse
+machen Chrome und Edge eine Ausnahme, Safari nicht zuverlässig — der Client
+prüft das vorher und sagt es, statt stumm zu scheitern. Für alles andere als
+localhost braucht der Server `wss://`.
+
 Danach veröffentlicht `.github/workflows/pages.yml` bei jedem Push:
 
 | | |
