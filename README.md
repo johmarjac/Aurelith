@@ -201,6 +201,16 @@ Einmalig im Repository einstellen:
 2. **Settings → Secrets and variables → Actions → Variables:**
    `AURELITH_SERVER_URL` = `wss://…`
 
+Ohne Schritt 1 baut der Workflow durch und scheitert erst beim Veröffentlichen
+mit `Failed to create deployment (status: 404)`. Das ist kein Fehler im Build,
+sondern die fehlende Freischaltung.
+
+Zu beachten: **Pages aus einem privaten Repository setzt mindestens GitHub Pro
+voraus.** Im kostenlosen Tarif lässt sich Pages dort nicht aktivieren — dann
+bleibt, das Repository öffentlich zu machen oder woanders zu hosten. Der Bau
+selbst ist davon unberührt; das Artefakt liegt in jedem Fall unter dem
+Workflow-Lauf und lässt sich herunterladen.
+
 Ohne diese Variable wird trotzdem veröffentlicht: die Welt ist sichtbar und
 begehbar-still, und der Client schreibt in den Chat, dass keine Serveradresse
 hinterlegt ist. Für eine Schaufenster-Seite reicht das.
