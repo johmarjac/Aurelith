@@ -11,6 +11,7 @@
     "migrate": "tsx src/db/migrate.ts"
   },
   "dependencies": {
+    "@aurelith/core": "*",
     "@aurelith/shared": "*",
     "pg": "^8.16.0",
     "ws": "^8.18.0"

@@ -1,0 +1,83 @@
+# Aurelith — Serverbetrieb auf einer eigenen Maschine.
+#
+# Drei Dienste. Der Spielserver selbst, PostgreSQL für die Spielstände, und
+# Caddy als TLS-Endpunkt davor.
+#
+# Caddy ist hier keine Bequemlichkeit, sondern Voraussetzung: der Client
+# liegt auf GitHub Pages und wird über HTTPS ausgeliefert. Ein Browser
+# verweigert von dort jede Verbindung nach ws:// — Mixed Content. Ohne
+# gültiges Zertifikat auf der Serverseite ist das Spiel von der
+# veröffentlichten Adresse aus nicht erreichbar, egal wie offen der Port ist.
+#
+#   cp .env.example .env     # AURELITH_DOMAIN und Passwort eintragen
+#   docker compose up -d
+#
+# Aus der Registry statt selbst gebaut:
+#
+#   docker compose pull && docker compose up -d
+
+name: aurelith
+
+services:
+  server:
+    image: ${AURELITH_IMAGE:-ghcr.io/johmarjac/aurelith-server:latest}
+    # Für den lokalen Bau: `docker compose build server`. Im Normalfall wird
+    # das Bild aus der Registry gezogen — auf einem Raspberry Pi dauert das
+    # Sekunden statt der Minuten, die der Emscripten-Bau kostet.
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://aurelith:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt — .env anlegen}@db:5432/aurelith
+      AURELITH_HOST: 0.0.0.0
+      AURELITH_PORT: 8787
+      AURELITH_START_MAP: ${AURELITH_START_MAP:-lichtmoor}
+      AURELITH_SESSION_TIMEOUT: ${AURELITH_SESSION_TIMEOUT:-90}
+    # Bewusst keine Portfreigabe nach außen: der Spielverkehr geht durch
+    # Caddy. Wer den Server ohne TLS erreichen will, nimmt dafür einen
+    # SSH-Tunnel, kein offenes Loch in der Firewall.
+    expose:
+      - '8787'
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aurelith
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt — .env anlegen}
+      POSTGRES_DB: aurelith
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U aurelith -d aurelith']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - server
+    environment:
+      AURELITH_DOMAIN: ${AURELITH_DOMAIN:?AURELITH_DOMAIN fehlt — .env anlegen}
+      AURELITH_ACME_MAIL: ${AURELITH_ACME_MAIL:-}
+    # Port 80 wird für die Zertifikatsprüfung von Let's Encrypt gebraucht,
+    # nicht nur für die Umleitung. Beide müssen von außen erreichbar sein.
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  db-data:
+  caddy-data:
+  caddy-config:

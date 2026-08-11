@@ -1,0 +1,28 @@
+# Was nicht in den Bau-Kontext gehört.
+#
+# Vor allem node_modules: die Abhängigkeiten werden im Bild für dessen
+# Architektur aufgelöst. Ein von einem amd64-Rechner mitgeschicktes
+# node_modules wäre auf dem Raspberry Pi schlicht falsch.
+
+node_modules
+**/node_modules
+
+# Bauergebnisse. Der Kern wird im Bild selbst übersetzt — ein lokal
+# vorhandenes dist/ würde sonst ungefragt gewinnen.
+packages/core/build
+packages/core/dist
+assets/core
+dist
+**/dist
+*.tsbuildinfo
+
+# Nichts davon braucht der Server.
+artefakte
+assets/textures
+assets/models
+assets/manifest.json
+.git
+.github
+.env
+.env.local
+.DS_Store

@@ -1,0 +1,106 @@
+# Baut das Serverbild und schiebt es in die GitHub Container Registry.
+#
+# Zwei Architekturen: amd64 für gewöhnliche Rechner, arm64 für den Raspberry
+# Pi. Beide landen unter demselben Schild — `docker pull` sucht sich die
+# passende Variante selbst heraus.
+#
+# Der teure Teil, die Übersetzung des C++-Kerns nach WebAssembly, läuft
+# dabei nur **einmal**. Das Dockerfile hängt diese Stufe an $BUILDPLATFORM,
+# also an den amd64-Läufer; unter QEMU-Emulation ein zweites Mal zu
+# übersetzen, ergäbe dieselbe .wasm nach vielfacher Wartezeit.
+#
+# Das fertige Bild liegt danach unter:
+#   ghcr.io/johmarjac/aurelith-server:latest
+#
+# Einmalig im Repository einzustellen, falls das Paket privat bleiben soll:
+#   Packages → aurelith-server → Package settings → Manage Actions access
+
+name: Serverbild
+
+on:
+  push:
+    branches:
+      - main
+      - claude/new-session-9cek38
+    tags:
+      - 'v*'
+    # Nur wenn sich am Server oder am Bauplan etwas ändert. Eine Änderung am
+    # Client hat auf das Serverbild keine Wirkung.
+    paths:
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'docker/**'
+      - 'packages/core/**'
+      - 'packages/shared/**'
+      - 'packages/server/**'
+      - 'assets/maps/**'
+      - 'tools/build-core.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/server-image.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: server-image-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Kleingeschrieben, weil die Registry Großbuchstaben im Namen ablehnt —
+  # das Repository heißt "Aurelith", das Paket darf es nicht.
+  IMAGE: ghcr.io/johmarjac/aurelith-server
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Für den arm64-Teil. Der Kern wird davon nicht berührt, aber `npm ci`
+      # löst plattformabhängige Binärpakete auf und muss deshalb im Zielbild
+      # laufen.
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Schilder bestimmen
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Bauen und schieben
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Der Emscripten-Bau ist die teuerste Schicht und ändert sich
+          # selten. Ohne Cache kostet jeder Lauf ihn von vorn.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Ergebnis
+        run: |
+          echo "Geschoben:"
+          echo "${{ steps.meta.outputs.tags }}" | sed 's/^/  /'

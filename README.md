@@ -324,6 +324,100 @@ verschiedenen Hosts — so wie es der Blueprint vorsieht.
 
 ---
 
+## Server betreiben
+
+Pages liefert den Client. Den Server muss man selbst hinstellen — und weil die
+Seite über HTTPS kommt, muss er `wss://` sprechen. Das ist keine Kür: ohne
+gültiges Zertifikat verweigert der Browser die Verbindung, egal wie offen der
+Port ist.
+
+Dafür liegt ein Container bereit, gebaut für amd64 und arm64. Der Raspberry Pi
+ist damit ein vollwertiges Ziel.
+
+```
+cp .env.example .env      # Domain und Datenbankpasswort eintragen
+docker compose pull
+docker compose up -d
+```
+
+Drei Dienste: der Spielserver, PostgreSQL für die Spielstände, und Caddy als
+TLS-Endpunkt davor. Caddy holt und erneuert das Zertifikat selbst, sobald die
+Domain auf die Maschine zeigt und die Ports **80 und 443** von außen
+erreichbar sind — Port 80 wird für die Prüfung von Let's Encrypt gebraucht,
+nicht nur für die Umleitung.
+
+Danach steht der Server unter `wss://<domain>/ws`. Im Spiel:
+
+```
+/connect wss://spiel.example.org/ws
+```
+
+Dauerhaft trägt man dieselbe Adresse als Repository-Variable
+`AURELITH_SERVER_URL` ein; dann ist sie in jedem Pages-Build voreingestellt.
+
+Der Spielserver selbst hat **keine** Portfreigabe nach außen. Er ist nur über
+Caddy erreichbar, und das ist Absicht — ein offener Klartext-Port neben einem
+TLS-Endpunkt ist eine Einladung, den Umweg zu nehmen.
+
+### Was im Bild steckt
+
+Das Dockerfile hat drei Stufen. Die erste übersetzt den C++-Kern mit
+Emscripten nach WebAssembly und lässt dabei die nativen Prüfungen laufen —
+fällt eine, gibt es kein Bild. Die zweite löst die Abhängigkeiten auf, und
+zwar nur den Zweig des Servers: das sind 1,2 MB statt 27, weil three.js im
+Serverbild nichts verloren hat. Die dritte enthält weder Compiler noch
+Toolchain, sondern Node, den übersetzten Kern, die Quellen und die Karten —
+zusammen etwa 2 MB über `node:22-alpine`.
+
+Der Server wird bewusst **nicht** vorübersetzt. Er läuft im Betrieb aus
+denselben `.ts`-Dateien wie in der Entwicklung, ausgeführt von `tsx`. Damit
+kann kein übersetztes Abbild hinter den Quellen zurückbleiben.
+
+Das Startskript bringt das Datenbankschema auf Stand, bevor der Server
+hochfährt, und wartet dabei auf PostgreSQL. Ohne `DATABASE_URL` läuft der
+Server mit seinem Speicher-Backend weiter — praktisch zum Ausprobieren, aber
+alles ist beim Neustart weg. Er sagt das beim Hochfahren deutlich.
+
+`docker compose down` fährt sauber herunter: der Node-Prozess ist PID 1,
+bekommt SIGTERM direkt und räumt seine Sitzungen ab, statt nach zehn Sekunden
+abgeschossen zu werden.
+
+### Veröffentlichung des Bildes
+
+`.github/workflows/server-image.yml` baut bei jedem Push auf den Serverpfaden
+und schiebt nach:
+
+```
+ghcr.io/johmarjac/aurelith-server:latest
+```
+
+Beide Architekturen liegen unter demselben Schild; `docker pull` sucht sich
+die passende Variante selbst heraus. Der teure Teil — die Übersetzung nach
+WebAssembly — läuft dabei nur **einmal**: die Stufe hängt an `$BUILDPLATFORM`
+und damit am amd64-Läufer. Unter QEMU-Emulation ein zweites Mal zu übersetzen,
+ergäbe dieselbe `.wasm` nach vielfacher Wartezeit — wasm ist
+architekturunabhängig, das ist der ganze Punkt.
+
+Ist das Paket privat, braucht der Pi einmalig eine Anmeldung:
+
+```
+echo <token> | docker login ghcr.io -u <name> --password-stdin
+```
+
+Wer lieber auf dem Pi selbst baut, kann das — `docker compose build server` —
+sollte aber wissen, dass der Emscripten-Bau dort Minuten dauert und das
+SDK-Bild allein über ein Gigabyte belegt.
+
+### Selbst gehostet oder anderswo
+
+Der Server braucht keine nativen Erweiterungen: `pg` und `ws` sind reines
+JavaScript, gebaut wird nichts. Damit läuft er überall, wo Node 22 und ein
+langlebiger Prozess erlaubt sind. Was **nicht** geht, sind Umgebungen ohne
+dauerhafte Verbindungen — serverlose Funktionen und statische Hoster können
+keinen WebSocket halten.
+
+---
+
 ## Nächste Schritte
 
 - **Speicherbudget messen.** Der wasm-Heap steht auf festen 64 MiB, wächst
