@@ -510,6 +510,7 @@ export class WorldView {
         attackPhase: e.attackTimer >= 0 ? e.attackTimer / ATTACK_ANIM_SECONDS : -1,
         dead: e.state === EntityState.Dead,
         time: this.elapsed,
+        dt,
       });
     }
   }

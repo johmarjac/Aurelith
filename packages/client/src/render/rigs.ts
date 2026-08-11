@@ -21,8 +21,22 @@ export interface RigState {
   /** 0..1 während eines Schlags, sonst negativ. */
   attackPhase: number;
   dead: boolean;
-  /** Sekunden seit Spielstart, für Leerlaufbewegung. */
+  /** Sekunden seit Spielstart, für Leerlaufbewegung mit fester Frequenz. */
   time: number;
+  /**
+   * Sekunden seit dem letzten Bild. Treibt die Schrittphase.
+   *
+   * Warum nicht einfach `time`: eine Schrittphase als `time * frequenz` ist
+   * nur solange richtig, wie die Frequenz konstant bleibt. Sobald sich das
+   * Tempo ändert, wirkt die neue Frequenz rückwirkend auf die **gesamte**
+   * verstrichene Zeit, und die Phase springt um `time * Δfrequenz`. Nach einer
+   * halben Stunde Spielzeit ist dieser Sprung ein Vielfaches von 2π — die
+   * Beine stehen von einem Bild aufs nächste irgendwo.
+   *
+   * Fortgeschrieben statt hochgerechnet gibt es das Problem nicht: die Phase
+   * wächst immer nur um `dt * frequenz`, egal wie oft die Frequenz wechselt.
+   */
+  dt: number;
 }
 
 export interface CharacterRig {
@@ -228,6 +242,9 @@ const WEAPON_SPECS: Record<WeaponKey, WeaponSpec> = {
 
 function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterRig {
   const disposables: THREE.BufferGeometry[] = [];
+  // Fortgeschriebene Schrittphase. Siehe RigState.dt: aus der absoluten
+  // Uhr berechnet, spraenge sie bei jedem Tempowechsel.
+  let gaitPhase = 0;
   const s = cfg.height / 1.8;
   const w = cfg.bulk;
 
@@ -339,7 +356,8 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
       root.rotation.x = 0;
 
       const gait = Math.min(1, state.speed / 6);
-      const swing = Math.sin(state.time * 9 * Math.max(0.35, gait)) * 0.65 * gait;
+      gaitPhase += state.dt * 9 * Math.max(0.35, gait);
+      const swing = Math.sin(gaitPhase) * 0.65 * gait;
 
       legL.rotation.x = swing;
       legR.rotation.x = -swing;
@@ -356,7 +374,7 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
       }
 
       // Leichtes Wippen — ohne das wirkt eine stehende Figur wie ein Möbelstück.
-      body.position.y = Math.abs(Math.sin(state.time * 9 * Math.max(0.35, gait))) * 0.05 * gait +
+      body.position.y = Math.abs(Math.sin(gaitPhase)) * 0.05 * gait +
         Math.sin(state.time * 1.8) * 0.012;
     },
     dispose() {
@@ -380,6 +398,9 @@ export interface CreatureConfig {
 
 function makeBlob(cfg: CreatureConfig, material: THREE.Material): CharacterRig {
   const disposables: THREE.BufferGeometry[] = [];
+  // Fortgeschriebene Schrittphase. Siehe RigState.dt: aus der absoluten
+  // Uhr berechnet, spraenge sie bei jedem Tempowechsel.
+  let gaitPhase = 0;
   const root = new THREE.Object3D();
   const body = new THREE.Object3D();
   root.add(body);
@@ -434,6 +455,9 @@ function makeBlob(cfg: CreatureConfig, material: THREE.Material): CharacterRig {
 
 function makeQuadruped(cfg: CreatureConfig, material: THREE.Material): CharacterRig {
   const disposables: THREE.BufferGeometry[] = [];
+  // Fortgeschriebene Schrittphase. Siehe RigState.dt: aus der absoluten
+  // Uhr berechnet, spraenge sie bei jedem Tempowechsel.
+  let gaitPhase = 0;
   const s = cfg.size;
   const root = new THREE.Object3D();
   const body = new THREE.Object3D();
@@ -475,7 +499,8 @@ function makeQuadruped(cfg: CreatureConfig, material: THREE.Material): Character
       root.rotation.z = 0;
 
       const gait = Math.min(1, state.speed / 5);
-      const t = state.time * 11 * Math.max(0.3, gait);
+      gaitPhase += state.dt * 11 * Math.max(0.3, gait);
+      const t = gaitPhase;
       // Diagonalgang: vorne links mit hinten rechts.
       legs[0]!.rotation.x = Math.sin(t) * 0.7 * gait;
       legs[3]!.rotation.x = Math.sin(t) * 0.7 * gait;
@@ -498,6 +523,9 @@ function makeQuadruped(cfg: CreatureConfig, material: THREE.Material): Character
 
 function makeCrawler(cfg: CreatureConfig, material: THREE.Material): CharacterRig {
   const disposables: THREE.BufferGeometry[] = [];
+  // Fortgeschriebene Schrittphase. Siehe RigState.dt: aus der absoluten
+  // Uhr berechnet, spraenge sie bei jedem Tempowechsel.
+  let gaitPhase = 0;
   const s = cfg.size;
   const root = new THREE.Object3D();
   const body = new THREE.Object3D();
@@ -542,9 +570,10 @@ function makeCrawler(cfg: CreatureConfig, material: THREE.Material): CharacterRi
       root.position.y = 0;
 
       const gait = Math.min(1, state.speed / 4.5);
+      gaitPhase += state.dt * 13 * Math.max(0.3, gait);
       for (let i = 0; i < legs.length; i++) {
         const side = i % 2 === 0 ? -1 : 1;
-        const phase = state.time * 13 * Math.max(0.3, gait) + i * 1.05;
+        const phase = gaitPhase + i * 1.05;
         legs[i]!.rotation.x = Math.sin(phase) * 0.5 * gait;
         legs[i]!.rotation.z = side * (0.6 + Math.cos(phase) * 0.15 * gait);
       }
