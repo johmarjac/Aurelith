@@ -34,8 +34,31 @@ export class Session {
   /** Entities, von denen der Client bereits die vollständige Zeile hat. */
   readonly known = new Set<number>();
 
-  /** Sekunden, bis das nächste Portal wieder greift. Verhindert Pendeln. */
+  /**
+   * Sekunden, bis wieder eine Meldung zu einem Portal kommt.
+   *
+   * Nur noch gegen Textwiederholung — „dafür brauchst du Stufe zehn" soll
+   * nicht zwanzigmal je Sekunde im Chat stehen. Gegen das Zurückwerfen hilft
+   * `portalArmed`, nicht diese Uhr.
+   */
   portalCooldown = 0;
+
+  /**
+   * Ob ein Portal überhaupt auslösen darf.
+   *
+   * Nach einer Reise steht die Figur oft mitten im Gegenportal. Solange das so
+   * ist, darf nichts auslösen — sonst reist man beim Ablauf einer Zeitsperre
+   * automatisch wieder zurück, und genau das ist passiert: der Zielpunkt von
+   * Lichtmoor lag exakt auf dem Rückportal in Dornwald.
+   *
+   * Scharf wird wieder, wer kein Portal mehr berührt. Das ist unabhängig
+   * davon, wie eng Zielpunkt und Gegenportal beieinanderliegen — eine Uhr wäre
+   * es nicht.
+   *
+   * Startwert bewusst `false`: wessen Spielstand mitten in einem Tor liegt,
+   * soll beim Anmelden nicht sofort weiterbefördert werden.
+   */
+  portalArmed = false;
 
   lastSeenAt = Date.now();
   /** Verbleibendes Eingabekontingent dieser Sekunde. */

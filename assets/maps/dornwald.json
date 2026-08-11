@@ -95,7 +95,7 @@
   },
   "spawn": {
     "x": 0,
-    "z": -186,
+    "z": -178,
     "yaw": 0
   },
   "props": [
@@ -11238,24 +11238,6 @@
       "snapToGround": true,
       "collision": "none",
       "collisionRadius": 1
-    },
-    {
-      "id": "p_gruft_arch",
-      "model": "dungeon_arch",
-      "position": [
-        96,
-        0,
-        148
-      ],
-      "rotation": [
-        0,
-        -0.9,
-        0
-      ],
-      "scale": 1.6,
-      "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 0
     }
   ],
   "spawners": [
@@ -11329,11 +11311,11 @@
   "portals": [
     {
       "id": "g_lichtmoor",
-      "kind": "return",
       "position": [
         0,
         -186
       ],
+      "yaw": 3.14159,
       "radius": 4,
       "label": "Lichtmoor",
       "target": {
@@ -11346,11 +11328,11 @@
     },
     {
       "id": "g_gruft",
-      "kind": "dungeon",
       "position": [
         96,
         148
       ],
+      "yaw": -0.9,
       "radius": 4.5,
       "label": "Schattengruft",
       "target": {

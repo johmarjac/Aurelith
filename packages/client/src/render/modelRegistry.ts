@@ -21,8 +21,11 @@
 
 import * as THREE from 'three';
 import { createSharedMaterial } from './geometry.ts';
-import { PROP_BUILDERS, fallbackProp } from './props.ts';
+import { PROP_BUILDERS, buildGateArch, fallbackProp } from './props.ts';
 import { createRig, type CharacterRig } from './rigs.ts';
+
+/** Interner Schlüssel des Torbogens im Geometrie-Zwischenspeicher. */
+const GATE_KEY = '\0gate';
 
 export class ModelRegistry {
   /** Ein Material für die ganze Szene. Farbe kommt aus den Vertizes. */
@@ -56,6 +59,18 @@ export class ModelRegistry {
 
   hasProp(key: string): boolean {
     return key in PROP_BUILDERS;
+  }
+
+  /**
+   * Geometrie eines Tores. Es gibt genau eine — ein Tor unterscheidet sich von
+   * einem anderen durch sein Ziel, nicht durch seine Bauart.
+   */
+  gateGeometry(): THREE.BufferGeometry {
+    const cached = this.propGeometries.get(GATE_KEY);
+    if (cached) return cached;
+    const geometry = buildGateArch();
+    this.propGeometries.set(GATE_KEY, geometry);
+    return geometry;
   }
 
   /** Frisches Rig für eine Figur. Jedes Entity bekommt sein eigenes. */

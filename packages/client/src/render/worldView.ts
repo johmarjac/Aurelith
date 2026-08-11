@@ -110,6 +110,7 @@ export class WorldView {
     this.root.add(this.terrain.object);
 
     this.buildProps(world, doc);
+    this.buildGates(world, doc);
     void this.loadGroundTextures(doc, this.terrain);
   }
 
@@ -214,6 +215,46 @@ export class WorldView {
       this.root.add(mesh);
       this.propMeshes.push(mesh);
     }
+  }
+
+  /**
+   * Zeichnet die Tore.
+   *
+   * Das Tor ist der Torbogen — nicht mehr ein Prop, das zufällig neben einer
+   * unsichtbaren Zone steht. Vorher konnte man beides unabhängig verschieben,
+   * und man lief durch eine leere Wiese, in der es dann plötzlich klickte.
+   *
+   * Die Position kommt aus `doc.portals`, also aus derselben Zeile, die auch
+   * den Server auslösen lässt. Auseinanderlaufen können sie damit nicht mehr.
+   */
+  private buildGates(world: CoreWorld, doc: MapDocument): void {
+    if (doc.portals.length === 0) return;
+
+    const geometry = this.registry.gateGeometry();
+    const mesh = new THREE.InstancedMesh(geometry, this.registry.material, doc.portals.length);
+    mesh.name = 'gates';
+    mesh.frustumCulled = false;
+    mesh.receiveShadow = true;
+
+    const matrix = new THREE.Matrix4();
+    const quaternion = new THREE.Quaternion();
+    const position = new THREE.Vector3();
+    const scale = new THREE.Vector3(1, 1, 1);
+    const euler = new THREE.Euler();
+
+    for (let i = 0; i < doc.portals.length; i++) {
+      const portal = doc.portals[i]!;
+      const [x, z] = portal.position;
+      position.set(x, world.heightAt(x, z), z);
+      euler.set(0, portal.yaw, 0);
+      quaternion.setFromEuler(euler);
+      matrix.compose(position, quaternion, scale);
+      mesh.setMatrixAt(i, matrix);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+
+    this.root.add(mesh);
+    this.propMeshes.push(mesh);
   }
 
   // -------------------------------------------------------------------------

@@ -163,11 +163,14 @@ function lichtmoor() {
   const portals = [
     {
       id: 'g_dornwald',
-      kind: 'gate',
       position: [0, 204],
+      yaw: 0,
       radius: 4,
       label: 'Dornwald',
-      target: { map: 'dornwald', x: 0, z: -186, yaw: 0 },
+      // Acht Einheiten vor dem Rueckportal, nicht darin. Genau das war der
+      // Fehler: der Zielpunkt lag exakt auf dem Gegentor bei (0, -186), und
+      // nach Ablauf der Zeitsperre reiste man automatisch zurueck.
+      target: { map: 'dornwald', x: 0, z: -178, yaw: 0 },
       minLevel: 0,
     },
   ];
@@ -244,16 +247,6 @@ function lichtmoor() {
       collision: 'none',
       collisionRadius: 0.4,
     },
-    {
-      id: 'p_gate_arch',
-      model: 'gate_arch',
-      position: [0, 0, 204],
-      rotation: [0, 0, 0],
-      scale: 1.4,
-      snapToGround: true,
-      collision: 'none',
-      collisionRadius: 0,
-    },
   );
 
   return {
@@ -307,8 +300,8 @@ function dornwald() {
   const portals = [
     {
       id: 'g_lichtmoor',
-      kind: 'return',
       position: [0, -186],
+      yaw: 3.14159,
       radius: 4,
       label: 'Lichtmoor',
       target: { map: 'lichtmoor', x: 0, z: 196, yaw: 3.14159 },
@@ -316,8 +309,8 @@ function dornwald() {
     },
     {
       id: 'g_gruft',
-      kind: 'dungeon',
       position: [96, 148],
+      yaw: -0.9,
       radius: 4.5,
       label: 'Schattengruft',
       target: { map: 'gruft_01', x: 0, z: -96, yaw: 0 },
@@ -374,17 +367,6 @@ function dornwald() {
     }),
   ].map((p, i) => ({ ...p, id: `p_${String(i + 1).padStart(4, '0')}` }));
 
-  props.push({
-    id: 'p_gruft_arch',
-    model: 'dungeon_arch',
-    position: [96, 0, 148],
-    rotation: [0, -0.9, 0],
-    scale: 1.6,
-    snapToGround: true,
-    collision: 'none',
-    collisionRadius: 0,
-  });
-
   return {
     format: 'aurelith.map',
     version: 1,
@@ -417,7 +399,9 @@ function dornwald() {
       // getoent, statt eines zweiten Satzes fuer denselben Boden.
       layers: groundLayers(-6, { grassTint: 0xa8b8a0, dirtTint: 0xb0a898, sandTint: 0xa89880 }),
     },
-    spawn: { x: 0, z: -186, yaw: 0 },
+    // Nicht auf dem Rueckportal bei (0, -186): wer dort gespeichert hat,
+    // wuerde beim Anmelden sofort weiterbefoerdert.
+    spawn: { x: 0, z: -178, yaw: 0 },
     props,
     spawners,
     npcs,
@@ -436,8 +420,8 @@ function gruft() {
   const portals = [
     {
       id: 'g_exit',
-      kind: 'return',
       position: [0, -104],
+      yaw: 3.14159,
       radius: 5,
       label: 'Dornwald',
       target: { map: 'dornwald', x: 96, z: 140, yaw: 3.14159 },
@@ -544,6 +528,55 @@ function gruft() {
 }
 
 const maps = [lichtmoor(), dornwald(), gruft()];
+
+/**
+ * Prueft, dass niemand in einem Tor landet.
+ *
+ * Landet ein Zielpunkt im Radius eines Tores auf der Zielkarte, wird der
+ * Spieler von dort sofort weitergereicht — bei einem Rueckportal also direkt
+ * wieder zurueck. Genau das ist passiert: Lichtmoor schickte nach Dornwald auf
+ * (0, -186), und dort stand das Rueckportal mit Radius 4.
+ *
+ * Der Server faengt das inzwischen ab, aber ein Tor, das man nur durch eine
+ * Notbremse ueberlebt, ist trotzdem falsch gebaut. Deshalb hier, im Build:
+ * lieber ein harter Abbruch als eine Karte, die sich seltsam spielt.
+ */
+function checkArrivals(maps) {
+  const byId = new Map(maps.map((m) => [m.id, m]));
+  const problems = [];
+
+  const check = (what, mapId, x, z) => {
+    const map = byId.get(mapId);
+    if (!map) {
+      problems.push(`${what} zeigt auf unbekannte Karte "${mapId}"`);
+      return;
+    }
+    for (const portal of map.portals) {
+      const d = Math.hypot(x - portal.position[0], z - portal.position[1]);
+      if (d <= portal.radius) {
+        problems.push(
+          `${what} landet bei (${x}, ${z}) im Tor "${portal.id}" auf ${mapId} ` +
+            `(Abstand ${d.toFixed(1)}, Radius ${portal.radius})`,
+        );
+      }
+    }
+  };
+
+  for (const map of maps) {
+    check(`Startpunkt von ${map.id}`, map.id, map.spawn.x, map.spawn.z);
+    for (const portal of map.portals) {
+      check(`${map.id}/${portal.id}`, portal.target.map, portal.target.x, portal.target.z);
+    }
+  }
+
+  if (problems.length > 0) {
+    console.error('Karten nicht geschrieben — Zielpunkte liegen in Toren:\n');
+    for (const p of problems) console.error(`  - ${p}`);
+    process.exit(1);
+  }
+}
+
+checkArrivals(maps);
 
 await mkdir(outDir, { recursive: true });
 for (const map of maps) {

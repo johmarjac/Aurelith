@@ -150,14 +150,26 @@ export interface NpcInstance {
   yaw: number;
 }
 
-export type PortalKind = 'gate' | 'dungeon' | 'return';
+/**
+ * Ein Tor.
+ *
+ * Es gibt genau eine Sorte. Was ein Tor unterscheidet, ist sein Ziel — nicht
+ * seine Bauart. Früher standen hier drei Sorten ('gate', 'dungeon', 'return'),
+ * die sich in nichts unterschieden ausser der Farbe des Bogens, und der Bogen
+ * selbst lag als eigenes Prop daneben: zwei Objekte, die zusammengehörten,
+ * aber getrennt verschoben werden konnten. Beides ist weg.
+ */
 
 export interface PortalDef {
   id: string;
-  kind: PortalKind;
   position: Vec2Tuple;
+  /** Ausrichtung des Bogens in Bogenmaß. Der Durchgang zeigt entlang +Z. */
+  yaw: number;
+  /** Auslöseradius. Der Bogen wird immer gleich gross gezeichnet. */
   radius: number;
   label: string;
+  /** Wohin es geht. Der einzige Parameter, der ein Tor von einem anderen
+   *  unterscheidet. */
   target: {
     map: string;
     x: number;
@@ -371,11 +383,10 @@ export function parseMapDocument(raw: unknown, source = 'map'): MapDocument {
     const path = `${source}.portals[${i}]`;
     const o = p as Record<string, unknown>;
     const t = req(o, 'target', path) as Record<string, unknown>;
-    const kind = o.kind === 'dungeon' || o.kind === 'return' ? o.kind : 'gate';
     return {
       id: str(req(o, 'id', path), `${path}.id`),
-      kind: kind as PortalKind,
       position: vec2(req(o, 'position', path), `${path}.position`),
+      yaw: optNum(o, 'yaw', 0, path),
       radius: optNum(o, 'radius', 3, path),
       label: typeof o.label === 'string' ? o.label : '',
       target: {

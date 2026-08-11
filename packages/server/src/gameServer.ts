@@ -56,8 +56,14 @@ import { MapInstance } from './mapInstance.ts';
 import { Session } from './session.ts';
 import type { GameStore } from './db/index.ts';
 
-/** Sekunden Sperre nach einem Kartenwechsel, damit man nicht zurückpendelt. */
-const PORTAL_COOLDOWN_SECONDS = 3;
+/**
+ * Wie lange dieselbe Portalmeldung nicht wiederholt wird.
+ *
+ * Gegen das Zurückpendeln stand hier früher eine Sperre von drei Sekunden. Die
+ * hat nicht gehalten: wer im Gegenportal landet, reist nach ihrem Ablauf
+ * einfach zurück. Das übernimmt jetzt `Session.portalArmed`.
+ */
+const PORTAL_MESSAGE_COOLDOWN_SECONDS = 3;
 
 export class GameServer {
   private readonly instances = new Map<string, MapInstance>();
@@ -382,7 +388,7 @@ export class GameServer {
     for (const session of this.sessions) {
       if (session.state !== 'playing') continue;
       if (session.portalCooldown > 0) session.portalCooldown -= TICK_SECONDS;
-      else this.checkPortals(session);
+      this.checkPortals(session);
     }
 
     const instanceTick = this.instances.values().next().value?.world.tick ?? 0;
@@ -611,11 +617,21 @@ export class GameServer {
     if (!instance || !row || row.state === EntityState.Dead) return;
 
     const portal = instance.portalAt(row.x, row.z);
-    if (portal) this.transfer(session, portal.id);
+
+    // Wer kein Portal mehr berührt, darf wieder eines auslösen. Das ist die
+    // ganze Sperre: sie hängt daran, dass man das Tor verlassen hat, nicht
+    // daran, dass genug Zeit vergangen ist.
+    if (!portal) {
+      session.portalArmed = true;
+      return;
+    }
+
+    if (!session.portalArmed) return;
+    this.transfer(session, portal.id);
   }
 
   private usePortal(session: Session, portalId: string): void {
-    if (session.portalCooldown > 0) return;
+    if (!session.portalArmed) return;
     this.transfer(session, portalId);
   }
 
@@ -627,17 +643,23 @@ export class GameServer {
     const portal = from.doc.portals.find((p) => p.id === portalId);
     if (!portal) return;
 
+    // Abgewiesen wird ohne Sperre: wer die Stufe nicht hat, steht danach immer
+    // noch im Tor und soll durchgehen können, sobald er sie hat. Nur die
+    // Meldung bekommt eine Uhr, sonst füllt sie den Chat zwanzigmal je Sekunde.
     if (character.level < portal.minLevel) {
-      this.systemMessage(session, `Für ${portal.label} brauchst du Stufe ${portal.minLevel}.`);
-      // Kurze Sperre, sonst füllt die Meldung bei jedem Tick den Chat.
-      session.portalCooldown = 2;
+      if (session.portalCooldown <= 0) {
+        this.systemMessage(session, `Für ${portal.label} brauchst du Stufe ${portal.minLevel}.`);
+        session.portalCooldown = PORTAL_MESSAGE_COOLDOWN_SECONDS;
+      }
       return;
     }
 
     const to = this.instances.get(portal.target.map);
     if (!to) {
-      this.systemMessage(session, `${portal.label} ist derzeit nicht erreichbar.`);
-      session.portalCooldown = 2;
+      if (session.portalCooldown <= 0) {
+        this.systemMessage(session, `${portal.label} ist derzeit nicht erreichbar.`);
+        session.portalCooldown = PORTAL_MESSAGE_COOLDOWN_SECONDS;
+      }
       return;
     }
 
@@ -654,7 +676,9 @@ export class GameServer {
     session.entityId = this.nextEntityId++;
     session.mapId = to.doc.id;
     session.known.clear();
-    session.portalCooldown = PORTAL_COOLDOWN_SECONDS;
+    // Erst wieder scharf, wenn die Figur das Gegenportal verlassen hat.
+    session.portalArmed = false;
+    session.portalCooldown = 0;
 
     to.world.spawnPlayer({
       id: session.entityId,
@@ -720,7 +744,9 @@ export class GameServer {
     if (!instance || !row || row.state !== EntityState.Dead) return;
 
     instance.world.respawnPlayer(session.entityId, instance.doc.spawn.x, instance.doc.spawn.z);
-    session.portalCooldown = PORTAL_COOLDOWN_SECONDS;
+    // Liegt der Startpunkt in einem Tor, soll das Wiederbeleben nicht sofort
+    // eine Reise auslösen.
+    session.portalArmed = false;
     this.sendStats(session);
   }
 

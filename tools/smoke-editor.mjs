@@ -110,6 +110,75 @@ const after = await page.evaluate(() =>
 const countOf = (s) => Number(/Props: (\d+)/.exec(s)?.[1] ?? 0);
 check(countOf(after) === countOf(before) + 1, `Prop gesetzt (${countOf(before)} → ${countOf(after)})`);
 
+// Ein Klick ins Bedienfeld darf nichts in der Welt anfassen.
+//
+// Genau das ging schief: `pointerup` hing am Fenster, `pointerdown` an der
+// Zeichenflaeche — jede Schaltflaeche setzte nebenbei ein Prop.
+const paletteButton = await page.$('#panel .palette button:nth-child(3)');
+if (!paletteButton) throw new Error('Palette nicht gefunden');
+const box = await paletteButton.boundingBox();
+await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+await page.mouse.down();
+await page.mouse.up();
+await page.waitForTimeout(400);
+
+const afterPanelClick = await page.evaluate(() =>
+  [...document.querySelectorAll('#panel .stats div')].map((n) => n.textContent).join(' | '),
+);
+check(
+  countOf(afterPanelClick) === countOf(after),
+  `Klick ins Bedienfeld setzt nichts (${countOf(after)} → ${countOf(afterPanelClick)})`,
+);
+check(
+  await page.evaluate(
+    () =>
+      document.querySelector('#panel .palette button:nth-child(3)')?.getAttribute('aria-pressed') ===
+      'true',
+  ),
+  'Klick ins Bedienfeld waehlt trotzdem aus',
+);
+
+// Kamera ueber die Karte schieben — vorher gab es nur Drehen und Zoomen.
+const camBefore = await page.evaluate(() => window.aurelithEditor?.camTarget);
+await page.keyboard.down('KeyW');
+await page.waitForTimeout(700);
+await page.keyboard.up('KeyW');
+await page.waitForTimeout(200);
+const camAfterKeys = await page.evaluate(() => window.aurelithEditor?.camTarget);
+check(
+  camBefore !== undefined && Math.hypot(camAfterKeys.x - camBefore.x, camAfterKeys.z - camBefore.z) > 1,
+  `WASD schiebt die Kamera (${Math.hypot(
+    (camAfterKeys?.x ?? 0) - (camBefore?.x ?? 0),
+    (camAfterKeys?.z ?? 0) - (camBefore?.z ?? 0),
+  ).toFixed(1)} Einheiten)`,
+);
+
+// Ziehen mit gedrueckter Umschalttaste schiebt ebenfalls.
+await page.keyboard.down('Shift');
+await page.mouse.move(640, 360);
+await page.mouse.down();
+await page.mouse.move(500, 300, { steps: 8 });
+await page.mouse.up();
+await page.keyboard.up('Shift');
+await page.waitForTimeout(200);
+const camAfterDrag = await page.evaluate(() => window.aurelithEditor?.camTarget);
+check(
+  Math.hypot(camAfterDrag.x - camAfterKeys.x, camAfterDrag.z - camAfterKeys.z) > 1,
+  `Ziehen schiebt die Kamera (${Math.hypot(
+    camAfterDrag.x - camAfterKeys.x,
+    camAfterDrag.z - camAfterKeys.z,
+  ).toFixed(1)} Einheiten)`,
+);
+
+// ... und dabei kein Prop setzen, denn es war ein Ziehen, kein Klick.
+const afterDragClick = await page.evaluate(() =>
+  [...document.querySelectorAll('#panel .stats div')].map((n) => n.textContent).join(' | '),
+);
+check(
+  countOf(afterDragClick) === countOf(afterPanelClick),
+  `Ziehen setzt kein Prop (${countOf(afterPanelClick)} → ${countOf(afterDragClick)})`,
+);
+
 check(pageErrors.length === 0, `keine unbehandelten Ausnahmen (${pageErrors.length})`);
 const errors = consoleLines.filter((l) => l.startsWith('[error]'));
 check(errors.length === 0, `keine Fehler in der Konsole (${errors.length})`);

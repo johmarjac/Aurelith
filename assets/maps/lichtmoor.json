@@ -7704,24 +7704,6 @@
       "snapToGround": true,
       "collision": "none",
       "collisionRadius": 0.4
-    },
-    {
-      "id": "p_gate_arch",
-      "model": "gate_arch",
-      "position": [
-        0,
-        0,
-        204
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "scale": 1.4,
-      "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 0
     }
   ],
   "spawners": [
@@ -7833,17 +7815,17 @@
   "portals": [
     {
       "id": "g_dornwald",
-      "kind": "gate",
       "position": [
         0,
         204
       ],
+      "yaw": 0,
       "radius": 4,
       "label": "Dornwald",
       "target": {
         "map": "dornwald",
         "x": 0,
-        "z": -186,
+        "z": -178,
         "yaw": 0
       },
       "minLevel": 0

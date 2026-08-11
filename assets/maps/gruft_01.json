@@ -3266,11 +3266,11 @@
   "portals": [
     {
       "id": "g_exit",
-      "kind": "return",
       "position": [
         0,
         -104
       ],
+      "yaw": 3.14159,
       "radius": 5,
       "label": "Dornwald",
       "target": {

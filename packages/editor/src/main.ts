@@ -43,8 +43,8 @@ const panel = document.getElementById('panel') as HTMLElement;
 const hint = document.getElementById('hint') as HTMLElement;
 
 hint.textContent =
-  'Linke Maustaste: Prop setzen · Rechtsklick auf ein Prop: löschen\n' +
-  'Ziehen mit mittlerer Maustaste oder Umschalt: Kamera drehen · Rad: zoomen';
+  'Links: Prop setzen · Rechtsklick auf ein Prop: löschen\n' +
+  'Rechts ziehen: drehen · Mitte ziehen oder Umschalt: schieben · WASD: schieben · Rad: zoomen';
 
 // --- Kern ------------------------------------------------------------------
 
@@ -288,10 +288,29 @@ function renderPanel(): void {
 
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
-let dragging = false;
+
+type Gesture = 'none' | 'orbit' | 'pan' | 'tool';
+
+/**
+ * Was der Zeiger gerade tut — und ob die Geste überhaupt im Bild begonnen hat.
+ *
+ * Das `startedOnCanvas` ist nicht bloss Sorgfalt, es war der Fehler: `pointerup`
+ * hing am Fenster, `pointerdown` an der Zeichenfläche. Jeder Klick auf eine
+ * Schaltfläche im Bedienfeld setzte deshalb ein Prop in die Welt — die Geste
+ * endete im Fenster, und niemand fragte, wo sie angefangen hatte. Am Fenster
+ * muss `pointerup` bleiben, sonst reisst ein Ziehen ab, das ausserhalb des
+ * Bildes endet; also merkt sich der Anfang, ob er dazugehört.
+ */
+let gesture: Gesture = 'none';
+let startedOnCanvas = false;
 let lastX = 0;
 let lastY = 0;
 let dragDistance = 0;
+/** Ob der Zeiger über dem Bild steht. Steuert die Geländemarkierung. */
+let pointerOverCanvas = false;
+
+/** Gedrückte Tasten für das Verschieben mit WASD. */
+const keys = new Set<string>();
 
 function updatePointer(e: PointerEvent): void {
   pointer.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
@@ -305,38 +324,80 @@ function groundPoint(): THREE.Vector3 | undefined {
   return hits[0]?.point;
 }
 
+/**
+ * Verschiebt den Blickpunkt in der Ebene, kamerarelativ.
+ *
+ * Der Faktor hängt am Abstand: weit draussen schiebt derselbe Mausweg weiter
+ * als dicht am Boden. Ohne das kriecht man in der Übersicht über die Karte.
+ */
+function pan(rightAmount: number, forwardAmount: number): void {
+  const sin = Math.sin(camYaw);
+  const cos = Math.cos(camYaw);
+  // Blickrichtung in der Ebene ist (sin, cos), rechts davon (-cos, sin).
+  camTarget.x += -cos * rightAmount + sin * forwardAmount;
+  camTarget.z += sin * rightAmount + cos * forwardAmount;
+
+  const half = doc ? doc.terrain.size * 0.5 : 256;
+  camTarget.x = Math.max(-half, Math.min(half, camTarget.x));
+  camTarget.z = Math.max(-half, Math.min(half, camTarget.z));
+}
+
 canvas.addEventListener('pointerdown', (e) => {
   updatePointer(e);
-  if (e.button === 1 || e.shiftKey) {
-    dragging = true;
-    lastX = e.clientX;
-    lastY = e.clientY;
-    dragDistance = 0;
+  startedOnCanvas = true;
+  lastX = e.clientX;
+  lastY = e.clientY;
+  dragDistance = 0;
+
+  if (e.button === 2) gesture = 'orbit';
+  else if (e.button === 1 || e.shiftKey) gesture = 'pan';
+  else if (e.button === 0) gesture = 'tool';
+  else gesture = 'none';
+
+  if (gesture !== 'none') {
     canvas.setPointerCapture(e.pointerId);
     e.preventDefault();
   }
 });
 
-canvas.addEventListener('pointermove', (e) => {
+canvas.addEventListener('pointerenter', () => {
+  pointerOverCanvas = true;
+});
+canvas.addEventListener('pointerleave', () => {
+  pointerOverCanvas = false;
+});
+
+window.addEventListener('pointermove', (e) => {
   updatePointer(e);
-  if (dragging) {
-    const dx = e.clientX - lastX;
-    const dy = e.clientY - lastY;
-    lastX = e.clientX;
-    lastY = e.clientY;
-    dragDistance += Math.abs(dx) + Math.abs(dy);
+  const dx = e.clientX - lastX;
+  const dy = e.clientY - lastY;
+  lastX = e.clientX;
+  lastY = e.clientY;
+  dragDistance += Math.abs(dx) + Math.abs(dy);
+
+  if (gesture === 'orbit') {
     camYaw -= dx * 0.005;
     camPitch = Math.max(0.15, Math.min(1.45, camPitch + dy * 0.005));
+  } else if (gesture === 'pan') {
+    const speed = camDistance * 0.0016;
+    pan(-dx * speed, dy * speed);
   }
 });
 
 window.addEventListener('pointerup', (e) => {
-  if (dragging) {
-    dragging = false;
-    return;
-  }
-  if (e.button === 0) placeProp();
-  if (e.button === 2) removePropUnderPointer();
+  const wasGesture = gesture;
+  const fromCanvas = startedOnCanvas;
+  gesture = 'none';
+  startedOnCanvas = false;
+
+  // Hat die Geste nicht im Bild begonnen, geht sie das Bild auch nichts an.
+  if (!fromCanvas) return;
+
+  // Ein Klick, der sich kaum bewegt hat, ist ein Klick — kein Ziehen.
+  if (dragDistance > 6) return;
+
+  if (wasGesture === 'tool' && e.button === 0) placeProp();
+  if (wasGesture === 'orbit' && e.button === 2) removePropUnderPointer();
 });
 
 canvas.addEventListener('wheel', (e) => {
@@ -345,6 +406,13 @@ canvas.addEventListener('wheel', (e) => {
 }, { passive: false });
 
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+window.addEventListener('keydown', (e) => {
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+  keys.add(e.code);
+});
+window.addEventListener('keyup', (e) => keys.delete(e.code));
+window.addEventListener('blur', () => keys.clear());
 
 function placeProp(): void {
   const point = groundPoint();
@@ -384,6 +452,38 @@ function removePropUnderPointer(): void {
 
 const round = (v: number) => Math.round(v * 100) / 100;
 
+/**
+ * Ein Fenster auf den Zustand — nur lesend, für Tests und zum Nachsehen.
+ *
+ * Dasselbe Prinzip wie `window.aurelith` im Client: was der Editor tut, muss
+ * von aussen prüfbar sein, ohne dass ein Test in seine Interna greift.
+ */
+declare global {
+  interface Window {
+    aurelithEditor?: {
+      camTarget: { x: number; y: number; z: number };
+      camYaw: number;
+      camPitch: number;
+      camDistance: number;
+      mapId: string;
+      props: number;
+      portals: number;
+    };
+  }
+}
+
+function publishDiagnostics(): void {
+  window.aurelithEditor = {
+    camTarget: { x: camTarget.x, y: camTarget.y, z: camTarget.z },
+    camYaw,
+    camPitch,
+    camDistance,
+    mapId: doc?.id ?? '',
+    props: doc?.props.length ?? 0,
+    portals: doc?.portals.length ?? 0,
+  };
+}
+
 // --- Schleife --------------------------------------------------------------
 
 function resize(): void {
@@ -396,8 +496,23 @@ function resize(): void {
 window.addEventListener('resize', resize);
 resize();
 
-function frame(): void {
+let lastFrameAt = performance.now();
+
+function frame(now = performance.now()): void {
   requestAnimationFrame(frame);
+  const dt = Math.min(0.1, (now - lastFrameAt) / 1000);
+  lastFrameAt = now;
+
+  // Verschieben mit WASD. Die Geschwindigkeit hängt am Abstand, damit sich das
+  // Tempo in der Übersicht und dicht am Boden gleich anfühlt.
+  const step = camDistance * 1.2 * dt;
+  let right = 0;
+  let forward = 0;
+  if (keys.has('KeyW') || keys.has('ArrowUp')) forward += step;
+  if (keys.has('KeyS') || keys.has('ArrowDown')) forward -= step;
+  if (keys.has('KeyD') || keys.has('ArrowRight')) right += step;
+  if (keys.has('KeyA') || keys.has('ArrowLeft')) right -= step;
+  if (right !== 0 || forward !== 0) pan(right, forward);
 
   const cosP = Math.cos(camPitch);
   camera.position.set(
@@ -407,7 +522,9 @@ function frame(): void {
   );
   camera.lookAt(camTarget);
 
-  const point = groundPoint();
+  // Die Markierung nur zeigen, wenn der Zeiger auch im Bild steht — sonst
+  // klebt sie am Gelaende, waehrend man im Bedienfeld arbeitet.
+  const point = pointerOverCanvas || gesture !== 'none' ? groundPoint() : undefined;
   if (point) {
     cursor.position.set(point.x, point.y + 0.15, point.z);
     cursor.visible = true;
@@ -416,6 +533,7 @@ function frame(): void {
   }
 
   renderer.render(scene, camera);
+  publishDiagnostics();
 }
 
 await loadMap(MAPS[0]!);

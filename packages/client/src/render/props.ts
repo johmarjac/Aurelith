@@ -203,9 +203,19 @@ export const PROP_BUILDERS: Record<string, PropBuilder> = {
   brazier,
   well,
   signpost,
-  gate_arch: () => archway(0x8a8478, 0x4cc9bf),
-  dungeon_arch: () => archway(0x3f3f47, 0x9a7fe8),
 };
+
+/**
+ * Der Torbogen.
+ *
+ * Bewusst nicht im Prop-Katalog: ein Tor ist kein Dekostück, das man neben
+ * eine unsichtbare Zone stellt, sondern das sichtbare Teil der Zone selbst.
+ * Gezeichnet wird er aus `doc.portals` — derselben Zeile, die den Server
+ * auslösen lässt.
+ */
+export function buildGateArch(): THREE.BufferGeometry {
+  return archway(0x8a8478, 0x4cc9bf);
+}
 
 /** Ersatzteil für unbekannte Schlüssel — sichtbar falsch, aber nie ein Absturz. */
 export function fallbackProp(): THREE.BufferGeometry {
