@@ -110,6 +110,22 @@ for (const name of produced) {
   await copyFile(from, join(assetCoreDir, name));
 }
 
+// Typdeklaration für den Glue. Emscripten erzeugt keine, und ohne sie ist
+// jeder Import des Kerns für TypeScript ein `any`.
+const dts = `/**
+ * Erzeugt von tools/build-core.mjs — nicht von Hand bearbeiten.
+ *
+ * Emscripten liefert keine Typen für seinen Glue. Diese Datei gibt der
+ * Fabrikfunktion die Signatur, die die Hülle in src/index.ts erwartet.
+ */
+
+import type { CoreModuleFactory } from '../src/index.ts';
+
+declare const createAurelithCore: CoreModuleFactory;
+export default createAurelithCore;
+`;
+await writeFile(join(distDir, 'aurelith_core.d.ts'), dts, 'utf8');
+
 // Brotli neben jede Datei legen — verbindlich im Build, nicht im Server.
 for (const name of produced) {
   const raw = await readFile(join(assetCoreDir, name));

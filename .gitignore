@@ -10,3 +10,6 @@ assets/manifest.json
 packages/core/build/
 packages/core/dist/
 assets/core/
+
+# Ergebnisse der Rauchtests (Bildschirmfotos, Protokolle).
+artefakte/

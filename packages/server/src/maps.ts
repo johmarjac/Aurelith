@@ -1,11 +1,16 @@
 /**
  * Lädt die Map-Dokumente von der Platte. Server und Client lesen dieselben
  * Dateien — der Server direkt, der Client über den Asset-Streamer vom CDN.
+ *
+ * Props werden hier bewusst nicht auf die Terrainhöhe gezogen: der Server
+ * braucht von einem Baum nur den Kreis, in den man nicht hineinlaufen kann,
+ * und der liegt in der Ebene. Die Höhe interessiert allein den Renderer, und
+ * der rechnet sie sich aus derselben Kernfunktion aus.
  */
 
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { parseMapDocument, terrainHeight, type MapDocument } from '@aurelith/shared';
+import { parseMapDocument, type MapDocument } from '@aurelith/shared';
 
 export class MapStore {
   private readonly maps = new Map<string, MapDocument>();
@@ -15,7 +20,6 @@ export class MapStore {
     for (const file of files) {
       const raw = await readFile(join(dir, file), 'utf8');
       const doc = parseMapDocument(JSON.parse(raw), file);
-      applyGroundSnap(doc);
       this.maps.set(doc.id, doc);
     }
   }
@@ -36,17 +40,5 @@ export class MapStore {
 
   get size(): number {
     return this.maps.size;
-  }
-}
-
-/**
- * Zieht Props mit `snapToGround` auf die Terrainhöhe. Der Editor speichert
- * die Y-Koordinate zwar mit, aber sobald jemand den Terrain-Seed ändert,
- * schweben oder versinken sonst alle Props.
- */
-export function applyGroundSnap(doc: MapDocument): void {
-  for (const p of doc.props) {
-    if (!p.snapToGround) continue;
-    p.position[1] = terrainHeight(p.position[0], p.position[2], doc.terrain);
   }
 }

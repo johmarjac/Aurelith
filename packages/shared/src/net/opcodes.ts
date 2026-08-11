@@ -29,6 +29,7 @@ export const ServerOp = {
   Pong: 0x86,
   Kick: 0x87,
   Stats: 0x88,
+  Inventory: 0x89,
 } as const;
 export type ServerOp = (typeof ServerOp)[keyof typeof ServerOp];
 

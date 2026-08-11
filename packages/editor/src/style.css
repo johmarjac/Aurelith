@@ -1,0 +1,115 @@
+:root {
+  --ink: #e8eef2;
+  --ink-dim: #9fb0bc;
+  --panel: #12181e;
+  --edge: #2c3a45;
+  --accent: #4cc9bf;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #0b1014;
+  color: var(--ink);
+  font: 13px/1.5 'Segoe UI', system-ui, sans-serif;
+}
+
+#viewport {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 17rem;
+  background: rgba(18, 24, 30, 0.94);
+  border-left: 1px solid var(--edge);
+  padding: 0.8rem;
+  overflow-y: auto;
+  display: grid;
+  gap: 0.7rem;
+  align-content: start;
+}
+
+#hint {
+  position: fixed;
+  left: 0.8rem;
+  bottom: 0.8rem;
+  padding: 0.5rem 0.7rem;
+  background: rgba(18, 24, 30, 0.9);
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  color: var(--ink-dim);
+  max-width: 34rem;
+  white-space: pre-line;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: 0.02em;
+}
+
+h2 {
+  margin: 0.4rem 0 0.1rem;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-dim);
+  font-weight: 600;
+}
+
+select,
+button {
+  font: inherit;
+  color: var(--ink);
+  background: #1a242c;
+  border: 1px solid var(--edge);
+  border-radius: 3px;
+  padding: 0.35rem 0.5rem;
+  width: 100%;
+  cursor: pointer;
+}
+
+button:hover,
+select:hover {
+  border-color: var(--accent);
+}
+
+.palette {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.25rem;
+}
+
+.palette button {
+  font-size: 0.74rem;
+  padding: 0.3rem;
+  text-align: left;
+}
+
+.palette button[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: #1f3a3a;
+}
+
+.stats {
+  font-family: 'Cascadia Mono', Consolas, ui-monospace, monospace;
+  font-size: 0.74rem;
+  color: var(--ink-dim);
+  display: grid;
+  gap: 0.15rem;
+}

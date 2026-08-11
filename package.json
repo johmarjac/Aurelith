@@ -24,12 +24,16 @@
     "dev:editor": "npm run dev --workspace @aurelith/editor",
     "build": "npm run core && npm run manifest && npm run build --workspace @aurelith/client",
     "manifest": "node tools/build-manifest.mjs",
-    "typecheck": "tsc --build --force",
-    "db:migrate": "npm run migrate --workspace @aurelith/server"
+    "typecheck": "tsc --noEmit -p packages/shared && tsc --noEmit -p packages/core && tsc --noEmit -p packages/server && tsc --noEmit -p packages/client && tsc --noEmit -p packages/editor",
+    "db:migrate": "npm run migrate --workspace @aurelith/server",
+    "test": "npm run core:test && node tools/smoke-e2e.mjs && node tools/smoke-editor.mjs",
+    "test:e2e": "node tools/smoke-e2e.mjs",
+    "test:editor": "node tools/smoke-editor.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
     "tsx": "^4.20.0",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "playwright": "^1.62.1"
   }
 }

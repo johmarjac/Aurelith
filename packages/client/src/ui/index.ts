@@ -1,0 +1,373 @@
+/**
+ * Die Oberfläche als Ganzes.
+ *
+ * Aufgebaut wie bei Flyff: Werte oben links, Ziel oben in der Mitte, Chat
+ * unten links, Aktionsleiste unten in der Mitte, Fenster für Inventar und
+ * Charakter. Nichts davon ist neu erfunden — die Anordnung ist eingeübt, und
+ * daran zu rütteln kostet nur Gewöhnung.
+ *
+ * Diese Klasse kennt keine Spielregeln. Sie zeigt an, was man ihr gibt, und
+ * meldet über Rückrufe, was der Spieler getan hat.
+ */
+
+import * as THREE from 'three';
+import { ChatChannel, getItem, type StatsMsg } from '@aurelith/shared';
+import type { EntityVisual } from '../render/worldView.ts';
+import { GameWindow } from './windows.ts';
+import { Overlay } from './overlay.ts';
+import './style.css';
+
+export interface InventoryEntry {
+  itemId: string;
+  count: number;
+  slot: number;
+  equipped: boolean;
+}
+
+export type ConnectionState = 'verbindet' | 'verbunden' | 'getrennt';
+
+/** So viele Zeilen behält das Chatfenster. */
+const CHAT_HISTORY = 120;
+/** Plätze im Inventar. */
+const INVENTORY_SLOTS = 30;
+
+function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  className?: string,
+  text?: string,
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function bar(kind: 'hp' | 'mp' | 'exp'): { root: HTMLDivElement; fill: HTMLDivElement; label: HTMLDivElement } {
+  const root = el('div', `bar ${kind}`);
+  const fill = el('div', 'bar-fill');
+  const label = el('div', 'bar-label');
+  root.append(fill, label);
+  return { root, fill, label };
+}
+
+export class UI {
+  readonly overlay: Overlay;
+
+  onChatSubmit?: (text: string) => void;
+  onRespawn?: () => void;
+  onAttackHold?: (held: boolean) => void;
+
+  private readonly host: HTMLElement;
+
+  private readonly nameLabel: HTMLElement;
+  private readonly levelLabel: HTMLElement;
+  private readonly hpBar = bar('hp');
+  private readonly mpBar = bar('mp');
+  private readonly expBar = bar('exp');
+
+  private readonly targetPanel: HTMLElement;
+  private readonly targetName: HTMLElement;
+  private readonly targetLevel: HTMLElement;
+  private readonly targetHp = bar('hp');
+
+  private readonly chatLog: HTMLElement;
+  private readonly chatInput: HTMLInputElement;
+
+  private readonly statusPanel: HTMLElement;
+  private readonly statusText: HTMLElement;
+
+  private readonly deathScreen: HTMLElement;
+
+  private readonly inventoryWindow: GameWindow;
+  private readonly inventoryGrid: HTMLElement;
+  private readonly characterWindow: GameWindow;
+  private readonly characterStats: HTMLElement;
+
+  private lastStats?: StatsMsg;
+
+  constructor(host: HTMLElement, private readonly touch: boolean) {
+    this.host = host;
+
+    // --- Werte ------------------------------------------------------------
+    const vitals = el('div', 'vitals panel');
+    const head = el('div', 'vitals-head');
+    this.nameLabel = el('span', 'vitals-name', '—');
+    this.levelLabel = el('span', 'vitals-level', 'Stufe 1');
+    head.append(this.nameLabel, this.levelLabel);
+    vitals.append(head, this.hpBar.root, this.mpBar.root, this.expBar.root);
+    host.appendChild(vitals);
+
+    // --- Ziel -------------------------------------------------------------
+    this.targetPanel = el('div', 'target panel');
+    const targetHead = el('div', 'target-head');
+    this.targetName = el('span', 'target-name', '');
+    this.targetLevel = el('span', 'target-level', '');
+    targetHead.append(this.targetName, this.targetLevel);
+    this.targetPanel.append(targetHead, this.targetHp.root);
+    host.appendChild(this.targetPanel);
+
+    // --- Verbindungsanzeige ----------------------------------------------
+    this.statusPanel = el('div', 'status panel');
+    const dot = el('span', 'dot');
+    this.statusText = el('span', undefined, 'verbindet');
+    this.statusPanel.append(dot, this.statusText);
+    this.statusPanel.dataset.state = 'verbindet';
+    host.appendChild(this.statusPanel);
+
+    // --- Chat -------------------------------------------------------------
+    const chat = el('div', 'chat');
+    this.chatLog = el('div', 'chat-log panel');
+    this.chatInput = el('input', 'chat-input');
+    this.chatInput.type = 'text';
+    this.chatInput.placeholder = 'Nachricht … (Enter)';
+    this.chatInput.maxLength = 200;
+    this.chatInput.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      const text = this.chatInput.value.trim();
+      this.chatInput.value = '';
+      if (text) this.onChatSubmit?.(text);
+      this.chatInput.blur();
+      e.stopPropagation();
+    });
+    chat.append(this.chatLog, this.chatInput);
+    host.appendChild(chat);
+
+    // --- Fenster ----------------------------------------------------------
+    this.inventoryWindow = new GameWindow(
+      host,
+      'inventory',
+      'Inventar',
+      { left: window.innerWidth - 300, top: 120 },
+      true,
+    );
+    this.inventoryGrid = el('div', 'inventory-grid');
+    this.inventoryWindow.body.appendChild(this.inventoryGrid);
+    this.setInventory([]);
+
+    this.characterWindow = new GameWindow(
+      host,
+      'character',
+      'Charakter',
+      { left: window.innerWidth - 300, top: 340 },
+      true,
+    );
+    this.characterStats = el('dl', 'stat-list');
+    this.characterWindow.body.appendChild(this.characterStats);
+
+    // --- Aktionsleiste ----------------------------------------------------
+    const actionbar = el('div', 'actionbar panel');
+    actionbar.append(
+      this.slot('🎒', 'I', 'Inventar', () => this.inventoryWindow.toggle()),
+      this.slot('👤', 'C', 'Charakter', () => this.characterWindow.toggle()),
+      this.slot('💬', '⏎', 'Chat', () => this.chatInput.focus()),
+    );
+    host.appendChild(actionbar);
+
+    // --- Angriffsknopf (nur mobil) ---------------------------------------
+    if (touch) {
+      const attack = el('button', 'attack-button', 'ANGRIFF');
+      attack.type = 'button';
+      const press = (held: boolean) => (e: Event) => {
+        e.preventDefault();
+        this.onAttackHold?.(held);
+      };
+      attack.addEventListener('pointerdown', press(true));
+      attack.addEventListener('pointerup', press(false));
+      attack.addEventListener('pointercancel', press(false));
+      attack.addEventListener('pointerleave', press(false));
+      host.appendChild(attack);
+    }
+
+    // --- Todesbildschirm --------------------------------------------------
+    this.deathScreen = el('div', 'death');
+    const deathPanel = el('div', 'death-panel panel');
+    const respawn = el('button', 'btn', 'Zurückkehren');
+    respawn.type = 'button';
+    respawn.addEventListener('click', () => this.onRespawn?.());
+    deathPanel.append(
+      el('h2', undefined, 'Gefallen'),
+      el('p', undefined, 'Du kehrst am Startpunkt der Karte zurück.'),
+      respawn,
+    );
+    this.deathScreen.appendChild(deathPanel);
+    host.appendChild(this.deathScreen);
+
+    this.overlay = new Overlay(host);
+
+    if (!touch) this.bindHotkeys();
+  }
+
+  private slot(icon: string, key: string, label: string, onClick: () => void): HTMLButtonElement {
+    const button = el('button', 'btn slot', icon);
+    button.type = 'button';
+    button.title = `${label} (${key})`;
+    button.setAttribute('aria-label', label);
+    if (!this.touch) button.append(el('span', 'key', key));
+    button.addEventListener('click', onClick);
+    return button;
+  }
+
+  private bindHotkeys(): void {
+    window.addEventListener('keydown', (e) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.isContentEditable)) {
+        if (e.key === 'Escape') (target as HTMLInputElement).blur();
+        return;
+      }
+      if (e.code === 'KeyI') this.inventoryWindow.toggle();
+      else if (e.code === 'KeyC') this.characterWindow.toggle();
+      else if (e.code === 'Enter') {
+        e.preventDefault();
+        this.chatInput.focus();
+      }
+    });
+  }
+
+  // -------------------------------------------------------------------------
+  // Anzeigen
+  // -------------------------------------------------------------------------
+
+  setPlayerName(name: string): void {
+    this.nameLabel.textContent = name;
+  }
+
+  setStats(stats: StatsMsg): void {
+    this.lastStats = stats;
+
+    this.levelLabel.textContent = `Stufe ${stats.level}`;
+    this.setBar(this.hpBar, stats.hp, stats.maxHp, `${Math.round(stats.hp)} / ${stats.maxHp}`);
+    this.setBar(this.mpBar, stats.mp, stats.maxMp, `${Math.round(stats.mp)} / ${stats.maxMp}`);
+
+    const next = stats.expForNext === 0xffffffff ? 0 : stats.expForNext;
+    const pct = next > 0 ? (stats.exp / next) * 100 : 100;
+    this.setBar(this.expBar, stats.exp, next || 1, `${pct.toFixed(1)} %`);
+
+    this.characterStats.replaceChildren(
+      ...this.statRow('Stufe', String(stats.level)),
+      ...this.statRow('Erfahrung', next > 0 ? `${stats.exp} / ${next}` : 'Höchststufe'),
+      ...this.statRow('Leben', `${Math.round(stats.hp)} / ${stats.maxHp}`),
+      ...this.statRow('Mana', `${Math.round(stats.mp)} / ${stats.maxMp}`),
+      ...this.statRow('Angriff', String(stats.attackDamage)),
+      ...this.statRow('Verteidigung', String(stats.defense)),
+      ...this.statRow('Gold', stats.gold.toLocaleString('de-DE')),
+    );
+  }
+
+  /** Aktualisiert nur die Lebensanzeige — kommt mit jedem Snapshot. */
+  setHp(hp: number): void {
+    if (!this.lastStats) return;
+    this.lastStats.hp = hp;
+    this.setBar(this.hpBar, hp, this.lastStats.maxHp, `${Math.round(hp)} / ${this.lastStats.maxHp}`);
+  }
+
+  private statRow(label: string, value: string): [HTMLElement, HTMLElement] {
+    return [el('dt', undefined, label), el('dd', undefined, value)];
+  }
+
+  private setBar(
+    b: { fill: HTMLDivElement; label: HTMLDivElement },
+    value: number,
+    max: number,
+    text: string,
+  ): void {
+    const ratio = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
+    b.fill.style.transform = `scaleX(${ratio})`;
+    b.label.textContent = text;
+  }
+
+  setTarget(target: EntityVisual | undefined): void {
+    if (!target) {
+      this.targetPanel.dataset.visible = 'false';
+      return;
+    }
+    this.targetPanel.dataset.visible = 'true';
+    this.targetName.textContent = target.name || '—';
+    this.targetLevel.textContent = `Stufe ${target.level}`;
+    this.setBar(
+      this.targetHp,
+      target.hp,
+      target.maxHp,
+      `${Math.round(target.hp)} / ${Math.round(target.maxHp)}`,
+    );
+  }
+
+  setConnection(state: ConnectionState, detail?: string): void {
+    this.statusPanel.dataset.state = state;
+    this.statusText.textContent = detail ? `${state} · ${detail}` : state;
+  }
+
+  setDead(dead: boolean): void {
+    this.deathScreen.dataset.visible = String(dead);
+  }
+
+  addChat(channel: number, from: string, text: string): void {
+    const line = el('div', 'chat-line');
+    line.dataset.channel =
+      channel === ChatChannel.System ? 'system' : channel === ChatChannel.Shout ? 'shout' : 'say';
+
+    if (from) {
+      const who = el('span', 'who', `${from}: `);
+      line.append(who, document.createTextNode(text));
+    } else {
+      line.textContent = text;
+    }
+
+    this.chatLog.appendChild(line);
+    while (this.chatLog.childElementCount > CHAT_HISTORY) {
+      this.chatLog.firstElementChild?.remove();
+    }
+    this.chatLog.scrollTop = this.chatLog.scrollHeight;
+  }
+
+  setInventory(entries: InventoryEntry[]): void {
+    const bySlot = new Map(entries.map((e) => [e.slot, e]));
+    const slots: HTMLElement[] = [];
+
+    for (let i = 0; i < INVENTORY_SLOTS; i++) {
+      const entry = bySlot.get(i);
+      const slot = el('div', 'item-slot');
+      slot.dataset.equipped = String(entry?.equipped ?? false);
+
+      if (!entry) {
+        slot.classList.add('item-empty');
+        slots.push(slot);
+        continue;
+      }
+
+      const def = getItem(entry.itemId);
+      const icon = el('div', 'item-icon');
+      // Bis es Symbolgrafiken gibt, steht die Farbe aus der Content-Tabelle
+      // für den Gegenstand. Ein Platzhalter, der sich unterscheidet, ist
+      // brauchbarer als ein Platzhalter, der überall gleich aussieht.
+      icon.style.background = `#${(def?.iconColor ?? 0x888888).toString(16).padStart(6, '0')}`;
+      slot.appendChild(icon);
+
+      if (entry.count > 1) slot.appendChild(el('span', 'item-count', String(entry.count)));
+
+      slot.title = def
+        ? `${def.name}${entry.equipped ? ' (angelegt)' : ''}\n${def.description}`
+        : entry.itemId;
+      slots.push(slot);
+    }
+
+    this.inventoryGrid.replaceChildren(...slots);
+  }
+
+  /** Namensschilder und Zahlen weiterschieben. */
+  updateOverlay(
+    camera: THREE.PerspectiveCamera,
+    entities: Iterable<EntityVisual>,
+    localId: number,
+    targetId: number,
+    dt: number,
+  ): void {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    this.overlay.updateNameplates(camera, entities, localId, targetId, width, height);
+    this.overlay.updateNumbers(camera, dt, width, height);
+  }
+
+  get chatHasFocus(): boolean {
+    return document.activeElement === this.chatInput;
+  }
+}

@@ -1,0 +1,195 @@
+# Aurelith
+
+Browserbasiertes 3D-MMORPG. Klassisches Setting, Flächenkampf im Stil von
+Metin2, Kartenaufbau mit Gates und Dungeons im Stil von Flyff — mit eigener
+Grafik und eigenem Stack.
+
+Der Aufbau folgt dem Blueprint aus dem Flyff-Universe-Teardown, mit einer
+bewussten Abweichung, die weiter unten begründet ist.
+
+---
+
+## Was schon läuft
+
+- **Ein C++-Simulationskern**, nach WebAssembly übersetzt, geladen von Client
+  *und* Server — dieselbe Binärdatei, also dieselbe Rechnung auf beiden Seiten.
+- **Autoritativer Server** mit fester Schrittweite (20 Hz), Interessenradius und
+  Snapshots (10 Hz), PostgreSQL-Anbindung mit Speicher-Fallback.
+- **Eigenes Frame-Format** über WebSocket, binär und versioniert, mit
+  eingezogener — heute abgeschalteter — Cipher-Schicht.
+- **Client-Prediction** der eigenen Bewegung samt Abgleich gegen den Server.
+- **Three.js auf WebGL 2**, prozedurale Modelle, instanziierte Props,
+  Terrainnetz aus den Höhen des Kerns.
+- **Desktop und Mobil**: WASD und Maus am Rechner, virtueller Joystick und
+  Angriffsknopf am Telefon.
+- **UI im Flyff-Zuschnitt**: Werteleisten, Zielfenster, Chat, Inventar,
+  Charakterblatt, ziehbare Fenster, Namensschilder, Schadenszahlen.
+- **Drei Karten** mit Gates und einem Dungeon, dazu ein **Map-Editor**, der
+  dasselbe Dateiformat liest und schreibt.
+
+---
+
+## Schnellstart
+
+```bash
+npm install
+npm run core     # C++ → wasm (braucht Emscripten, siehe unten)
+npm run maps     # Startkarten erzeugen
+npm run manifest # Asset-Manifest schreiben
+npm run dev      # Server und Client zusammen
+```
+
+Danach: <http://localhost:5173>
+
+Der Map-Editor läuft getrennt:
+
+```bash
+npm run dev:editor   # → http://localhost:5174
+```
+
+### Emscripten
+
+Der Kern ist C++ und wird nach WebAssembly übersetzt. Einmalig:
+
+```bash
+git clone --depth 1 https://github.com/emscripten-core/emsdk.git /opt/emsdk
+cd /opt/emsdk && ./emsdk install latest && ./emsdk activate latest
+```
+
+`tools/build-core.mjs` findet das SDK über `$EMSDK`, `/opt/emsdk` oder
+`~/emsdk`. Es baut immer zuerst nativ und führt die Prüfungen aus — die sind in
+Sekunden durch und fangen praktisch alles ab, was auch im wasm-Build schiefginge.
+
+### Datenbank
+
+Ohne `DATABASE_URL` startet der Server mit einem Speicher-Backend und sagt das
+beim Hochfahren. Für echte Persistenz:
+
+```bash
+export DATABASE_URL=postgres://user:pass@localhost:5432/aurelith
+npm run db:migrate
+```
+
+Migrationen liegen als schlichte SQL-Dateien in `packages/server/migrations/`
+und werden beim Serverstart mitgezogen.
+
+### Verschlüsselung
+
+Heute läuft alles im Klartext. Zwei Stufen sind vorbereitet:
+
+1. **Transport** — `AURELITH_TLS_KEY` und `AURELITH_TLS_CERT` setzen, dann hört
+   der Server auf `wss://` statt `ws://`. Das ist die Stufe, die tatsächlich
+   schützt.
+2. **Pakete** — die Cipher-ID steht im Frame-Header, beide Seiten handeln sie
+   beim Handshake aus, und `packages/shared/src/net/cipher.ts` enthält neben der
+   Null-Cipher bereits einen XOR-Stream. Der ist Verschleierung, keine
+   Kryptografie; der Schutz gegen Manipulation liegt allein in der
+   Server-Autorität.
+
+---
+
+## Aufbau
+
+```
+packages/
+  core      C++-Simulationskern → WebAssembly. Bewegung, Kollision, Kampf,
+            KI, Terrain. Kennt weder Browser noch Netzwerk.
+  shared    Protokoll, Frame-Format, Map-Format, Content-Tabellen. TypeScript,
+            läuft in Client und Server.
+  server    Autorität. Node, ws, PostgreSQL. Treibt je Karte eine Welt im Kern.
+  client    Dünne Schale, Renderer, Eingabe, UI.
+  editor    Map-Editor auf demselben Stack.
+assets/
+  maps      aurelith.map-Dokumente
+  core      gebauter wasm-Kern (erzeugt)
+tools/      Bau- und Testskripte
+```
+
+### Warum der Kern in C++ liegt
+
+Der Blueprint empfahl, bei TypeScript zu bleiben, bis ein Profil etwas anderes
+zeigt. Wir sind bewusst davon abgewichen — aber nicht zu Flyffs Lösung.
+
+Flyff liefert 8,6 MB wasm aus, weil dort ein vollständiger Windows-Client samt
+Renderer, Audio und Szenengraph portiert wurde. Das erzwingt den Ladebildschirm,
+gegen den der Blueprint ausdrücklich argumentiert.
+
+Bei uns liegt **nur die Simulation** im Kern: 48 KiB wasm, 18,5 KiB nach Brotli.
+Renderer, UI und Netzwerk bleiben TypeScript. Damit bekommen wir die Eigenschaft,
+auf die es ankommt — Client und Server führen für Bewegung, Kollision und Kampf
+*dieselbe Binärdatei* aus, können also nicht auseinanderlaufen — ohne die
+Ladeschranke mitzukaufen.
+
+### Die Brücke
+
+`packages/core/bindings/embind.cpp` ist die einzige Stelle, an der wasm und
+JavaScript sich berühren, und sie ist absichtlich eng:
+
+- Jede erreichbare Funktion steht namentlich im `EMSCRIPTEN_BINDINGS`-Block.
+- Der Kern ruft nie von sich aus in JavaScript hinein.
+- Zustand geht als flacher Puffer über die Grenze, über den JavaScript eine
+  Sicht legt — ein Aufruf je Frame statt einem je Entity.
+- `describeLayout()` meldet die Byte-Versätze der gepackten Strukturen, und
+  `layout.ts` prüft sie beim Start. Der Vertrag wird geprüft, nicht geglaubt.
+
+Das ist der Gegenentwurf zu Flyffs Weg, bei dem C++ über `emval` in den globalen
+Namensraum des Browsers greift und jeder Aufruf alles darf.
+
+---
+
+## Karten
+
+Eine Karte ist ein JSON-Dokument (`aurelith.map`, Version 1) mit Terrain,
+Props, Spawnern, NPCs und Portalen. Server, Client und Editor lesen dieselbe
+Datei — es gibt keinen Export- und keinen Importschritt.
+
+```jsonc
+{
+  "format": "aurelith.map",
+  "version": 1,
+  "id": "lichtmoor",
+  "terrain": { "size": 512, "seed": 19529, "heightScale": 11, … },
+  "props":    [{ "id": "p_0001", "model": "tree_pine", "position": [x, y, z], … }],
+  "spawners": [{ "id": "s_mote_a", "mob": "mote", "count": 7, "respawnMs": 9000, … }],
+  "portals":  [{ "id": "g_dornwald", "target": { "map": "dornwald", … }, "minLevel": 0 }]
+}
+```
+
+Die Starkarten erzeugt `tools/gen-maps.mjs` — ein Platzhalter, bis der Editor
+weit genug ist. Das Höhenfeld ist prozedural aus dem Seed und wird vom **Kern**
+berechnet, nicht vom Renderer: der sichtbare Boden ist damit per Konstruktion
+der begehbare Boden.
+
+---
+
+## Prüfen
+
+```bash
+npm run typecheck    # alle fünf Pakete
+npm run core:test    # 27 native Prüfungen des Kerns
+npm test             # Kern + End-to-End im Browser + Editor
+```
+
+Die native Prüfung enthält eine auf **Reproduzierbarkeit**: zwei gleiche Läufe
+müssen bitgleiche Zustände ergeben. Darauf setzt die Client-Prediction auf.
+
+Der End-to-End-Test startet Server und Client, öffnet Chromium und prüft, was
+ein Typecheck nicht sehen kann — dass der Kern lädt, die Verbindung steht,
+Snapshots ankommen und tatsächlich ein Bild entsteht.
+
+---
+
+## Nächste Schritte
+
+- **Speicherbudget messen.** Der wasm-Heap steht auf festen 64 MiB, wächst
+  nicht — die Disziplin ist von Flyff übernommen, die Zahl ist noch geraten. Der
+  Blueprint verlangt eine gemessene Obergrenze auf dem schwächsten Zielgerät.
+- **glTF statt prozeduraler Modelle.** Die ModelRegistry ist die vorgesehene
+  Tauschstelle: Schlüssel bleiben, Herkunft ändert sich. Skelette und
+  Animationsspuren ersetzen dann die von Hand geschriebenen Posen in `rigs.ts`.
+- **Texturformat-Matrix.** S3TC, ETC, ASTC, BPTC — die Entscheidung fällt beim
+  ersten gelieferten Asset, nicht später.
+- **Editor ausbauen.** Heute setzt und löscht er Props. Als Nächstes: Terrain
+  malen, Spawner und Portale bearbeiten, Rückgängig.
+- **Fertigkeiten, Quests, Handel, Gruppen.** Das Kampfsystem trägt bislang genau
+  einen Schlag.

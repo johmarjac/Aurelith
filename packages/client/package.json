@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Dünne Schale, Renderer, Eingabe und UI. Lädt denselben wasm-Kern wie der Server.",
+  "exports": {
+    "./render/*": "./src/render/*"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",

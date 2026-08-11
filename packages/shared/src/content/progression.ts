@@ -57,3 +57,22 @@ export function computeDamage(attack: number, defense: number, roll: number): nu
 /** Kritische Treffer: fester Sockel, später aus Werten gespeist. */
 export const CRIT_CHANCE = 0.12;
 export const CRIT_MULTIPLIER = 1.75;
+
+/**
+ * Kampfprofil der Spielerfigur.
+ *
+ * Server und Client müssen dieselbe Figur in den Kern setzen — sonst rechnet
+ * die Vorhersage mit einem anderen Tempo als die Autorität, und die Figur
+ * zuckt bei jedem Snapshot. Deshalb steht das hier genau einmal.
+ *
+ * Der weite Kegel bei kurzer Reichweite ist die zentrale Kampfentscheidung des
+ * Projekts: ein Schlag trifft alles davor, nicht ein ausgewähltes Ziel.
+ */
+export const PLAYER_PROFILE = {
+  attackRange: 3.0,
+  attackArc: Math.PI * 0.85,
+  attackCooldownSec: 0.62,
+  attackWindupSec: 0.15,
+  radius: 0.45,
+  height: 1.8,
+} as const;

@@ -384,6 +384,36 @@ export function encodeStats(m: StatsMsg): Uint8Array {
     .finish();
 }
 
+export interface InventoryRow {
+  itemId: string;
+  count: number;
+  slot: number;
+  equipped: boolean;
+}
+
+/**
+ * Das vollständige Inventar. Ein Teilabgleich wäre möglich, lohnt aber nicht:
+ * dreißig Plätze sind unter einem Kilobyte, und Vollbilder können nicht
+ * auseinanderlaufen.
+ */
+export function encodeInventory(rows: InventoryRow[]): Uint8Array {
+  const w = packet(ServerOp.Inventory, 256);
+  w.u16(rows.length);
+  for (const row of rows) {
+    w.str(row.itemId).u16(row.count).u16(row.slot).bool(row.equipped);
+  }
+  return w.finish();
+}
+
+export function decodeInventory(r: ByteReader): InventoryRow[] {
+  const count = r.u16();
+  const rows: InventoryRow[] = new Array(count);
+  for (let i = 0; i < count; i++) {
+    rows[i] = { itemId: r.str(), count: r.u16(), slot: r.u16(), equipped: r.bool() };
+  }
+  return rows;
+}
+
 export function decodeStats(r: ByteReader): StatsMsg {
   return {
     level: r.u16(),
