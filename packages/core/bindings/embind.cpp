@@ -62,6 +62,12 @@ uintptr_t eventPointer(aur::World& world) {
   return reinterpret_cast<uintptr_t>(world.events());
 }
 
+// Adresse des Höhenfeldes. Der Kern besitzt den Speicher; TypeScript legt eine
+// Int16-Sicht darüber und schreibt hinein. Ein Aufruf je Karte, nicht je Punkt.
+uintptr_t sculptPointer(aur::World& world) {
+  return reinterpret_cast<uintptr_t>(world.sculptData());
+}
+
 void sampleHeightGrid(aur::World& world, float originX, float originZ, float step, int countX,
                       int countZ, uintptr_t out) {
   world.sampleHeightGrid(originX, originZ, step, countX, countZ, reinterpret_cast<float*>(out));
@@ -186,6 +192,9 @@ EMSCRIPTEN_BINDINGS(aurelith_core) {
       // Aufbau
       .function("addCollider", &aur::World::addCollider)
       .function("clearColliders", &aur::World::clearColliders)
+      .function("resizeSculpt", &aur::World::resizeSculpt)
+      .function("sculptPointer", &sculptPointer)
+      .function("sculptResolution", &aur::World::sculptResolution)
       .function("addSpawner", &addSpawner)
       .function("clearSpawners", &aur::World::clearSpawners)
 

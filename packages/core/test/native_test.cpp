@@ -291,6 +291,50 @@ void testEntityViewLayout() {
   checkNear(view[0].x, 1.5f, 0.001f, "Position landet in der Sicht");
 }
 
+// ---------------------------------------------------------------------------
+// Von Hand geformte Höhen
+// ---------------------------------------------------------------------------
+
+void testSculpt() {
+  std::printf("Geformtes Gelände\n");
+
+  aur::MobRegistry mobs;
+  aur::World world(1u, flatTerrain(), &mobs);
+
+  checkNear(world.heightAt(0.0f, 0.0f), 0.0f, 0.001f, "ohne Feld bleibt das Gelände, wie es war");
+
+  // Ein Gitter mit fünf Stützpunkten je Kante über 512 Einheiten: ein
+  // Stützpunkt alle 128 Einheiten, der mittlere liegt auf (0, 0).
+  const int n = 5;
+  world.resizeSculpt(n);
+  check(world.sculptResolution() == n, "Feld angelegt");
+
+  int16_t* data = world.sculptData();
+  check(data != nullptr, "Feld hat Speicher");
+
+  // Zehn Meter auf den mittleren Stützpunkt.
+  const int centre = 2 * n + 2;
+  data[centre] = static_cast<int16_t>(10.0f * aur::kSculptUnit);
+
+  checkNear(world.heightAt(0.0f, 0.0f), 10.0f, 0.01f, "Mitte wird angehoben");
+  checkNear(world.heightAt(128.0f, 0.0f), 0.0f, 0.01f, "Nachbarstützpunkt bleibt liegen");
+  checkNear(world.heightAt(64.0f, 0.0f), 5.0f, 0.01f, "dazwischen wird interpoliert");
+
+  // Die Steigung muss mitwandern, sonst laufen Figuren durch den neuen Hügel
+  // hindurch, statt an ihm hochzugehen oder abzuprallen.
+  check(world.slopeAt(64.0f, 0.0f) > 1.0f, "der neue Hang hat eine Steigung");
+
+  // Und der Boden unter einer Figur muss derselbe sein.
+  world.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+  world.applyInput(1, 0.0f, 0.0f, 0.0f, 0u, aur::kTickSeconds);
+  checkNear(world.find(1)->y, 10.0f, 0.01f, "die Figur steht auf dem geformten Boden");
+
+  // Abschalten stellt den alten Zustand her — das braucht der Editor beim
+  // Wechsel auf eine Karte ohne Feld.
+  world.resizeSculpt(0);
+  checkNear(world.heightAt(0.0f, 0.0f), 0.0f, 0.001f, "abgeschaltet ist wieder rein prozedural");
+}
+
 }  // namespace
 
 int main() {
@@ -304,6 +348,7 @@ int main() {
   testDeathAndRespawn();
   testDeterminism();
   testEntityViewLayout();
+  testSculpt();
 
   std::printf("\n%d Prüfungen, %d fehlgeschlagen\n", g_checks, g_failures);
   return g_failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;

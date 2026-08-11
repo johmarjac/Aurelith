@@ -34,6 +34,7 @@ import {
   parseMapDocument,
   type MapDocument,
   type StatsMsg,
+  terrainSetup,
 } from '@aurelith/shared';
 import {
   BOOTSTRAP_MAP,
@@ -291,13 +292,9 @@ export class Game {
     this.mapDoc = doc;
 
     this.prediction?.dispose();
-    const world = core.core.createWorld(doc.terrain.seed, {
-      size: doc.terrain.size,
-      cellSize: doc.terrain.cellSize,
-      seed: doc.terrain.seed,
-      heightScale: doc.terrain.heightScale,
-      featureScale: doc.terrain.featureScale,
-    });
+    const setup = terrainSetup(doc);
+    const world = core.core.createWorld(doc.terrain.seed, setup.shape);
+    world.setSculpt(setup.sculpt, setup.sculptResolution);
     // Dieselben Kollider wie auf dem Server: sonst sagt die Vorhersage, man
     // stehe im Baum, und die Autorität schiebt einen jedes Mal heraus.
     for (const prop of doc.props) {

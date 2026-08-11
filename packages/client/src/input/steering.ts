@@ -38,16 +38,6 @@ export const ACCEL_TIME = 0.14;
  */
 export const DECEL_TIME = 0.2;
 
-/**
- * Wie stark eine Kurve bremst: bei voller Ausrichtung volle Geschwindigkeit,
- * bei einer Kehrtwende noch dieser Anteil davon.
- *
- * Ohne die Bremse liefe die Figur bei einer Wende einen weiten Bogen, weil sie
- * mit voller Geschwindigkeit in die alte Richtung weiterzieht, während sie sich
- * dreht. Mit ihr dreht sie beinahe auf der Stelle.
- */
-export const TURN_BRAKE_FLOOR = 0.35;
-
 /** Unterhalb dieses Betrags gilt die Figur als stehend. */
 const REST_EPSILON = 0.002;
 
@@ -85,27 +75,31 @@ export class Steering {
       this.facing + clamp(angleDelta(this.facing, this.desired), -maxTurn, maxTurn),
     );
 
-    // Je schiefer die Figur noch zur Wunschrichtung steht, desto langsamer
-    // läuft sie.
-    const align = Math.max(0, Math.cos(angleDelta(this.facing, this.desired)));
-    const target = wish * (TURN_BRAKE_FLOOR + (1 - TURN_BRAKE_FLOOR) * align);
-
     // Anlaufen und Auslaufen mit fester Rate. Eine exponentielle Annäherung
     // erreicht ihr Ziel nie ganz, und „fast null" schöbe die Figur ewig weiter.
-    const rate = dt / (target > this.magnitude ? ACCEL_TIME : DECEL_TIME);
-    this.magnitude = clamp(
-      this.magnitude + clamp(target - this.magnitude, -rate, rate),
-      0,
-      1,
-    );
+    const rate = dt / (wish > this.magnitude ? ACCEL_TIME : DECEL_TIME);
+    this.magnitude = clamp(this.magnitude + clamp(wish - this.magnitude, -rate, rate), 0, 1);
     if (this.magnitude < REST_EPSILON) this.magnitude = 0;
 
-    // Bewegt wird in Blickrichtung, nicht in Wunschrichtung. Nur so gehen
-    // Körper und Bewegung immer zusammen — sonst schlittert die Figur
-    // seitwärts, während sie sich noch dreht.
+    // Bewegt wird in die **Wunschrichtung**, gedreht wird gemächlich.
+    //
+    // Der Unterschied ist wichtig genug für einen Absatz. Koppelt man die
+    // Bewegung an die Blickrichtung, fährt die Figur beim Richtungswechsel
+    // eine Kurve — sie zieht noch ein Stück in die alte Richtung, während sie
+    // sich dreht. Das sieht zwar zusammenhängend aus, kostet aber genau in dem
+    // Moment Reaktion, in dem man sie braucht: bei einer Vierteldrehung sind
+    // das anderthalb Zehntelsekunden, in denen die Figur woanders hinläuft, als
+    // man gedrückt hat. Der Rauchtest hat das prompt gemessen — die Figur kam
+    // beim Antippen von A und D kaum von der Stelle.
+    //
+    // Also: die Bewegung folgt sofort, der Körper dreht sich nach. Für den
+    // kurzen Moment dazwischen schaut die Figur nicht ganz dorthin, wo sie
+    // hinläuft. Das ist der Kompromiss, den auch die Vorbilder wählen, und der
+    // unauffälligere von beiden.
+    const dir = wish > 0.001 ? Math.atan2(wishX, wishZ) : this.facing;
     return {
-      moveX: Math.sin(this.facing) * this.magnitude,
-      moveZ: Math.cos(this.facing) * this.magnitude,
+      moveX: Math.sin(dir) * this.magnitude,
+      moveZ: Math.cos(dir) * this.magnitude,
       yaw: this.facing,
     };
   }

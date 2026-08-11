@@ -84,7 +84,36 @@ struct TerrainDef {
   uint32_t seed = 1u;
   float heightScale = 14.0f;
   float featureScale = 0.012f;
+
+  // --- Von Hand geformte Höhen -------------------------------------------
+  //
+  // Das Grundrelief kommt aus dem Seed und ist auf beiden Seiten dieselbe
+  // Rechnung. Wer im Editor Hügel aufschüttet, kann das Rauschen aber nicht
+  // umstimmen — also kommt sein Ergebnis als Differenzfeld obendrauf.
+  //
+  // Bewusst ein Zeiger und keine Kopie: `TerrainDef` wird bei jedem Aufruf von
+  // `terrainHeight` als Referenz gereicht, und das Gitter kann Zehntausende
+  // Stützpunkte haben. Eigentümer ist die `World`, die es am Leben hält,
+  // solange sie selbst lebt.
+  //
+  // Die Felder stehen absichtlich nicht in der embind-Beschreibung: von
+  // TypeScript kommt die Form der Karte, nicht ihr Speicher. Der wird über
+  // `World::resizeSculpt` angefordert und über `sculptPointer()` beschrieben.
+
+  /** Quadratisches Gitter, Werte in 1/kSculptUnit Weltmetern. Null = aus. */
+  const int16_t* sculpt = nullptr;
+  /** Stützpunkte je Kante. Kleiner als zwei heißt: kein Feld. */
+  int32_t sculptResolution = 0;
 };
+
+/**
+ * Auflösung der gespeicherten Höhendifferenzen.
+ *
+ * int16 in Vierundsechzigsteln reicht von -512 bis +512 Metern bei anderthalb
+ * Zentimetern Schrittweite. Das ist weit mehr Spielraum, als eine Karte je
+ * braucht, und fein genug, dass man die Stufen nicht sieht.
+ */
+constexpr float kSculptUnit = 64.0f;
 
 // Werte einer Monsterart. Werden von TypeScript aus der Content-Tabelle
 // hineingereicht, damit Balancing keinen Neubau des Kerns erzwingt.

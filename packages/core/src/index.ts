@@ -122,6 +122,9 @@ export interface CoreEvent {
 
 interface RawWorld {
   addCollider(x: number, z: number, radius: number): void;
+  resizeSculpt(resolution: number): void;
+  sculptPointer(): number;
+  sculptResolution(): number;
   clearColliders(): void;
   addSpawner(
     x: number,
@@ -227,6 +230,43 @@ export class CoreWorld {
 
   clearColliders(): void {
     this.raw.clearColliders();
+  }
+
+  /**
+   * Übergibt die von Hand geformten Höhen an den Kern.
+   *
+   * Den Speicher besitzt der Kern, nicht wir: `resizeSculpt` legt ihn an, wir
+   * schreiben einmal hinein. Das erspart `_malloc` an der Brücke und stellt
+   * sicher, dass der Zeiger genau so lange gilt wie die Welt — er wird bei
+   * jedem einzelnen Höhenabruf gelesen.
+   *
+   * `undefined` schaltet das Feld ab; danach ist der Boden wieder rein
+   * prozedural.
+   */
+  setSculpt(values: Int16Array | undefined, resolution: number): void {
+    if (!values || resolution < 2) {
+      this.raw.resizeSculpt(0);
+      return;
+    }
+    const expected = resolution * resolution;
+    if (values.length !== expected) {
+      throw new RangeError(
+        `Höhenfeld hat ${values.length} Werte, erwartet ${expected} bei Auflösung ${resolution}`,
+      );
+    }
+
+    this.raw.resizeSculpt(resolution);
+    const ptr = this.raw.sculptPointer();
+    if (ptr === 0) throw new Error('Kern hat keinen Speicher für das Höhenfeld geliefert');
+
+    // Int16-Sicht auf den wasm-Heap. Der Zeiger ist zwangsläufig gerade, weil
+    // der Kern ihn aus einem std::vector<int16_t> liefert.
+    new Int16Array(this.module.HEAPU8.buffer, ptr, expected).set(values);
+  }
+
+  /** Stützpunkte je Kante des Höhenfeldes. Null heißt: keines. */
+  get sculptResolution(): number {
+    return this.raw.sculptResolution();
   }
 
   addSpawner(

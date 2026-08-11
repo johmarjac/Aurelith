@@ -141,6 +141,39 @@ check(grid.length === 81, 'Höhengitter hat 81 Stützpunkte');
 checkNear(grid[40]!, hilly.heightAt(0, 0), 0.001, 'Gitterwert deckt sich mit Einzelabfrage');
 check(new Set(grid).size > 10, 'Höhenfeld ist nicht konstant');
 
+// --- Von Hand geformte Höhen ------------------------------------------------
+//
+// Der eigentliche Punkt dieser Prüfung ist nicht die Interpolation — die prüft
+// der native Test genauer. Hier geht es um die Brücke: dass ein Int16Array aus
+// JavaScript tatsächlich im Kernspeicher landet und die Höhenrechnung es sieht.
+
+const flat = core.createWorld(7, {
+  size: 512,
+  cellSize: 4,
+  seed: 4321,
+  heightScale: 0,
+  featureScale: 0.012,
+});
+checkNear(flat.heightAt(0, 0), 0, 0.001, 'ohne Feld ist das Testgelände eben');
+
+const resolution = 5;
+const values = new Int16Array(resolution * resolution);
+values[2 * resolution + 2] = 10 * 64; // zehn Meter auf die Mitte
+flat.setSculpt(values, resolution);
+
+check(flat.sculptResolution === resolution, 'Kern meldet die Auflösung zurück');
+checkNear(flat.heightAt(0, 0), 10, 0.01, 'das Feld kommt im Kern an');
+checkNear(flat.heightAt(64, 0), 5, 0.01, 'zwischen den Stützpunkten wird interpoliert');
+check(flat.slopeAt(64, 0) > 1, 'der geformte Hang hat eine Steigung');
+
+// Das Gitter, aus dem der Renderer sein Netz baut, muss dasselbe sehen.
+const sculptGrid = flat.sampleHeightGrid(-128, 0, 64, 5, 1);
+checkNear(sculptGrid[2]!, 10, 0.01, 'das Höhengitter zeigt den geformten Hügel');
+
+flat.setSculpt(undefined, 0);
+checkNear(flat.heightAt(0, 0), 0, 0.001, 'abgeschaltet ist wieder rein prozedural');
+
+flat.dispose();
 hilly.dispose();
 world.dispose();
 

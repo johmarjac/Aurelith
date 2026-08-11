@@ -99,15 +99,34 @@ console.log('Drehen');
 }
 
 {
-  // Eine Kehrtwende soll fast auf der Stelle stattfinden, nicht als weiter Bogen.
-  // Feste Dauer, nicht aus TURN_RATE abgeleitet: sonst schrumpft das Fenster
-  // mit der Drehrate mit und der Test misst am Ende gar nichts mehr.
+  // Die Bewegung folgt der Eingabe sofort, auch waehrend sich die Figur noch
+  // dreht. Das ist die Eigenschaft, die eine fruehere Fassung nicht hatte: dort
+  // lief die Figur in Blickrichtung, zog also bei jedem Richtungswechsel erst
+  // ein Stueck in die alte Richtung weiter. Bei einer Vierteldrehung kam sie
+  // damit im Rauchtest kaum von der Stelle.
   const s = new Steering();
   s.reset(0);
-  hold(s, 0, 1, 1.0); // erst mit voller Geschwindigkeit nach Norden
-  const turning = hold(s, 0, -1, 0.3); // dann kehrt
-  const slowest = Math.min(...turning.map((r) => r.speed));
-  check(slowest < 0.55, 'Wende bremst deutlich ab', `langsamster Punkt ${slowest.toFixed(2)}`);
+  hold(s, 0, 1, 1.0); // volle Fahrt nach Norden (+Z)
+
+  const first = s.step(1, 0, DT); // jetzt nach Osten (+X)
+  check(
+    first.moveX > 0.9 && Math.abs(first.moveZ) < 0.1,
+    'Bewegung springt sofort in die neue Richtung',
+    `(${first.moveX.toFixed(2)}, ${first.moveZ.toFixed(2)})`,
+  );
+  check(
+    Math.abs(angleDelta(first.yaw, Math.PI / 2)) > 0.5,
+    'die Blickrichtung hinkt dabei noch hinterher',
+    `${first.yaw.toFixed(2)} statt ${(Math.PI / 2).toFixed(2)}`,
+  );
+
+  // Und holt binnen der erwarteten Zeit auf.
+  hold(s, 1, 0, Math.PI / 2 / TURN_RATE + DT);
+  check(
+    Math.abs(angleDelta(s.yaw, Math.PI / 2)) < 0.02,
+    'und hat nach der Drehzeit aufgeholt',
+    `${s.yaw.toFixed(3)}`,
+  );
 }
 
 // --- Anlaufen und Auslaufen -------------------------------------------------

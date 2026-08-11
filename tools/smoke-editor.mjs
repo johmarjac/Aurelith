@@ -179,6 +179,81 @@ check(
   `Ziehen setzt kein Prop (${countOf(afterPanelClick)} → ${countOf(afterDragClick)})`,
 );
 
+// --- Gelände formen --------------------------------------------------------
+//
+// Die Prüfung, auf die es hier ankommt: was der Pinsel ändert, muss im **Kern**
+// ankommen. Nur dann steht die Figur im Spiel auf demselben Boden, den man im
+// Editor gesehen hat — der Kern ist dieselbe Binärdatei auf dem Server.
+
+const toolButton = async (caption) => {
+  const handle = await page.evaluateHandle((c) => {
+    const all = [...document.querySelectorAll('#panel .palette button')];
+    return all.find((b) => b.textContent === c) ?? null;
+  }, caption);
+  const el = handle.asElement();
+  if (!el) throw new Error(`Werkzeug "${caption}" nicht gefunden`);
+  return el;
+};
+
+await (await toolButton('Anheben')).click();
+await page.waitForTimeout(300);
+
+await page.mouse.move(560, 380);
+await page.waitForTimeout(200);
+await page.mouse.down();
+await page.waitForTimeout(900);
+await page.mouse.up();
+await page.waitForTimeout(600);
+
+const sculptState = await page.evaluate(() => ({
+  resolution: window.aurelithEditor?.sculptResolution ?? 0,
+  peak: window.aurelithEditor?.sculptPeak ?? 0,
+  coreResolution: window.aurelithEditor?.coreSculptResolution ?? 0,
+}));
+
+check(sculptState.resolution >= 2, `Höhenfeld angelegt (${sculptState.resolution} Stützpunkte je Kante)`);
+// Schwelle bewusst niedrig. Der Pinsel wirkt zeitbasiert, und in SwiftShader
+// laeuft die Schleife mit zwei Bildern je Sekunde — wie viele davon in die
+// gehaltenen 900 ms fallen, schwankt zwischen eins und drei. Garantiert ist
+// allein der Anschlag beim Druecken: 8 m/s * 50 ms = 0,4 m. Dass sich der
+// Pinsel ueber die Zeit aufsummiert, pruefen die Einzeltests in
+// packages/editor/test/brushes_test.ts, und zwar ohne Bildrate im Spiel.
+check(sculptState.peak > 0.3, `Gelände wurde angehoben (${sculptState.peak.toFixed(2)} m)`);
+check(
+  sculptState.coreResolution === sculptState.resolution,
+  `der Kern hat dasselbe Feld (${sculptState.coreResolution})`,
+);
+// --- Malen -----------------------------------------------------------------
+
+await (await toolButton('Malen')).click();
+await page.waitForTimeout(300);
+
+await page.mouse.move(600, 400);
+await page.mouse.down();
+await page.waitForTimeout(700);
+await page.mouse.up();
+await page.waitForTimeout(600);
+
+const paintState = await page.evaluate(() => ({
+  resolution: window.aurelithEditor?.paintResolution ?? 0,
+  peak: window.aurelithEditor?.paintPeak ?? 0,
+}));
+check(paintState.resolution >= 2, `Malfeld angelegt (${paintState.resolution})`);
+check(paintState.peak > 0, `Bodenebene wurde gemalt (Gewicht ${paintState.peak})`);
+
+// --- Das Ergebnis muss wieder lesbar sein ----------------------------------
+
+const roundTrip = await page.evaluate(() => window.aurelithEditor?.roundTrip?.() ?? null);
+check(roundTrip?.ok === true, `Dokument bleibt lesbar (${roundTrip?.note ?? 'kein Ergebnis'})`);
+check(
+  roundTrip?.sculptSurvives === true,
+  `geformte Höhen überleben Speichern und Laden (${roundTrip?.peakAfter?.toFixed?.(2) ?? '?'} m)`,
+);
+check(
+  Math.abs((roundTrip?.peakAfter ?? 0) - sculptState.peak) < 0.02,
+  `und zwar unveraendert (${sculptState.peak.toFixed(2)} → ${(roundTrip?.peakAfter ?? 0).toFixed(2)} m)`,
+);
+
 check(pageErrors.length === 0, `keine unbehandelten Ausnahmen (${pageErrors.length})`);
 const errors = consoleLines.filter((l) => l.startsWith('[error]'));
 check(errors.length === 0, `keine Fehler in der Konsole (${errors.length})`);

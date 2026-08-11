@@ -12,6 +12,41 @@
 
 namespace aur {
 
+/**
+ * Von Hand geformte Differenz an einer Stelle.
+ *
+ * Bilinear zwischen den vier umliegenden Stützpunkten. Ausserhalb des Gitters
+ * — was nur am Rand vorkommt — wird der Rand festgehalten statt umzubrechen.
+ *
+ * Ohne die Interpolation wäre jeder Stützpunkt eine Stufe, und ein Hügel sähe
+ * aus wie eine Treppe.
+ */
+inline float sculptAt(float x, float z, const TerrainDef& t) {
+  const int n = t.sculptResolution;
+  if (t.sculpt == nullptr || n < 2) return 0.0f;
+
+  // Weltkoordinaten auf Gitterkoordinaten: -size/2 liegt auf 0, +size/2 auf n-1.
+  const float half = t.size * 0.5f;
+  const float gx = clampf((x + half) / t.size, 0.0f, 1.0f) * static_cast<float>(n - 1);
+  const float gz = clampf((z + half) / t.size, 0.0f, 1.0f) * static_cast<float>(n - 1);
+
+  const int x0 = static_cast<int>(gx);
+  const int z0 = static_cast<int>(gz);
+  const int x1 = x0 + 1 < n ? x0 + 1 : n - 1;
+  const int z1 = z0 + 1 < n ? z0 + 1 : n - 1;
+  const float fx = gx - static_cast<float>(x0);
+  const float fz = gz - static_cast<float>(z0);
+
+  const float h00 = static_cast<float>(t.sculpt[z0 * n + x0]);
+  const float h10 = static_cast<float>(t.sculpt[z0 * n + x1]);
+  const float h01 = static_cast<float>(t.sculpt[z1 * n + x0]);
+  const float h11 = static_cast<float>(t.sculpt[z1 * n + x1]);
+
+  const float top = h00 + (h10 - h00) * fx;
+  const float bottom = h01 + (h11 - h01) * fx;
+  return (top + (bottom - top) * fz) / kSculptUnit;
+}
+
 inline float terrainHeight(float x, float z, const TerrainDef& t) {
   const float f = t.featureScale;
 
@@ -33,7 +68,9 @@ inline float terrainHeight(float x, float z, const TerrainDef& t) {
   const float falloff = 1.0f - clampf((edge - 0.82f) / 0.18f, 0.0f, 1.0f);
   h *= falloff * falloff;
 
-  return h * t.heightScale;
+  // Das Geformte kommt oben drauf und nicht in die Randabsenkung hinein: wer
+  // am Rand eine Mauer aufschüttet, soll sie behalten.
+  return h * t.heightScale + sculptAt(x, z, t);
 }
 
 struct TerrainNormal {

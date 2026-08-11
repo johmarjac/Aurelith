@@ -22,11 +22,32 @@ import {
   serializeMapDocument,
   type MapDocument,
   type PropInstance,
+  SCULPT_UNIT,
+  decodePaintField,
+  decodeSculptField,
+  encodePaintField,
+  encodeSculptField,
+  sculptFieldIsEmpty,
+  paintFieldIsEmpty,
+  terrainSetup,
 } from '@aurelith/shared';
 import { createSharedMaterial } from '@aurelith/client/render/geometry.ts';
 import { PROP_BUILDERS } from '@aurelith/client/render/props.ts';
 import { buildTerrain, type TerrainMesh } from '@aurelith/client/render/terrain.ts';
 import { TextureLoader } from '@aurelith/client/render/textures.ts';
+import {
+  DEFAULT_BRUSH,
+  MAX_BRUSH_RADIUS,
+  MIN_BRUSH_RADIUS,
+  createPaintField,
+  createSculptField,
+  paintLayer,
+  sculptRaise,
+  sculptSmooth,
+  type BrushSettings,
+  type PaintField,
+  type SculptField,
+} from './brushes.ts';
 import './style.css';
 
 const MAPS = ['lichtmoor', 'dornwald', 'gruft_01'];
@@ -43,8 +64,9 @@ const panel = document.getElementById('panel') as HTMLElement;
 const hint = document.getElementById('hint') as HTMLElement;
 
 hint.textContent =
-  'Links: Prop setzen · Rechtsklick auf ein Prop: löschen\n' +
-  'Rechts ziehen: drehen · Mitte ziehen oder Umschalt: schieben · WASD: schieben · Rad: zoomen';
+  'Links: Werkzeug anwenden · Rechtsklick auf ein Prop: löschen\n' +
+  'Rechts ziehen: drehen · Mitte ziehen oder Umschalt: schieben · WASD: schieben\n' +
+  'Rad: zoomen · Strg + Rad: Pinselgröße';
 
 // --- Kern ------------------------------------------------------------------
 
@@ -105,6 +127,28 @@ let propMeshes: THREE.InstancedMesh[] = [];
 let selectedModel = Object.keys(PROP_BUILDERS)[0]!;
 let nextPropId = 1;
 
+/** Was die linke Maustaste gerade tut. */
+type Tool = 'props' | 'raise' | 'lower' | 'smooth' | 'paint';
+let tool: Tool = 'props';
+let brush: BrushSettings = { ...DEFAULT_BRUSH };
+/** Welche Bodenebene der Malpinsel aufträgt. */
+let paintLayerIndex = 0;
+
+/**
+ * Die beiden Gitterfelder der geladenen Karte.
+ *
+ * Sie liegen hier und nicht im Dokument, weil im Dokument die kodierte Fassung
+ * steht: einmal beim Laden entpacken, beim Speichern wieder packen. Alles
+ * dazwischen arbeitet auf den Zahlen.
+ */
+let sculpt: SculptField | undefined;
+let paint: PaintField | undefined;
+/** Läuft gerade ein Strich? Dann wird beim Loslassen einmal neu aufgebaut. */
+let strokeActive = false;
+let strokeTouched = 0;
+/** Zuletzt getroffener Geländepunkt. Nur für die Auskunft nach aussen. */
+let lastGroundPoint: THREE.Vector3 | undefined;
+
 const geometryCache = new Map<string, THREE.BufferGeometry>();
 function propGeometry(key: string): THREE.BufferGeometry {
   let geo = geometryCache.get(key);
@@ -120,13 +164,20 @@ async function loadMap(id: string): Promise<void> {
   doc = parseMapDocument(raw, id);
 
   world?.dispose();
-  world = core.createWorld(doc.terrain.seed, {
-    size: doc.terrain.size,
-    cellSize: doc.terrain.cellSize,
-    seed: doc.terrain.seed,
-    heightScale: doc.terrain.heightScale,
-    featureScale: doc.terrain.featureScale,
-  });
+  const setup = terrainSetup(doc);
+  world = core.createWorld(doc.terrain.seed, setup.shape);
+  world.setSculpt(setup.sculpt, setup.sculptResolution);
+
+  // Die Gitterfelder entpacken. Fehlt eines, wird ein leeres angelegt — leer
+  // heisst „nichts geformt" bzw. „nichts gemalt", und beides ist der Zustand,
+  // in dem jede Karte anfängt.
+  sculpt = setup.sculpt
+    ? { values: setup.sculpt, resolution: setup.sculptResolution }
+    : createSculptField(doc.terrain.size);
+  const storedPaint = decodePaintField(doc.terrain.paint);
+  paint = storedPaint
+    ? { values: storedPaint, resolution: doc.terrain.paint!.resolution }
+    : createPaintField(doc.terrain.size);
 
   if (terrain) {
     root.remove(terrain.object);
@@ -146,6 +197,36 @@ async function loadMap(id: string): Promise<void> {
   camTarget.set(doc.spawn.x, world.heightAt(doc.spawn.x, doc.spawn.z), doc.spawn.z);
   rebuildProps();
   renderPanel();
+}
+
+/**
+ * Baut das Geländenetz neu.
+ *
+ * Nach jedem Strich, aber nicht bei jedem Mausbewegungsereignis: das Netz hat
+ * bei einer Karte von 512 Einheiten und Zellgrösse 4 rund siebzehntausend
+ * Vertizes, und die neu zu rechnen kostet genug, dass man es beim Ziehen
+ * merken würde. Während eines Strichs reicht die Vorschau am Zeiger.
+ */
+function rebuildTerrain(): void {
+  if (!doc || !world) return;
+
+  // Erst dem Kern das neue Höhenfeld geben — das Netz holt seine Höhen von
+  // dort, und nur so bleibt der sichtbare Boden der begehbare Boden.
+  if (sculpt) world.setSculpt(sculpt.values, sculpt.resolution);
+
+  // Das Malfeld geht über das Dokument, weil `buildTerrain` es dort liest.
+  syncFieldsIntoDocument();
+
+  if (terrain) {
+    root.remove(terrain.object);
+    terrain.dispose();
+  }
+  terrain = buildTerrain(world, doc, doc.terrain.cellSize, { useNormalMaps: true });
+  root.add(terrain.object);
+  void loadGroundTextures(doc, terrain);
+
+  // Props hängen an der Geländehöhe, wenn sie aufsitzen sollen.
+  rebuildProps();
 }
 
 /** Traegt die Bodentexturen nach, sobald sie da sind. */
@@ -211,6 +292,43 @@ function rebuildProps(): void {
 
 // --- Bedienfeld ------------------------------------------------------------
 
+/**
+ * Ein Schieberegler mit Beschriftung.
+ *
+ * Bewusst `input`-Ereignis und nicht `change`: man will beim Ziehen sehen, wie
+ * gross der Pinsel wird, nicht erst beim Loslassen.
+ */
+function slider(
+  caption: string,
+  value: number,
+  min: number,
+  max: number,
+  step: number,
+  onChange: (v: number) => void,
+  format: (v: number) => string,
+): HTMLElement {
+  const wrap = document.createElement('label');
+  wrap.className = 'slider';
+
+  const text = document.createElement('span');
+  text.textContent = `${caption}: ${format(value)}`;
+
+  const input = document.createElement('input');
+  input.type = 'range';
+  input.min = String(min);
+  input.max = String(max);
+  input.step = String(step);
+  input.value = String(value);
+  input.addEventListener('input', () => {
+    const v = Number(input.value);
+    onChange(v);
+    text.textContent = `${caption}: ${format(v)}`;
+  });
+
+  wrap.append(text, input);
+  return wrap;
+}
+
 function renderPanel(): void {
   panel.replaceChildren();
 
@@ -231,21 +349,107 @@ function renderPanel(): void {
   select.addEventListener('change', () => void loadMap(select.value));
   panel.append(mapLabel, select);
 
-  const paletteLabel = document.createElement('h2');
-  paletteLabel.textContent = 'Props';
-  const palette = document.createElement('div');
-  palette.className = 'palette';
-  for (const key of Object.keys(PROP_BUILDERS)) {
+  // --- Werkzeug ------------------------------------------------------------
+
+  const toolLabel = document.createElement('h2');
+  toolLabel.textContent = 'Werkzeug';
+  const tools = document.createElement('div');
+  tools.className = 'palette';
+  const TOOLS: [Tool, string][] = [
+    ['props', 'Props'],
+    ['raise', 'Anheben'],
+    ['lower', 'Absenken'],
+    ['smooth', 'Glätten'],
+    ['paint', 'Malen'],
+  ];
+  for (const [key, caption] of TOOLS) {
     const button = document.createElement('button');
-    button.textContent = key;
-    button.setAttribute('aria-pressed', String(key === selectedModel));
+    button.textContent = caption;
+    button.setAttribute('aria-pressed', String(key === tool));
     button.addEventListener('click', () => {
-      selectedModel = key;
+      tool = key;
       renderPanel();
     });
-    palette.appendChild(button);
+    tools.appendChild(button);
   }
-  panel.append(paletteLabel, palette);
+  panel.append(toolLabel, tools);
+
+  // --- Pinsel --------------------------------------------------------------
+
+  if (tool !== 'props') {
+    const brushLabel = document.createElement('h2');
+    brushLabel.textContent = 'Pinsel';
+    panel.appendChild(brushLabel);
+
+    panel.appendChild(
+      slider('Größe', brush.radius, MIN_BRUSH_RADIUS, MAX_BRUSH_RADIUS, 1, (v) => {
+        setBrushRadius(v);
+      }, (v) => `${v.toFixed(0)} Einheiten`),
+    );
+    panel.appendChild(
+      slider('Härte', brush.hardness, 0, 1, 0.05, (v) => {
+        brush = { ...brush, hardness: v };
+      }, (v) => `${Math.round(v * 100)} %`),
+    );
+    panel.appendChild(
+      slider('Stärke', brush.strength, 1, 30, 1, (v) => {
+        brush = { ...brush, strength: v };
+      }, (v) => v.toFixed(0)),
+    );
+
+    const tip = document.createElement('div');
+    tip.className = 'stats';
+    tip.textContent = 'Strg + Rad ändert die Größe.';
+    panel.appendChild(tip);
+  }
+
+  // --- Bodenebene ----------------------------------------------------------
+
+  if (tool === 'paint') {
+    const layerLabel = document.createElement('h2');
+    layerLabel.textContent = 'Bodenebene';
+    const layers = document.createElement('div');
+    layers.className = 'palette';
+    const defs = doc?.terrain.layers ?? [];
+    if (defs.length === 0) {
+      const none = document.createElement('div');
+      none.className = 'stats';
+      none.textContent = 'Diese Karte hat keine Bodenebenen.';
+      panel.append(layerLabel, none);
+    } else {
+      for (let i = 0; i < defs.length; i++) {
+        const button = document.createElement('button');
+        button.textContent = defs[i]!.id;
+        button.setAttribute('aria-pressed', String(i === paintLayerIndex));
+        button.addEventListener('click', () => {
+          paintLayerIndex = i;
+          renderPanel();
+        });
+        layers.appendChild(button);
+      }
+      panel.append(layerLabel, layers);
+    }
+  }
+
+  // --- Props ---------------------------------------------------------------
+
+  if (tool === 'props') {
+    const paletteLabel = document.createElement('h2');
+    paletteLabel.textContent = 'Props';
+    const palette = document.createElement('div');
+    palette.className = 'palette';
+    for (const key of Object.keys(PROP_BUILDERS)) {
+      const button = document.createElement('button');
+      button.textContent = key;
+      button.setAttribute('aria-pressed', String(key === selectedModel));
+      button.addEventListener('click', () => {
+        selectedModel = key;
+        renderPanel();
+      });
+      palette.appendChild(button);
+    }
+    panel.append(paletteLabel, palette);
+  }
 
   const statsLabel = document.createElement('h2');
   statsLabel.textContent = 'Inhalt';
@@ -271,6 +475,7 @@ function renderPanel(): void {
   save.textContent = 'Map herunterladen';
   save.addEventListener('click', () => {
     if (!doc) return;
+    syncFieldsIntoDocument();
     // Genau das Format, das Server und Client lesen — kein Export, sondern
     // dieselbe Datei.
     const blob = new Blob([serializeMapDocument(doc)], { type: 'application/json' });
@@ -358,6 +563,14 @@ canvas.addEventListener('pointerdown', (e) => {
     canvas.setPointerCapture(e.pointerId);
     e.preventDefault();
   }
+
+  // Ein Pinsel wirkt beim Ziehen, nicht erst beim Loslassen — sonst müsste man
+  // für einen Hügel hundertmal klicken.
+  if (gesture === 'tool' && tool !== 'props') {
+    strokeActive = true;
+    strokeTouched = 0;
+    applyBrush(0.05);
+  }
 });
 
 canvas.addEventListener('pointerenter', () => {
@@ -390,18 +603,37 @@ window.addEventListener('pointerup', (e) => {
   gesture = 'none';
   startedOnCanvas = false;
 
+  if (strokeActive) {
+    strokeActive = false;
+    // Einmal am Ende neu aufbauen. Während des Strichs wäre das je
+    // Mausbewegung ein kompletter Netzaufbau.
+    if (strokeTouched > 0) {
+      rebuildTerrain();
+      renderPanel();
+    }
+    return;
+  }
+
   // Hat die Geste nicht im Bild begonnen, geht sie das Bild auch nichts an.
   if (!fromCanvas) return;
 
   // Ein Klick, der sich kaum bewegt hat, ist ein Klick — kein Ziehen.
   if (dragDistance > 6) return;
 
-  if (wasGesture === 'tool' && e.button === 0) placeProp();
+  if (wasGesture === 'tool' && e.button === 0 && tool === 'props') placeProp();
   if (wasGesture === 'orbit' && e.button === 2) removePropUnderPointer();
 });
 
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
+  // Mit Strg regelt das Rad die Pinselgrösse. Das ist der Griff, den man beim
+  // Malen ständig braucht — über einen Schieber im Bedienfeld wäre es ein
+  // Weg quer über den Bildschirm für jeden zweiten Strich.
+  if (e.ctrlKey && tool !== 'props') {
+    setBrushRadius(brush.radius * (e.deltaY < 0 ? 1.15 : 1 / 1.15));
+    renderPanel();
+    return;
+  }
   camDistance = Math.max(12, Math.min(400, camDistance + Math.sign(e.deltaY) * camDistance * 0.12));
 }, { passive: false });
 
@@ -413,6 +645,71 @@ window.addEventListener('keydown', (e) => {
 });
 window.addEventListener('keyup', (e) => keys.delete(e.code));
 window.addEventListener('blur', () => keys.clear());
+
+/**
+ * Schreibt die Gitterfelder zurück ins Dokument.
+ *
+ * Leere Felder fliegen raus statt als Nullen mitzureisen: ein unbearbeitetes
+ * Höhenfeld sind bei 129 Stützpunkten je Kante 45 KB Base64, die nichts
+ * aussagen — und eine Karte ohne Feld ist auch die Karte, die es vorher war.
+ */
+function syncFieldsIntoDocument(): void {
+  if (!doc) return;
+
+  if (sculpt && !sculptFieldIsEmpty(sculpt.values)) {
+    doc.terrain.sculpt = encodeSculptField(sculpt.values, sculpt.resolution);
+  } else {
+    delete doc.terrain.sculpt;
+  }
+
+  if (paint && !paintFieldIsEmpty(paint.values)) {
+    doc.terrain.paint = encodePaintField(paint.values, paint.resolution);
+  } else {
+    delete doc.terrain.paint;
+  }
+}
+
+function setBrushRadius(value: number): void {
+  brush = { ...brush, radius: Math.max(MIN_BRUSH_RADIUS, Math.min(MAX_BRUSH_RADIUS, value)) };
+}
+
+/**
+ * Wendet den aktiven Pinsel auf den Punkt unter dem Zeiger an.
+ *
+ * `dt` ist die vergangene Zeit — dadurch hängt die Wirkung an der gehaltenen
+ * Dauer und nicht an der Bildrate. Ohne das formt ein schneller Rechner
+ * doppelt so tief wie ein langsamer, was beim Formen von Gelände die
+ * unangenehmere Sorte von Überraschung wäre.
+ */
+function applyBrush(dt: number): void {
+  if (!doc) return;
+  const point = groundPoint();
+  if (!point) return;
+
+  const size = doc.terrain.size;
+  let touched = 0;
+
+  switch (tool) {
+    case 'raise':
+      if (sculpt) touched = sculptRaise(sculpt, size, point.x, point.z, brush, brush.strength * dt);
+      break;
+    case 'lower':
+      if (sculpt) touched = sculptRaise(sculpt, size, point.x, point.z, brush, -brush.strength * dt);
+      break;
+    case 'smooth':
+      if (sculpt) touched = sculptSmooth(sculpt, size, point.x, point.z, brush, Math.min(1, dt * 6));
+      break;
+    case 'paint':
+      if (paint) {
+        touched = paintLayer(paint, size, point.x, point.z, brush, paintLayerIndex, Math.min(1, dt * 4));
+      }
+      break;
+    default:
+      return;
+  }
+
+  strokeTouched += touched;
+}
 
 function placeProp(): void {
   const point = groundPoint();
@@ -468,7 +765,74 @@ declare global {
       mapId: string;
       props: number;
       portals: number;
+      /** Höhe des höchsten geformten Punktes, in Metern. */
+      sculptPeak: number;
+      sculptResolution: number;
+      /** Was der Kern tatsächlich hat — nicht, was wir ihm geben wollten. */
+      coreSculptResolution: number;
+      paintPeak: number;
+      paintResolution: number;
+      heightUnderPointer: number | null;
+      /**
+       * Speichern und wieder laden, ohne Datei.
+       *
+       * Der Kreis, auf den es beim Editor ankommt: was er schreibt, muss der
+       * Parser lesen, den auch Server und Client benutzen. Ein Feld, das nur
+       * im Editor existiert, wäre schlimmer als keines.
+       */
+      roundTrip: () => {
+        ok: boolean;
+        note: string;
+        sculptSurvives: boolean;
+        peakAfter: number;
+      };
     };
+  }
+}
+
+/** Grösster Betrag im Höhenfeld, in Metern. */
+function sculptPeak(field: SculptField | undefined): number {
+  if (!field) return 0;
+  let peak = 0;
+  for (let i = 0; i < field.values.length; i++) {
+    const v = Math.abs(field.values[i]!);
+    if (v > peak) peak = v;
+  }
+  return peak / SCULPT_UNIT;
+}
+
+function paintPeak(field: PaintField | undefined): number {
+  if (!field) return 0;
+  let peak = 0;
+  for (let i = 0; i < field.values.length; i++) {
+    if (field.values[i]! > peak) peak = field.values[i]!;
+  }
+  return peak;
+}
+
+function roundTrip(): {
+  ok: boolean;
+  note: string;
+  sculptSurvives: boolean;
+  peakAfter: number;
+} {
+  if (!doc) return { ok: false, note: 'keine Karte geladen', sculptSurvives: false, peakAfter: 0 };
+  syncFieldsIntoDocument();
+  try {
+    const text = serializeMapDocument(doc);
+    const again = parseMapDocument(JSON.parse(text), doc.id);
+    const values = decodeSculptField(again.terrain.sculpt);
+    const peakAfter = values
+      ? sculptPeak({ values, resolution: again.terrain.sculpt?.resolution ?? 0 })
+      : 0;
+    return {
+      ok: true,
+      note: `${(text.length / 1024).toFixed(0)} KB`,
+      sculptSurvives: peakAfter > 0.3,
+      peakAfter,
+    };
+  } catch (err) {
+    return { ok: false, note: String(err), sculptSurvives: false, peakAfter: 0 };
   }
 }
 
@@ -481,6 +845,13 @@ function publishDiagnostics(): void {
     mapId: doc?.id ?? '',
     props: doc?.props.length ?? 0,
     portals: doc?.portals.length ?? 0,
+    sculptPeak: sculptPeak(sculpt),
+    sculptResolution: sculpt?.resolution ?? 0,
+    coreSculptResolution: world?.sculptResolution ?? 0,
+    paintPeak: paintPeak(paint),
+    paintResolution: paint?.resolution ?? 0,
+    heightUnderPointer: lastGroundPoint ? lastGroundPoint.y : null,
+    roundTrip,
   };
 }
 
@@ -522,11 +893,20 @@ function frame(now = performance.now()): void {
   );
   camera.lookAt(camTarget);
 
+  // Einen laufenden Strich fortsetzen. Hier und nicht im Mausereignis, weil
+  // der Pinsel auch dann weiterwirken soll, wenn der Zeiger stillsteht.
+  if (strokeActive) applyBrush(dt);
+
   // Die Markierung nur zeigen, wenn der Zeiger auch im Bild steht — sonst
   // klebt sie am Gelaende, waehrend man im Bedienfeld arbeitet.
   const point = pointerOverCanvas || gesture !== 'none' ? groundPoint() : undefined;
+  lastGroundPoint = point;
   if (point) {
     cursor.position.set(point.x, point.y + 0.15, point.z);
+    // Der Ring zeigt den Pinsel. Beim Prop-Werkzeug bleibt er klein — dort
+    // gibt es keinen Radius, und ein grosser Ring wäre gelogen.
+    const shown = tool === 'props' ? 1 : brush.radius;
+    cursor.scale.setScalar(shown);
     cursor.visible = true;
   } else {
     cursor.visible = false;

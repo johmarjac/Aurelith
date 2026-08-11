@@ -12,6 +12,7 @@ import {
   getNpc,
   type MapDocument,
   type PortalDef,
+  terrainSetup,
 } from '@aurelith/shared';
 import type { CoreBundle } from './core.ts';
 
@@ -36,13 +37,11 @@ export class MapInstance {
     private readonly bundle: CoreBundle,
     allocId: () => number,
   ) {
-    this.world = bundle.core.createWorld(doc.terrain.seed, {
-      size: doc.terrain.size,
-      cellSize: doc.terrain.cellSize,
-      seed: doc.terrain.seed,
-      heightScale: doc.terrain.heightScale,
-      featureScale: doc.terrain.featureScale,
-    });
+    // Über `terrainSetup`, nicht von Hand: Server, Client und Editor müssen
+    // denselben Boden bekommen, und drei Abschriften driften.
+    const setup = terrainSetup(doc);
+    this.world = bundle.core.createWorld(doc.terrain.seed, setup.shape);
+    this.world.setSculpt(setup.sculpt, setup.sculptResolution);
 
     for (const prop of doc.props) {
       if (prop.collision !== 'circle') continue;

@@ -5,7 +5,27 @@
 namespace aur {
 
 World::World(uint32_t seed, const TerrainDef& terrain, const MobRegistry* mobs)
-    : terrain_(terrain), mobs_(mobs), rng_(seed == 0u ? 1u : seed) {}
+    : terrain_(terrain), mobs_(mobs), rng_(seed == 0u ? 1u : seed) {
+  // Was von aussen kommt, beschreibt die Form der Karte — nicht unseren
+  // Speicher. Ein Zeiger, der da drinsteht, gehoert uns nicht.
+  terrain_.sculpt = nullptr;
+  terrain_.sculptResolution = 0;
+}
+
+void World::resizeSculpt(int resolution) {
+  if (resolution < 2) {
+    sculpt_.clear();
+    sculpt_.shrink_to_fit();
+    terrain_.sculpt = nullptr;
+    terrain_.sculptResolution = 0;
+    return;
+  }
+
+  const size_t count = static_cast<size_t>(resolution) * static_cast<size_t>(resolution);
+  sculpt_.assign(count, 0);
+  terrain_.sculpt = sculpt_.data();
+  terrain_.sculptResolution = resolution;
+}
 
 // ---------------------------------------------------------------------------
 // Aufbau

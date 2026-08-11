@@ -17,7 +17,13 @@
 
 import * as THREE from 'three';
 import type { CoreWorld } from '@aurelith/core';
-import { MAX_GROUND_LAYERS, type GroundLayerDef, type MapDocument } from '@aurelith/shared';
+import {
+  MAX_GROUND_LAYERS,
+  decodePaintField,
+  sampleField,
+  type GroundLayerDef,
+  type MapDocument,
+} from '@aurelith/shared';
 import { TerrainMaterial } from './terrainMaterial.ts';
 
 export interface TerrainMesh {
@@ -77,6 +83,14 @@ export function buildTerrain(
   const heights = world.sampleHeightGrid(-half, -half, step, cols, cols);
   const layers = t.layers.slice(0, MAX_GROUND_LAYERS);
 
+  // Von Hand gemalte Bodenebenen. Wo etwas gemalt wurde, gilt das Gemalte;
+  // sonst weiter die Regeln aus Neigung und Höhe. Der Unterschied zwischen
+  // „hier soll nichts liegen" und „hier hat niemand gemalt" steckt darin, ob
+  // an einem Punkt überhaupt ein Gewicht ungleich null steht.
+  const paint = decodePaintField(t.paint);
+  const paintResolution = paint ? (t.paint?.resolution ?? 0) : 0;
+  const painted: number[] = [0, 0, 0, 0];
+
   const vertexCount = cols * cols;
   const positions = new Float32Array(vertexCount * 3);
   const colors = new Float32Array(vertexCount * 3);
@@ -122,8 +136,22 @@ export function buildTerrain(
       colors[i * 3 + 1] = scratch.g;
       colors[i * 3 + 2] = scratch.b;
 
-      for (let l = 0; l < layers.length; l++) {
-        splat[i * 4 + l] = layerWeight(layers[l]!, slopeDeg, y);
+      let sumPainted = 0;
+      if (paint) {
+        sampleField(paint, paintResolution, t.size, x, z, MAX_GROUND_LAYERS, painted);
+        for (let l = 0; l < MAX_GROUND_LAYERS; l++) sumPainted += painted[l]!;
+      }
+
+      if (sumPainted > 0.5) {
+        // Gemalt: die Regeln treten zurück. Auf eins normiert, damit ein
+        // halbherziger Pinselstrich nicht dunkler ausfällt als ein voller.
+        for (let l = 0; l < layers.length; l++) {
+          splat[i * 4 + l] = (painted[l]! / sumPainted) * (layers[l]!.strength || 1);
+        }
+      } else {
+        for (let l = 0; l < layers.length; l++) {
+          splat[i * 4 + l] = layerWeight(layers[l]!, slopeDeg, y);
+        }
       }
     }
   }

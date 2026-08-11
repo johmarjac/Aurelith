@@ -67,6 +67,24 @@ class World {
 
   void addCollider(float x, float z, float radius);
   void clearColliders();
+
+  /**
+   * Legt das Feld der von Hand geformten Höhen an.
+   *
+   * Der Kern besitzt den Speicher, nicht JavaScript. Das erspart `_malloc` an
+   * der Brücke und stellt sicher, dass der Zeiger in `TerrainDef` genau so
+   * lange gilt wie die Welt selbst — er wird bei jedem einzelnen Höhenabruf
+   * gelesen, und ein Feld, das JavaScript zwischendurch freigibt, wäre der
+   * unangenehmste denkbare Fehler.
+   *
+   * `resolution` kleiner als zwei schaltet das Feld ab. Der Inhalt ist nach
+   * dem Anlegen null; beschrieben wird er über `sculptData()`.
+   */
+  void resizeSculpt(int resolution);
+
+  /** Zeiger auf das Höhenfeld, damit JavaScript hineinschreiben kann. */
+  int16_t* sculptData() { return sculpt_.empty() ? nullptr : sculpt_.data(); }
+  int sculptResolution() const { return terrain_.sculptResolution; }
   uint32_t addSpawner(const Spawner& spawner);
   void clearSpawners();
 
@@ -151,6 +169,8 @@ class World {
   std::vector<Entity> entities_;
   std::unordered_map<uint32_t, size_t> index_;
   std::vector<Collider> colliders_;
+  /** Von Hand geformte Höhen. `terrain_.sculpt` zeigt hierauf. */
+  std::vector<int16_t> sculpt_;
   std::vector<Spawner> spawners_;
 
   std::vector<EntityView> view_;

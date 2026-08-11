@@ -11,6 +11,8 @@
  * einzige Stelle, an der ein Dokument die Systemgrenze passiert.
  */
 
+import type { TerrainField } from './terrainFields.ts';
+
 export const MAP_FORMAT = 'aurelith.map';
 export const MAP_FORMAT_VERSION = 1;
 
@@ -107,6 +109,24 @@ export interface TerrainDef {
   heightmap?: string;
   /** Bodenebenen, nach Neigung und Höhe gemischt. Leer = nur Farben. */
   layers: GroundLayerDef[];
+
+  /**
+   * Von Hand geformte Höhen, als Differenz auf das prozedurale Relief.
+   *
+   * Der Kern rechnet sie mit — dieselbe Binärdatei im Client wie auf dem
+   * Server, also steht die Figur auf beiden Seiten auf demselben Boden. Fehlt
+   * das Feld, bleibt es beim reinen Rauschen.
+   */
+  sculpt?: TerrainField;
+
+  /**
+   * Von Hand gemalte Bodenebenen.
+   *
+   * Übersteuert dort, wo gemalt wurde, die Mischung aus Neigung und Höhe.
+   * Rein visuell: welche Textur wo liegt, geht die Simulation nichts an, und
+   * deshalb kennt der Kern dieses Feld auch nicht.
+   */
+  paint?: TerrainField;
 }
 
 export type PropCollisionShape = 'none' | 'circle';
@@ -303,6 +323,22 @@ export function parseMapDocument(raw: unknown, source = 'map'): MapDocument {
     layers: [],
   };
   if (typeof terRaw.heightmap === 'string') terrain.heightmap = terRaw.heightmap;
+
+  // Die Gitterfelder werden hier nicht dekodiert, nur durchgereicht: wer sie
+  // braucht, ruft `decodeSculptField` bzw. `decodePaintField`. Der Server liest
+  // nur das erste, der Renderer nur das zweite — beide sollen nicht das jeweils
+  // andere entpacken muessen.
+  const field = (value: unknown, path: string): TerrainField | undefined => {
+    if (typeof value !== 'object' || value === null) return undefined;
+    const o = value as Record<string, unknown>;
+    const resolution = optNum(o, 'resolution', 0, path);
+    if (resolution < 2 || typeof o.data !== 'string') return undefined;
+    return { resolution, data: o.data };
+  };
+  const sculpt = field(terRaw.sculpt, `${terPath}.sculpt`);
+  if (sculpt) terrain.sculpt = sculpt;
+  const paint = field(terRaw.paint, `${terPath}.paint`);
+  if (paint) terrain.paint = paint;
 
   const layerList = arr(terRaw.layers ?? [], `${terPath}.layers`);
   if (layerList.length > MAX_GROUND_LAYERS) {

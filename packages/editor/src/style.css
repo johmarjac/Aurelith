@@ -113,3 +113,16 @@ select:hover {
   display: grid;
   gap: 0.15rem;
 }
+
+/* Schieberegler für die Pinseleinstellungen. */
+.slider {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--ink-dim);
+}
+
+.slider input[type='range'] {
+  width: 100%;
+  accent-color: #4cc9bf;
+}

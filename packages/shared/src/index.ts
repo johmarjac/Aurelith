@@ -20,6 +20,8 @@ export * from './net/messages.ts';
 export * from './sim/types.ts';
 
 export * from './content/mapFormat.ts';
+export * from './content/terrainFields.ts';
+export * from './content/terrainWorld.ts';
 export * from './content/database.ts';
 export * from './content/progression.ts';
 
