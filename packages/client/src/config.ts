@@ -181,19 +181,28 @@ export interface QualitySettings {
    * schwachen Telefonen zaehlen.
    */
   groundNormalMaps: boolean;
+  /**
+   * Wie viele Funken ein Treffer höchstens streut.
+   *
+   * Der Wert steuert nicht die Wolke — die hat feste Größe —, sondern wie
+   * grosszügig ein einzelner Treffer daraus schöpft. Auf schwachen Geräten
+   * bleibt der Effekt damit lesbar, ohne die Füllrate zu fressen: additive
+   * Punkte kosten kaum Rechenzeit, aber sehr wohl Pixel.
+   */
+  particleBudget: number;
 }
 
 export const QUALITY: Record<QualityLevel, QualitySettings> = {
   niedrig: {
     viewDistance: 160, terrainCell: 8, shadows: false, maxPixelRatio: 1,
-    propDistance: 110, groundNormalMaps: false,
+    propDistance: 110, groundNormalMaps: false, particleBudget: 24,
   },
   mittel: {
     viewDistance: 240, terrainCell: 6, shadows: false, maxPixelRatio: 1.5,
-    propDistance: 170, groundNormalMaps: true,
+    propDistance: 170, groundNormalMaps: true, particleBudget: 48,
   },
   hoch: {
     viewDistance: 340, terrainCell: 4, shadows: true, maxPixelRatio: 2,
-    propDistance: 260, groundNormalMaps: true,
+    propDistance: 260, groundNormalMaps: true, particleBudget: 80,
   },
 };

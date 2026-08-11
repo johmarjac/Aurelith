@@ -54,6 +54,7 @@ import { loadClientCore, type ClientCore } from './coreLoader.ts';
 import { Scene3D } from '../render/scene.ts';
 import { ModelRegistry } from '../render/modelRegistry.ts';
 import { WorldView, type EntityVisual } from '../render/worldView.ts';
+import { burstHit } from '../render/particles.ts';
 import { TextureLoader } from '../render/textures.ts';
 import { InputManager } from '../input/input.ts';
 import { Connection } from '../net/connection.ts';
@@ -777,23 +778,37 @@ export class Game {
   }): void {
     this.view.triggerAttack(msg.attackerId);
 
-    // Ein Fernkampftreffer bekommt seinen Pfeil. Der Schaden ist in diesem
-    // Moment schon gefallen — der Pfeil holt nur das Bild nach, das dazu
-    // gehört. Ohne ihn nimmt ein Monster in zwanzig Metern Entfernung
-    // grundlos Schaden.
-    if ((msg.flags & CombatFlag.Ranged) !== 0) {
-      this.view.spawnArrow(msg.attackerId, msg.x, msg.y, msg.z);
-    }
-
     const mine = msg.attackerId === this.localId;
     const onMe = msg.victimId === this.localId;
-    if (!mine && !onMe) {
-      // Fremder Schaden an fremden Zielen würde nur den Bildschirm füllen.
+
+    /**
+     * Der Einschlag: Funken, und für die Beteiligten die Zahl.
+     *
+     * Zusammen und nicht getrennt, weil beides denselben Moment beschreibt.
+     * Fremder Schaden an fremden Zielen bekommt Funken, aber keine Zahl — die
+     * würde nur den Bildschirm füllen.
+     */
+    const impact = (): void => {
+      burstHit(this.view.particles, msg.x, msg.y, msg.z, {
+        critical: (msg.flags & CombatFlag.Critical) !== 0,
+        killing: (msg.flags & CombatFlag.Killing) !== 0,
+        budget: this.quality.particleBudget,
+      });
+
+      if (!mine && !onMe) return;
+      const kind = onMe ? 'taken' : (msg.flags & CombatFlag.Critical) !== 0 ? 'crit' : 'dealt';
+      this.ui.overlay.addNumber(msg.x, msg.y, msg.z, String(msg.damage), kind);
+    };
+
+    // Ein Fernkampftreffer bekommt seinen Pfeil — und der Einschlag wartet, bis
+    // der Pfeil da ist. Der Schaden ist längst gefallen; das Bild darf trotzdem
+    // in der richtigen Reihenfolge kommen.
+    if ((msg.flags & CombatFlag.Ranged) !== 0) {
+      this.view.spawnArrow(msg.attackerId, msg.x, msg.y, msg.z, impact);
       return;
     }
 
-    const kind = onMe ? 'taken' : (msg.flags & CombatFlag.Critical) !== 0 ? 'crit' : 'dealt';
-    this.ui.overlay.addNumber(msg.x, msg.y, msg.z, String(msg.damage), kind);
+    impact();
   }
 
   // -------------------------------------------------------------------------

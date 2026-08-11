@@ -26,6 +26,7 @@ import {
 } from '@aurelith/shared';
 import type { QualitySettings } from '../config.ts';
 import type { ModelRegistry } from './modelRegistry.ts';
+import { ParticleField } from './particles.ts';
 import { buildTerrain, type TerrainMesh } from './terrain.ts';
 import type { TextureLoader } from './textures.ts';
 import type { CharacterRig } from './rigs.ts';
@@ -45,6 +46,8 @@ const ARROW_FLIGHT_SECONDS = 0.16;
 
 interface FlyingArrow {
   mesh: THREE.Mesh;
+  /** Läuft, wenn der Pfeil ankommt. Dort gehören Funken und Zahl hin. */
+  onArrive?: () => void;
   fromX: number;
   fromY: number;
   fromZ: number;
@@ -111,6 +114,8 @@ export class WorldView {
   private propMeshes: THREE.InstancedMesh[] = [];
   /** Pfeile in der Luft. Kurzlebig — meist keiner, selten eine Handvoll. */
   private arrows: FlyingArrow[] = [];
+  /** Funken. Eine Wolke für alles, mit fester Größe. */
+  readonly particles = new ParticleField();
   private doc?: MapDocument;
   private elapsed = 0;
 
@@ -118,7 +123,12 @@ export class WorldView {
     private readonly registry: ModelRegistry,
     private readonly textures: TextureLoader,
     private readonly maxAnisotropy: number,
-  ) {}
+  ) {
+    // Die Funkenwolke haengt dauerhaft in der Szene, nicht je Karte: sie hat
+    // feste Groesse, kostet nichts, solange sie leer ist, und ein Neuaufbau bei
+    // jedem Kartenwechsel waere Arbeit ohne Wirkung.
+    this.root.add(this.particles.object);
+  }
 
   get mapId(): string {
     return this.doc?.id ?? '';
@@ -411,7 +421,13 @@ export class WorldView {
    * Angreifer zum Ziel und verschwindet dort. Alles andere wäre eine zweite
    * Wahrheit über etwas, das schon entschieden ist.
    */
-  spawnArrow(fromId: number, toX: number, toY: number, toZ: number): void {
+  spawnArrow(
+    fromId: number,
+    toX: number,
+    toY: number,
+    toZ: number,
+    onArrive?: () => void,
+  ): void {
     const shooter = this.entities.get(fromId);
     if (!shooter) return;
 
@@ -429,6 +445,7 @@ export class WorldView {
       toY,
       toZ,
       elapsed: 0,
+      ...(onArrive ? { onArrive } : {}),
     });
   }
 
@@ -450,6 +467,9 @@ export class WorldView {
       if (t < 1) continue;
       this.root.remove(a.mesh);
       this.arrows.splice(i, 1);
+      // Erst jetzt der Einschlag. Vorher hätten die Funken gesprüht, während
+      // der Pfeil noch unterwegs war.
+      a.onArrive?.();
     }
   }
 
@@ -460,6 +480,7 @@ export class WorldView {
   step(dt: number, localId: number): void {
     this.elapsed += dt;
     this.stepArrows(dt);
+    this.particles.step(dt);
     // Bildratenunabhängige Glättung: bei 60 Hz landet man knapp unter einem
     // Snapshot-Intervall, bei 30 Hz genauso weit.
     const blend = 1 - Math.pow(0.0000001, dt);
@@ -506,6 +527,8 @@ export class WorldView {
   clear(): void {
     for (const a of this.arrows) this.root.remove(a.mesh);
     this.arrows = [];
+    // Nur leeren, nicht entfernen — das Objekt bleibt in der Szene.
+    this.particles.reset();
 
     for (const e of this.entities.values()) {
       this.root.remove(e.rig.root);

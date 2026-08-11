@@ -176,6 +176,7 @@ Einzeln, wenn nur ein Bereich betroffen ist:
 npm run test:wasm        # der Vertrag über die wasm-Brücke
 npm run test:steering    # Drehen, Anlaufen, Auslaufen — ohne Browser
 npm run test:brushes     # die Editor-Pinsel — ohne Browser
+npm run test:particles   # die Funkenwolke — ohne Browser
 npm run test:e2e         # Spiel im Browser, Desktop und Berührung
 npm run test:prediction  # springt die eigene Figur beim Laufen zurück?
 npm run test:portal      # Tore: hineinlaufen, stehen, F drücken, zurück
