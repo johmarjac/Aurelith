@@ -27,6 +27,7 @@ import {
 import type { QualitySettings } from '../config.ts';
 import type { ModelRegistry } from './modelRegistry.ts';
 import { buildTerrain, type TerrainMesh } from './terrain.ts';
+import type { TextureLoader } from './textures.ts';
 import type { CharacterRig } from './rigs.ts';
 
 /** Wie lange die Schlaganimation läuft, unabhängig von der Serverabklingzeit. */
@@ -88,7 +89,11 @@ export class WorldView {
   private doc?: MapDocument;
   private elapsed = 0;
 
-  constructor(private readonly registry: ModelRegistry) {}
+  constructor(
+    private readonly registry: ModelRegistry,
+    private readonly textures: TextureLoader,
+    private readonly maxAnisotropy: number,
+  ) {}
 
   get mapId(): string {
     return this.doc?.id ?? '';
@@ -99,10 +104,56 @@ export class WorldView {
     this.clear();
     this.doc = doc;
 
-    this.terrain = buildTerrain(world, doc, quality.terrainCell);
+    this.terrain = buildTerrain(world, doc, quality.terrainCell, {
+      useNormalMaps: quality.groundNormalMaps,
+    });
     this.root.add(this.terrain.object);
 
     this.buildProps(world, doc);
+    void this.loadGroundTextures(doc, this.terrain);
+  }
+
+  /**
+   * Traegt die Bodentexturen nach, sobald sie da sind.
+   *
+   * Bewusst ohne Warten: der Boden steht sofort in seinen prozeduralen Farben,
+   * und jede Ebene wird sichtbar, wenn ihre Textur eintrifft. Das ist dasselbe
+   * Prinzip wie beim Rest des Streamers — Platzhalter sofort, Nachschub, wenn
+   * er kommt.
+   */
+  private async loadGroundTextures(doc: MapDocument, terrain: TerrainMesh): Promise<void> {
+    const layers = doc.terrain.layers;
+    await Promise.all(
+      layers.map(async (layer, index) => {
+        // Die Karte kann sich waehrenddessen geaendert haben; dann gehoert das
+        // Ergebnis zu einem Terrain, das es nicht mehr gibt.
+        const stillCurrent = () => this.terrain === terrain;
+
+        if (layer.texture) {
+          try {
+            const tex = await this.textures.load(layer.texture, {
+              srgb: true,
+              anisotropy: this.maxAnisotropy,
+            });
+            if (stillCurrent()) terrain.ground.setAlbedo(index, tex);
+          } catch (err) {
+            console.warn(`[boden] Farbtextur "${layer.texture}" nicht ladbar:`, err);
+          }
+        }
+
+        if (layer.normal) {
+          try {
+            const tex = await this.textures.load(layer.normal, {
+              srgb: false,
+              anisotropy: this.maxAnisotropy,
+            });
+            if (stillCurrent()) terrain.ground.setNormal(index, tex);
+          } catch (err) {
+            console.warn(`[boden] Normalenkarte "${layer.normal}" nicht ladbar:`, err);
+          }
+        }
+      }),
+    );
   }
 
   private buildProps(world: CoreWorld, doc: MapDocument): void {

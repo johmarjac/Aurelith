@@ -35,6 +35,54 @@ export interface EnvironmentDef {
   ambientSound?: string;
 }
 
+/**
+ * Eine Bodenebene.
+ *
+ * Der Boden entsteht aus mehreren solchen Ebenen, die nach Neigung und Höhe
+ * gemischt werden — dieselbe Logik, die heute schon die Vertexfarben erzeugt,
+ * nur mit Texturen statt Farben. Wo keine Ebene greift, bleibt die
+ * prozedurale Farbe stehen; eine Karte ohne Ebenen sieht deshalb aus wie
+ * bisher.
+ *
+ * Höchstens vier Ebenen je Karte: mehr passt nicht in die Splat-Gewichte,
+ * die als ein vec4 je Vertex mitlaufen, und mehr Texturabfragen je Pixel will
+ * man auf dem Telefon ohnehin nicht.
+ */
+export interface GroundLayerDef {
+  id: string;
+  /** Pfad der Farbtextur im Manifest. Leer = die Ebene trägt nur ihre Tönung. */
+  texture: string;
+  /** Pfad der Normalenkarte. Leer = flach. */
+  normal: string;
+  /** Weltnenheiten je Texturkachel. Größer = gröber. */
+  tileSize: number;
+  /** Neigungsbereich in Grad, in dem die Ebene gilt. */
+  slope: Vec2Tuple;
+  /** Höhenbereich in Weltnenheiten. */
+  height: Vec2Tuple;
+  /**
+   * Weiche Kante der Neigungsgrenze, in Grad.
+   *
+   * Absolut und nicht als Anteil des Bereichs: ein Bereich wie
+   * `height: [-2, 10000]` ist nach oben offen, und ein Drittel davon wäre ein
+   * Übergang über die halbe Welt.
+   */
+  slopeBlend: number;
+  /** Weiche Kante der Höhengrenze, in Weltnenheiten. */
+  heightBlend: number;
+  /** Gewicht, bevor über alle Ebenen normalisiert wird. */
+  strength: number;
+  /** Tönung, auf die Textur multipliziert — oder die Farbe, wenn keine da ist. */
+  tint: number;
+  /** Rauheit. Wird beim Aufbereiten gemessen, siehe tools/prepare-textures.mjs. */
+  roughness: number;
+  /** Stärke der Normalenkarte. */
+  normalScale: number;
+}
+
+/** Mehr Ebenen passen nicht in die Splat-Gewichte eines Vertex. */
+export const MAX_GROUND_LAYERS = 4;
+
 export interface TerrainDef {
   /** Kantenlänge der Map in Weltnenheiten. */
   size: number;
@@ -57,6 +105,8 @@ export interface TerrainDef {
    * dabei zwingend auf dieselben Werte.
    */
   heightmap?: string;
+  /** Bodenebenen, nach Neigung und Höhe gemischt. Leer = nur Farben. */
+  layers: GroundLayerDef[];
 }
 
 export type PropCollisionShape = 'none' | 'circle';
@@ -238,8 +288,35 @@ export function parseMapDocument(raw: unknown, source = 'map'): MapDocument {
     grassColorAlt: optNum(terRaw, 'grassColorAlt', 0x4a7f3c, terPath),
     rockColor: optNum(terRaw, 'rockColor', 0x7d7a70, terPath),
     sandColor: optNum(terRaw, 'sandColor', 0xc9b98a, terPath),
+    layers: [],
   };
   if (typeof terRaw.heightmap === 'string') terrain.heightmap = terRaw.heightmap;
+
+  const layerList = arr(terRaw.layers ?? [], `${terPath}.layers`);
+  if (layerList.length > MAX_GROUND_LAYERS) {
+    throw new MapFormatError(
+      `${layerList.length} Bodenebenen, höchstens ${MAX_GROUND_LAYERS} möglich`,
+      `${terPath}.layers`,
+    );
+  }
+  terrain.layers = layerList.map((l, i) => {
+    const path = `${terPath}.layers[${i}]`;
+    const o = l as Record<string, unknown>;
+    return {
+      id: str(req(o, 'id', path), `${path}.id`),
+      texture: typeof o.texture === 'string' ? o.texture : '',
+      normal: typeof o.normal === 'string' ? o.normal : '',
+      tileSize: optNum(o, 'tileSize', 8, path),
+      slope: o.slope ? vec2(o.slope, `${path}.slope`) : [0, 90],
+      height: o.height ? vec2(o.height, `${path}.height`) : [-10000, 10000],
+      slopeBlend: optNum(o, 'slopeBlend', 6, path),
+      heightBlend: optNum(o, 'heightBlend', 3, path),
+      strength: optNum(o, 'strength', 1, path),
+      tint: optNum(o, 'tint', 0xffffff, path),
+      roughness: optNum(o, 'roughness', 0.9, path),
+      normalScale: optNum(o, 'normalScale', 1, path),
+    };
+  });
 
   const spawnRaw = req(root, 'spawn', source) as Record<string, unknown>;
   const spawn = {
@@ -361,6 +438,7 @@ export function createEmptyMap(id: string, name: string): MapDocument {
       grassColorAlt: 0x4a7f3c,
       rockColor: 0x7d7a70,
       sandColor: 0xc9b98a,
+      layers: [],
     },
     spawn: { x: 0, z: 0, yaw: 0 },
     props: [],

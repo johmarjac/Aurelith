@@ -29,7 +29,69 @@
     "grassColor": 6989909,
     "grassColorAlt": 5212734,
     "rockColor": 9077880,
-    "sandColor": 13812372
+    "sandColor": 13812372,
+    "layers": [
+      {
+        "id": "gras",
+        "texture": "textures/ground_grass/albedo.webp",
+        "normal": "textures/ground_grass/normal.webp",
+        "tileSize": 11,
+        "slope": [
+          0,
+          30
+        ],
+        "height": [
+          -3,
+          10000
+        ],
+        "slopeBlend": 8,
+        "heightBlend": 1.5,
+        "strength": 1,
+        "tint": 16777215,
+        "roughness": 0.91,
+        "normalScale": 1
+      },
+      {
+        "id": "erde",
+        "texture": "textures/ground_dirt/albedo.webp",
+        "normal": "textures/ground_dirt/normal.webp",
+        "tileSize": 9,
+        "slope": [
+          24,
+          62
+        ],
+        "height": [
+          -10000,
+          10000
+        ],
+        "slopeBlend": 8,
+        "heightBlend": 3,
+        "strength": 1,
+        "tint": 16777215,
+        "roughness": 0.78,
+        "normalScale": 1
+      },
+      {
+        "id": "sand",
+        "texture": "textures/ground_sand/albedo.webp",
+        "normal": "textures/ground_sand/normal.webp",
+        "tileSize": 8,
+        "slope": [
+          0,
+          26
+        ],
+        "height": [
+          -10000,
+          -2.5
+        ],
+        "slopeBlend": 6,
+        "heightBlend": 1.2,
+        "strength": 1,
+        "tint": 16777215,
+        "roughness": 0.75,
+        "normalScale": 0.8
+      }
+    ]
   },
   "spawn": {
     "x": 0,

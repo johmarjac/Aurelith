@@ -26,6 +26,7 @@ import {
 import { createSharedMaterial } from '@aurelith/client/render/geometry.ts';
 import { PROP_BUILDERS } from '@aurelith/client/render/props.ts';
 import { buildTerrain, type TerrainMesh } from '@aurelith/client/render/terrain.ts';
+import { TextureLoader } from '@aurelith/client/render/textures.ts';
 import './style.css';
 
 const MAPS = ['lichtmoor', 'dornwald', 'gruft_01'];
@@ -64,6 +65,15 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(58, 1, 0.5, 2000);
 const material = createSharedMaterial();
+
+// Derselbe Texturlader wie im Client, nur mit schlichtem fetch statt Streamer:
+// der Editor muss denselben Boden zeigen wie das Spiel, sonst setzt man Props
+// auf ein Gelaende, das es so nicht gibt.
+const textures = new TextureLoader(async (path) => {
+  const res = await fetch(`${BASE}/${path}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status} fuer ${path}`);
+  return res.arrayBuffer();
+});
 
 scene.add(new THREE.HemisphereLight(0xbcd4ea, 0x3a4a3a, 1.1));
 const sun = new THREE.DirectionalLight(0xfff2d8, 1.4);
@@ -122,8 +132,9 @@ async function loadMap(id: string): Promise<void> {
     root.remove(terrain.object);
     terrain.dispose();
   }
-  terrain = buildTerrain(world, doc, doc.terrain.cellSize);
+  terrain = buildTerrain(world, doc, doc.terrain.cellSize, { useNormalMaps: true });
   root.add(terrain.object);
+  void loadGroundTextures(doc, terrain);
 
   // Höchste vergebene Nummer weiterzählen, damit neue Kennungen nicht kollidieren.
   nextPropId =
@@ -135,6 +146,24 @@ async function loadMap(id: string): Promise<void> {
   camTarget.set(doc.spawn.x, world.heightAt(doc.spawn.x, doc.spawn.z), doc.spawn.z);
   rebuildProps();
   renderPanel();
+}
+
+/** Traegt die Bodentexturen nach, sobald sie da sind. */
+async function loadGroundTextures(document_: MapDocument, mesh: TerrainMesh): Promise<void> {
+  const anisotropy = renderer.capabilities.getMaxAnisotropy();
+  await Promise.all(
+    document_.terrain.layers.map(async (layer, index) => {
+      const current = () => terrain === mesh;
+      if (layer.texture) {
+        const tex = await textures.load(layer.texture, { srgb: true, anisotropy });
+        if (current()) mesh.ground.setAlbedo(index, tex);
+      }
+      if (layer.normal) {
+        const tex = await textures.load(layer.normal, { srgb: false, anisotropy });
+        if (current()) mesh.ground.setNormal(index, tex);
+      }
+    }),
+  ).catch((err) => console.warn('[boden] Textur nicht ladbar:', err));
 }
 
 function rebuildProps(): void {

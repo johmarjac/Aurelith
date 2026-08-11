@@ -9,14 +9,21 @@
  * Stützpunkt für Stützpunkt. Ein Aufruf über die Brücke je Vertex wäre bei
  * siebentausend Vertizes genau die Art von Grenzverkehr, die der Blueprint
  * vermeiden will.
+ *
+ * Hier entstehen außerdem die **Splat-Gewichte**: welche Bodenebene an welchem
+ * Punkt wie stark gilt. Neigung und Höhe stehen an dieser Stelle ohnehin schon
+ * da — sie im Shader noch einmal zu schätzen wäre teurer und ungenauer.
  */
 
 import * as THREE from 'three';
 import type { CoreWorld } from '@aurelith/core';
-import type { MapDocument } from '@aurelith/shared';
+import { MAX_GROUND_LAYERS, type GroundLayerDef, type MapDocument } from '@aurelith/shared';
+import { TerrainMaterial } from './terrainMaterial.ts';
 
 export interface TerrainMesh {
   object: THREE.Object3D;
+  /** Das Bodenmaterial, damit Texturen nachgetragen werden können. */
+  ground: TerrainMaterial;
   dispose(): void;
 }
 
@@ -26,10 +33,41 @@ function mix(a: THREE.Color, b: THREE.Color, t: number, out: THREE.Color): THREE
   return out;
 }
 
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  if (edge0 === edge1) return x < edge0 ? 0 : 1;
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+/**
+ * Wie stark ein Wert in einem Bereich liegt, mit weichen Rändern.
+ *
+ * Ohne die weichen Ränder entstünden harte Kanten dort, wo eine Ebene endet —
+ * und die fallen auf einem Hang sofort als Linie auf.
+ *
+ * `blend` ist eine absolute Breite in der Einheit des Werts, kein Anteil des
+ * Bereichs. Das ist der Unterschied zwischen einem Übergang von drei Metern
+ * und einem von dreitausend: Bereiche wie `[-2, 10000]` sind nach oben offen,
+ * und ein Anteil davon verschmiert über die halbe Welt.
+ */
+function band(value: number, min: number, max: number, blend: number): number {
+  const b = Math.max(1e-4, blend);
+  return smoothstep(min - b, min + b, value) * (1 - smoothstep(max - b, max + b, value));
+}
+
+function layerWeight(layer: GroundLayerDef, slopeDeg: number, height: number): number {
+  return (
+    band(slopeDeg, layer.slope[0], layer.slope[1], layer.slopeBlend) *
+    band(height, layer.height[0], layer.height[1], layer.heightBlend) *
+    layer.strength
+  );
+}
+
 export function buildTerrain(
   world: CoreWorld,
   doc: MapDocument,
   cellSize: number,
+  options: { useNormalMaps: boolean },
 ): TerrainMesh {
   const t = doc.terrain;
   const half = t.size / 2;
@@ -37,10 +75,12 @@ export function buildTerrain(
   const step = t.size / (cols - 1);
 
   const heights = world.sampleHeightGrid(-half, -half, step, cols, cols);
+  const layers = t.layers.slice(0, MAX_GROUND_LAYERS);
 
   const vertexCount = cols * cols;
   const positions = new Float32Array(vertexCount * 3);
   const colors = new Float32Array(vertexCount * 3);
+  const splat = new Float32Array(vertexCount * 4);
 
   const grass = new THREE.Color(t.grassColor);
   const grassAlt = new THREE.Color(t.grassColorAlt);
@@ -59,21 +99,32 @@ export function buildTerrain(
       positions[i * 3 + 1] = y;
       positions[i * 3 + 2] = z;
 
-      // Steigung aus den Nachbarhöhen. Steiles wird Fels, Tiefes wird Sand.
-      const hx = heights[iz * cols + Math.min(cols - 1, ix + 1)]! - heights[iz * cols + Math.max(0, ix - 1)]!;
-      const hz = heights[Math.min(cols - 1, iz + 1) * cols + ix]! - heights[Math.max(0, iz - 1) * cols + ix]!;
-      const slope = Math.min(1, Math.hypot(hx, hz) / (step * 1.5));
+      // Zentrale Differenzen. Am Rand fällt der Nachbar weg, dann ist es eine
+      // einseitige Differenz — dort steht ohnehin niemand.
+      const xr = Math.min(cols - 1, ix + 1);
+      const xl = Math.max(0, ix - 1);
+      const zr = Math.min(cols - 1, iz + 1);
+      const zl = Math.max(0, iz - 1);
+      const dhdx = (heights[iz * cols + xr]! - heights[iz * cols + xl]!) / ((xr - xl) * step);
+      const dhdz = (heights[zr * cols + ix]! - heights[zl * cols + ix]!) / ((zr - zl) * step);
+      const slopeDeg = Math.atan(Math.hypot(dhdx, dhdz)) * (180 / Math.PI);
 
-      // Zwei Grüntöne im Wechsel, damit die Fläche nicht wie Filz aussieht.
+      // Prozedurale Grundfarbe. Sie bleibt überall dort sichtbar, wo keine
+      // Bodenebene deckt — also bis Texturen geliefert sind.
+      const normalizedSlope = Math.min(1, slopeDeg / 45);
       const patch = (Math.sin(x * 0.09) + Math.cos(z * 0.11)) * 0.5;
       mix(grass, grassAlt, patch * 0.5 + 0.5, scratch);
-      if (slope > 0.35) mix(scratch, rock, (slope - 0.35) / 0.65, scratch);
+      if (normalizedSlope > 0.35) mix(scratch, rock, (normalizedSlope - 0.35) / 0.65, scratch);
       const nearWater = (y - t.waterLevel) / 2.5;
       if (nearWater < 1 && nearWater > -2) mix(scratch, sand, 1 - Math.max(0, nearWater), scratch);
 
       colors[i * 3] = scratch.r;
       colors[i * 3 + 1] = scratch.g;
       colors[i * 3 + 2] = scratch.b;
+
+      for (let l = 0; l < layers.length; l++) {
+        splat[i * 4 + l] = layerWeight(layers[l]!, slopeDeg, y);
+      }
     }
   }
 
@@ -98,12 +149,13 @@ export function buildTerrain(
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geometry.setAttribute('splat', new THREE.BufferAttribute(splat, 4));
   geometry.setIndex(new THREE.BufferAttribute(indices, 1));
   geometry.computeVertexNormals();
   geometry.computeBoundingSphere();
 
-  const material = new THREE.MeshLambertMaterial({ vertexColors: true });
-  const mesh = new THREE.Mesh(geometry, material);
+  const ground = new TerrainMaterial(layers, options);
+  const mesh = new THREE.Mesh(geometry, ground.material);
   mesh.name = 'terrain';
   mesh.receiveShadow = true;
 
@@ -133,9 +185,10 @@ export function buildTerrain(
 
   return {
     object: group,
+    ground,
     dispose() {
       geometry.dispose();
-      material.dispose();
+      ground.dispose();
       waterGeo?.dispose();
       waterMat?.dispose();
     },

@@ -29,7 +29,29 @@
     "grassColor": 3816002,
     "grassColorAlt": 2894900,
     "rockColor": 4868690,
-    "sandColor": 5591114
+    "sandColor": 5591114,
+    "layers": [
+      {
+        "id": "gruftboden",
+        "texture": "textures/ground_dirt/albedo.webp",
+        "normal": "textures/ground_dirt/normal.webp",
+        "tileSize": 5,
+        "slope": [
+          0,
+          90
+        ],
+        "height": [
+          -10000,
+          10000
+        ],
+        "slopeBlend": 6,
+        "heightBlend": 3,
+        "strength": 1,
+        "tint": 6974074,
+        "roughness": 0.78,
+        "normalScale": 1.2
+      }
+    ]
   },
   "spawn": {
     "x": 0,

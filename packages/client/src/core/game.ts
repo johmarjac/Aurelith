@@ -51,6 +51,7 @@ import { loadClientCore, type ClientCore } from './coreLoader.ts';
 import { Scene3D } from '../render/scene.ts';
 import { ModelRegistry } from '../render/modelRegistry.ts';
 import { WorldView, type EntityVisual } from '../render/worldView.ts';
+import { TextureLoader } from '../render/textures.ts';
 import { InputManager } from '../input/input.ts';
 import { Connection } from '../net/connection.ts';
 import { UI } from '../ui/index.ts';
@@ -111,6 +112,14 @@ export interface Diagnostics {
    * Simulation.
    */
   playerSim: { x: number; y: number; z: number; yaw: number };
+  /** Zuletzt gelesene Eingabe. Zeigt, ob Tastatur oder Joystick ankommen. */
+  input: { moveX: number; moveZ: number; yaw: number; attack: boolean };
+  /** Simulationsschritte seit dem Start. */
+  ticks: number;
+  /** Ist die Vorhersagewelt aufgebaut? Ohne sie laeuft kein Schritt. */
+  hasPrediction: boolean;
+  hasConnection: boolean;
+  mapId: string;
   localId: number;
   entityCount: number;
   targetId: number;
@@ -131,6 +140,7 @@ export class Game {
   private readonly ui: UI;
   private readonly input: InputManager;
   private readonly streamer = new AssetStreamer();
+  private readonly textures: TextureLoader;
   private readonly quality = QUALITY[guessQuality()];
 
   private core?: ClientCore;
@@ -172,6 +182,11 @@ export class Game {
     camera: { yaw: 0, pitch: 0, distance: 0 },
     player: { x: 0, y: 0, z: 0, yaw: 0, speed: 0 },
     playerSim: { x: 0, y: 0, z: 0, yaw: 0 },
+    input: { moveX: 0, moveZ: 0, yaw: 0, attack: false },
+    ticks: 0,
+    hasPrediction: false,
+    hasConnection: false,
+    mapId: '',
     localId: 0,
     entityCount: 0,
     targetId: 0,
@@ -186,7 +201,14 @@ export class Game {
   ) {
     const touch = isTouchDevice();
     this.scene = new Scene3D(canvas, this.quality);
-    this.view = new WorldView(this.registry);
+    // Texturen kommen ueber den Streamer, nicht ueber Three.js — mit Version im
+    // Query-String und ohne dass ein fehlendes Asset die Sitzung beendet.
+    this.textures = new TextureLoader((path) => this.streamer.request(path));
+    this.view = new WorldView(
+      this.registry,
+      this.textures,
+      this.scene.renderer.capabilities.getMaxAnisotropy(),
+    );
     this.scene.scene.add(this.view.root);
 
     this.ui = new UI(uiHost, touch);
@@ -625,6 +647,12 @@ export class Game {
     const buttons = snapshot.attack && !this.dead ? CoreButton.Attack : 0;
     const seq = ++this.inputSeq;
 
+    this.diagnostics.input.moveX = snapshot.moveX;
+    this.diagnostics.input.moveZ = snapshot.moveZ;
+    this.diagnostics.input.yaw = snapshot.yaw;
+    this.diagnostics.input.attack = snapshot.attack;
+    this.diagnostics.ticks++;
+
     world.applyInput(
       this.localId,
       snapshot.moveX,
@@ -743,6 +771,9 @@ export class Game {
     d.playerSim.z = this.poseCurr.z;
     d.playerSim.yaw = this.poseCurr.yaw;
 
+    d.hasPrediction = this.prediction !== undefined;
+    d.hasConnection = this.connection !== undefined;
+    d.mapId = this.view.mapId;
     d.localId = this.localId;
     d.entityCount = this.view.entities.size;
     d.targetId = this.targetId;
@@ -756,6 +787,7 @@ export class Game {
     this.connection?.close();
     this.input.dispose();
     this.view.clear();
+    this.textures.dispose();
     this.prediction?.dispose();
     this.registry.dispose();
     this.scene.dispose();

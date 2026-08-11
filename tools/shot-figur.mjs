@@ -83,8 +83,22 @@ const browser = await chromium.launch({
   ],
 });
 const page = await browser.newPage({ viewport: { width: 520, height: 760 } });
+
+// Ohne die Konsole ist eine Zeitueberschreitung hier nicht zu deuten — man
+// sieht nur, dass kein Bild entsteht, nicht warum.
+const messages = [];
+page.on('console', (m) => messages.push(`[${m.type()}] ${m.text()}`));
+page.on('pageerror', (e) => messages.push(`! ${String(e)}`));
+
 await page.goto('http://127.0.0.1:5196/?name=Modell', { waitUntil: 'domcontentloaded' });
-await page.waitForFunction(() => window.aurelith?.localId > 0, { timeout: 30000 });
+try {
+  await page.waitForFunction(() => window.aurelith?.localId > 0, { timeout: 30000 });
+} catch (err) {
+  console.error('\nBrowser-Konsole:');
+  for (const m of messages) console.error(`  ${m}`);
+  shutdown();
+  throw err;
+}
 await page.waitForTimeout(2500);
 
 // Heranzoomen — aber nicht bis zum Anschlag: dort schaltet die Kamera in die

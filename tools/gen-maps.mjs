@@ -82,6 +82,69 @@ function scatter(rng, { count, size, models, keepOut, minGap, scaleRange, tints 
 
 const round = (v) => Math.round(v * 100) / 100;
 
+/**
+ * Bodenebenen.
+ *
+ * Gras auf flachem Grund oberhalb des Wassers, Erde an den Haengen, Sand am
+ * Ufer. Die Bereiche ueberlappen bewusst — daraus entsteht der Uebergang.
+ * Was keine Ebene deckt, bleibt die prozedurale Farbe des Gelaendes; sehr
+ * steile Klippen sind deshalb weiterhin Fels als Farbflaeche, weil dafuer
+ * noch keine Textur geliefert ist.
+ *
+ * Die Rauheitswerte sind gemessen, siehe tools/prepare-textures.mjs.
+ */
+function groundLayers(waterLevel, { grassTint = 0xffffff, dirtTint = 0xffffff, sandTint = 0xffffff } = {}) {
+  return [
+    {
+      id: 'gras',
+      texture: 'textures/ground_grass/albedo.webp',
+      normal: 'textures/ground_grass/normal.webp',
+      // Groessere Kachel heisst weniger Wiederholungen im Bild und damit mehr
+      // sichtbare Struktur: bei sechs Einheiten mittelt das Mipmapping die
+      // Textur auf ihren Durchschnitt weg, und der ist ein flaches Oliv.
+      tileSize: 11,
+      slope: [0, 30],
+      height: [waterLevel + 0.5, 10000],
+      slopeBlend: 8,
+      heightBlend: 1.5,
+      strength: 1,
+      tint: grassTint,
+      roughness: 0.91,
+      normalScale: 1,
+    },
+    {
+      id: 'erde',
+      texture: 'textures/ground_dirt/albedo.webp',
+      normal: 'textures/ground_dirt/normal.webp',
+      tileSize: 9,
+      slope: [24, 62],
+      height: [-10000, 10000],
+      slopeBlend: 8,
+      heightBlend: 3,
+      strength: 1,
+      tint: dirtTint,
+      roughness: 0.78,
+      normalScale: 1,
+    },
+    {
+      id: 'sand',
+      texture: 'textures/ground_sand/albedo.webp',
+      normal: 'textures/ground_sand/normal.webp',
+      tileSize: 8,
+      slope: [0, 26],
+      // Sand gehoert ans Ufer, nicht in jede Senke. Der Spawn von Lichtmoor
+      // liegt auf -2,3 und war mit dem weiteren Band zu drei Vierteln Sand.
+      height: [-10000, waterLevel + 1],
+      slopeBlend: 6,
+      heightBlend: 1.2,
+      strength: 1,
+      tint: sandTint,
+      roughness: 0.75,
+      normalScale: 0.8,
+    },
+  ];
+}
+
 // --------------------------------------------------------------------------
 // Lichtmoor — Anfängerwiese. Weit, hell, wenig Gefahr.
 // --------------------------------------------------------------------------
@@ -221,6 +284,7 @@ function lichtmoor() {
       grassColorAlt: 0x4f8a3e,
       rockColor: 0x8a8478,
       sandColor: 0xd2c294,
+      layers: groundLayers(-3.5),
     },
     spawn: { x: 0, z: 0, yaw: 0 },
     props,
@@ -349,6 +413,9 @@ function dornwald() {
       grassColorAlt: 0x37522e,
       rockColor: 0x6e6a62,
       sandColor: 0x9c8f70,
+      // Dornwald ist duesterer als Lichtmoor — dieselben Texturen, dunkler
+      // getoent, statt eines zweiten Satzes fuer denselben Boden.
+      layers: groundLayers(-6, { grassTint: 0xa8b8a0, dirtTint: 0xb0a898, sandTint: 0xa89880 }),
     },
     spawn: { x: 0, z: -186, yaw: 0 },
     props,
@@ -450,6 +517,23 @@ function gruft() {
       grassColorAlt: 0x2c2c34,
       rockColor: 0x4a4a52,
       sandColor: 0x55504a,
+      // In der Gruft waechst nichts. Nur Erde, kalt getoent.
+      layers: [
+        {
+          id: 'gruftboden',
+          texture: 'textures/ground_dirt/albedo.webp',
+          normal: 'textures/ground_dirt/normal.webp',
+          tileSize: 5,
+          slope: [0, 90],
+          height: [-10000, 10000],
+          slopeBlend: 6,
+          heightBlend: 3,
+          strength: 1,
+          tint: 0x6a6a7a,
+          roughness: 0.78,
+          normalScale: 1.2,
+        },
+      ],
     },
     spawn: { x: 0, z: -96, yaw: 0 },
     props,
