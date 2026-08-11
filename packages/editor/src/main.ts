@@ -67,7 +67,7 @@ const hint = document.getElementById('hint') as HTMLElement;
 hint.textContent =
   'Links: Werkzeug anwenden · Rechtsklick auf Prop oder Tor: löschen\n' +
   'Rechts ziehen: drehen · Mitte ziehen oder Umschalt: schieben · WASD: schieben\n' +
-  'Rad: zoomen · Strg + Rad: Pinselgröße';
+  'Rad: zoomen · Strg + Rad: Pinselgröße · beim Prop-Werkzeug dreht das Rad, Strg + Rad zoomt';
 
 // --- Kern ------------------------------------------------------------------
 
@@ -106,13 +106,77 @@ scene.add(sun);
 const root = new THREE.Group();
 scene.add(root);
 
-// Markierung der Zeigerposition auf dem Gelände.
-const cursor = new THREE.Mesh(
-  new THREE.RingGeometry(0.8, 1.1, 24),
-  new THREE.MeshBasicMaterial({ color: 0x4cc9bf, side: THREE.DoubleSide, transparent: true, opacity: 0.8 }),
+/**
+ * Markierung der Zeigerposition auf dem Gelände.
+ *
+ * Punkte statt eines Rings. Ein Ring liegt zwangsläufig in **einer** Ebene —
+ * der des Mittelpunkts — und verschwindet damit im Hang, sobald das Gelände
+ * ringsum ansteigt. Genau da braucht man ihn aber. Jeder Punkt sitzt
+ * stattdessen auf der Höhe, die das Gelände an *seiner* Stelle hat, und zeigt
+ * damit nebenbei die Form dessen, worauf man gleich malt.
+ *
+ * Die Punkte liegen auf einem festen Weltgitter und wandern nicht mit dem
+ * Zeiger mit — sie erscheinen und verschwinden am Rand des Kreises. Das liest
+ * sich als Gitter und nicht als Schwarm.
+ */
+const CURSOR_MAX_POINTS = 4096;
+const cursorPositions = new Float32Array(CURSOR_MAX_POINTS * 3);
+const cursorGeometry = new THREE.BufferGeometry();
+cursorGeometry.setAttribute('position', new THREE.BufferAttribute(cursorPositions, 3));
+cursorGeometry.setDrawRange(0, 0);
+const cursor = new THREE.Points(
+  cursorGeometry,
+  new THREE.PointsMaterial({
+    color: 0xffffff,
+    // Feste Grösse in Bildpunkten: aus der Übersicht heraus wären
+    // abstandsskalierte Punkte sonst unsichtbar.
+    size: 4,
+    sizeAttenuation: false,
+    transparent: true,
+    opacity: 0.9,
+    // Ohne Tiefentest: die Punkte sollen auch dann noch zu sehen sein, wenn
+    // ein Hügel dazwischenliegt. Sie sind Werkzeug, nicht Welt.
+    depthTest: false,
+  }),
 );
-cursor.rotation.x = -Math.PI / 2;
+cursor.renderOrder = 10;
+cursor.frustumCulled = false;
 scene.add(cursor);
+
+/**
+ * Vorschau des Props, das gleich gesetzt wird.
+ *
+ * Beim Prop-Werkzeug sagen Punkte nichts Nützliches: man will nicht wissen,
+ * *wo* der Boden ist, sondern wie das Ding dort aussieht. Also steht statt der
+ * Markierung das Prop selbst da — halbdurchsichtig, damit man es von einem
+ * bereits gesetzten unterscheiden kann.
+ *
+ * Damit die Vorschau nicht lügt, muss die Drehung vorher feststehen. Sie wurde
+ * bisher beim Setzen ausgewürfelt; jetzt wird sie vorher gezogen, gezeigt und
+ * dann genau so verwendet. Nach jedem Setzen kommt eine neue — sonst stünde
+ * ein ganzer Wald in Reih und Glied.
+ */
+const ghostMaterial = new THREE.MeshBasicMaterial({
+  // Mit den Vertexfarben des Modells, damit man das Prop erkennt und nicht nur
+  // seine Silhouette. Der Farbstich darüber unterscheidet die Vorschau von
+  // einem bereits gesetzten Prop.
+  vertexColors: true,
+  color: 0x8fffee,
+  transparent: true,
+  opacity: 0.55,
+  depthWrite: false,
+});
+const propGhost = new THREE.Mesh(new THREE.BufferGeometry(), ghostMaterial);
+propGhost.visible = false;
+propGhost.renderOrder = 9;
+scene.add(propGhost);
+
+/** Drehung, mit der das nächste Prop gesetzt wird. */
+let pendingPropYaw = 0;
+function rollPropYaw(): void {
+  pendingPropYaw = Math.random() * Math.PI * 2;
+}
+rollPropYaw();
 
 let camYaw = 0.6;
 let camPitch = 0.75;
@@ -207,7 +271,9 @@ async function loadMap(id: string): Promise<void> {
     root.remove(terrain.object);
     terrain.dispose();
   }
-  terrain = buildTerrain(world, doc, doc.terrain.cellSize, { useNormalMaps: true });
+  // Das lebende Malfeld direkt hineingeben: sonst muesste es fuer jeden
+  // Pinselstrich nach Base64 und zurueck.
+  terrain = buildTerrain(world, doc, doc.terrain.cellSize, { useNormalMaps: true, paint });
   root.add(terrain.object);
   void loadGroundTextures(doc, terrain);
 
@@ -240,25 +306,15 @@ async function loadMap(id: string): Promise<void> {
  * Vertizes, und die neu zu rechnen kostet genug, dass man es beim Ziehen
  * merken würde. Während eines Strichs reicht die Vorschau am Zeiger.
  */
-function rebuildTerrain(): void {
+/**
+ * Zieht alles nach, was an der Geländehöhe hängt.
+ *
+ * Nach einem Strich, nicht während. Das Netz selbst wird schon beim Ziehen
+ * ausschnittsweise nachgeführt — hier geht es um Props und Tore, die auf dem
+ * Boden aufsitzen und sich mit ihm heben und senken.
+ */
+function settleAfterStroke(): void {
   if (!doc || !world) return;
-
-  // Erst dem Kern das neue Höhenfeld geben — das Netz holt seine Höhen von
-  // dort, und nur so bleibt der sichtbare Boden der begehbare Boden.
-  if (sculpt) world.setSculpt(sculpt.values, sculpt.resolution);
-
-  // Das Malfeld geht über das Dokument, weil `buildTerrain` es dort liest.
-  syncFieldsIntoDocument();
-
-  if (terrain) {
-    root.remove(terrain.object);
-    terrain.dispose();
-  }
-  terrain = buildTerrain(world, doc, doc.terrain.cellSize, { useNormalMaps: true });
-  root.add(terrain.object);
-  void loadGroundTextures(doc, terrain);
-
-  // Props und Tore hängen an der Geländehöhe, wenn sie aufsitzen sollen.
   rebuildProps();
   rebuildGates();
 }
@@ -962,7 +1018,7 @@ window.addEventListener('pointerup', (e) => {
     // Einmal am Ende neu aufbauen. Während des Strichs wäre das je
     // Mausbewegung ein kompletter Netzaufbau.
     if (strokeTouched > 0) {
-      rebuildTerrain();
+      settleAfterStroke();
       renderPanel();
     }
     return;
@@ -985,8 +1041,12 @@ window.addEventListener('pointerup', (e) => {
   }
 });
 
+/** Um wie viel das Rad ein Prop dreht. Mit Umschalt feiner. */
+const PROP_ROTATE_STEP = Math.PI / 12;
+
 canvas.addEventListener('wheel', (e) => {
   e.preventDefault();
+
   // Mit Strg regelt das Rad die Pinselgrösse. Das ist der Griff, den man beim
   // Malen ständig braucht — über einen Schieber im Bedienfeld wäre es ein
   // Weg quer über den Bildschirm für jeden zweiten Strich.
@@ -995,6 +1055,15 @@ canvas.addEventListener('wheel', (e) => {
     renderPanel();
     return;
   }
+
+  // Beim Prop-Werkzeug dreht das Rad die Vorschau. Zum Zoomen dort Strg
+  // dazunehmen — man dreht beim Setzen ständig und zoomt selten.
+  if (tool === 'props' && !e.ctrlKey) {
+    const step = e.shiftKey ? PROP_ROTATE_STEP / 5 : PROP_ROTATE_STEP;
+    pendingPropYaw += Math.sign(e.deltaY) * step;
+    return;
+  }
+
   camDistance = Math.max(12, Math.min(400, camDistance + Math.sign(e.deltaY) * camDistance * 0.12));
 }, { passive: false });
 
@@ -1030,6 +1099,83 @@ function syncFieldsIntoDocument(): void {
   }
 }
 
+/**
+ * Setzt die Punktewolke unter dem Zeiger neu.
+ *
+ * Die Höhen kommen in **einem** Aufruf aus dem Kern und nicht Punkt für Punkt:
+ * bei Radius achtzig sind das über tausend Stützpunkte, und ein Aufruf je Punkt
+ * und Bild wäre genau die Art von Grenzverkehr, die es zu vermeiden gilt.
+ */
+function updateCursor(point: THREE.Vector3 | undefined): void {
+  if (!point || !doc || !world) {
+    cursorGeometry.setDrawRange(0, 0);
+    propGhost.visible = false;
+    return;
+  }
+
+  // Beim Prop-Werkzeug tritt die Punktemarkierung ganz zurück: dort steht die
+  // Vorschau des Props selbst.
+  if (tool === 'props') {
+    cursorGeometry.setDrawRange(0, 0);
+    propGhost.geometry = propGeometry(selectedModel);
+    propGhost.position.set(point.x, world.heightAt(point.x, point.z), point.z);
+    propGhost.rotation.set(0, pendingPropYaw, 0);
+    propGhost.visible = true;
+    return;
+  }
+  propGhost.visible = false;
+
+  // Tore haben keinen Radius — dort steht ein kleines Feld von Punkten, gerade
+  // gross genug, um es zu sehen, und klein genug, um keine Fläche
+  // vorzutäuschen, die es nicht gibt.
+  const radius = isBrushTool(tool) ? brush.radius : doc.terrain.cellSize * 2.5;
+
+  // Gitterweite: die des Geländes, solange die Punktzahl das zulässt. Bei
+  // grossen Pinseln wird sie verdoppelt, bis es passt — lieber ein gröberes
+  // Gitter als ein Bild, das an der Punktzahl erstickt.
+  let spacing = doc.terrain.cellSize;
+  const fits = () => {
+    const perSide = Math.floor((radius * 2) / spacing) + 2;
+    return perSide * perSide <= CURSOR_MAX_POINTS;
+  };
+  while (!fits()) spacing *= 2;
+
+  // Auf das feste Weltgitter rasten, damit die Punkte stehenbleiben, während
+  // der Zeiger darüberwandert.
+  const gx0 = Math.ceil((point.x - radius) / spacing) * spacing;
+  const gz0 = Math.ceil((point.z - radius) / spacing) * spacing;
+  const countX = Math.floor((point.x + radius - gx0) / spacing) + 1;
+  const countZ = Math.floor((point.z + radius - gz0) / spacing) + 1;
+  if (countX <= 0 || countZ <= 0) {
+    cursorGeometry.setDrawRange(0, 0);
+    return;
+  }
+
+  const heights = world.sampleHeightGrid(gx0, gz0, spacing, countX, countZ);
+
+  const r2 = radius * radius;
+  let n = 0;
+  for (let iz = 0; iz < countZ && n < CURSOR_MAX_POINTS; iz++) {
+    const z = gz0 + iz * spacing;
+    for (let ix = 0; ix < countX && n < CURSOR_MAX_POINTS; ix++) {
+      const x = gx0 + ix * spacing;
+      const dx = x - point.x;
+      const dz = z - point.z;
+      if (dx * dx + dz * dz > r2) continue;
+
+      cursorPositions[n * 3] = x;
+      // Knapp über dem Boden, sonst streiten Punkt und Gelände um dieselbe
+      // Tiefe und es flimmert.
+      cursorPositions[n * 3 + 1] = heights[iz * countX + ix]! + 0.08;
+      cursorPositions[n * 3 + 2] = z;
+      n++;
+    }
+  }
+
+  cursorGeometry.attributes.position!.needsUpdate = true;
+  cursorGeometry.setDrawRange(0, n);
+}
+
 function setBrushRadius(value: number): void {
   brush = { ...brush, radius: Math.max(MIN_BRUSH_RADIUS, Math.min(MAX_BRUSH_RADIUS, value)) };
 }
@@ -1049,6 +1195,7 @@ function applyBrush(dt: number): void {
 
   const size = doc.terrain.size;
   let touched = 0;
+  const radius = brush.radius;
 
   switch (tool) {
     case 'raise':
@@ -1070,6 +1217,25 @@ function applyBrush(dt: number): void {
   }
 
   strokeTouched += touched;
+  if (touched === 0) return;
+
+  // Der Kern zuerst: das Netz holt seine Höhen von dort, und der Editor soll
+  // denselben Boden zeigen, auf dem das Spiel später jemanden stehen lässt.
+  if (sculpt && tool !== 'paint') world?.setSculpt(sculpt.values, sculpt.resolution);
+
+  // Sofort sichtbar machen — und nur den berührten Ausschnitt. Ein kompletter
+  // Neuaufbau je Mausbewegung wäre bei sechzehntausend Vertizes zu teuer;
+  // hier sind es bei Radius vierzehn rund fünfzig.
+  //
+  // Vorher wurde erst beim Loslassen gezeichnet: man hielt die Maus, sah
+  // nichts, liess los — und erst dann stand der Hügel da. Formen ohne zu sehen,
+  // was man formt, ist kein Formen.
+  terrain?.refresh({
+    minX: point.x - radius,
+    maxX: point.x + radius,
+    minZ: point.z - radius,
+    maxZ: point.z + radius,
+  });
 }
 
 function placeProp(): void {
@@ -1080,13 +1246,16 @@ function placeProp(): void {
     id: `p_${String(nextPropId++).padStart(4, '0')}`,
     model: selectedModel,
     position: [round(point.x), 0, round(point.z)],
-    rotation: [0, Math.random() * Math.PI * 2, 0],
+    // Genau die Drehung, die in der Vorschau stand.
+    rotation: [0, pendingPropYaw, 0],
     scale: 1,
     snapToGround: true,
     // Bäume und Felsen blockieren, Gras und Pilze nicht.
     collision: /tree|rock|pillar|well/.test(selectedModel) ? 'circle' : 'none',
     collisionRadius: 1.2,
   });
+  // Fuer das naechste eine neue Drehung, damit ein Wald kein Spalier wird.
+  rollPropYaw();
   rebuildProps();
   renderPanel();
 }
@@ -1186,6 +1355,17 @@ declare global {
       paintPeak: number;
       paintResolution: number;
       heightUnderPointer: number | null;
+      /** Punkte der Zeigermarkierung und ihre Hoehenspanne. */
+      cursorPoints: number;
+      cursorHeightSpread: number;
+      /**
+       * Hoechster Punkt des **gezeichneten Netzes** unter dem Zeiger.
+       *
+       * Bewusst aus der Geometrie und nicht aus dem Hoehenfeld: nur so zeigt
+       * sich, ob das Bild dem Pinsel wirklich folgt. Das Feld kann laengst
+       * einen Huegel enthalten, waehrend das Netz noch flach ist.
+       */
+      meshPeakNearPointer: (radius?: number) => number;
       selectedGate: string;
       /** Gezeichnete Bilder. Woran man erkennt, ob diese Auskunft frisch ist. */
       frames: number;
@@ -1271,6 +1451,26 @@ function roundTrip(): {
   }
 }
 
+/** Höchster Punkt des gezeichneten Geländes im Umkreis des Zeigers. */
+function meshPeakNearPointer(radius = brush.radius): number {
+  if (!terrain || !lastGroundPoint) return 0;
+
+  const mesh = terrain.object.getObjectByName('terrain') as THREE.Mesh | undefined;
+  const attr = mesh?.geometry.getAttribute('position') as THREE.BufferAttribute | undefined;
+  if (!attr) return 0;
+
+  const r2 = radius * radius;
+  let peak = -Infinity;
+  for (let i = 0; i < attr.count; i++) {
+    const dx = attr.getX(i) - lastGroundPoint.x;
+    const dz = attr.getZ(i) - lastGroundPoint.z;
+    if (dx * dx + dz * dz > r2) continue;
+    const y = attr.getY(i);
+    if (y > peak) peak = y;
+  }
+  return peak === -Infinity ? 0 : peak;
+}
+
 function publishDiagnostics(): void {
   window.aurelithEditor = {
     camTarget: { x: camTarget.x, y: camTarget.y, z: camTarget.z },
@@ -1286,6 +1486,20 @@ function publishDiagnostics(): void {
     paintPeak: paintPeak(paint),
     paintResolution: paint?.resolution ?? 0,
     heightUnderPointer: lastGroundPoint ? lastGroundPoint.y : null,
+    cursorPoints: cursorGeometry.drawRange.count,
+    meshPeakNearPointer,
+    cursorHeightSpread: (() => {
+      const n = cursorGeometry.drawRange.count;
+      if (n < 2) return 0;
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (let i = 0; i < n; i++) {
+        const y = cursorPositions[i * 3 + 1]!;
+        if (y < lo) lo = y;
+        if (y > hi) hi = y;
+      }
+      return hi - lo;
+    })(),
     selectedGate: selectedGateId ?? '',
     frames,
     gateWarning: (() => {
@@ -1344,16 +1558,7 @@ function frame(now = performance.now()): void {
   // klebt sie am Gelaende, waehrend man im Bedienfeld arbeitet.
   const point = pointerOverCanvas || gesture !== 'none' ? groundPoint() : undefined;
   lastGroundPoint = point;
-  if (point) {
-    cursor.position.set(point.x, point.y + 0.15, point.z);
-    // Der Ring zeigt den Pinsel. Beim Prop-Werkzeug bleibt er klein — dort
-    // gibt es keinen Radius, und ein grosser Ring wäre gelogen.
-    const shown = isBrushTool(tool) ? brush.radius : 1;
-    cursor.scale.setScalar(shown);
-    cursor.visible = true;
-  } else {
-    cursor.visible = false;
-  }
+  updateCursor(point);
 
   renderer.render(scene, camera);
   frames++;

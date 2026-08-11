@@ -250,9 +250,40 @@ await (await toolButton('Anheben')).click();
 await page.waitForTimeout(300);
 
 await page.mouse.move(560, 380);
-await page.waitForTimeout(200);
+await nextFrame(page);
+
+// Die Zeigermarkierung: Punkte auf dem Gelaende, kein flacher Ring.
+const cursor = await page.evaluate(() => ({
+  points: window.aurelithEditor?.cursorPoints ?? 0,
+  spread: window.aurelithEditor?.cursorHeightSpread ?? 0,
+}));
+check(cursor.points > 20, `Zeigermarkierung besteht aus Punkten (${cursor.points})`);
+
+await mkdir(join(root, 'artefakte'), { recursive: true });
+await page.screenshot({ path: join(root, 'artefakte', 'editor-pinsel.png') });
+
+// Ausgangshoehe des gezeichneten Netzes unter dem Zeiger. Gemessen wird gleich
+// die *Differenz* dazu — die absolute Hoehe sagt nichts, das Gelaende ist an
+// dieser Stelle ohnehin nicht null.
+const meshBefore = await page.evaluate(
+  () => window.aurelithEditor?.meshPeakNearPointer?.() ?? 0,
+);
+
 await page.mouse.down();
-await page.waitForTimeout(900);
+
+// Waehrend des Haltens messen — nicht erst danach. Vorher wurde das Netz erst
+// beim Loslassen neu gebaut, und man formte blind.
+await nextFrame(page);
+await nextFrame(page);
+// Die hoechste Stelle im tatsaechlich gezeichneten Netz — nicht im Feld. Nur so
+// zeigt sich, ob das Bild dem Pinsel folgt.
+const midStroke = await page.evaluate(() => ({
+  peak: window.aurelithEditor?.sculptPeak ?? 0,
+  meshHeight: window.aurelithEditor?.meshPeakNearPointer?.() ?? 0,
+}));
+const midStrokeRise = midStroke.meshHeight - meshBefore;
+
+await page.waitForTimeout(700);
 await page.mouse.up();
 await nextFrame(page);
 
@@ -271,6 +302,14 @@ check(sculptState.resolution >= 2, `Höhenfeld angelegt (${sculptState.resolutio
 // packages/editor/test/brushes_test.ts, und zwar ohne Bildrate im Spiel.
 check(sculptState.peak > 0.3, `Gelände wurde angehoben (${sculptState.peak.toFixed(2)} m)`);
 check(
+  midStrokeRise > 0.2,
+  `das Netz folgt schon waehrend des Ziehens (${meshBefore.toFixed(2)} → ${midStroke.meshHeight.toFixed(2)} m, also +${midStrokeRise.toFixed(2)})`,
+);
+check(
+  midStroke.peak > 0.2,
+  `und das Feld ebenso (${midStroke.peak.toFixed(2)} m)`,
+);
+check(
   sculptState.coreResolution === sculptState.resolution,
   `der Kern hat dasselbe Feld (${sculptState.coreResolution})`,
 );
@@ -284,6 +323,18 @@ await page.mouse.down();
 await page.waitForTimeout(700);
 await page.mouse.up();
 await nextFrame(page);
+
+// Die Punkte muessen der Gelaendeform folgen — genau das kann ein flacher Ring
+// nicht. Nach dem Anheben ist unter dem Zeiger ein Huegel, also muss sich die
+// Hoehenspanne der Punkte deutlich von null unterscheiden.
+const cursorOnHill = await page.evaluate(() => ({
+  points: window.aurelithEditor?.cursorPoints ?? 0,
+  spread: window.aurelithEditor?.cursorHeightSpread ?? 0,
+}));
+check(
+  cursorOnHill.spread > 0.2,
+  `die Punkte folgen dem Gelaende (${cursorOnHill.spread.toFixed(2)} m Hoehenunterschied ueber ${cursorOnHill.points} Punkte)`,
+);
 
 const paintState = await page.evaluate(() => ({
   resolution: window.aurelithEditor?.paintResolution ?? 0,
