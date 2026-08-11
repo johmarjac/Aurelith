@@ -131,6 +131,13 @@ export interface Diagnostics {
   /** Simulationsschritte seit dem Start. */
   ticks: number;
   /**
+   * Welche gelieferten Waffenmodelle angekommen sind.
+   *
+   * Nicht zur Anzeige, sondern zur Unterscheidung: eine Figur mit Platzhalter
+   * und eine mit Modell sehen im Bild verschieden aus, im Zustand aber gleich.
+   */
+  weaponModels: string[];
+  /**
    * Wie oft die Vorhersage hart zurechtgerückt werden musste.
    *
    * Sichtbar als Zurückspringen der eigenen Figur. Im Idealfall null: Client
@@ -246,6 +253,7 @@ export class Game {
     playerSim: { x: 0, y: 0, z: 0, yaw: 0 },
     input: { moveX: 0, moveZ: 0, yaw: 0, attack: false },
     ticks: 0,
+    weaponModels: [],
     reconciles: 0,
     maxReconcileError: 0,
     serverDistance: 0,
@@ -335,6 +343,11 @@ export class Game {
     } catch (err) {
       console.warn('[assets] Manifest nicht verfügbar, lade ohne Priorisierung:', err);
     }
+
+    // Gelieferte Waffenmodelle nachholen — bewusst ohne `await`. Bis sie da
+    // sind, trägt jede Figur den prozeduralen Platzhalter, und das erste Bild
+    // wartet auf nichts.
+    void this.registry.loadWeaponModels((path) => this.streamer.request(path));
 
     await this.ensureMap(BOOTSTRAP_MAP);
     this.connect(accountName);
@@ -975,6 +988,7 @@ export class Game {
         ? Math.hypot(this.serverX - this.poseCurr.x, this.serverZ - this.poseCurr.z)
         : 0;
 
+    d.weaponModels = this.registry.loadedWeaponModels();
     d.hasPrediction = this.prediction !== undefined;
     d.predictionReady = this.poseValid;
     d.hasConnection = this.connection !== undefined;

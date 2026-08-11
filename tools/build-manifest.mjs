@@ -70,8 +70,11 @@ async function walk(dir, out = []) {
       continue;
     }
     // Weder das Manifest selbst noch die daneben liegenden Brotli-Kopien
-    // gehören ins Manifest.
+    // gehören ins Manifest — und auch keine Begleittexte: Lizenzhinweise
+    // stehen neben den Assets, weil sie dorthin gehören, aber der Client soll
+    // sie nicht herunterladen.
     if (entry.name === 'manifest.json' || entry.name.endsWith('.br')) continue;
+    if (/\.(md|txt)$/i.test(entry.name)) continue;
     out.push(full);
   }
   return out;

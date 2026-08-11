@@ -323,6 +323,7 @@ export class WorldView {
     const e = this.entities.get(id);
     if (!e) return;
     this.root.remove(e.rig.root);
+    this.registry.releaseRig(e.rig);
     e.rig.dispose();
     this.entities.delete(id);
   }
@@ -387,7 +388,8 @@ export class WorldView {
   clearEntities(): void {
     for (const e of this.entities.values()) {
       this.root.remove(e.rig.root);
-      e.rig.dispose();
+      this.registry.releaseRig(e.rig);
+    e.rig.dispose();
     }
     this.entities.clear();
   }
@@ -395,7 +397,8 @@ export class WorldView {
   clear(): void {
     for (const e of this.entities.values()) {
       this.root.remove(e.rig.root);
-      e.rig.dispose();
+      this.registry.releaseRig(e.rig);
+    e.rig.dispose();
     }
     this.entities.clear();
 

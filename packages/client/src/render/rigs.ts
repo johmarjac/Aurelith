@@ -28,6 +28,21 @@ export interface RigState {
 export interface CharacterRig {
   root: THREE.Object3D;
   update(state: RigState): void;
+  /**
+   * Welche Waffe die Figur trägt — oder nichts.
+   *
+   * Die `ModelRegistry` braucht das, um zu wissen, welchen Rigs sie ein
+   * nachgeliefertes Modell einhängen muss.
+   */
+  readonly weapon?: WeaponKey;
+  /**
+   * Tauscht das Waffenmodell aus.
+   *
+   * `undefined` stellt den prozeduralen Platzhalter wieder her. Das Objekt
+   * wird **nicht** übernommen, sondern geklont — dasselbe Modell hängt an
+   * vielen Figuren, und jede dreht ihren Arm für sich.
+   */
+  setWeaponModel?(model: THREE.Object3D | undefined): void;
   dispose(): void;
 }
 
@@ -80,9 +95,51 @@ interface WeaponSpec {
   build(): THREE.BufferGeometry;
   position: [number, number, number];
   rotation: [number, number, number];
+  /**
+   * Geliefertes Modell, das den prozeduralen Platzhalter ablöst.
+   *
+   * Der Platzhalter bleibt trotzdem: er steht im ersten Bild da, das Modell
+   * kommt, wenn es kommt. Ein Ladebalken für ein Schwert wäre genau die Sorte
+   * Barriere, die es nicht geben soll.
+   *
+   * `length` und `bottom` sind in denselben Einheiten wie die prozeduralen
+   * Maße oben — so bleibt die Haltung (`position`, `rotation`) gültig, egal
+   * welches Modell eingehängt wird.
+   */
+  model?: {
+    /** Pfad im Manifest. */
+    path: string;
+    /** Länge von Knauf bis Spitze. */
+    length: number;
+    /** Wo der Knauf sitzt, relativ zur Faust. */
+    bottom: number;
+  };
 }
 
-const WEAPON_SPECS: Record<Exclude<HumanoidConfig['weapon'], 'none'>, WeaponSpec> = {
+/** Die Waffen, die ein Rig kennt. */
+export type WeaponKey = Exclude<HumanoidConfig['weapon'], 'none'>;
+
+/**
+ * Was an gelieferten Waffenmodellen zu holen ist.
+ *
+ * Die `ModelRegistry` liest das, nicht die Spezifikationen selbst — sie muss
+ * nur wissen, welche Datei zu welchem Schlüssel gehört und wie sie
+ * zurechtgerückt wird.
+ */
+export function weaponModelSpecs(): Array<{
+  key: WeaponKey;
+  path: string;
+  length: number;
+  bottom: number;
+}> {
+  const out: Array<{ key: WeaponKey; path: string; length: number; bottom: number }> = [];
+  for (const [key, spec] of Object.entries(WEAPON_SPECS) as [WeaponKey, WeaponSpec][]) {
+    if (spec.model) out.push({ key, ...spec.model });
+  }
+  return out;
+}
+
+const WEAPON_SPECS: Record<WeaponKey, WeaponSpec> = {
   sword: {
     build: () =>
       assemble([
@@ -102,6 +159,10 @@ const WEAPON_SPECS: Record<Exclude<HumanoidConfig['weapon'], 'none'>, WeaponSpec
     // Teil derselben Geometrie mit und bleibt dadurch richtig zur Schneide.
     position: [0.02, 0, 0.04],
     rotation: [Math.PI * 0.66, Math.PI / 2, 0],
+    // Maße aus der prozeduralen Fassung übernommen: Klinge 0,9 lang, Knauf
+    // 0,23 unter dem Griffpunkt. Das geliefertes Modell wird darauf gerechnet,
+    // damit die Haltung darüber unverändert gilt.
+    model: { path: 'models/wooden_sword.glb', length: 1.13, bottom: -0.23 },
   },
 
   club: {
@@ -183,21 +244,53 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
   // `s` skaliert, und zweimal skaliert waere der Gruftwaerter-Knueppel dreimal
   // zu gross.
   const spec = cfg.weapon === 'none' ? undefined : WEAPON_SPECS[cfg.weapon];
+
+  /**
+   * Der Aufhänger der Waffe.
+   *
+   * Haltung sitzt am Halter, nicht an der Waffe selbst — so gilt sie für den
+   * prozeduralen Platzhalter und für ein geliefertes Modell gleichermaßen, und
+   * beim Tausch muss nichts neu gerechnet werden.
+   */
+  let weaponMount: THREE.Object3D | undefined;
+  let placeholder: THREE.Object3D | undefined;
+  let fitted: THREE.Object3D | undefined;
+
   if (spec) {
+    weaponMount = new THREE.Object3D();
+    weaponMount.position.set(spec.position[0], -armLength + spec.position[1], spec.position[2]);
+    weaponMount.rotation.set(spec.rotation[0], spec.rotation[1], spec.rotation[2]);
+    armR.add(weaponMount);
+
     const weaponGeo = spec.build();
-    const weapon = new THREE.Mesh(weaponGeo, material);
-    weapon.position.set(
-      spec.position[0],
-      -armLength + spec.position[1],
-      spec.position[2],
-    );
-    weapon.rotation.set(spec.rotation[0], spec.rotation[1], spec.rotation[2]);
-    armR.add(weapon);
+    placeholder = new THREE.Mesh(weaponGeo, material);
+    weaponMount.add(placeholder);
     disposables.push(weaponGeo);
   }
 
   return {
     root,
+    weapon: cfg.weapon === 'none' ? undefined : cfg.weapon,
+
+    setWeaponModel(model) {
+      if (!weaponMount) return;
+
+      if (fitted) {
+        weaponMount.remove(fitted);
+        fitted = undefined;
+      }
+
+      if (model) {
+        // Geklont, weil dasselbe Modell an vielen Figuren hängt. Materialien
+        // und Geometrien bleiben dabei geteilt — nur die Knoten sind eigen.
+        fitted = model.clone(true);
+        weaponMount.add(fitted);
+      }
+
+      // Der Platzhalter bleibt am Halter, wird aber unsichtbar. Ihn zu
+      // entfernen brächte nichts und machte den Weg zurück umständlich.
+      if (placeholder) placeholder.visible = model === undefined;
+    },
     update(state) {
       if (state.dead) {
         // Umfallen statt verschwinden: der Kadaver bleibt bis zum Respawn.

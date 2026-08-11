@@ -22,7 +22,16 @@
 import * as THREE from 'three';
 import { createSharedMaterial } from './geometry.ts';
 import { PROP_BUILDERS, buildGateArch, fallbackProp } from './props.ts';
-import { createRig, type CharacterRig } from './rigs.ts';
+import {
+  createRig,
+  weaponModelSpecs,
+  type CharacterRig,
+  type WeaponKey,
+} from './rigs.ts';
+import { disposeModel, loadModel } from './gltf.ts';
+
+/** Woher die Bytes eines Modells kommen. Im Client der Streamer. */
+export type ByteSource = (path: string) => Promise<ArrayBuffer>;
 
 /** Interner Schlüssel des Torbogens im Geometrie-Zwischenspeicher. */
 const GATE_KEY = '\0gate';
@@ -33,6 +42,17 @@ export class ModelRegistry {
 
   private readonly propGeometries = new Map<string, THREE.BufferGeometry>();
   private readonly missing = new Set<string>();
+
+  /** Geladene Waffenmodelle, je Schlüssel eines. */
+  private readonly weaponModels = new Map<WeaponKey, THREE.Object3D>();
+  /**
+   * Figuren, die eine Waffe tragen.
+   *
+   * Nötig, weil Modelle nachträglich eintreffen: wer schon dasteht, bekommt
+   * seines dann eingehängt. Bewusst ein `Set` und kein Array — beim Abmelden
+   * einer Figur soll nicht die ganze Liste durchsucht werden.
+   */
+  private readonly armedRigs = new Set<CharacterRig>();
 
   /** Geometrie eines Props. Wird beim ersten Zugriff gebaut und behalten. */
   propGeometry(key: string): THREE.BufferGeometry {
@@ -75,12 +95,61 @@ export class ModelRegistry {
 
   /** Frisches Rig für eine Figur. Jedes Entity bekommt sein eigenes. */
   createRig(key: string): CharacterRig {
-    return createRig(key, this.material);
+    const rig = createRig(key, this.material);
+
+    // Ist das Modell schon da, bekommt die frische Figur es sofort; sonst
+    // merken wir sie uns für später. Beides ohne Warten — sie steht in jedem
+    // Fall im nächsten Bild, notfalls mit dem Platzhalter.
+    if (rig.weapon && rig.setWeaponModel) {
+      const ready = this.weaponModels.get(rig.weapon);
+      if (ready) rig.setWeaponModel(ready);
+      this.armedRigs.add(rig);
+    }
+    return rig;
+  }
+
+  /** Welche Waffenmodelle bereits geladen sind. Für Prüfungen von aussen. */
+  loadedWeaponModels(): string[] {
+    return [...this.weaponModels.keys()];
+  }
+
+  /** Meldet ein Rig ab, damit die Registry keine Leichen sammelt. */
+  releaseRig(rig: CharacterRig): void {
+    this.armedRigs.delete(rig);
+  }
+
+  /**
+   * Holt die gelieferten Waffenmodelle nach.
+   *
+   * Bewusst ohne `await` beim Aufrufer: nichts hier darf ein Bild aufhalten.
+   * Kommt ein Modell nicht, bleibt der prozedurale Platzhalter stehen und im
+   * Protokoll steht, warum — ein fehlendes Schwert ist ein Inhaltsfehler, kein
+   * Grund, die Sitzung zu beenden.
+   */
+  async loadWeaponModels(source: ByteSource): Promise<void> {
+    await Promise.all(
+      weaponModelSpecs().map(async ({ key, path, length, bottom }) => {
+        try {
+          const bytes = await source(path);
+          const model = await loadModel(bytes, { length, bottom });
+          this.weaponModels.set(key, model);
+
+          for (const rig of this.armedRigs) {
+            if (rig.weapon === key) rig.setWeaponModel?.(model);
+          }
+        } catch (err) {
+          console.warn(`[modelle] Waffenmodell "${path}" nicht ladbar — Platzhalter bleibt:`, err);
+        }
+      }),
+    );
   }
 
   dispose(): void {
     for (const geo of this.propGeometries.values()) geo.dispose();
     this.propGeometries.clear();
+    for (const model of this.weaponModels.values()) disposeModel(model);
+    this.weaponModels.clear();
+    this.armedRigs.clear();
     this.material.dispose();
   }
 }
