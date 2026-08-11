@@ -683,6 +683,90 @@ for (const e of mobileErrors.slice(0, 4)) console.log(`      ! ${e}`);
 await mobilePage.screenshot({ path: join(shotDir, 'client-mobil.png') });
 await mobileContext.close();
 
+// --- Tablet: breit und trotzdem mit dem Daumen bedient ---------------------
+//
+// Der Fall, der die Anordnung frueher kippen liess. Ein Tablet quer ist
+// zweitausend Pixel breit; eine Breitenabfrage stuft es als Schreibtisch ein
+// und gibt ihm den dauerhaft offenen Chatkasten. Auf dem Bildschirm verdeckte
+// der die halbe Sicht — und fing als unsichtbare Ecke Beruehrungen ab, die in
+// der Welt ankommen sollten.
+
+const tabletContext = await browser.newContext({
+  viewport: { width: 1180, height: 820 },
+  hasTouch: true,
+  isMobile: true,
+  deviceScaleFactor: 1,
+});
+const tabletPage = await tabletContext.newPage();
+await tabletPage.bringToFront();
+await tabletPage.goto('http://127.0.0.1:5199/?name=Tablet', { waitUntil: 'domcontentloaded' });
+
+let tabletReady = true;
+try {
+  await tabletPage.waitForFunction(
+    () => window.aurelith?.localId > 0 && window.aurelith.entityCount > 0,
+    { timeout: 30000 },
+  );
+} catch {
+  tabletReady = false;
+}
+check(tabletReady, 'Tablet: Spielfigur ist eingeloggt');
+
+if (tabletReady) {
+  // Warten, bis die Begruessungszeilen ausgeblendet sind — sonst misst man
+  // das kurze Einblenden statt des Ruhezustands.
+  await tabletPage.waitForTimeout(7000);
+
+  const chat = await tabletPage.evaluate(() => {
+    const node = document.querySelector('.chat');
+    const box = node.getBoundingClientRect();
+    const style = getComputedStyle(node);
+    // Genau in der Mitte des Chatkastens: liegt dort der Kasten selbst, geht
+    // die Beruehrung nicht in die Welt.
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    return {
+      open: node.dataset.open,
+      opacity: Number(style.opacity),
+      events: style.pointerEvents,
+      inputShown: getComputedStyle(node.querySelector('.chat-input')).display !== 'none',
+      hitTag: hit?.tagName.toLowerCase() ?? '—',
+      touchFlag: document.getElementById('ui-root')?.dataset.touch,
+    };
+  });
+
+  check(chat.touchFlag === 'true', `Tablet: als Beruehrungsgeraet erkannt (${chat.touchFlag})`);
+  check(chat.open === 'false', `Tablet: Chat ist eingeklappt (data-open=${chat.open})`);
+  check(chat.opacity < 0.05, `Tablet: eingeklappt unsichtbar (Deckkraft ${chat.opacity})`);
+  check(!chat.inputShown, 'Tablet: kein Eingabefeld im Weg');
+  check(
+    chat.events === 'none' && chat.hitTag === 'canvas',
+    `Tablet: Beruehrung geht durch in die Welt (pointer-events=${chat.events}, ` +
+      `getroffen=${chat.hitTag})`,
+  );
+
+  // Und das 💬 klappt ihn wieder auf.
+  const opened = await tabletPage.evaluate(async () => {
+    const buttons = [...document.querySelectorAll('.actionbar .slot')];
+    const chatButton = buttons.find((b) => b.getAttribute('aria-label') === 'Chat');
+    chatButton?.click();
+    await new Promise((r) => setTimeout(r, 150));
+    const node = document.querySelector('.chat');
+    return {
+      open: node.dataset.open,
+      inputShown: getComputedStyle(node.querySelector('.chat-input')).display !== 'none',
+    };
+  });
+
+  check(
+    opened.open === 'true' && opened.inputShown,
+    `Tablet: 💬 klappt den Chat auf (data-open=${opened.open}, Eingabe=${opened.inputShown})`,
+  );
+
+  await tabletPage.screenshot({ path: join(shotDir, 'client-tablet.png') });
+}
+
+await tabletContext.close();
+
 await writeFile(
   join(shotDir, 'konsole.txt'),
   `${consoleLines.join('\n')}\n\n--- Server ---\n${server.log.join('')}`,

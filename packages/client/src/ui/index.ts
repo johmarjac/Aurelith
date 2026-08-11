@@ -28,6 +28,8 @@ export type ConnectionState = 'verbindet' | 'verbunden' | 'getrennt';
 
 /** So viele Zeilen behält das Chatfenster. */
 const CHAT_HISTORY = 120;
+/** Wie lange eine neue Zeile den eingeklappten Chat sichtbar hält. */
+const CHAT_FLASH_MS = 6000;
 /** Plätze im Inventar. */
 const INVENTORY_SLOTS = 30;
 
@@ -74,8 +76,12 @@ export class UI {
   private readonly targetLevel: HTMLElement;
   private readonly targetHp = bar('hp');
 
+  private readonly chat: HTMLElement;
   private readonly chatLog: HTMLElement;
   private readonly chatInput: HTMLInputElement;
+  /** Auf Touchgeräten eingeklappt; am Schreibtisch immer offen. */
+  private chatOpen: boolean;
+  private chatFade?: ReturnType<typeof setTimeout>;
 
   private readonly statusPanel: HTMLElement;
   private readonly statusText: HTMLElement;
@@ -92,6 +98,11 @@ export class UI {
 
   constructor(host: HTMLElement, private readonly touch: boolean) {
     this.host = host;
+    // Die Anordnung hängt an der Bedienart, nicht an der Fensterbreite. Ein
+    // Tablet quer ist zweitausend Pixel breit und wird trotzdem mit dem
+    // Daumen bedient — eine Breitenabfrage hätte es als Schreibtisch
+    // eingestuft und ihm die Schreibtischanordnung gegeben.
+    host.dataset.touch = String(touch);
 
     // --- Werte ------------------------------------------------------------
     const vitals = el('div', 'vitals panel');
@@ -120,22 +131,40 @@ export class UI {
     host.appendChild(this.statusPanel);
 
     // --- Chat -------------------------------------------------------------
-    const chat = el('div', 'chat');
+    //
+    // Am Schreibtisch steht der Chat dauerhaft unten links — dort ist Platz,
+    // und er verdeckt nichts. Auf dem Telefon ist genau das falsch: die
+    // Bildfläche ist knapp, und ein Kasten über dem halben Bild nimmt Sicht
+    // weg, ohne dass man ihn die meiste Zeit braucht.
+    //
+    // Also ist er dort eingeklappt. Neue Zeilen blenden sich kurz ein und
+    // wieder aus, das 💬 in der Aktionsleiste klappt ihn zum Lesen und
+    // Schreiben auf. Eingeklappt fängt er auch keine Berührungen ab — das
+    // war bislang eine unsichtbare tote Ecke über der Welt.
+    this.chat = el('div', 'chat');
+    this.chatOpen = !touch;
+    this.chat.dataset.open = String(this.chatOpen);
     this.chatLog = el('div', 'chat-log panel');
     this.chatInput = el('input', 'chat-input');
     this.chatInput.type = 'text';
     this.chatInput.placeholder = 'Nachricht … (Enter)';
     this.chatInput.maxLength = 200;
     this.chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        this.setChatOpen(false);
+        e.stopPropagation();
+        return;
+      }
       if (e.key !== 'Enter') return;
       const text = this.chatInput.value.trim();
       this.chatInput.value = '';
       if (text) this.onChatSubmit?.(text);
-      this.chatInput.blur();
+      // Auf dem Telefon zurück ins Spiel: Tastatur weg, Sicht frei.
+      this.setChatOpen(false);
       e.stopPropagation();
     });
-    chat.append(this.chatLog, this.chatInput);
-    host.appendChild(chat);
+    this.chat.append(this.chatLog, this.chatInput);
+    host.appendChild(this.chat);
 
     // --- Fenster ----------------------------------------------------------
     this.inventoryWindow = new GameWindow(
@@ -164,7 +193,7 @@ export class UI {
     actionbar.append(
       this.slot('🎒', 'I', 'Inventar', () => this.inventoryWindow.toggle()),
       this.slot('👤', 'C', 'Charakter', () => this.characterWindow.toggle()),
-      this.slot('💬', '⏎', 'Chat', () => this.chatInput.focus()),
+      this.slot('💬', '⏎', 'Chat', () => this.setChatOpen(!this.chatOpen)),
     );
     host.appendChild(actionbar);
 
@@ -211,6 +240,27 @@ export class UI {
     this.overlay = new Overlay(host);
 
     if (!touch) this.bindHotkeys();
+    else this.trackKeyboard();
+  }
+
+  /**
+   * Hält die Höhe der eingeblendeten Bildschirmtastatur in `--kb`.
+   *
+   * Der Chat hängt am unteren Rand, und für feststehende Elemente verschiebt
+   * sich der nicht, wenn die Tastatur aufgeht — das Eingabefeld läge darunter
+   * und man tippte blind. `visualViewport` meldet, wie viel unten fehlt.
+   */
+  private trackKeyboard(): void {
+    const view = window.visualViewport;
+    if (!view) return;
+
+    const update = (): void => {
+      const hidden = Math.max(0, window.innerHeight - view.height - view.offsetTop);
+      this.host.style.setProperty('--kb', `${Math.round(hidden)}px`);
+    };
+    view.addEventListener('resize', update);
+    view.addEventListener('scroll', update);
+    update();
   }
 
   private slot(icon: string, key: string, label: string, onClick: () => void): HTMLButtonElement {
@@ -346,6 +396,47 @@ export class UI {
       this.chatLog.firstElementChild?.remove();
     }
     this.chatLog.scrollTop = this.chatLog.scrollHeight;
+
+    // Eingeklappt bleibt die Zeile trotzdem kurz stehen. Systemmeldungen —
+    // „Holzbogen angelegt“, ein Stufenaufstieg — sind sonst nicht zu sehen,
+    // ohne dass man erst etwas aufklappt.
+    if (!this.chatOpen) this.flashChat();
+  }
+
+  /**
+   * Klappt den Chat auf oder zu.
+   *
+   * Am Schreibtisch gibt es kein Zuklappen — dort steht er ohnehin dauerhaft,
+   * und `false` bedeutet nur „raus aus dem Eingabefeld“, damit WASD wieder
+   * die Figur bewegt statt Buchstaben zu tippen.
+   */
+  setChatOpen(open: boolean): void {
+    if (!this.touch) {
+      if (open) this.chatInput.focus();
+      else this.chatInput.blur();
+      return;
+    }
+
+    this.chatOpen = open;
+    this.chat.dataset.open = String(open);
+
+    if (open) {
+      clearTimeout(this.chatFade);
+      this.chat.dataset.fresh = 'false';
+      this.chatLog.scrollTop = this.chatLog.scrollHeight;
+      this.chatInput.focus();
+    } else {
+      this.chatInput.blur();
+    }
+  }
+
+  /** Zeigt den eingeklappten Chat für ein paar Sekunden. */
+  private flashChat(): void {
+    this.chat.dataset.fresh = 'true';
+    clearTimeout(this.chatFade);
+    this.chatFade = setTimeout(() => {
+      this.chat.dataset.fresh = 'false';
+    }, CHAT_FLASH_MS);
   }
 
   setInventory(entries: InventoryEntry[]): void {

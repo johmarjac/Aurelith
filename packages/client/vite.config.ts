@@ -1,5 +1,5 @@
 import { brotliCompressSync, constants as zlib } from 'node:zlib';
-import { createReadStream, existsSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 
@@ -75,6 +75,81 @@ function serveCoreRaw(): Plugin {
   };
 }
 
+/**
+ * Web-App-Manifest und Symbole.
+ *
+ * Damit lässt sich die Seite auf den Home-Bildschirm legen und startet dann
+ * **ohne Adressleiste** — das ist der einzige Weg dorthin. Eine Seite darf die
+ * Browserleiste nicht selbst ausblenden, und die Vollbild-Schnittstelle gibt
+ * es auf iOS für gewöhnliche Elemente nicht.
+ *
+ * Bewusst nicht in `publicDir`: das ist der Asset-Baum und im Betrieb das CDN.
+ * Ein Manifest muss aber neben der Seite liegen, sonst passt sein
+ * Geltungsbereich nicht. Deshalb legt dieser Zusatz es direkt in die Ausgabe.
+ */
+function webApp(): Plugin {
+  const iconsDir = resolve(import.meta.dirname, 'icons');
+  const icons = [
+    'icon-192.png',
+    'icon-512.png',
+    'icon-maskable-512.png',
+    'apple-touch-icon.png',
+  ];
+
+  // Alle Adressen relativ: dann gilt das Manifest unter `/` genauso wie unter
+  // `/Aurelith/`, ohne dass der Unterpfad eingesetzt werden muss.
+  const manifest = JSON.stringify(
+    {
+      name: 'Aurelith',
+      short_name: 'Aurelith',
+      description: 'Browserbasiertes 3D-MMORPG.',
+      start_url: './',
+      scope: './',
+      display: 'fullscreen',
+      display_override: ['fullscreen', 'standalone'],
+      background_color: '#0b1014',
+      theme_color: '#0b1014',
+      icons: [
+        { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
+        { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
+        { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      ],
+    },
+    null,
+    2,
+  );
+
+  return {
+    name: 'aurelith-webapp',
+
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const path = (req.url ?? '').split('?')[0] ?? '';
+        if (path === '/app.webmanifest') {
+          res.setHeader('content-type', 'application/manifest+json; charset=utf-8');
+          res.end(manifest);
+          return;
+        }
+        const name = path.slice(1);
+        if (!icons.includes(name)) return next();
+        res.setHeader('content-type', 'image/png');
+        createReadStream(resolve(iconsDir, name)).pipe(res);
+      });
+    },
+
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'app.webmanifest', source: manifest });
+      for (const name of icons) {
+        this.emitFile({
+          type: 'asset',
+          fileName: name,
+          source: readFileSync(resolve(iconsDir, name)),
+        });
+      }
+    },
+  };
+}
+
 export default defineConfig({
   /**
    * Unterpfad, unter dem die Seite liegt.
@@ -120,5 +195,5 @@ export default defineConfig({
     },
   },
 
-  plugins: [serveCoreRaw(), brotli()],
+  plugins: [serveCoreRaw(), webApp(), brotli()],
 });

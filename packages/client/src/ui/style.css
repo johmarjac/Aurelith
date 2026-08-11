@@ -533,15 +533,65 @@ body {
   border-color: var(--accent-dim);
 }
 
-@media (max-width: 700px) {
-  .chat {
-    width: min(20rem, 68vw);
-    bottom: calc(var(--safe-b) + 4.2rem);
-  }
+/*
+ * Chat auf Touchgeräten.
+ *
+ * Die Unterscheidung hängt an der Bedienart, nicht an der Fensterbreite: ein
+ * Tablet quer ist zweitausend Pixel breit und wird trotzdem mit dem Daumen
+ * bedient. Eine Breitenabfrage hätte ihm die Schreibtischanordnung gegeben —
+ * genau der Kasten über dem halben Bild, der im Weg stand.
+ */
 
-  .chat-log {
-    max-height: 7rem;
-  }
+#ui-root[data-touch='true'] .chat {
+  width: min(22rem, 62vw);
+  bottom: calc(var(--safe-b) + 4.4rem);
+}
+
+/* --- eingeklappt --- */
+
+#ui-root[data-touch='true'] .chat[data-open='false'] {
+  /* Kein Abfangen von Berührungen. Vorher lag hier eine unsichtbare tote
+     Ecke über der Welt, in der weder Zielen noch Drehen ankam. */
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s ease-out;
+}
+
+/* Eine neue Zeile blendet sich ein und nach ein paar Sekunden wieder aus. */
+#ui-root[data-touch='true'] .chat[data-open='false'][data-fresh='true'] {
+  opacity: 1;
+  transition: opacity 0.12s ease-in;
+}
+
+#ui-root[data-touch='true'] .chat[data-open='false'] .chat-log {
+  max-height: 5.5rem;
+  /* Ohne Kasten: die Schrift steht direkt im Bild, mit Schatten statt
+     Hintergrund. Das nimmt der Meldung die Wucht einer Wand. */
+  background: none;
+  border-color: transparent;
+  backdrop-filter: none;
+  text-shadow: 0 1px 3px #000, 0 0 8px #000;
+}
+
+#ui-root[data-touch='true'] .chat[data-open='false'] .chat-input {
+  display: none;
+}
+
+/* --- aufgeklappt --- */
+
+#ui-root[data-touch='true'] .chat[data-open='true'] {
+  width: min(26rem, 88vw);
+  /* Über die eingeblendete Tastatur heben. --kb setzt die Oberfläche aus
+     visualViewport; ohne Tastatur ist es null. */
+  bottom: calc(var(--safe-b) + var(--kb, 0px) + 4.4rem);
+}
+
+#ui-root[data-touch='true'] .chat[data-open='true'] .chat-log {
+  max-height: min(40vh, 14rem);
+}
+
+#ui-root[data-touch='true'] .chat[data-open='true'] .chat-input {
+  font-size: 1rem; /* Unter 16px zoomt iOS beim Antippen hinein. */
 }
 
 /* --- Namensschilder und Schadenszahlen ------------------------------------ */
