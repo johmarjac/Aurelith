@@ -266,6 +266,44 @@ const moveW = await walk('KeyW', 1.0);
 const alongForward = moveW.dx * forwardX + moveW.dz * forwardZ;
 check(alongForward > 1, `W laeuft vorwaerts (${alongForward.toFixed(2)} Einheiten)`);
 
+// --- Blickrichtung bleibt stehen ------------------------------------------
+//
+// Beim Laufen dreht sich die Figur in Laufrichtung. Hoert man auf, muss sie so
+// stehenbleiben — vorher uebernahm im Stand die Kamera, wodurch die Figur beim
+// Loslassen zurueckschnappte und sich beim Drehen der Kamera mitdrehte.
+
+await walk('KeyD', 0.6);
+const facingAfterWalk = await page.evaluate(() => window.aurelith.player.yaw);
+await page.waitForTimeout(500);
+const facingIdle = await page.evaluate(() => window.aurelith.player.yaw);
+
+const yawDiff = (a, b) => {
+  let d = (b - a) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return Math.abs(d);
+};
+
+check(
+  yawDiff(facingAfterWalk, facingIdle) < 0.05,
+  `Figur behaelt die Richtung nach dem Anhalten (${facingAfterWalk.toFixed(2)} → ${facingIdle.toFixed(2)})`,
+);
+
+// Kamera drehen, ohne eine Taste zu druecken — die Figur darf sich nicht
+// mitdrehen.
+await page.mouse.move(640, 360);
+await page.mouse.down({ button: 'right' });
+await page.mouse.move(400, 360, { steps: 10 });
+await page.mouse.up({ button: 'right' });
+await page.waitForTimeout(500);
+
+const facingAfterOrbit = await page.evaluate(() => window.aurelith.player.yaw);
+const camAfterSecondOrbit = await page.evaluate(() => window.aurelith.camera.yaw);
+check(
+  yawDiff(facingIdle, facingAfterOrbit) < 0.05,
+  `Kameradrehung dreht die Figur nicht mit (Figur ${facingAfterOrbit.toFixed(2)}, Kamera ${camAfterSecondOrbit.toFixed(2)})`,
+);
+
 // --- Ruckeln der eigenen Figur --------------------------------------------
 //
 // Die Simulation laeuft mit 20 Hz, gezeichnet wird schneller. Ohne
@@ -342,6 +380,10 @@ const mobilePage = await mobileContext.newPage();
 const mobileErrors = [];
 mobilePage.on('pageerror', (e) => mobileErrors.push(String(e)));
 
+// Nach vorn holen: Chromium drosselt requestAnimationFrame in Seiten im
+// Hintergrund, und darauf laeuft die Spielschleife. Ohne das laeuft die
+// Simulation waehrend der Messung kaum weiter, und der Test kippt sporadisch.
+await mobilePage.bringToFront();
 await mobilePage.goto('http://127.0.0.1:5199/?name=Mobil', { waitUntil: 'domcontentloaded' });
 // Auf „verbunden" zu warten reicht nicht: die Figur entsteht erst, wenn der
 // erste Snapshot sie meldet. Wer vorher misst, misst eine Figur, die es noch
@@ -392,7 +434,7 @@ if (mobileMode.hasJoystick && mobileReady) {
     send(canvas, 'pointerdown', 1, 90, 640);
     await new Promise((r) => setTimeout(r, 80));
     send(canvas, 'pointermove', 1, 90, 560);
-    await new Promise((r) => setTimeout(r, 1200));
+    await new Promise((r) => setTimeout(r, 1600));
     const visible = !document.querySelector('.joystick').hidden;
     send(window, 'pointerup', 1, 90, 560);
     await new Promise((r) => setTimeout(r, 200));

@@ -312,6 +312,7 @@ export class Game {
         this.scene.snapTo(msg.x, msg.y, msg.z);
         this.pending = [];
         this.poseValid = false;
+        this.input.setFacing(msg.yaw);
       },
 
       onSnapshot: (msg) => this.applySnapshot(msg),
@@ -376,6 +377,9 @@ export class Game {
     // Ueber einen Sprung hinweg darf nicht interpoliert werden — sonst
     // schwebt die Figur sichtbar von der alten zur neuen Stelle.
     this.poseValid = false;
+    // Die Blickrichtung kommt vom Server; ohne das steht die Figur nach dem
+    // Einloggen nach Norden, egal wie sie sich abgemeldet hat.
+    this.input.setFacing(yaw);
 
     world.removeEntity(this.localId);
     world.spawnPlayer({

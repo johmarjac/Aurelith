@@ -40,6 +40,8 @@ export class InputManager {
   onPick?: (ndcX: number, ndcY: number) => void;
 
   private readonly keys = new Set<string>();
+  /** Zuletzt eingeschlagene Laufrichtung. Bleibt im Stand erhalten. */
+  private facingYaw = 0;
   private attackHeld = false;
   private attackButtonHeld = false;
   private interactPressed = false;
@@ -345,15 +347,30 @@ export class InputManager {
     const interact = this.interactPressed;
     this.interactPressed = false;
 
+    // Beim Laufen schaut die Figur in Laufrichtung — und behält sie danach.
+    //
+    // Vorher galt im Stand die Blickrichtung der Kamera, wodurch die Figur
+    // beim Loslassen zurückschnappte und sich beim Drehen der Kamera
+    // mitdrehte, ohne dass jemand etwas getan hätte. Die Blickrichtung gehört
+    // der Figur, nicht dem Sichtwinkel.
+    if (moving) this.facingYaw = Math.atan2(moveX, moveZ);
+
     return {
       moveX,
       moveZ,
-      // Beim Laufen schaut die Figur in Laufrichtung, im Stand in Blickrichtung
-      // der Kamera. Das ist die Konvention, die Flyff und Metin2 beide nutzen.
-      yaw: moving ? Math.atan2(moveX, moveZ) : yaw,
+      yaw: this.facingYaw,
       attack: this.attackHeld || this.attackButtonHeld,
       interact,
     };
+  }
+
+  /**
+   * Setzt die Blickrichtung von außen — beim Einloggen und nach einem
+   * Kartenwechsel. Ohne das stünde die Figur nach dem Erscheinen nach Norden,
+   * egal was der Server gespeichert hat.
+   */
+  setFacing(yaw: number): void {
+    this.facingYaw = yaw;
   }
 
   dispose(): void {
