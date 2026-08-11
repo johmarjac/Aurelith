@@ -16,6 +16,7 @@
 
 import type { Scene3D } from '../render/scene.ts';
 import { VirtualJoystick } from './joystick.ts';
+import { Steering } from './steering.ts';
 
 export interface InputSnapshot {
   /** Bewegungswunsch in Weltachsen, Länge höchstens 1. */
@@ -40,8 +41,8 @@ export class InputManager {
   onPick?: (ndcX: number, ndcY: number) => void;
 
   private readonly keys = new Set<string>();
-  /** Zuletzt eingeschlagene Laufrichtung. Bleibt im Stand erhalten. */
-  private facingYaw = 0;
+  /** Macht aus dem sprunghaften Wunsch eine stetige Bewegung. */
+  private readonly steering = new Steering();
   private attackHeld = false;
   private attackButtonHeld = false;
   private interactPressed = false;
@@ -300,12 +301,25 @@ export class InputManager {
     this.attackButtonHeld = held;
   }
 
-  /** Liefert den Eingabezustand dieses Frames in Weltachsen. */
-  read(): InputSnapshot {
+  /**
+   * Liefert den Eingabezustand dieses Schrittes in Weltachsen.
+   *
+   * `dt` ist die Schrittweite der Simulation, nicht die des Bildes: die
+   * Glättung gehört in denselben festen Takt wie die Bewegung, sonst
+   * unterscheidet sich das Ergebnis je nach Bildrate und die Vorhersage
+   * driftet gegen den Server.
+   *
+   * `frozen` heißt „der Spieler steuert gerade nicht" — beim Tippen im Chat.
+   * Die Glättung läuft trotzdem weiter, damit die Figur ausläuft statt zu
+   * stehen wie angenagelt.
+   */
+  read(dt: number, frozen = false): InputSnapshot {
     let localX = 0;
     let localZ = 0;
 
-    if (this.joystick) {
+    if (frozen) {
+      // Nichts einsammeln, aber unten weiter glätten.
+    } else if (this.joystick) {
       const j = this.joystick.read();
       localX = j.x;
       // Auf dem Bildschirm ist unten positiv, in der Welt ist vorne negativ.
@@ -340,27 +354,27 @@ export class InputManager {
     const rightX = -cos;
     const rightZ = sin;
 
-    const moveX = localX * rightX + localZ * forwardX;
-    const moveZ = localX * rightZ + localZ * forwardZ;
-
-    const moving = Math.hypot(moveX, moveZ) > 0.001;
-    const interact = this.interactPressed;
-    this.interactPressed = false;
-
-    // Beim Laufen schaut die Figur in Laufrichtung — und behält sie danach.
+    // Der rohe Wunsch. Beim Laufen schaut die Figur in Laufrichtung — und
+    // behält sie danach.
     //
     // Vorher galt im Stand die Blickrichtung der Kamera, wodurch die Figur
     // beim Loslassen zurückschnappte und sich beim Drehen der Kamera
     // mitdrehte, ohne dass jemand etwas getan hätte. Die Blickrichtung gehört
     // der Figur, nicht dem Sichtwinkel.
-    if (moving) this.facingYaw = Math.atan2(moveX, moveZ);
+    const wishX = localX * rightX + localZ * forwardX;
+    const wishZ = localX * rightZ + localZ * forwardZ;
+
+    const interact = this.interactPressed;
+    this.interactPressed = false;
+
+    const steered = this.steering.step(wishX, wishZ, dt);
 
     return {
-      moveX,
-      moveZ,
-      yaw: this.facingYaw,
-      attack: this.attackHeld || this.attackButtonHeld,
-      interact,
+      moveX: steered.moveX,
+      moveZ: steered.moveZ,
+      yaw: steered.yaw,
+      attack: !frozen && (this.attackHeld || this.attackButtonHeld),
+      interact: !frozen && interact,
     };
   }
 
@@ -370,7 +384,7 @@ export class InputManager {
    * egal was der Server gespeichert hat.
    */
   setFacing(yaw: number): void {
-    this.facingYaw = yaw;
+    this.steering.reset(yaw);
   }
 
   dispose(): void {

@@ -655,10 +655,9 @@ export class Game {
     const connection = this.connection;
     if (!world || !connection || this.localId === 0) return;
 
-    // Solange der Chat den Fokus hat, bewegt sich niemand.
-    const snapshot = this.ui.chatHasFocus
-      ? { moveX: 0, moveZ: 0, yaw: this.scene.yaw, attack: false, interact: false }
-      : this.input.read();
+    // Solange der Chat den Fokus hat, nimmt die Eingabe nichts mehr an — sie
+    // läuft aber weiter, damit die Figur ausläuft statt stehenzubleiben.
+    const snapshot = this.input.read(TICK_SECONDS, this.ui.chatHasFocus);
 
     const buttons = snapshot.attack && !this.dead ? CoreButton.Attack : 0;
     const seq = ++this.inputSeq;
