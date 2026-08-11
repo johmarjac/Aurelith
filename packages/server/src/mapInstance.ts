@@ -16,6 +16,14 @@ import {
 import type { CoreBundle } from './core.ts';
 
 export interface EntityMeta {
+  /**
+   * Was die Figur in der Hand hält — Schlüssel des Rigs, oder leer.
+   *
+   * Steht hier und nicht in der Sitzung, weil der Snapshot fremde Figuren
+   * beschreibt: wer einen Spieler sieht, braucht dessen Waffe, nicht seine
+   * eigene.
+   */
+  weapon?: string;
   defId: string;
   name: string;
   type: EntityType;

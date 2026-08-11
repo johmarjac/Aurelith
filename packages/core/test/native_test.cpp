@@ -335,6 +335,61 @@ void testSculpt() {
   checkNear(world.heightAt(0.0f, 0.0f), 0.0f, 0.001f, "abgeschaltet ist wieder rein prozedural");
 }
 
+// ---------------------------------------------------------------------------
+// Fernkampf
+// ---------------------------------------------------------------------------
+
+void testRangedAttack() {
+  std::printf("Fernkampf\n");
+
+  aur::MobRegistry mobs;
+  const uint32_t mobIndex = registerTestMob(mobs, false);
+  aur::World world(13u, flatTerrain(), &mobs);
+
+  aur::PlayerSpawn archer = testPlayer(1, 0.0f, 0.0f);
+  archer.attackStyle = 1u;   // Fernkampf
+  archer.attackRange = 18.0f;
+  world.spawnPlayer(archer);
+
+  // Eines weit weg, eines noch weiter, eines hinter der Figur.
+  world.spawnMob(10, mobIndex, 0.0f, 12.0f, -1, aur::kNoSpawner);
+  world.spawnMob(11, mobIndex, 0.0f, 16.0f, -1, aur::kNoSpawner);
+  world.spawnMob(12, mobIndex, 0.0f, -30.0f, -1, aur::kNoSpawner);
+
+  // Blick nach Sueden — die Richtung darf beim Fernkampf keine Rolle spielen.
+  world.applyInput(1, 0.0f, 0.0f, aur::kPi, aur::kButtonAttack, aur::kTickSeconds);
+  for (int i = 0; i < 6; ++i) world.step(aur::kTickSeconds);
+
+  check(world.find(10)->hp < 100.0f, "das naechste Ziel wird getroffen");
+  check(world.find(11)->hp == 100.0f, "nur eines, nicht alle in Reichweite");
+  check(world.find(12)->hp == 100.0f, "ausserhalb der Reichweite passiert nichts");
+
+  // Und die Figur hat sich dorthin gedreht.
+  checkNear(world.find(1)->yaw, 0.0f, 0.01f, "die Figur dreht sich zum Ziel");
+
+  // Ohne Ziel in Reichweite darf nichts passieren — aber der Schlag muss
+  // trotzdem beginnen, sonst rechnet der Client waehrend der Vorlaufzeit ein
+  // anderes Tempo als der Server.
+  aur::World empty(14u, flatTerrain(), &mobs);
+  aur::PlayerSpawn lonely = testPlayer(1, 0.0f, 0.0f);
+  lonely.attackStyle = 1u;
+  lonely.attackRange = 18.0f;
+  empty.spawnPlayer(lonely);
+  empty.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonAttack, aur::kTickSeconds);
+  check(empty.find(1)->swingTimer >= 0.0f, "der Schlag beginnt auch ohne Ziel");
+
+  // Nahkampf bleibt Nahkampf: derselbe Aufbau, aber im Kegel und mehrfach.
+  aur::World melee(15u, flatTerrain(), &mobs);
+  melee.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+  melee.spawnMob(10, mobIndex, -1.0f, 2.0f, -1, aur::kNoSpawner);
+  melee.spawnMob(11, mobIndex, 1.0f, 2.0f, -1, aur::kNoSpawner);
+  melee.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonAttack, aur::kTickSeconds);
+  for (int i = 0; i < 6; ++i) melee.step(aur::kTickSeconds);
+  check(
+      melee.find(10)->hp < 100.0f && melee.find(11)->hp < 100.0f,
+      "Nahkampf trifft weiterhin alles im Kegel");
+}
+
 }  // namespace
 
 int main() {
@@ -349,6 +404,7 @@ int main() {
   testDeterminism();
   testEntityViewLayout();
   testSculpt();
+  testRangedAttack();
 
   std::printf("\n%d Prüfungen, %d fehlgeschlagen\n", g_checks, g_failures);
   return g_failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;

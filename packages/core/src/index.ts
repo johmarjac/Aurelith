@@ -57,6 +57,8 @@ export interface CoreMobDef {
   attackArc: number;
   attackCooldownSec: number;
   attackWindupSec: number;
+  /** 0 = Nahkampf im Kegel, 1 = Fernkampf auf ein Ziel. */
+  attackStyle: number;
   radius: number;
   height: number;
   expReward: number;
@@ -82,6 +84,8 @@ export interface CorePlayerSpawn {
   attackArc: number;
   attackCooldownSec: number;
   attackWindupSec: number;
+  /** 0 = Nahkampf im Kegel, 1 = Fernkampf auf ein Ziel. */
+  attackStyle: number;
   radius: number;
   height: number;
 }
@@ -165,6 +169,14 @@ interface RawWorld {
     maxMp: number,
     attackDamage: number,
     defense: number,
+  ): void;
+  setAttackProfile(
+    id: number,
+    style: number,
+    range: number,
+    arc: number,
+    cooldownSec: number,
+    windupSec: number,
   ): void;
   tick(): number;
   entityCount(): number;
@@ -339,6 +351,24 @@ export class CoreWorld {
     defense: number,
   ): void {
     this.raw.setPlayerStats(id, level, maxHp, maxMp, attackDamage, defense);
+  }
+
+  /**
+   * Setzt, wie eine Figur zuschlägt.
+   *
+   * Getrennt von `setPlayerStats`, weil sich das nur beim Waffenwechsel
+   * ändert. `style` ist 0 für Nahkampf im Kegel und 1 für Fernkampf auf ein
+   * Ziel.
+   */
+  setAttackProfile(
+    id: number,
+    style: number,
+    range: number,
+    arc: number,
+    cooldownSec: number,
+    windupSec: number,
+  ): void {
+    this.raw.setAttackProfile(id, style, range, arc, cooldownSec, windupSec);
   }
 
   get tick(): number {

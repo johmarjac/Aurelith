@@ -31,6 +31,7 @@ function toCoreMob(id: string): CoreMobDef {
     attackRange: def.attackRange,
     attackArc: def.attackArc,
     attackCooldownSec: def.attackCooldownMs / 1000,
+    attackStyle: 0,
     attackWindupSec: def.attackWindupMs / 1000,
     radius: def.radius * def.scale,
     height: def.height * def.scale,

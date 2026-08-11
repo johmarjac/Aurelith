@@ -31,6 +31,8 @@ import {
   PLAYER_PROFILE,
   TICK_MS,
   TICK_SECONDS,
+  attackProfileFor,
+  getItem,
   parseMapDocument,
   type MapDocument,
   type StatsMsg,
@@ -217,6 +219,15 @@ export class Game {
   /** Das Tor, in dem die Figur gerade steht. Nur Anzeige — der Server prüft. */
   private nearbyPortalId?: string;
 
+  /**
+   * Angriffsprofil der eigenen Figur, aus der angelegten Waffe.
+   *
+   * Dieselbe Rechnung wie auf dem Server (`attackProfileFor`) — beide lesen
+   * dieselbe Tabelle. Der Client braucht es für die Vorhersage und fürs
+   * Zielen, der Server für den Schaden.
+   */
+  private profile = attackProfileFor(undefined);
+
   /** Zuletzt vom Server gemeldete Lage der eigenen Figur. Nur zur Auskunft. */
   private serverX = 0;
   private serverZ = 0;
@@ -290,6 +301,7 @@ export class Game {
 
     this.ui.onChatSubmit = (text) => this.onChatInput(text);
     this.ui.onRespawn = () => this.connection?.sendRespawn();
+    this.ui.onEquipItem = (itemId) => this.connection?.sendEquipItem(itemId);
     this.ui.onUsePortal = () => this.usePortal();
     this.ui.onAttackHold = (held) => this.input.setAttackButton(held);
     this.input.onPick = (x, y) => this.pickTarget(x, y);
@@ -508,7 +520,20 @@ export class Game {
         this.ui.setStats(msg);
       },
 
-      onInventory: (rows) => this.ui.setInventory(rows),
+      onInventory: (rows) => {
+        this.ui.setInventory(rows);
+
+        // Aus der Ausrüstung folgt, wie die Figur zuschlägt — und was sie in
+        // der Hand hält. Beides muss der Client kennen: das eine, damit die
+        // Vorhersage dieselbe Vorlaufzeit rechnet wie der Server, das andere
+        // fürs Zielen.
+        const mainhand = rows.find((r) => {
+          if (!r.equipped) return false;
+          return getItem(r.itemId)?.slot === 'mainhand';
+        });
+        this.profile = attackProfileFor(mainhand ? getItem(mainhand.itemId) : undefined);
+        this.applyProfileToPrediction();
+      },
 
       onChat: (msg) => this.ui.addChat(msg.channel, msg.from, msg.text),
 
@@ -673,6 +698,7 @@ export class Game {
     // Die Blickrichtung kommt vom Server; ohne das steht die Figur nach dem
     // Einloggen nach Norden, egal wie sie sich abgemeldet hat.
     this.input.setFacing(yaw);
+    this.applyProfileToPrediction();
 
     world.removeEntity(this.localId);
     world.spawnPlayer({
@@ -694,9 +720,13 @@ export class Game {
       attackArc: PLAYER_PROFILE.attackArc,
       attackCooldownSec: PLAYER_PROFILE.attackCooldownSec,
       attackWindupSec: PLAYER_PROFILE.attackWindupSec,
+      attackStyle: 0,
       radius: PLAYER_PROFILE.radius,
       height: PLAYER_PROFILE.height,
     });
+    // Und gleich das Profil der angelegten Waffe darüber. Getrennt, weil beim
+    // Erscheinen noch nicht feststeht, ob das Inventar schon da ist.
+    this.applyProfileToPrediction();
   }
 
   /**
@@ -746,6 +776,14 @@ export class Game {
     z: number;
   }): void {
     this.view.triggerAttack(msg.attackerId);
+
+    // Ein Fernkampftreffer bekommt seinen Pfeil. Der Schaden ist in diesem
+    // Moment schon gefallen — der Pfeil holt nur das Bild nach, das dazu
+    // gehört. Ohne ihn nimmt ein Monster in zwanzig Metern Entfernung
+    // grundlos Schaden.
+    if ((msg.flags & CombatFlag.Ranged) !== 0) {
+      this.view.spawnArrow(msg.attackerId, msg.x, msg.y, msg.z);
+    }
 
     const mine = msg.attackerId === this.localId;
     const onMe = msg.victimId === this.localId;
@@ -819,6 +857,51 @@ export class Game {
     this.ui.setPortalPrompt(found ? label : undefined);
   }
 
+  /** Überträgt das Angriffsprofil in die Vorhersagewelt. */
+  private applyProfileToPrediction(): void {
+    if (!this.prediction || this.localId === 0) return;
+    this.prediction.setAttackProfile(
+      this.localId,
+      this.profile.style,
+      this.profile.range,
+      this.profile.arc,
+      this.profile.cooldownSec,
+      this.profile.windupSec,
+    );
+  }
+
+  /**
+   * Sucht ein Ziel für einen Fernkampfangriff.
+   *
+   * Der Client zielt, der Server trifft. Das ist kein Widerspruch: die
+   * Blickrichtung geht als Teil der Eingabe mit, und der Server sucht sein
+   * Ziel selbst. Im Normalfall ist es dasselbe. Weicht es ab, hat der Server
+   * recht — und die Figur schaut für einen Schuss knapp daneben.
+   *
+   * Gesucht wird in der **Ansicht**, nicht in der Vorhersagewelt: die enthält
+   * nur die eigene Figur. Was es zu treffen gibt, weiß der Client aus den
+   * Snapshots.
+   */
+  private aimAtNearest(x: number, z: number): number | undefined {
+    let bestYaw: number | undefined;
+    let bestDist = this.profile.range;
+
+    for (const e of this.view.entities.values()) {
+      if (e.id === this.localId) continue;
+      if (e.type !== EntityType.Monster) continue;
+      if (e.state === EntityState.Dead) continue;
+
+      const dx = e.targetX - x;
+      const dz = e.targetZ - z;
+      const dist = Math.hypot(dx, dz);
+      if (dist > bestDist) continue;
+
+      bestDist = dist;
+      bestYaw = Math.atan2(dx, dz);
+    }
+    return bestYaw;
+  }
+
   /** Schickt die Bitte, das Tor zu benutzen, in dem die Figur steht. */
   private usePortal(): void {
     if (!this.nearbyPortalId) return;
@@ -854,6 +937,19 @@ export class Game {
     const snapshot = this.input.read(TICK_SECONDS, this.ui.chatHasFocus);
 
     const buttons = snapshot.attack && !this.dead ? CoreButton.Attack : 0;
+
+    // Beim Fernkampf richtet sich die Figur auf das nächste Ziel aus, sobald
+    // die Angriffstaste gedrückt ist. Das geht über die Eingabe und nicht über
+    // den Kern: so drehen sich die eigene Figur, ihre Vorhersage und — über
+    // den Server — die Figur auf den Bildschirmen der Mitspieler gemeinsam.
+    if (buttons !== 0 && this.profile.style === 1) {
+      const aim = this.aimAtNearest(this.poseCurr.x, this.poseCurr.z);
+      if (aim !== undefined) {
+        this.input.setFacing(aim);
+        snapshot.yaw = aim;
+      }
+    }
+
     const seq = ++this.inputSeq;
 
     this.diagnostics.input.moveX = snapshot.moveX;

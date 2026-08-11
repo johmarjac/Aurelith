@@ -32,6 +32,7 @@ import {
   encodeInput,
   encodePing,
   encodeRespawn,
+  encodeEquipItem,
   encodeSetTarget,
   encodeUsePortal,
   nullCipher,
@@ -252,6 +253,11 @@ export class Connection {
 
   sendRespawn(): void {
     this.send(encodeRespawn());
+  }
+
+  sendEquipItem(itemId: string): void {
+    this.send(encodeEquipItem(itemId));
+    this.flush();
   }
 
   sendUsePortal(portalId: string): void {

@@ -23,9 +23,11 @@ import {
   SNAPSHOT_TICK_DIVISOR,
   TICK_MS,
   TICK_SECONDS,
+  attackProfileFor,
   baseStatsForLevel,
   ClientOp,
   decodeClientChat,
+  decodeEquipItem,
   decodeFrame,
   decodeHello,
   decodeInput,
@@ -44,6 +46,7 @@ import {
   expForLevel,
   expGain,
   getItem,
+  type ItemDef,
   readPacket,
   type SpawnRow,
   type UpdateRow,
@@ -186,6 +189,12 @@ export class GameServer {
           this.usePortal(session, portalId);
           break;
         }
+        case ClientOp.EquipItem: {
+          if (session.state !== 'playing') break;
+          const { itemId } = decodeEquipItem(reader);
+          this.equipItem(session, itemId);
+          break;
+        }
         case ClientOp.Respawn:
           if (session.state === 'playing') this.respawn(session);
           break;
@@ -262,6 +271,7 @@ export class GameServer {
     session.state = 'playing';
 
     const stats = this.statsFor(session);
+    const profile = this.attackProfileOf(session);
     instance.world.spawnPlayer({
       id: session.entityId,
       level: login.character.level,
@@ -275,10 +285,11 @@ export class GameServer {
       attackDamage: stats.attackDamage,
       defense: stats.defense,
       moveSpeed: stats.moveSpeed,
-      attackRange: PLAYER_PROFILE.attackRange,
-      attackArc: PLAYER_PROFILE.attackArc,
-      attackCooldownSec: PLAYER_PROFILE.attackCooldownSec,
-      attackWindupSec: PLAYER_PROFILE.attackWindupSec,
+      attackRange: profile.range,
+      attackArc: profile.arc,
+      attackCooldownSec: profile.cooldownSec,
+      attackWindupSec: profile.windupSec,
+      attackStyle: profile.style,
       radius: PLAYER_PROFILE.radius,
       height: PLAYER_PROFILE.height,
     });
@@ -286,6 +297,7 @@ export class GameServer {
       defId: 'player',
       name: accountName,
       type: EntityType.Player,
+      weapon: profile.rig,
     });
     instance.playerIds.add(session.entityId);
     this.sessionByEntity.set(session.entityId, session);
@@ -305,16 +317,7 @@ export class GameServer {
       }),
     );
     this.sendStats(session);
-    session.send(
-      encodeInventory(
-        session.items.map((i) => ({
-          itemId: i.itemId,
-          count: i.count,
-          slot: i.slot,
-          equipped: i.equipped,
-        })),
-      ),
-    );
+    this.sendInventory(session);
     this.systemMessage(
       session,
       login.created
@@ -564,6 +567,7 @@ export class GameServer {
         hp: row.hp,
         maxHp: row.maxHp,
         state: row.state as EntityState,
+        weapon: meta?.weapon ?? '',
       });
       session.known.add(row.id);
     }
@@ -663,6 +667,7 @@ export class GameServer {
     const row = from.entity(session.entityId);
     const hp = row?.hp ?? character.hp;
     const stats = this.statsFor(session);
+    const profile = this.attackProfileOf(session);
 
     from.removePlayer(session.entityId);
     this.sessionByEntity.delete(session.entityId);
@@ -690,10 +695,11 @@ export class GameServer {
       attackDamage: stats.attackDamage,
       defense: stats.defense,
       moveSpeed: stats.moveSpeed,
-      attackRange: PLAYER_PROFILE.attackRange,
-      attackArc: PLAYER_PROFILE.attackArc,
-      attackCooldownSec: PLAYER_PROFILE.attackCooldownSec,
-      attackWindupSec: PLAYER_PROFILE.attackWindupSec,
+      attackRange: profile.range,
+      attackArc: profile.arc,
+      attackCooldownSec: profile.cooldownSec,
+      attackWindupSec: profile.windupSec,
+      attackStyle: profile.style,
       radius: PLAYER_PROFILE.radius,
       height: PLAYER_PROFILE.height,
     });
@@ -701,6 +707,7 @@ export class GameServer {
       defId: 'player',
       name: session.accountName,
       type: EntityType.Player,
+      weapon: profile.rig,
     });
     to.playerIds.add(session.entityId);
     this.sessionByEntity.set(session.entityId, session);
@@ -733,6 +740,100 @@ export class GameServer {
       }),
     );
     this.systemMessage(session, `${to.doc.name} betreten.`);
+  }
+
+  /**
+   * Legt einen Gegenstand an.
+   *
+   * Der Client sagt nur, *welchen*. Ob er ihn besitzt und ob die Stufe reicht,
+   * entscheidet ausschliesslich diese Stelle — sonst legte sich jeder per Paket
+   * an, was er nicht hat.
+   *
+   * Ein zweiter Gegenstand im selben Platz verdrängt den ersten. Das ist das
+   * ganze Ausrüstungssystem: eine Hand, eine Waffe.
+   */
+  private equipItem(session: Session, itemId: string): void {
+    const entry = session.items.find((i) => i.itemId === itemId);
+    if (!entry) return;
+
+    const def = getItem(itemId);
+    if (!def || def.slot === 'none') return;
+
+    const level = session.character?.level ?? 1;
+    if (level < def.levelReq) {
+      this.systemMessage(session, `${def.name} braucht Stufe ${def.levelReq}.`);
+      return;
+    }
+
+    // Schon angelegt: nichts zu tun. Ein Doppelklick soll nichts ablegen —
+    // ohne Waffe dazustehen ist selten das, was jemand wollte.
+    if (entry.equipped) return;
+
+    for (const other of session.items) {
+      if (other === entry) continue;
+      if (!other.equipped) continue;
+      if (getItem(other.itemId)?.slot === def.slot) other.equipped = false;
+    }
+    entry.equipped = true;
+
+    this.applyLoadout(session);
+    this.sendInventory(session);
+    this.sendStats(session);
+    this.systemMessage(session, `${def.name} angelegt.`);
+  }
+
+  /**
+   * Überträgt Werte und Angriffsprofil der Ausrüstung in die Welt.
+   *
+   * Beides zusammen, weil beides an derselben Ausrüstung hängt: der Schaden aus
+   * `statsFor`, die Art des Zuschlagens aus der Waffe. Die Waffe wandert
+   * ausserdem in die Entity-Meta, damit sie im nächsten Snapshot bei allen
+   * ankommt — Ausrüstung ist sichtbar.
+   */
+  private applyLoadout(session: Session): void {
+    const instance = this.instances.get(session.mapId);
+    const character = session.character;
+    if (!instance || !character) return;
+
+    const stats = this.statsFor(session);
+    const profile = this.attackProfileOf(session);
+
+    instance.world.setPlayerStats(
+      session.entityId,
+      character.level,
+      stats.maxHp,
+      stats.maxMp,
+      stats.attackDamage,
+      stats.defense,
+    );
+    instance.world.setAttackProfile(
+      session.entityId,
+      profile.style,
+      profile.range,
+      profile.arc,
+      profile.cooldownSec,
+      profile.windupSec,
+    );
+
+    const meta = instance.metaFor(session.entityId);
+    if (meta) meta.weapon = profile.rig;
+
+    // Der Snapshot schickt eine volle Zeile nur für Unbekanntes. Damit die
+    // neue Waffe bei allen ankommt, muss die Figur einmal als neu gelten.
+    for (const other of this.sessions) other.known.delete(session.entityId);
+  }
+
+  private sendInventory(session: Session): void {
+    session.send(
+      encodeInventory(
+        session.items.map((i) => ({
+          itemId: i.itemId,
+          count: i.count,
+          slot: i.slot,
+          equipped: i.equipped,
+        })),
+      ),
+    );
   }
 
   private respawn(session: Session): void {
@@ -778,6 +879,21 @@ export class GameServer {
   }
 
   /** Grundwerte der Stufe plus Boni der angelegten Ausrüstung. */
+  /** Die angelegte Hauptwaffe, oder nichts. */
+  private mainhandOf(session: Session): ItemDef | undefined {
+    for (const entry of session.items) {
+      if (!entry.equipped) continue;
+      const def = getItem(entry.itemId);
+      if (def?.slot === 'mainhand') return def;
+    }
+    return undefined;
+  }
+
+  /** Angriffsprofil aus der angelegten Waffe. Eine Stelle, drei Nutzer. */
+  private attackProfileOf(session: Session): ReturnType<typeof attackProfileFor> {
+    return attackProfileFor(this.mainhandOf(session));
+  }
+
   private statsFor(session: Session): ReturnType<typeof baseStatsForLevel> {
     const level = session.character?.level ?? 1;
     const stats = baseStatsForLevel(level);

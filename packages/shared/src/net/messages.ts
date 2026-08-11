@@ -95,6 +95,21 @@ export function decodeClientChat(r: ByteReader): { channel: number; text: string
   return { channel: r.u8(), text: r.str() };
 }
 
+/**
+ * Bitte, einen Gegenstand anzulegen.
+ *
+ * Der Client sagt *welchen*; ob es geht, entscheidet der Server. Er prüft, ob
+ * der Gegenstand überhaupt im Beutel liegt und ob die Stufe reicht — sonst
+ * legte man sich per Paket an, was man nicht besitzt.
+ */
+export function encodeEquipItem(itemId: string): Uint8Array {
+  return packet(ClientOp.EquipItem, 64).str(itemId).finish();
+}
+
+export function decodeEquipItem(r: ByteReader): { itemId: string } {
+  return { itemId: r.str() };
+}
+
 export function encodeUsePortal(portalId: string): Uint8Array {
   return packet(ClientOp.UsePortal, 64).str(portalId).finish();
 }
@@ -171,6 +186,14 @@ export interface SpawnRow {
   hp: number;
   maxHp: number;
   state: EntityState;
+  /**
+   * Was die Figur in der Hand hält — Schlüssel des Rigs, oder leer.
+   *
+   * Muss mit, weil sonst jede fremde Figur mit dem Schwert dasteht, das im
+   * Modell voreingestellt ist. Ausrüstung ist sichtbar, also gehört sie in den
+   * Snapshot.
+   */
+  weapon: string;
 }
 
 /** Laufende Aktualisierung eines bereits bekannten Entities. */
@@ -211,7 +234,8 @@ export function encodeSnapshot(m: SnapshotMsg): Uint8Array {
       .angle(s.yaw)
       .u32(Math.max(0, Math.round(s.hp)))
       .u32(Math.max(0, Math.round(s.maxHp)))
-      .u8(s.state);
+      .u8(s.state)
+      .str(s.weapon);
   }
 
   w.u16(m.updates.length);
@@ -252,6 +276,7 @@ export function decodeSnapshot(r: ByteReader): SnapshotMsg {
       hp: r.u32(),
       maxHp: r.u32(),
       state: r.u8() as EntityState,
+      weapon: r.str(),
     };
   }
 

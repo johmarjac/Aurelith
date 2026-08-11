@@ -58,6 +58,8 @@ export class UI {
   onAttackHold?: (held: boolean) => void;
   /** Der Spieler will das Tor benutzen, in dem er steht. */
   onUsePortal?: () => void;
+  /** Doppelklick auf einen Gegenstand — anlegen. */
+  onEquipItem?: (itemId: string) => void;
 
   private readonly host: HTMLElement;
 
@@ -371,9 +373,20 @@ export class UI {
 
       if (entry.count > 1) slot.appendChild(el('span', 'item-count', String(entry.count)));
 
+      const equippable = def !== undefined && def.slot !== 'none';
       slot.title = def
-        ? `${def.name}${entry.equipped ? ' (angelegt)' : ''}\n${def.description}`
+        ? `${def.name}${entry.equipped ? ' (angelegt)' : ''}\n${def.description}` +
+          (equippable && !entry.equipped ? '\n\nDoppelklick legt an.' : '')
         : entry.itemId;
+
+      if (equippable && !entry.equipped) {
+        slot.classList.add('item-equippable');
+        // Doppelklick und nicht einfacher Klick: ein Einzelklick wird spaeter
+        // fuers Auswaehlen und Verschieben gebraucht, und versehentlich die
+        // Waffe zu wechseln waere die unangenehmere Ueberraschung.
+        slot.addEventListener('dblclick', () => this.onEquipItem?.(entry.itemId));
+      }
+
       slots.push(slot);
     }
 

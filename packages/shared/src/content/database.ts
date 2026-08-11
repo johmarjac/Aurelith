@@ -246,6 +246,15 @@ export function getNpc(id: string): NpcDef | undefined {
 export type ItemKind = 'weapon' | 'armor' | 'consumable' | 'material' | 'quest';
 export type EquipSlot = 'mainhand' | 'offhand' | 'chest' | 'legs' | 'head' | 'none';
 
+/**
+ * Wie eine Waffe zuschlägt.
+ *
+ * `melee` trifft alles im Kegel vor der Figur — das Metin2-Gefühl, um das es
+ * geht. `ranged` trifft genau ein Ziel innerhalb `attackRange`, ohne Rücksicht
+ * auf die Blickrichtung; die Figur dreht sich beim Schuss dorthin.
+ */
+export type AttackStyle = 'melee' | 'ranged';
+
 export interface ItemDef {
   id: string;
   name: string;
@@ -263,6 +272,26 @@ export interface ItemDef {
   /** Farbe der Platzhalter-Kachel im Inventar, 0xRRGGBB. */
   iconColor: number;
   description: string;
+
+  // --- Nur für Waffen ------------------------------------------------------
+
+  /** Wie zugeschlagen wird. Fehlt es, gilt Nahkampf. */
+  attackStyle?: AttackStyle;
+  /**
+   * Reichweite in Weltnenheiten. Fehlt sie, gilt die des Grundprofils.
+   *
+   * Bei einer Fernwaffe ist das die Entfernung, bis zu der ein Ziel überhaupt
+   * gefunden wird — der Radius, in dem gesucht wird.
+   */
+  attackRange?: number;
+  /** Öffnungswinkel des Nahkampfkegels. Fehlt er, gilt der des Grundprofils. */
+  attackArc?: number;
+  /** Sekunden zwischen zwei Angriffen. Fehlt es, gilt das Grundprofil. */
+  attackCooldownSec?: number;
+  /** Vorlaufzeit bis zum Schaden. Fehlt sie, gilt das Grundprofil. */
+  attackWindupSec?: number;
+  /** Schlüssel der Waffe im Rig — bestimmt, was die Figur in der Hand hält. */
+  weaponRig?: 'sword' | 'club' | 'staff' | 'bow';
 }
 
 const itemList: ItemDef[] = [
@@ -281,6 +310,31 @@ const itemList: ItemDef[] = [
     model: 'weapon_wooden_sword',
     iconColor: 0xa9743f,
     description: 'Abgegriffenes Übungsschwert. Jeder fängt damit an.',
+    weaponRig: 'sword',
+  },
+  {
+    id: 'wooden_bow',
+    name: 'Holzbogen',
+    kind: 'weapon',
+    slot: 'mainhand',
+    levelReq: 1,
+    attackDamage: 3,
+    defense: 0,
+    effectValue: 0,
+    stackable: false,
+    maxStack: 1,
+    value: 25,
+    model: 'weapon_wooden_bow',
+    iconColor: 0x8f6b3a,
+    description: 'Trifft, was in Reichweite steht — auch ohne hinzusehen.',
+    attackStyle: 'ranged',
+    // Sechsmal so weit wie das Schwert. Dafür weniger Schaden und ein
+    // laengerer Vorlauf: der Bogen kauft Abstand, nicht Wucht.
+    attackRange: 18,
+    attackArc: Math.PI * 2,
+    attackCooldownSec: 0.95,
+    attackWindupSec: 0.3,
+    weaponRig: 'bow',
   },
   {
     id: 'rusty_dagger',
@@ -373,6 +427,9 @@ export function getItem(id: string): ItemDef | undefined {
 /** Startausrüstung eines frisch erstellten Charakters. */
 export const STARTER_INVENTORY: ReadonlyArray<{ item: string; count: number; equipped: boolean }> = [
   { item: 'wooden_sword', count: 1, equipped: true },
+  // Nicht angelegt: der Bogen liegt im Beutel, bis man ihn per Doppelklick
+  // anlegt. Zwei Waffen in einer Hand gehen nicht.
+  { item: 'wooden_bow', count: 1, equipped: false },
   { item: 'training_vest', count: 1, equipped: true },
   { item: 'potion_hp_small', count: 3, equipped: false },
 ];

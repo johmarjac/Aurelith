@@ -50,6 +50,7 @@ const mob: CoreMobDef = {
   attackArc: Math.PI,
   attackCooldownSec: 1,
   attackWindupSec: 0.2,
+  attackStyle: 0,
   radius: 0.6,
   height: 1.6,
   expReward: 25,
@@ -85,6 +86,7 @@ world.spawnPlayer({
   attackArc: 2.67,
   attackCooldownSec: 0.62,
   attackWindupSec: 0.15,
+  attackStyle: 0,
   radius: 0.45,
   height: 1.8,
 });

@@ -718,3 +718,12 @@ body {
 .portal-prompt[hidden] {
   display: none;
 }
+
+/* Anlegbare Gegenstände laden zum Doppelklick ein. */
+.item-slot.item-equippable {
+  cursor: pointer;
+}
+
+.item-slot.item-equippable:hover {
+  border-color: #4cc9bf;
+}

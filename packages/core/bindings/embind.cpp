@@ -157,6 +157,7 @@ EMSCRIPTEN_BINDINGS(aurelith_core) {
       .field("attackArc", &aur::MobDef::attackArc)
       .field("attackCooldownSec", &aur::MobDef::attackCooldownSec)
       .field("attackWindupSec", &aur::MobDef::attackWindupSec)
+      .field("attackStyle", &aur::MobDef::attackStyle)
       .field("radius", &aur::MobDef::radius)
       .field("height", &aur::MobDef::height)
       .field("expReward", &aur::MobDef::expReward)
@@ -181,6 +182,7 @@ EMSCRIPTEN_BINDINGS(aurelith_core) {
       .field("attackArc", &aur::PlayerSpawn::attackArc)
       .field("attackCooldownSec", &aur::PlayerSpawn::attackCooldownSec)
       .field("attackWindupSec", &aur::PlayerSpawn::attackWindupSec)
+      .field("attackStyle", &aur::PlayerSpawn::attackStyle)
       .field("radius", &aur::PlayerSpawn::radius)
       .field("height", &aur::PlayerSpawn::height);
 
@@ -213,6 +215,7 @@ EMSCRIPTEN_BINDINGS(aurelith_core) {
       .function("respawnPlayer", &aur::World::respawnPlayer)
       .function("setTarget", &aur::World::setTarget)
       .function("setPlayerStats", &aur::World::setPlayerStats)
+      .function("setAttackProfile", &aur::World::setAttackProfile)
 
       // Auslesen
       .function("tick", &aur::World::tick)

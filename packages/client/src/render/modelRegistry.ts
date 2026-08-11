@@ -21,7 +21,7 @@
 
 import * as THREE from 'three';
 import { createSharedMaterial } from './geometry.ts';
-import { PROP_BUILDERS, buildGateArch, fallbackProp } from './props.ts';
+import { PROP_BUILDERS, buildArrow, buildGateArch, fallbackProp } from './props.ts';
 import {
   createRig,
   weaponModelSpecs,
@@ -35,6 +35,8 @@ export type ByteSource = (path: string) => Promise<ArrayBuffer>;
 
 /** Interner Schlüssel des Torbogens im Geometrie-Zwischenspeicher. */
 const GATE_KEY = '\0gate';
+/** Interner Schlüssel des Pfeils im Geometrie-Zwischenspeicher. */
+const ARROW_KEY = '\0arrow';
 
 export class ModelRegistry {
   /** Ein Material für die ganze Szene. Farbe kommt aus den Vertizes. */
@@ -93,9 +95,23 @@ export class ModelRegistry {
     return geometry;
   }
 
+  /**
+   * Geometrie eines Pfeils.
+   *
+   * Einfache Formen, wie bestellt: ein Schaft, eine Spitze, zwei Federn. Er
+   * liegt entlang +Z, damit `lookAt` reicht, um ihn auszurichten.
+   */
+  arrowGeometry(): THREE.BufferGeometry {
+    const cached = this.propGeometries.get(ARROW_KEY);
+    if (cached) return cached;
+    const geometry = buildArrow();
+    this.propGeometries.set(ARROW_KEY, geometry);
+    return geometry;
+  }
+
   /** Frisches Rig für eine Figur. Jedes Entity bekommt sein eigenes. */
-  createRig(key: string): CharacterRig {
-    const rig = createRig(key, this.material);
+  createRig(key: string, weapon?: string): CharacterRig {
+    const rig = createRig(key, this.material, weapon);
 
     // Ist das Modell schon da, bekommt die frische Figur es sofort; sonst
     // merken wir sie uns für später. Beides ohne Warten — sie steht in jedem
@@ -128,10 +144,10 @@ export class ModelRegistry {
    */
   async loadWeaponModels(source: ByteSource): Promise<void> {
     await Promise.all(
-      weaponModelSpecs().map(async ({ key, path, length, bottom }) => {
+      weaponModelSpecs().map(async ({ key, path, length, bottom, axis }) => {
         try {
           const bytes = await source(path);
-          const model = await loadModel(bytes, { length, bottom });
+          const model = await loadModel(bytes, { length, bottom, ...(axis ? { axis } : {}) });
           this.weaponModels.set(key, model);
 
           for (const rig of this.armedRigs) {

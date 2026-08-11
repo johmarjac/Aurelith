@@ -32,7 +32,8 @@ function toCoreMob(id: string): CoreMobDef {
     attackArc: def.attackArc,
     // Der Kern rechnet in Sekunden, die Content-Tabelle notiert Millisekunden.
     attackCooldownSec: def.attackCooldownMs / 1000,
-    attackWindupSec: def.attackWindupMs / 1000,
+    attackStyle: 0,
+  attackWindupSec: def.attackWindupMs / 1000,
     radius: def.radius * def.scale,
     height: def.height * def.scale,
     expReward: def.expReward,

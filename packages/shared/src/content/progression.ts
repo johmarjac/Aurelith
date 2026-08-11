@@ -4,6 +4,8 @@
  * bewegt. Balancing kommt später und ändert nur die Konstanten hier.
  */
 
+import type { ItemDef } from './database.ts';
+
 export const MAX_LEVEL = 60;
 
 /** Erfahrung, die von Stufe `level` auf `level + 1` nötig ist. */
@@ -68,6 +70,36 @@ export const CRIT_MULTIPLIER = 1.75;
  * Der weite Kegel bei kurzer Reichweite ist die zentrale Kampfentscheidung des
  * Projekts: ein Schlag trifft alles davor, nicht ein ausgewähltes Ziel.
  */
+/**
+ * Angriffsprofil einer Figur — aus Grundwerten und angelegter Waffe.
+ *
+ * Eine Stelle, drei Nutzer: der Server setzt es im Kern, der Client sagt
+ * damit voraus, und der Renderer wählt danach die Waffe in der Hand. Läge es
+ * an drei Stellen, würde die Vorhersage bei jedem Waffenwechsel driften.
+ */
+export interface AttackProfile {
+  /** 0 = Nahkampf im Kegel, 1 = Fernkampf auf ein Ziel. */
+  style: number;
+  range: number;
+  arc: number;
+  cooldownSec: number;
+  windupSec: number;
+  /** Was die Figur in der Hand hält. */
+  rig: 'sword' | 'club' | 'staff' | 'bow' | 'none';
+}
+
+export function attackProfileFor(weapon: ItemDef | undefined): AttackProfile {
+  return {
+    style: weapon?.attackStyle === 'ranged' ? 1 : 0,
+    range: weapon?.attackRange ?? PLAYER_PROFILE.attackRange,
+    arc: weapon?.attackArc ?? PLAYER_PROFILE.attackArc,
+    cooldownSec: weapon?.attackCooldownSec ?? PLAYER_PROFILE.attackCooldownSec,
+    windupSec: weapon?.attackWindupSec ?? PLAYER_PROFILE.attackWindupSec,
+    // Ohne Waffe schlägt man mit der Faust — und hält nichts.
+    rig: weapon?.weaponRig ?? 'none',
+  };
+}
+
 export const PLAYER_PROFILE = {
   attackRange: 3.0,
   attackArc: Math.PI * 0.85,

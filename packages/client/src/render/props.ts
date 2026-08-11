@@ -206,6 +206,21 @@ export const PROP_BUILDERS: Record<string, PropBuilder> = {
 };
 
 /**
+ * Ein Pfeil.
+ *
+ * Liegt entlang +Z, Spitze voraus — so richtet `lookAt` ihn auf sein Ziel aus,
+ * ohne dass jemand eine Drehung nachrechnen muss.
+ */
+export function buildArrow(): THREE.BufferGeometry {
+  return assemble([
+    { geometry: box(0.03, 0.03, 0.6), color: 0x8a6b3f, position: [0, 0, 0] },
+    { geometry: cone(0.05, 0.16, 6), color: 0x9aa3ad, position: [0, 0, 0.36], rotation: [Math.PI / 2, 0, 0] },
+    { geometry: box(0.008, 0.09, 0.12), color: 0xe8e0cc, position: [0, 0, -0.26] },
+    { geometry: box(0.09, 0.008, 0.12), color: 0xe8e0cc, position: [0, 0, -0.26] },
+  ]);
+}
+
+/**
  * Der Torbogen.
  *
  * Bewusst nicht im Prop-Katalog: ein Tor ist kein Dekostück, das man neben

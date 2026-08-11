@@ -75,6 +75,7 @@ bool World::spawnPlayer(const PlayerSpawn& seed) {
   e.attackArc = seed.attackArc;
   e.attackCooldownSec = seed.attackCooldownSec;
   e.attackWindupSec = seed.attackWindupSec;
+  e.attackStyle = seed.attackStyle == 0u ? kAttackMelee : kAttackRanged;
   e.radius = seed.radius;
   e.height = seed.height;
   e.homeX = seed.x;
@@ -118,6 +119,7 @@ bool World::spawnMob(uint32_t id, uint32_t mobIndex, float x, float z, int32_t l
   e.attackArc = def->attackArc;
   e.attackCooldownSec = def->attackCooldownSec;
   e.attackWindupSec = def->attackWindupSec;
+  e.attackStyle = def->attackStyle == 0u ? kAttackMelee : kAttackRanged;
   // Friedliche Monster bekommen gar keine Wahrnehmung — sie schlagen nur
   // zurück, wenn man sie trifft. Damit braucht die KI kein zweites Feld.
   e.aggroRange = def->aggressive != 0 ? def->aggroRange : 0.0f;
@@ -232,6 +234,17 @@ void World::respawnPlayer(uint32_t id, float x, float z) {
 void World::setTarget(uint32_t id, uint32_t targetId) {
   Entity* e = find(id);
   if (e != nullptr) e->targetId = targetId;
+}
+
+void World::setAttackProfile(uint32_t id, uint32_t style, float range, float arc,
+                             float cooldownSec, float windupSec) {
+  Entity* e = find(id);
+  if (e == nullptr) return;
+  e->attackStyle = style == 0u ? kAttackMelee : kAttackRanged;
+  e->attackRange = range;
+  e->attackArc = arc;
+  e->attackCooldownSec = cooldownSec;
+  e->attackWindupSec = windupSec;
 }
 
 void World::setPlayerStats(uint32_t id, uint16_t level, float maxHp, float maxMp,

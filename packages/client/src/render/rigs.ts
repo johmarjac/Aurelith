@@ -77,7 +77,7 @@ export interface HumanoidConfig {
   pants: number;
   hair: number;
   accent: number;
-  weapon: 'sword' | 'club' | 'staff' | 'none';
+  weapon: 'sword' | 'club' | 'staff' | 'bow' | 'none';
 }
 
 /**
@@ -113,11 +113,23 @@ interface WeaponSpec {
     length: number;
     /** Wo der Knauf sitzt, relativ zur Faust. */
     bottom: number;
+    /**
+     * Achse, entlang derer das gelieferte Modell seine Länge hat.
+     *
+     * Vorgabe ist Y — Waffen werden meist aufrecht modelliert. Der Bogen kam
+     * liegend, mit den Wurfarmen entlang Z.
+     */
+    axis?: 'x' | 'y' | 'z';
   };
 }
 
 /** Die Waffen, die ein Rig kennt. */
 export type WeaponKey = Exclude<HumanoidConfig['weapon'], 'none'>;
+
+/** Ob eine Zeichenkette eine bekannte Waffe benennt. */
+function isWeaponKey(value: string): value is WeaponKey {
+  return value === 'sword' || value === 'club' || value === 'staff' || value === 'bow';
+}
 
 /**
  * Was an gelieferten Waffenmodellen zu holen ist.
@@ -131,8 +143,15 @@ export function weaponModelSpecs(): Array<{
   path: string;
   length: number;
   bottom: number;
+  axis?: 'x' | 'y' | 'z';
 }> {
-  const out: Array<{ key: WeaponKey; path: string; length: number; bottom: number }> = [];
+  const out: Array<{
+    key: WeaponKey;
+    path: string;
+    length: number;
+    bottom: number;
+    axis?: 'x' | 'y' | 'z';
+  }> = [];
   for (const [key, spec] of Object.entries(WEAPON_SPECS) as [WeaponKey, WeaponSpec][]) {
     if (spec.model) out.push({ key, ...spec.model });
   }
@@ -163,6 +182,25 @@ const WEAPON_SPECS: Record<WeaponKey, WeaponSpec> = {
     // 0,23 unter dem Griffpunkt. Das geliefertes Modell wird darauf gerechnet,
     // damit die Haltung darüber unverändert gilt.
     model: { path: 'models/wooden_sword.glb', length: 1.13, bottom: -0.23 },
+  },
+
+  bow: {
+    // Platzhalter: zwei Wurfarme und eine Sehne. Steht nur da, bis das Modell
+    // eintrifft — aber es muss dastehen, sonst haelt die Figur im ersten Bild
+    // nichts.
+    build: () =>
+      assemble([
+        { geometry: box(0.05, 0.5, 0.05), color: 0x8f6b3a, position: [0, 0.28, 0.06] },
+        { geometry: box(0.05, 0.5, 0.05), color: 0x8f6b3a, position: [0, -0.28, 0.06] },
+        { geometry: box(0.06, 0.3, 0.06), color: 0x6b4f34, position: [0, 0, 0.02] },
+        { geometry: box(0.015, 1.05, 0.015), color: 0xe8e0cc, position: [0, 0, -0.04] },
+      ]),
+    // Der Bogen wird quer gehalten, Sehne zum Koerper. Anders als beim Schwert
+    // zeigt seine Laengsachse nicht nach vorn, sondern nach oben — deshalb
+    // dreht hier nur die Y-Achse, um die Wurfarme aus dem Arm zu bringen.
+    position: [0.04, -0.05, 0.06],
+    rotation: [Math.PI * 0.12, Math.PI / 2, 0],
+    model: { path: 'models/wooden_bow.glb', length: 1.15, bottom: -0.58, axis: 'z' },
   },
 
   club: {
@@ -645,8 +683,26 @@ export const CHARACTER_CONFIGS: Record<string, CharacterConfig> = {
   },
 };
 
-export function createRig(key: string, material: THREE.Material): CharacterRig {
-  const cfg = CHARACTER_CONFIGS[key] ?? CHARACTER_CONFIGS.player!;
+/**
+ * Frisches Rig.
+ *
+ * `weapon` übersteuert, was die Figur in der Hand hält — es kommt aus dem
+ * Snapshot und damit aus der Ausrüstung des Servers. Ohne das stünde jeder mit
+ * dem Schwert da, das in der Figurenbeschreibung voreingestellt ist.
+ */
+export function createRig(
+  key: string,
+  material: THREE.Material,
+  weapon?: string,
+): CharacterRig {
+  const base = CHARACTER_CONFIGS[key] ?? CHARACTER_CONFIGS.player!;
+  const cfg =
+    base.kind === 'humanoid' && weapon && isWeaponKey(weapon)
+      ? { ...base, weapon }
+      : base.kind === 'humanoid' && weapon === 'none'
+        ? { ...base, weapon: 'none' as const }
+        : base;
+
   if (cfg.kind === 'humanoid') return makeHumanoid(cfg, material);
   switch (cfg.variant) {
     case 'blob':

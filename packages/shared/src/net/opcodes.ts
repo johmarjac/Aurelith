@@ -17,6 +17,8 @@ export const ClientOp = {
   UsePortal: 0x05,
   SetTarget: 0x06,
   Respawn: 0x07,
+  /** Einen Gegenstand anlegen oder ablegen. */
+  EquipItem: 0x08,
 } as const;
 export type ClientOp = (typeof ClientOp)[keyof typeof ClientOp];
 
@@ -65,4 +67,11 @@ export const CombatFlag = {
   Critical: 1 << 0,
   Killing: 1 << 1,
   Miss: 1 << 2,
+  /**
+   * Der Treffer kam aus der Ferne.
+   *
+   * Der Client zeichnet daraufhin einen Pfeil vom Angreifer zum Ziel. Reine
+   * Anzeige — der Schaden ist in dem Moment schon gefallen.
+   */
+  Ranged: 1 << 3,
 } as const;

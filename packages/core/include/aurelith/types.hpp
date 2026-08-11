@@ -72,7 +72,15 @@ enum CombatFlag : uint8_t {
   kCombatCritical = 1u << 0,
   kCombatKilling = 1u << 1,
   kCombatMiss = 1u << 2,
+  // Der Treffer kam aus der Ferne. Der Client zeichnet daraufhin einen Pfeil
+  // vom Angreifer zum Ziel — die Flugbahn ist reine Anzeige, der Schaden ist
+  // in dem Moment schon gefallen.
+  kCombatRanged = 1u << 3,
 };
+
+// Angriffsarten.
+constexpr uint8_t kAttackMelee = 0;
+constexpr uint8_t kAttackRanged = 1;
 
 constexpr uint32_t kNoSpawner = 0xffffffffu;
 constexpr uint32_t kNoDef = 0xffffffffu;
@@ -128,6 +136,8 @@ struct MobDef {
   float attackArc = 2.0f;
   float attackCooldownSec = 1.5f;
   float attackWindupSec = 0.3f;
+  /** 0 = Nahkampf im Kegel, 1 = Fernkampf auf ein Ziel. */
+  uint32_t attackStyle = 0u;
   float radius = 0.6f;
   float height = 1.6f;
   float expReward = 10.0f;
@@ -156,6 +166,15 @@ struct Entity {
   uint8_t type = kEntityPlayer;
   uint8_t state = kStateIdle;
   uint16_t level = 1;
+  /**
+   * Wie zugeschlagen wird.
+   *
+   * Nahkampf trifft alles im Kegel vor der Figur — das ist das Spielgefühl aus
+   * Metin2, und daran ändert sich nichts. Fernkampf trifft genau eines: das
+   * nächste Ziel in Reichweite, ohne Rücksicht auf die Blickrichtung. Zielen
+   * ist Sache des Clients, Treffen Sache des Servers.
+   */
+  uint8_t attackStyle = kAttackMelee;
 
   float x = 0.0f, y = 0.0f, z = 0.0f, yaw = 0.0f;
   float vx = 0.0f, vz = 0.0f;

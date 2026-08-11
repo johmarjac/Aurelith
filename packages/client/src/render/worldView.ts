@@ -33,6 +33,27 @@ import type { CharacterRig } from './rigs.ts';
 /** Wie lange die Schlaganimation läuft, unabhängig von der Serverabklingzeit. */
 const ATTACK_ANIM_SECONDS = 0.45;
 
+/**
+ * Flugzeit eines Pfeils, unabhängig von der Entfernung.
+ *
+ * Feste Zeit statt fester Geschwindigkeit: bei achtzehn Metern Reichweite
+ * wäre ein realistisch langsamer Pfeil eine halbe Sekunde unterwegs, und der
+ * Schaden ist längst gefallen. Kurz und gleichmäßig liest sich besser als
+ * korrekt.
+ */
+const ARROW_FLIGHT_SECONDS = 0.16;
+
+interface FlyingArrow {
+  mesh: THREE.Mesh;
+  fromX: number;
+  fromY: number;
+  fromZ: number;
+  toX: number;
+  toY: number;
+  toZ: number;
+  elapsed: number;
+}
+
 export interface EntityVisual {
   id: number;
   type: EntityType;
@@ -60,6 +81,8 @@ export interface EntityVisual {
   speed: number;
 
   rig: CharacterRig;
+  /** Was die Figur in der Hand hält. Ändert sich beim Anlegen einer Waffe. */
+  weapon: string;
   /** Höhe über dem Boden für Nameplate und Schadenszahlen. */
   height: number;
 }
@@ -86,6 +109,8 @@ export class WorldView {
 
   private terrain?: TerrainMesh;
   private propMeshes: THREE.InstancedMesh[] = [];
+  /** Pfeile in der Luft. Kurzlebig — meist keiner, selten eine Handvoll. */
+  private arrows: FlyingArrow[] = [];
   private doc?: MapDocument;
   private elapsed = 0;
 
@@ -263,10 +288,18 @@ export class WorldView {
 
   spawn(row: SpawnRow): EntityVisual {
     const existing = this.entities.get(row.id);
-    if (existing) return existing;
+    if (existing) {
+      // Schon da — aber der Server schickt eine volle Zeile auch dann neu,
+      // wenn sich die Ausrüstung geändert hat. Dann wird das Rig getauscht,
+      // sonst hielte die Figur weiter ihre alte Waffe.
+      if (existing.weapon !== row.weapon) this.replaceRig(existing, row);
+      return existing;
+    }
 
     const key = modelKeyFor(row.type, row.defId);
-    const rig = this.registry.createRig(key);
+    // Die Waffe kommt aus dem Snapshot: ohne sie stünde jede fremde Figur mit
+    // dem Schwert da, das im Modell voreingestellt ist — auch die mit Bogen.
+    const rig = this.registry.createRig(key, row.weapon);
     rig.root.position.set(row.x, row.y, row.z);
     rig.root.rotation.y = row.yaw;
     this.root.add(rig.root);
@@ -291,6 +324,7 @@ export class WorldView {
       attackTimer: -1,
       speed: 0,
       rig,
+      weapon: row.weapon,
       height: heightFor(row.type, row.defId),
     };
     this.entities.set(row.id, visual);
@@ -317,6 +351,27 @@ export class WorldView {
       e.attackTimer = 0;
     }
     e.state = row.state;
+  }
+
+  /**
+   * Tauscht das Rig einer bestehenden Figur.
+   *
+   * Nur bei einem Waffenwechsel. Position und Zustand bleiben, was sich ändert
+   * ist allein das, was in der Hand liegt — dafür ein neues Rig zu bauen ist
+   * grober als nötig, aber es passiert selten und hält den Aufbau einfach.
+   */
+  private replaceRig(visual: EntityVisual, row: SpawnRow): void {
+    this.root.remove(visual.rig.root);
+    this.registry.releaseRig(visual.rig);
+    visual.rig.dispose();
+
+    const rig = this.registry.createRig(modelKeyFor(row.type, row.defId), row.weapon);
+    rig.root.position.set(visual.x, visual.y, visual.z);
+    rig.root.rotation.y = visual.yaw;
+    this.root.add(rig.root);
+
+    visual.rig = rig;
+    visual.weapon = row.weapon;
   }
 
   despawn(id: number): void {
@@ -346,11 +401,65 @@ export class WorldView {
   }
 
   /**
+   * Schickt einen Pfeil auf die Reise.
+   *
+   * Reine Anzeige: der Schaden ist gefallen, als der Server das Ereignis
+   * geschickt hat. Der Pfeil holt das Bild nach, das dazu gehört — ohne ihn
+   * nimmt ein Monster in zwanzig Metern Entfernung grundlos Schaden.
+   *
+   * Bewusst kein Flug mit eigener Physik: er zieht in gerader Linie vom
+   * Angreifer zum Ziel und verschwindet dort. Alles andere wäre eine zweite
+   * Wahrheit über etwas, das schon entschieden ist.
+   */
+  spawnArrow(fromId: number, toX: number, toY: number, toZ: number): void {
+    const shooter = this.entities.get(fromId);
+    if (!shooter) return;
+
+    const arrow = new THREE.Mesh(this.registry.arrowGeometry(), this.registry.material);
+    arrow.frustumCulled = false;
+    this.root.add(arrow);
+
+    this.arrows.push({
+      mesh: arrow,
+      // Aus der Hand, nicht aus den Füßen.
+      fromX: shooter.x,
+      fromY: shooter.y + shooter.height * 0.62,
+      fromZ: shooter.z,
+      toX,
+      toY,
+      toZ,
+      elapsed: 0,
+    });
+  }
+
+  /** Bewegt die Pfeile und räumt angekommene weg. */
+  private stepArrows(dt: number): void {
+    for (let i = this.arrows.length - 1; i >= 0; i--) {
+      const a = this.arrows[i]!;
+      a.elapsed += dt;
+      const t = Math.min(1, a.elapsed / ARROW_FLIGHT_SECONDS);
+
+      const x = a.fromX + (a.toX - a.fromX) * t;
+      const y = a.fromY + (a.toY - a.fromY) * t;
+      const z = a.fromZ + (a.toZ - a.fromZ) * t;
+      a.mesh.position.set(x, y, z);
+      // Der Pfeil zeigt dorthin, wo er hinfliegt. Der Schaft liegt entlang +Z,
+      // also reicht die Blickrichtung.
+      a.mesh.lookAt(a.toX, a.toY, a.toZ);
+
+      if (t < 1) continue;
+      this.root.remove(a.mesh);
+      this.arrows.splice(i, 1);
+    }
+  }
+
+  /**
    * Schiebt alle Figuren einen Frame weiter. `localId` wird von der
    * Interpolation ausgenommen — dort gilt die Vorhersage.
    */
   step(dt: number, localId: number): void {
     this.elapsed += dt;
+    this.stepArrows(dt);
     // Bildratenunabhängige Glättung: bei 60 Hz landet man knapp unter einem
     // Snapshot-Intervall, bei 30 Hz genauso weit.
     const blend = 1 - Math.pow(0.0000001, dt);
@@ -395,6 +504,9 @@ export class WorldView {
   }
 
   clear(): void {
+    for (const a of this.arrows) this.root.remove(a.mesh);
+    this.arrows = [];
+
     for (const e of this.entities.values()) {
       this.root.remove(e.rig.root);
       this.registry.releaseRig(e.rig);
