@@ -13,6 +13,7 @@
 import {
   CipherSuite,
   FrameSequencer,
+  KickReason,
   PROTOCOL_VERSION,
   ServerOp,
   decodeCombatEvent,
@@ -152,6 +153,15 @@ export class Connection {
     this.stopPinging();
     this.pingTimer = window.setInterval(() => {
       this.send(encodePing(performance.now()));
+      // Sofort verschicken, nicht nur einreihen.
+      //
+      // Sonst haengt das Lebenszeichen an der Renderschleife, und die friert
+      // ein, sobald der Tab in den Hintergrund geht: der Browser stellt
+      // requestAnimationFrame dort ein. Die Pings liefen dann in die
+      // Warteschlange, der Server sah dreissig Sekunden lang nichts und warf
+      // die Sitzung — bei einem Spiel, das im Hintergrund einfach
+      // weiterlaufen soll, die unangenehmste Art zu scheitern.
+      this.flush();
     }, 3000);
   }
 
@@ -198,7 +208,14 @@ export class Connection {
         }
         case ServerOp.Kick: {
           const { reason, message } = decodeKick(reader);
-          this.closedByUs = true;
+          // Nach einem Rauswurf wird normalerweise nicht neu verbunden — bei
+          // falscher Protokollversion oder abgelehnter Anmeldung waere jeder
+          // weitere Versuch derselbe Fehlschlag.
+          //
+          // Zeitablauf und Serverneustart sind anders: das sind Zustaende, die
+          // von selbst vergehen. Dort darf der Client es wieder versuchen.
+          const recoverable = reason === KickReason.Timeout || reason === KickReason.ServerShutdown;
+          this.closedByUs = !recoverable;
           this.handlers.onKick?.(reason, message);
           break;
         }
@@ -236,7 +253,12 @@ export class Connection {
     this.send(encodeRespawn());
   }
 
-  /** Verschickt alles Aufgelaufene als einen Frame. Einmal je Frame gerufen. */
+  /**
+   * Verschickt alles Aufgelaufene als einen Frame.
+   *
+   * Wird aus der Renderschleife gerufen — und zusaetzlich vom Ping-Zeitgeber,
+   * damit die Verbindung auch dann lebt, wenn nicht gezeichnet wird.
+   */
   flush(): void {
     if (this.outgoing.length === 0) return;
     if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {

@@ -54,8 +54,15 @@ export const config = {
     return keyPath && certPath ? { keyPath, certPath } : undefined;
   })(),
 
-  /** Sekunden ohne Lebenszeichen, nach denen eine Sitzung fliegt. */
-  sessionTimeoutSeconds: envNum('AURELITH_SESSION_TIMEOUT', 30),
+  /**
+   * Sekunden ohne Lebenszeichen, nach denen eine Sitzung fliegt.
+   *
+   * Grosszuegig bemessen, weil Browser Zeitgeber in Hintergrund-Tabs drosseln:
+   * erst auf hoechstens einmal je Sekunde, nach einigen Minuten im Hintergrund
+   * auf etwa einmal je Minute. Ein Fenster von dreissig Sekunden wirft dann
+   * jeden raus, der den Tab kurz wechselt.
+   */
+  sessionTimeoutSeconds: envNum('AURELITH_SESSION_TIMEOUT', 90),
 
   /** Wie oft der Spielstand in die Datenbank geschrieben wird. */
   persistIntervalSeconds: envNum('AURELITH_PERSIST_INTERVAL', 30),

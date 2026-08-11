@@ -93,6 +93,11 @@ function copyPose(from: LocalPose, to: LocalPose): void {
 /**
  * Lesender Blick auf den Clientzustand, unter `window.aurelith`.
  *
+ * Ein Vorbehalt: fortgeschrieben wird am Ende eines Bildes. Steht die
+ * Renderschleife — etwa weil der Tab im Hintergrund liegt —, steht auch diese
+ * Auskunft. Was trotzdem weiterläuft (Verbindung, Lebenszeichen), ist an der
+ * Statusanzeige abzulesen, die die Verbindung selbst setzt.
+ *
  * Ausschließlich Anzeige — nichts hier verändert etwas, und der Server glaubt
  * dem Client ohnehin nichts. Der Nutzen ist Prüfbarkeit: Kamerastand und die
  * *gezeichnete* Position der Figur lassen sich sonst von außen nicht ansehen,
@@ -221,6 +226,17 @@ export class Game {
     this.input.onAttackPressed = () => this.view.triggerAttack(this.localId);
 
     globalThis.aurelith = this.diagnostics;
+
+    // Beim Wechsel in den Hintergrund noch einmal alles rausschicken, und beim
+    // Zurueckkommen die Zeitrechnung neu ansetzen — sonst versucht die
+    // Simulation, die verpasste Zeit nachzuholen.
+    document.addEventListener('visibilitychange', () => {
+      this.connection?.flush();
+      if (document.visibilityState === 'visible') {
+        this.lastFrameAt = performance.now();
+        this.accumulator = 0;
+      }
+    });
 
     window.addEventListener('resize', () => this.scene.resize());
     window.addEventListener('orientationchange', () => {

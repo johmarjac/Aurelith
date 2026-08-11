@@ -26,10 +26,11 @@
     "manifest": "node tools/build-manifest.mjs",
     "typecheck": "tsc --noEmit -p packages/shared && tsc --noEmit -p packages/core && tsc --noEmit -p packages/server && tsc --noEmit -p packages/client && tsc --noEmit -p packages/editor",
     "db:migrate": "npm run migrate --workspace @aurelith/server",
-    "test": "npm run core:test && node tools/smoke-e2e.mjs && node tools/smoke-editor.mjs && node tools/smoke-pages.mjs",
+    "test": "npm run core:test && node tools/smoke-e2e.mjs && node tools/smoke-background.mjs && node tools/smoke-editor.mjs && node tools/smoke-pages.mjs",
     "test:e2e": "node tools/smoke-e2e.mjs",
     "test:editor": "node tools/smoke-editor.mjs",
-    "test:pages": "node tools/smoke-pages.mjs"
+    "test:pages": "node tools/smoke-pages.mjs",
+    "test:background": "node tools/smoke-background.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
