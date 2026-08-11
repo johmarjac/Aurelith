@@ -1,0 +1,32 @@
+# Ergänzung für SWAG (und jeden anderen Proxy, der selbst im Container läuft).
+#
+# Ein Proxy im Container erreicht `127.0.0.1:8787` nicht — das ist für ihn
+# sein eigener Container, nicht der Wirt. Beide müssen an einem gemeinsamen
+# Netz hängen. Diese Datei hängt den Spielserver zusätzlich an das Netz, in
+# dem SWAG schon steht.
+#
+#   SWAG_NETWORK=<netz> docker compose -f docker-compose.yml -f docker-compose.swag.yml up -d
+#
+# Den Netznamen findet man mit:
+#
+#   docker inspect swag --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}'
+#
+# Danach erreicht SWAG den Server unter `aurelith-server:8787`. Ein nach außen
+# veröffentlichter Port ist dann nicht mehr nötig — wer ihn ganz schließen
+# will, setzt AURELITH_BIND=127.0.0.1:8787 (Standard) und lässt ihn einfach
+# unbenutzt, oder streicht die Portzeile aus docker-compose.yml.
+
+services:
+  server:
+    networks:
+      default:
+        aliases:
+          - aurelith-server
+      proxy:
+        aliases:
+          - aurelith-server
+
+networks:
+  proxy:
+    external: true
+    name: ${SWAG_NETWORK:?SWAG_NETWORK fehlt — Netzname von SWAG angeben}

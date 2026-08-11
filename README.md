@@ -371,6 +371,31 @@ Spiel sieht das aus wie ein toter Server.
 | Traefik | nichts — reicht Upgrades von sich aus durch |
 | Caddy | nichts — `reverse_proxy` kann es von sich aus |
 | nginx von Hand | `proxy_set_header Upgrade $http_upgrade;` und `proxy_set_header Connection "upgrade";` |
+| SWAG | nichts — die mitgelieferte `proxy.conf` reicht Aufwertungen durch |
+
+### Mit SWAG
+
+SWAG ist nginx im Container, also greift die Loopback-Adresse nicht — für ihn
+ist `127.0.0.1` sein eigener Container. Beide müssen an dasselbe Docker-Netz.
+Dafür liegen zwei Dateien bei:
+
+```
+# Netznamen von SWAG herausfinden
+docker inspect swag --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}'
+
+# Spielserver zusätzlich an dieses Netz hängen
+SWAG_NETWORK=<netz> docker compose -f docker-compose.yml -f docker-compose.swag.yml up -d
+
+# Proxy-Konfiguration ablegen und SWAG neu starten
+cp docker/swag/aurelith.subdomain.conf <swag-config>/nginx/proxy-confs/
+docker restart swag
+```
+
+Die Endung muss `.conf` sein — `.sample` lädt SWAG nicht. Für die Unterdomain
+muss ein CNAME im DNS stehen, sonst bekommt SWAG kein Zertifikat dafür.
+
+Danach ist der Server unter `aurelith-server:8787` erreichbar, und ein nach
+außen veröffentlichter Port wird gar nicht mehr gebraucht.
 
 Zwei Kleinigkeiten noch: die Zeitüberschreitung des Proxys großzügig setzen
 (eine Spielverbindung steht stundenlang; nginx' Standard von 60 Sekunden

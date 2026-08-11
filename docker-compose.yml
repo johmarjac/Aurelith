@@ -55,6 +55,13 @@ services:
     #      zulassen. Einfacher, aber der Klartext-Port steht dann offen.
     ports:
       - '${AURELITH_BIND:-127.0.0.1:8787}:8787'
+    networks:
+      default:
+        # Unter diesem Namen findet ein Proxy den Server, sobald er am selben
+        # Netz hängt. `server` täte es auch, ist als Name im Docker-Netz aber
+        # so allgemein, dass er sich mit dem nächsten Stapel überschneidet.
+        aliases:
+          - aurelith-server
 
   db:
     image: postgres:17-alpine
