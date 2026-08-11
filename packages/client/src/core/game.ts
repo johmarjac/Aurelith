@@ -141,6 +141,21 @@ export interface Diagnostics {
   reconciles: number;
   /** Grösste Abweichung, die dabei je gemessen wurde, in Weltnenheiten. */
   maxReconcileError: number;
+  /**
+   * Abstand zwischen der vorhergesagten und der vom Server gemeldeten Lage.
+   *
+   * Der ehrlichere Wert von beiden. `maxReconcileError` wird nur berechnet,
+   * wenn sich zu einer Bestätigung ein Anker im Verlauf findet — bleiben die
+   * Bestätigungen aus, weil der Server die Eingaben gar nicht annimmt, schweigt
+   * er und meldet null, während die Figur im Bild längst woanders steht als in
+   * der Welt. Genau so ist ein Fehler nach einem Kartenwechsel unbemerkt
+   * geblieben.
+   *
+   * Ein kleiner Abstand ist normal: die Vorhersage ist um die Laufzeit voraus,
+   * bei dreissig Millisekunden und Tempo sechs also gut ein Fünftel einer
+   * Einheit. Wächst er darüber hinaus, laufen beide Seiten auseinander.
+   */
+  serverDistance: number;
   /** Ist die Vorhersagewelt aufgebaut? Ohne sie laeuft kein Schritt. */
   hasPrediction: boolean;
   /**
@@ -195,6 +210,11 @@ export class Game {
   /** Das Tor, in dem die Figur gerade steht. Nur Anzeige — der Server prüft. */
   private nearbyPortalId?: string;
 
+  /** Zuletzt vom Server gemeldete Lage der eigenen Figur. Nur zur Auskunft. */
+  private serverX = 0;
+  private serverZ = 0;
+  private serverSeen = false;
+
   /** Laeuft gerade ein Kartenwechsel? Dann warten Snapshots. */
   private mapLoad?: Promise<void>;
   private loadingMapId?: string;
@@ -228,6 +248,7 @@ export class Game {
     ticks: 0,
     reconciles: 0,
     maxReconcileError: 0,
+    serverDistance: 0,
     hasPrediction: false,
     predictionReady: false,
     hasConnection: false,
@@ -430,9 +451,26 @@ export class Game {
       onWelcome: async (msg) => {
         this.localId = msg.entityId;
         this.pending = [];
-        this.inputSeq = 0;
         this.targetId = 0;
         this.poseValid = false;
+
+        // Der Eingabezähler wird hier **nicht** zurückgesetzt.
+        //
+        // Er gehört der Verbindung, nicht der Karte. Bei einem Kartenwechsel
+        // schickt der Server erneut ein `Welcome`; wer hier auf null ginge,
+        // liefe gegen die Sitzung auf der Gegenseite, die weiterzählt: sie
+        // verwirft alles, was nicht neuer ist als die letzte gesehene Nummer,
+        // und das wäre nach einem Wechsel schlicht alles.
+        //
+        // Sichtbar war das als etwas ganz anderes: die Figur lief im Bild
+        // weiter, weil die Vorhersage örtlich rechnet, aber auf dem Server
+        // stand sie unbewegt am Ankunftspunkt. Tore reagierten nicht, Monster
+        // liefen an einer Figur vorbei, die für sie woanders stand — und die
+        // Korrektur schwieg, weil sie zu keiner Bestätigung mehr einen Anker
+        // fand und deshalb gar nichts verglich.
+        //
+        // Zurückgesetzt wird er in `resetSession`, also genau dann, wenn die
+        // Gegenseite wirklich neu anfängt.
         await this.ensureMap(msg.mapId);
       },
 
@@ -440,6 +478,7 @@ export class Game {
         // Zuerst den Hinweis wegnehmen: bis die neue Karte geladen ist, würde
         // die neue Position gegen die Tore der alten geprüft.
         this.nearbyPortalId = undefined;
+        this.serverSeen = false;
         this.ui.setPortalPrompt(undefined);
 
         await this.ensureMap(msg.mapId);
@@ -550,6 +589,7 @@ export class Game {
     this.localId = 0;
     this.targetId = 0;
     this.poseValid = false;
+    this.serverSeen = false;
     this.dead = false;
     this.ui.setDead(false);
     this.ui.setTarget(undefined);
@@ -592,6 +632,16 @@ export class Game {
         this.ui.setDead(nowDead);
       }
       this.ui.setHp(self.hp);
+
+      // Die Lage, die der Server meldet, hier festhalten und nicht später aus
+      // der Ansicht lesen: für die eigene Figur überschreibt `setLocal` deren
+      // Zielwerte in jedem Bild mit der Vorhersage. Wer sie danach abfragt,
+      // vergleicht die Vorhersage mit sich selbst — und sieht nie eine
+      // Abweichung, auch wenn der Server ganz woanders rechnet.
+      this.serverX = self.targetX;
+      this.serverZ = self.targetZ;
+      this.serverSeen = true;
+
       this.reconcile(msg.ackInputSeq, self.targetX, self.targetZ, self.targetYaw);
     }
 
@@ -919,6 +969,11 @@ export class Game {
     d.playerSim.y = this.poseCurr.y;
     d.playerSim.z = this.poseCurr.z;
     d.playerSim.yaw = this.poseCurr.yaw;
+
+    d.serverDistance =
+      this.serverSeen && this.poseValid
+        ? Math.hypot(this.serverX - this.poseCurr.x, this.serverZ - this.poseCurr.z)
+        : 0;
 
     d.hasPrediction = this.prediction !== undefined;
     d.predictionReady = this.poseValid;

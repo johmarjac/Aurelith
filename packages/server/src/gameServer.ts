@@ -669,6 +669,10 @@ export class GameServer {
     session.entityId = this.nextEntityId++;
     session.mapId = to.doc.id;
     session.known.clear();
+    // Eingaben, die noch für die alte Welt gedacht waren, gehören nicht in die
+    // neue. `lastInputSeq` bleibt dagegen stehen: der Zähler gehört der
+    // Verbindung, und die läuft weiter.
+    session.inputQueue.length = 0;
 
     to.world.spawnPlayer({
       id: session.entityId,

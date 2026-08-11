@@ -67,8 +67,14 @@ const waitUntil = async (fn, ms) => {
 console.log('Aurelith — Tore\n');
 
 const server = launch('npx tsx packages/server/src/index.ts', {
-  // Startpunkt (0, -96), Ausgangstor bei (0, -104) mit Radius 5.
-  AURELITH_START_MAP: 'gruft_01',
+  // Dornwald: Startpunkt (0, -178), Tor nach Lichtmoor bei (0, -186), Radius 4.
+  // Von dort geht es nach Lichtmoor auf (0, 196), wo das Gegentor bei (0, 204)
+  // steht — beide ohne Stufensperre, also derselbe Weg hin und zurueck.
+  //
+  // Bewusst nicht ueber die Schattengruft: die verlangt Stufe zehn, und eine
+  // Abweisung saehe genauso aus wie ein Fehler. Eine fruehere Fassung dieses
+  // Tests ist genau darauf hereingefallen.
+  AURELITH_START_MAP: 'dornwald',
 });
 launch('cd packages/client && npx vite --port 5195 --strictPort --host 127.0.0.1');
 
@@ -141,66 +147,109 @@ const state = () =>
       const el = document.querySelector('.portal-prompt');
       return el && !el.hidden ? (el.textContent ?? '') : '';
     })(),
+    // Was der Server zuletzt gesagt hat. Verweigert er ein Tor, steht die
+    // Begruendung hier — sonst sieht ein „nichts passiert" wie ein Fehler aus,
+    // obwohl es eine Ansage war.
+    chat: [...document.querySelectorAll('.chat-log > *')].slice(-3).map((n) => n.textContent).join(' | '),
   }));
 
 console.log('Pruefungen');
 
 const start = await state();
-check(start.mapId === 'gruft_01', `auf der Testkarte gestartet (${start.mapId})`);
+check(start.mapId === 'dornwald', `auf der Testkarte gestartet (${start.mapId})`);
 check(start.prompt === '', `kein Hinweis abseits eines Tores ("${start.prompt}")`);
 
-// Zum Tor laufen. Es liegt acht Einheiten in Richtung -Z; die Kamera schaut
-// beim Start nach +Z, also ist das rueckwaerts. Bei Tempo sechs und einem
-// Zwanzigstel je Schritt sind acht Einheiten rund siebenundzwanzig Schritte —
-// mit fuenf Einheiten Radius ist das Fenster grosszuegig, aber nicht beliebig.
-await page.keyboard.down('KeyS');
-await waitTicks(27);
-await page.keyboard.up('KeyS');
-await waitTicks(8);
+/** Laeuft `ticks` Schritte in eine Richtung und laesst die Figur auslaufen. */
+async function walk(key, ticks = 27) {
+  await page.keyboard.down(key);
+  await waitTicks(ticks);
+  await page.keyboard.up(key);
+  await waitTicks(8);
+}
+
+// --- Erster Wechsel: Dornwald -> Lichtmoor --------------------------------
+//
+// Das Tor liegt acht Einheiten in Richtung -Z, die Kamera schaut nach +Z.
+
+await walk('KeyS');
 
 const inGate = await state();
 check(
-  inGate.prompt.includes('Dornwald'),
+  inGate.prompt.includes('Lichtmoor'),
   `im Tor erscheint der Hinweis bei (${inGate.x.toFixed(1)}, ${inGate.z.toFixed(1)}): "${inGate.prompt}"`,
 );
-check(
-  inGate.prompt.startsWith('[F]'),
-  `mit der Taste davor ("${inGate.prompt}")`,
-);
+check(inGate.prompt.startsWith('[F]'), `mit der Taste davor ("${inGate.prompt}")`);
 
-// Und jetzt das Entscheidende: stehenbleiben. Frueher haette das gereicht.
+// Das Entscheidende: stehenbleiben. Frueher haette das gereicht.
 await waitTicks(120);
 const stillThere = await state();
 check(
-  stillThere.mapId === 'gruft_01',
+  stillThere.mapId === 'dornwald',
   `Stehen im Tor reist nicht (nach 120 Schritten noch auf ${stillThere.mapId})`,
 );
-check(
-  stillThere.prompt.includes('Dornwald'),
-  'der Hinweis bleibt stehen, solange man drinsteht',
-);
+check(stillThere.prompt.includes('Lichtmoor'), 'der Hinweis bleibt stehen, solange man drinsteht');
 
-// F druecken.
 await page.keyboard.press('KeyF');
 const arrived = await waitUntil(
-  async () => (await page.evaluate(() => window.aurelith.mapId)) === 'dornwald',
+  async () => (await page.evaluate(() => window.aurelith.mapId)) === 'lichtmoor',
   20000,
 );
 check(arrived, 'F betritt das Tor');
 
+if (!arrived) {
+  console.log(`  (Chat: ${(await state()).chat})`);
+}
+
+// --- Zweiter Wechsel: zurueck ---------------------------------------------
+//
+// Der eigentliche Pruefstein. Nach dem ersten Wechsel kann zwischen Client und
+// Server etwas auseinandergelaufen sein, das man erst hier bemerkt.
+
 if (arrived) {
-  // Nach dem Kartenwechsel braucht die Vorhersage wieder zwei Schritte.
   await waitReady();
   await waitTicks(4);
+
   const after = await state();
   check(
-    Math.hypot(after.x - 96, after.z - 140) < 3,
+    Math.hypot(after.x - 0, after.z - 196) < 3,
     `Ankunft am vorgesehenen Punkt (${after.x.toFixed(1)}, ${after.z.toFixed(1)})`,
   );
+  check(after.prompt === '', `nach der Ankunft kein Hinweis ("${after.prompt}")`);
+
+  // Gegentor bei (0, 204), also in Richtung +Z.
+  await walk('KeyW');
+
+  const back = await state();
+  const moved = Math.hypot(back.x - after.x, back.z - after.z);
+  check(moved > 4, `die Figur laesst sich nach dem Wechsel noch bewegen (${moved.toFixed(1)} Einheiten)`);
+
+  // Der Abstand zur Lage, die der Server meldet — und nicht die Zahl der
+  // Korrekturen. Die schweigt naemlich, wenn der Server die Eingaben gar nicht
+  // erst annimmt: ohne Bestaetigung findet die Korrektur keinen Anker und
+  // vergleicht nichts. Genau daran ist eine fruehere Fassung dieses Tests
+  // vorbeigelaufen, waehrend die Figur auf dem Server unbewegt am
+  // Ankunftspunkt stand.
+  const sync = await page.evaluate(() => ({
+    serverDistance: window.aurelith.serverDistance,
+    reconciles: window.aurelith.reconciles,
+  }));
   check(
-    after.prompt === '',
-    `nach der Ankunft kein Hinweis ("${after.prompt}")`,
+    sync.serverDistance < 1.5,
+    `der Server sieht die Figur an derselben Stelle (${sync.serverDistance.toFixed(2)} Einheiten Abstand)`,
   );
+
+  check(
+    back.prompt.includes('Dornwald'),
+    `das Tor der zweiten Karte meldet sich (${back.x.toFixed(1)}, ${back.z.toFixed(1)}): "${back.prompt}"`,
+  );
+
+  await page.keyboard.press('KeyF');
+  const returned = await waitUntil(
+    async () => (await page.evaluate(() => window.aurelith.mapId)) === 'dornwald',
+    20000,
+  );
+  check(returned, 'F wirkt auch nach einem Kartenwechsel');
+  if (!returned) console.log(`  (Chat: ${(await state()).chat})`);
 }
 
 // Der Server darf sich nicht von ueberall aus reisen lassen.
