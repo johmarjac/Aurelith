@@ -335,18 +335,49 @@ Dafür liegt ein Container bereit, gebaut für amd64 und arm64. Der Raspberry Pi
 ist damit ein vollwertiges Ziel.
 
 ```
-cp .env.example .env      # Domain und Datenbankpasswort eintragen
+cp .env.example .env      # Datenbankpasswort eintragen
 docker compose pull
 docker compose up -d
 ```
 
-Drei Dienste: der Spielserver, PostgreSQL für die Spielstände, und Caddy als
-TLS-Endpunkt davor. Caddy holt und erneuert das Zertifikat selbst, sobald die
-Domain auf die Maschine zeigt und die Ports **80 und 443** von außen
-erreichbar sind — Port 80 wird für die Prüfung von Let's Encrypt gebraucht,
-nicht nur für die Umleitung.
+Zwei Dienste: der Spielserver und PostgreSQL für die Spielstände. Um TLS
+kümmert sich ein vorgelagerter Reverse-Proxy, der hier nicht mitgeliefert wird
+— wer schon einen betreibt, will keinen zweiten.
 
-Danach steht der Server unter `wss://<domain>/ws`. Im Spiel:
+Der Server veröffentlicht seinen Port standardmäßig nur auf der
+Loopback-Adresse: erreichbar für einen Proxy auf derselben Maschine, aus dem
+Internet nicht. Das ist Absicht — ein offener Klartext-Port neben einem
+TLS-Endpunkt ist eine Einladung, den Umweg zu nehmen.
+
+Läuft der Proxy selbst in einem Container, greift das nicht; für ihn ist
+`127.0.0.1` sein eigener Container. Dann gibt es zwei saubere Wege:
+
+1. Den Proxy an das Netz dieses Stapels hängen (`aurelith_default`). Er
+   erreicht den Server dann unter `server:8787`, ganz ohne veröffentlichten
+   Port — die dichteste Lösung.
+2. `AURELITH_BIND=0.0.0.0:8787` setzen und den Port in der Firewall zulassen.
+   Einfacher, aber der Klartext-Port steht dann offen.
+
+### Was der Proxy können muss
+
+Nur eine Sache, aber die entscheidet alles: **WebSocket-Aufwertungen
+durchreichen**. Ohne `Upgrade`- und `Connection`-Weitergabe antwortet der
+Proxy auf den Verbindungsaufbau mit einem gewöhnlichen 200 oder 400, und im
+Spiel sieht das aus wie ein toter Server.
+
+| Proxy | was zu tun ist |
+|---|---|
+| Nginx Proxy Manager | Schalter **Websockets Support** im Host |
+| Traefik | nichts — reicht Upgrades von sich aus durch |
+| Caddy | nichts — `reverse_proxy` kann es von sich aus |
+| nginx von Hand | `proxy_set_header Upgrade $http_upgrade;` und `proxy_set_header Connection "upgrade";` |
+
+Zwei Kleinigkeiten noch: die Zeitüberschreitung des Proxys großzügig setzen
+(eine Spielverbindung steht stundenlang; nginx' Standard von 60 Sekunden
+trennt sie mitten im Spiel), und `/health` gibt einen JSON-Puls zurück, falls
+der Proxy eine Bereitschaftsprüfung will.
+
+Danach steht der Server unter `wss://<subdomain>/ws`. Im Spiel:
 
 ```
 /connect wss://spiel.example.org/ws
@@ -354,10 +385,6 @@ Danach steht der Server unter `wss://<domain>/ws`. Im Spiel:
 
 Dauerhaft trägt man dieselbe Adresse als Repository-Variable
 `AURELITH_SERVER_URL` ein; dann ist sie in jedem Pages-Build voreingestellt.
-
-Der Spielserver selbst hat **keine** Portfreigabe nach außen. Er ist nur über
-Caddy erreichbar, und das ist Absicht — ein offener Klartext-Port neben einem
-TLS-Endpunkt ist eine Einladung, den Umweg zu nehmen.
 
 ### Was im Bild steckt
 

@@ -1,15 +1,16 @@
 # Aurelith — Serverbetrieb auf einer eigenen Maschine.
 #
-# Drei Dienste. Der Spielserver selbst, PostgreSQL für die Spielstände, und
-# Caddy als TLS-Endpunkt davor.
+# Zwei Dienste: der Spielserver und PostgreSQL für die Spielstände. Um TLS
+# kümmert sich ein vorgelagerter Reverse-Proxy, der hier nicht mitgeliefert
+# wird — wer schon einen betreibt, will keinen zweiten.
 #
-# Caddy ist hier keine Bequemlichkeit, sondern Voraussetzung: der Client
-# liegt auf GitHub Pages und wird über HTTPS ausgeliefert. Ein Browser
-# verweigert von dort jede Verbindung nach ws:// — Mixed Content. Ohne
-# gültiges Zertifikat auf der Serverseite ist das Spiel von der
-# veröffentlichten Adresse aus nicht erreichbar, egal wie offen der Port ist.
+# Wichtig bleibt das *Ergebnis*: der Client liegt auf GitHub Pages und wird
+# über HTTPS ausgeliefert. Ein Browser verweigert von dort jede Verbindung
+# nach ws:// — Mixed Content. Der Proxy muss also auf wss:// hören und
+# WebSocket-Aufwertungen durchreichen, sonst kommt keine Verbindung zustande,
+# egal wie richtig der Server läuft.
 #
-#   cp .env.example .env     # AURELITH_DOMAIN und Passwort eintragen
+#   cp .env.example .env     # Datenbankpasswort eintragen
 #   docker compose up -d
 #
 # Aus der Registry statt selbst gebaut:
@@ -38,11 +39,22 @@ services:
       AURELITH_PORT: 8787
       AURELITH_START_MAP: ${AURELITH_START_MAP:-lichtmoor}
       AURELITH_SESSION_TIMEOUT: ${AURELITH_SESSION_TIMEOUT:-90}
-    # Bewusst keine Portfreigabe nach außen: der Spielverkehr geht durch
-    # Caddy. Wer den Server ohne TLS erreichen will, nimmt dafür einen
-    # SSH-Tunnel, kein offenes Loch in der Firewall.
-    expose:
-      - '8787'
+    #
+    # Standardmäßig nur auf der Loopback-Adresse. Damit ist der Server für
+    # einen Proxy auf **derselben Maschine** erreichbar, aus dem Internet aber
+    # nicht — und das ist der Punkt: ein offener Klartext-Port neben einem
+    # TLS-Endpunkt ist eine Einladung, den Umweg zu nehmen.
+    #
+    # Läuft der Proxy selbst in einem Container, greift das nicht; für ihn ist
+    # 127.0.0.1 sein eigener Container. Dann gibt es zwei saubere Wege:
+    #
+    #   1. Den Proxy an das Netz dieses Stapels hängen (`aurelith_default`).
+    #      Er erreicht den Server dann unter `server:8787`, ganz ohne
+    #      veröffentlichten Port — die dichteste Lösung.
+    #   2. AURELITH_BIND=0.0.0.0:8787 setzen und den Port in der Firewall
+    #      zulassen. Einfacher, aber der Klartext-Port steht dann offen.
+    ports:
+      - '${AURELITH_BIND:-127.0.0.1:8787}:8787'
 
   db:
     image: postgres:17-alpine
@@ -59,25 +71,5 @@ services:
       timeout: 5s
       retries: 12
 
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    depends_on:
-      - server
-    environment:
-      AURELITH_DOMAIN: ${AURELITH_DOMAIN:?AURELITH_DOMAIN fehlt — .env anlegen}
-      AURELITH_ACME_MAIL: ${AURELITH_ACME_MAIL:-}
-    # Port 80 wird für die Zertifikatsprüfung von Let's Encrypt gebraucht,
-    # nicht nur für die Umleitung. Beide müssen von außen erreichbar sein.
-    ports:
-      - '80:80'
-      - '443:443'
-    volumes:
-      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
-
 volumes:
   db-data:
-  caddy-data:
-  caddy-config:
