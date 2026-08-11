@@ -251,12 +251,49 @@ check(
 // (-cos yaw, sin yaw). Gedrueckte D-Taste muss die Figur also entlang genau
 // dieser Richtung schieben — und nicht entgegengesetzt, wie es vorher war.
 
-async function walk(key, seconds) {
+/**
+ * Wartet, bis die Simulation eine Anzahl Schritte weiter ist.
+ *
+ * Nicht Wanduhrzeit, sondern Simulationsschritte. Die Schleife holt zwar auf,
+ * aber gedeckelt — bei zwei Bildern je Sekunde kommen hoechstens acht Schritte
+ * je Bild durch, und eine Wartezeit von 1,2 Sekunden ergibt dann mal dreissig
+ * Schritte und mal zwei. Genau daran haben diese Pruefungen frueher gewackelt:
+ * gemessen wurde die Maschine, nicht der Code.
+ */
+async function waitTicks(count) {
+  const start = await page.evaluate(() => window.aurelith.ticks);
+  await page.waitForFunction((n) => window.aurelith.ticks >= n, start + count, { timeout: 30000 });
+}
+
+/** Wartet, bis die Figur ausgelaufen ist und sich nicht mehr dreht. */
+async function waitSettled() {
+  await page.waitForFunction(
+    () => {
+      const w = window;
+      const p = w.aurelith.player;
+      const last = w.__settle;
+      w.__settle = { x: p.x, z: p.z, yaw: p.yaw };
+      if (!last) return false;
+      return (
+        Math.abs(p.x - last.x) < 1e-4 &&
+        Math.abs(p.z - last.z) < 1e-4 &&
+        Math.abs(p.yaw - last.yaw) < 1e-4
+      );
+    },
+    undefined,
+    { timeout: 30000, polling: 120 },
+  );
+  await page.evaluate(() => {
+    delete window.__settle;
+  });
+}
+
+async function walk(key, ticks = 24) {
   const start = await page.evaluate(() => ({ ...window.aurelith.player }));
   await page.keyboard.down(key);
-  await page.waitForTimeout(seconds * 1000);
+  await waitTicks(ticks);
   await page.keyboard.up(key);
-  await page.waitForTimeout(400);
+  await waitSettled();
   const end = await page.evaluate(() => ({ ...window.aurelith.player }));
   const dx = end.x - start.x;
   const dz = end.z - start.z;
@@ -287,9 +324,9 @@ const rightZ = Math.sin(camYaw);
 const forwardX = Math.sin(camYaw);
 const forwardZ = Math.cos(camYaw);
 
-directionCheck(await walk('KeyD', 1.2), rightX, rightZ, 'D laeuft nach bildschirmrechts');
-directionCheck(await walk('KeyA', 1.2), -rightX, -rightZ, 'A laeuft nach bildschirmlinks');
-directionCheck(await walk('KeyW', 1.2), forwardX, forwardZ, 'W laeuft vorwaerts');
+directionCheck(await walk('KeyD'), rightX, rightZ, 'D laeuft nach bildschirmrechts');
+directionCheck(await walk('KeyA'), -rightX, -rightZ, 'A laeuft nach bildschirmlinks');
+directionCheck(await walk('KeyW'), forwardX, forwardZ, 'W laeuft vorwaerts');
 
 // --- Blickrichtung bleibt stehen ------------------------------------------
 //
@@ -297,9 +334,11 @@ directionCheck(await walk('KeyW', 1.2), forwardX, forwardZ, 'W laeuft vorwaerts'
 // stehenbleiben — vorher uebernahm im Stand die Kamera, wodurch die Figur beim
 // Loslassen zurueckschnappte und sich beim Drehen der Kamera mitdrehte.
 
-await walk('KeyD', 0.6);
+// `walk` wartet bereits, bis die Figur steht und ausgedreht hat — die Drehung
+// ist seit der Glaettung nicht mehr im selben Schritt fertig wie die Eingabe.
+await walk('KeyD', 16);
 const facingAfterWalk = await page.evaluate(() => window.aurelith.player.yaw);
-await page.waitForTimeout(500);
+await page.waitForTimeout(600);
 const facingIdle = await page.evaluate(() => window.aurelith.player.yaw);
 
 const yawDiff = (a, b) => {
@@ -320,7 +359,7 @@ await page.mouse.move(640, 360);
 await page.mouse.down({ button: 'right' });
 await page.mouse.move(400, 360, { steps: 10 });
 await page.mouse.up({ button: 'right' });
-await page.waitForTimeout(500);
+await waitSettled();
 
 const facingAfterOrbit = await page.evaluate(() => window.aurelith.player.yaw);
 const camAfterSecondOrbit = await page.evaluate(() => window.aurelith.camera.yaw);

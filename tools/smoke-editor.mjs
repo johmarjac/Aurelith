@@ -68,6 +68,57 @@ if (!up) {
   throw new Error('Editor-Server kam nicht hoch');
 }
 
+/**
+ * Wartet auf ein frisch gezeichnetes Bild.
+ *
+ * `window.aurelithEditor` wird am Ende eines Bildes fortgeschrieben. In
+ * SwiftShader laeuft die Schleife mit zwei Bildern je Sekunde — wer direkt nach
+ * einer Eingabe liest, bekommt womoeglich noch den Stand von davor. Das hat
+ * genau einmal zugeschlagen: mitten im Strich stand die Hoehe schon im Feld,
+ * der Kern bekam sie aber erst am Strichende, und der Test las dazwischen.
+ */
+/**
+ * Wartet, bis die Zielpruefung eines Tores durchgelaufen ist, und liefert ihr
+ * Ergebnis.
+ *
+ * Direkt aus dem DOM und nicht aus `window.aurelithEditor`: die Auskunft dort
+ * wird am Bildende fortgeschrieben, und bei zwei Bildern je Sekunde liest man
+ * sonst den Stand von vorhin. Die Marke `data-checked` setzt der Editor erst,
+ * wenn die Pruefung wirklich gelaufen ist — „keine Warnung" und „noch nicht
+ * geprueft" sehen im DOM sonst gleich aus.
+ */
+async function gateWarning(page) {
+  await page.waitForFunction(
+    () => document.querySelector('#panel .warning[data-checked]') !== null,
+    undefined,
+    { timeout: 15000 },
+  );
+  return page.evaluate(() => {
+    const el = document.querySelector('#panel .warning[data-checked]');
+    return el && !el.hidden ? (el.textContent ?? '') : '';
+  });
+}
+
+/** Wert eines beschrifteten Eingabefeldes im Bedienfeld. */
+async function fieldValue(page, caption) {
+  return page.evaluate(
+    (c) =>
+      [...document.querySelectorAll('#panel .field')].find(
+        (f) => f.querySelector('span')?.textContent === c,
+      )?.querySelector('input')?.value ?? null,
+    caption,
+  );
+}
+
+async function nextFrame(page) {
+  const before = await page.evaluate(() => window.aurelithEditor?.frames ?? 0);
+  await page.waitForFunction(
+    (n) => (window.aurelithEditor?.frames ?? 0) > n + 1,
+    before,
+    { timeout: 15000 },
+  );
+}
+
 const executablePath = [
   '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
   '/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell',
@@ -203,7 +254,7 @@ await page.waitForTimeout(200);
 await page.mouse.down();
 await page.waitForTimeout(900);
 await page.mouse.up();
-await page.waitForTimeout(600);
+await nextFrame(page);
 
 const sculptState = await page.evaluate(() => ({
   resolution: window.aurelithEditor?.sculptResolution ?? 0,
@@ -232,7 +283,7 @@ await page.mouse.move(600, 400);
 await page.mouse.down();
 await page.waitForTimeout(700);
 await page.mouse.up();
-await page.waitForTimeout(600);
+await nextFrame(page);
 
 const paintState = await page.evaluate(() => ({
   resolution: window.aurelithEditor?.paintResolution ?? 0,
@@ -240,6 +291,84 @@ const paintState = await page.evaluate(() => ({
 }));
 check(paintState.resolution >= 2, `Malfeld angelegt (${paintState.resolution})`);
 check(paintState.peak > 0, `Bodenebene wurde gemalt (Gewicht ${paintState.peak})`);
+
+// --- Tore setzen -----------------------------------------------------------
+//
+// Das ging vorher gar nicht: der Editor konnte ausschliesslich Props, und ein
+// Tor war eine unsichtbare Zone, die nur `gen-maps.mjs` schreiben konnte.
+
+await (await toolButton('Tore')).click();
+await page.waitForTimeout(300);
+
+const gatesBefore = await page.evaluate(() => window.aurelithEditor?.portals ?? 0);
+
+await page.mouse.move(540, 420);
+await page.waitForTimeout(200);
+await page.mouse.down();
+await page.mouse.up();
+await nextFrame(page);
+
+const afterGate = await page.evaluate(() => ({
+  portals: window.aurelithEditor?.portals ?? 0,
+  selected: window.aurelithEditor?.selectedGate ?? '',
+}));
+check(afterGate.portals === gatesBefore + 1, `Tor gesetzt (${gatesBefore} → ${afterGate.portals})`);
+check(afterGate.selected !== '', `neues Tor ist ausgewaehlt (${afterGate.selected})`);
+
+// Das Bedienfeld muss die Felder des Tores zeigen.
+const fields = await page.evaluate(() =>
+  [...document.querySelectorAll('#panel .field span')].map((n) => n.textContent),
+);
+for (const wanted of ['X', 'Z', 'Karte', 'Ziel-X', 'Ziel-Z', 'Mindeststufe']) {
+  check(fields.includes(wanted), `Feld „${wanted}" im Bedienfeld`);
+}
+
+// Das Ziel auf eine andere Karte stellen — der Parameter, um den es geht.
+await page.selectOption('#panel select:not(:first-of-type)', 'dornwald').catch(async () => {
+  // Die Kartenauswahl ganz oben ist das erste select; das Ziel ist das zweite.
+  const selects = await page.$$('#panel select');
+  await selects[selects.length - 1].selectOption('dornwald');
+});
+// Warten, bis der Zielpunkt auf Dornwalds Startpunkt (0, -178) umgesprungen ist
+// — daran erkennt man, dass die Zielkarte geholt und das Feld neu gezeichnet
+// wurde. Erst danach ist die Warnung, die dort steht, die zum neuen Ziel.
+await page.waitForFunction(
+  () =>
+    [...document.querySelectorAll('#panel .field')].find(
+      (f) => f.querySelector('span')?.textContent === 'Ziel-Z',
+    )?.querySelector('input')?.value === '-178',
+  undefined,
+  { timeout: 15000 },
+);
+
+const retargetWarning = await gateWarning(page);
+const portalsNow = await page.evaluate(() => window.aurelithEditor?.portals ?? 0);
+check(portalsNow === afterGate.portals, 'Zielwechsel legt kein zweites Tor an');
+check(
+  (await fieldValue(page, 'Ziel-X')) === '0',
+  `Zielpunkt springt auf den Startpunkt der Zielkarte (${await fieldValue(page, 'Ziel-X')}, -178)`,
+);
+check(retargetWarning === '', `und ist dort unbedenklich ("${retargetWarning}")`);
+
+// Und jetzt absichtlich auf ein Tor der Zielkarte zielen: das muss auffallen.
+await page.evaluate(() => {
+  const inputs = [...document.querySelectorAll('#panel .field input')];
+  const byLabel = (name) =>
+    inputs.find((i) => i.parentElement?.querySelector('span')?.textContent === name);
+  const setValue = (name, value) => {
+    const el = byLabel(name);
+    el.value = String(value);
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+  // Das Rueckportal von Dornwald steht auf (0, -186).
+  setValue('Ziel-X', 0);
+  setValue('Ziel-Z', -186);
+});
+const warned = await gateWarning(page);
+check(
+  warned.includes('Tor') && warned.includes('weitergereicht'),
+  `Zielpunkt in einem Tor wird gemeldet ("${warned.slice(0, 70)}…")`,
+);
 
 // --- Das Ergebnis muss wieder lesbar sein ----------------------------------
 
@@ -252,6 +381,14 @@ check(
 check(
   Math.abs((roundTrip?.peakAfter ?? 0) - sculptState.peak) < 0.02,
   `und zwar unveraendert (${sculptState.peak.toFixed(2)} → ${(roundTrip?.peakAfter ?? 0).toFixed(2)} m)`,
+);
+check(
+  roundTrip?.portalsAfter === afterGate.portals,
+  `das gesetzte Tor ueberlebt Speichern und Laden (${roundTrip?.portalsAfter} Tore)`,
+);
+check(
+  roundTrip?.targetAfter === 'dornwald',
+  `mit seinem Ziel (${roundTrip?.targetAfter})`,
 );
 
 check(pageErrors.length === 0, `keine unbehandelten Ausnahmen (${pageErrors.length})`);

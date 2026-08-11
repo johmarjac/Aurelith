@@ -21,6 +21,7 @@ import {
   parseMapDocument,
   serializeMapDocument,
   type MapDocument,
+  type PortalDef,
   type PropInstance,
   SCULPT_UNIT,
   decodePaintField,
@@ -32,7 +33,7 @@ import {
   terrainSetup,
 } from '@aurelith/shared';
 import { createSharedMaterial } from '@aurelith/client/render/geometry.ts';
-import { PROP_BUILDERS } from '@aurelith/client/render/props.ts';
+import { PROP_BUILDERS, buildGateArch } from '@aurelith/client/render/props.ts';
 import { buildTerrain, type TerrainMesh } from '@aurelith/client/render/terrain.ts';
 import { TextureLoader } from '@aurelith/client/render/textures.ts';
 import {
@@ -64,7 +65,7 @@ const panel = document.getElementById('panel') as HTMLElement;
 const hint = document.getElementById('hint') as HTMLElement;
 
 hint.textContent =
-  'Links: Werkzeug anwenden · Rechtsklick auf ein Prop: löschen\n' +
+  'Links: Werkzeug anwenden · Rechtsklick auf Prop oder Tor: löschen\n' +
   'Rechts ziehen: drehen · Mitte ziehen oder Umschalt: schieben · WASD: schieben\n' +
   'Rad: zoomen · Strg + Rad: Pinselgröße';
 
@@ -124,11 +125,25 @@ let doc: MapDocument | undefined;
 let world: CoreWorld | undefined;
 let terrain: TerrainMesh | undefined;
 let propMeshes: THREE.InstancedMesh[] = [];
+let gateMesh: THREE.InstancedMesh | undefined;
 let selectedModel = Object.keys(PROP_BUILDERS)[0]!;
 let nextPropId = 1;
 
 /** Was die linke Maustaste gerade tut. */
-type Tool = 'props' | 'raise' | 'lower' | 'smooth' | 'paint';
+type Tool = 'props' | 'gates' | 'raise' | 'lower' | 'smooth' | 'paint';
+
+/**
+ * Ob ein Werkzeug beim Ziehen wirkt.
+ *
+ * Bewusst eine Aufzählung und keine Verneinung von `'props'`: die stand hier
+ * zuerst, und als „Tore" dazukam, fiel es prompt in den Pinselzweig — der Klick
+ * wurde als Strich behandelt und danach verworfen, also passierte gar nichts.
+ * Eine neue Marke muss hier auftauchen, um mitzuwirken, nicht um sich
+ * herauszuhalten.
+ */
+function isBrushTool(t: Tool): boolean {
+  return t === 'raise' || t === 'lower' || t === 'smooth' || t === 'paint';
+}
 let tool: Tool = 'props';
 let brush: BrushSettings = { ...DEFAULT_BRUSH };
 /** Welche Bodenebene der Malpinsel aufträgt. */
@@ -146,8 +161,17 @@ let paint: PaintField | undefined;
 /** Läuft gerade ein Strich? Dann wird beim Loslassen einmal neu aufgebaut. */
 let strokeActive = false;
 let strokeTouched = 0;
+/** Das Tor, das gerade bearbeitet wird. */
+let selectedGateId: string | undefined;
+let nextGateId = 1;
 /** Zuletzt getroffener Geländepunkt. Nur für die Auskunft nach aussen. */
 let lastGroundPoint: THREE.Vector3 | undefined;
+
+let gateGeometryCache: THREE.BufferGeometry | undefined;
+function gateGeometry(): THREE.BufferGeometry {
+  gateGeometryCache ??= buildGateArch();
+  return gateGeometryCache;
+}
 
 const geometryCache = new Map<string, THREE.BufferGeometry>();
 function propGeometry(key: string): THREE.BufferGeometry {
@@ -194,8 +218,17 @@ async function loadMap(id: string): Promise<void> {
       return n > max ? n : max;
     }, 0) + 1;
 
+  // Hoechste vergebene Torkennung weiterzaehlen.
+  nextGateId =
+    doc.portals.reduce((max, g) => {
+      const n = Number(/\d+/.exec(g.id)?.[0] ?? 0);
+      return n > max ? n : max;
+    }, 0) + 1;
+  selectedGateId = doc.portals[0]?.id;
+
   camTarget.set(doc.spawn.x, world.heightAt(doc.spawn.x, doc.spawn.z), doc.spawn.z);
   rebuildProps();
+  rebuildGates();
   renderPanel();
 }
 
@@ -225,8 +258,9 @@ function rebuildTerrain(): void {
   root.add(terrain.object);
   void loadGroundTextures(doc, terrain);
 
-  // Props hängen an der Geländehöhe, wenn sie aufsitzen sollen.
+  // Props und Tore hängen an der Geländehöhe, wenn sie aufsitzen sollen.
   rebuildProps();
+  rebuildGates();
 }
 
 /** Traegt die Bodentexturen nach, sobald sie da sind. */
@@ -245,6 +279,60 @@ async function loadGroundTextures(document_: MapDocument, mesh: TerrainMesh): Pr
       }
     }),
   ).catch((err) => console.warn('[boden] Textur nicht ladbar:', err));
+}
+
+/**
+ * Zeichnet die Tore der Karte.
+ *
+ * Eigene Instanz-Sammlung und nicht Teil der Props: ein Tor **ist** die Zone,
+ * die den Server auslöst — es steht nicht bloss daneben. Wer den Bogen
+ * verschiebt, verschiebt damit auch den Auslöser, und andersherum. Genau das
+ * ging vorher auseinander, weil der Bogen ein gewöhnliches Prop war.
+ *
+ * Das ausgewählte Tor wird eingefärbt, damit man beim Bearbeiten sieht, welches
+ * gemeint ist.
+ */
+function rebuildGates(): void {
+  if (gateMesh) {
+    root.remove(gateMesh);
+    gateMesh.dispose();
+    gateMesh = undefined;
+  }
+  if (!doc || !world || doc.portals.length === 0) return;
+
+  const mesh = new THREE.InstancedMesh(gateGeometry(), material, doc.portals.length);
+  mesh.frustumCulled = false;
+
+  const matrix = new THREE.Matrix4();
+  const quat = new THREE.Quaternion();
+  const pos = new THREE.Vector3();
+  const scale = new THREE.Vector3(1, 1, 1);
+  const color = new THREE.Color();
+
+  for (let i = 0; i < doc.portals.length; i++) {
+    const portal = doc.portals[i]!;
+    const [x, z] = portal.position;
+    pos.set(x, world.heightAt(x, z), z);
+    quat.setFromEuler(new THREE.Euler(0, portal.yaw, 0));
+    matrix.compose(pos, quat, scale);
+    mesh.setMatrixAt(i, matrix);
+    color.setHex(portal.id === selectedGateId ? 0xffd479 : 0xffffff);
+    mesh.setColorAt(i, color);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+
+  root.add(mesh);
+  gateMesh = mesh;
+}
+
+/** Das Tor unter dem Zeiger, falls eines getroffen wird. */
+function gateUnderPointer(): PortalDef | undefined {
+  if (!doc || !gateMesh) return undefined;
+  raycaster.setFromCamera(pointer, camera);
+  const hit = raycaster.intersectObject(gateMesh, false)[0];
+  if (!hit || hit.instanceId === undefined) return undefined;
+  return doc.portals[hit.instanceId];
 }
 
 function rebuildProps(): void {
@@ -329,6 +417,263 @@ function slider(
   return wrap;
 }
 
+/** Ein beschriftetes Eingabefeld für eine Zahl. */
+function numberField(
+  caption: string,
+  value: number,
+  step: number,
+  onChange: (v: number) => void,
+): HTMLElement {
+  const wrap = document.createElement('label');
+  wrap.className = 'field';
+
+  const text = document.createElement('span');
+  text.textContent = caption;
+
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.step = String(step);
+  input.value = String(value);
+  input.addEventListener('change', () => {
+    const v = Number(input.value);
+    if (Number.isFinite(v)) onChange(v);
+  });
+
+  wrap.append(text, input);
+  return wrap;
+}
+
+/** Ein beschriftetes Textfeld. */
+function textField(caption: string, value: string, onChange: (v: string) => void): HTMLElement {
+  const wrap = document.createElement('label');
+  wrap.className = 'field';
+  const text = document.createElement('span');
+  text.textContent = caption;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = value;
+  input.addEventListener('change', () => onChange(input.value));
+  wrap.append(text, input);
+  return wrap;
+}
+
+/**
+ * Karten, die schon einmal geladen wurden — für die Zielprüfung.
+ *
+ * Der Editor hat immer nur eine Karte offen, die Prüfung braucht aber die Tore
+ * der *Zielkarte*. Also einmal holen und behalten; die Dateien ändern sich
+ * während einer Sitzung nicht.
+ */
+const mapCache = new Map<string, MapDocument>();
+
+async function peekMap(id: string): Promise<MapDocument | undefined> {
+  if (doc?.id === id) return doc;
+  const cached = mapCache.get(id);
+  if (cached) return cached;
+  try {
+    const raw = await fetch(`${BASE}/maps/${id}.json`).then((r) => r.json());
+    const parsed = parseMapDocument(raw, id);
+    mapCache.set(id, parsed);
+    return parsed;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Prüft, ob der Zielpunkt eines Tores in einem Tor der Zielkarte landet.
+ *
+ * Das ist derselbe Fehler, an dem Lichtmoor hing: der Zielpunkt lag exakt auf
+ * dem Rückportal, also wurde man nach der Ankunft sofort wieder zurückgereicht.
+ * `tools/gen-maps.mjs` bricht deswegen den Build ab — hier soll es einem schon
+ * beim Setzen auffallen und nicht erst, wenn man im Spiel im Kreis läuft.
+ */
+async function checkGateTarget(portal: PortalDef): Promise<string | undefined> {
+  const target = await peekMap(portal.target.map);
+  if (!target) return `Karte „${portal.target.map}" nicht gefunden.`;
+
+  for (const other of target.portals) {
+    if (other === portal) continue;
+    const d = Math.hypot(
+      portal.target.x - other.position[0],
+      portal.target.z - other.position[1],
+    );
+    if (d <= other.radius) {
+      return `Zielpunkt liegt im Tor „${other.label || other.id}" (Abstand ${d.toFixed(1)}, Radius ${other.radius}) — man würde sofort weitergereicht.`;
+    }
+  }
+  return undefined;
+}
+
+function renderGatePanel(): HTMLElement {
+  const box = document.createElement('div');
+  box.className = 'gate-editor';
+
+  if (!doc) return box;
+
+  const portal = doc.portals.find((g) => g.id === selectedGateId);
+  if (!portal) {
+    const hint_ = document.createElement('div');
+    hint_.className = 'stats';
+    hint_.textContent =
+      doc.portals.length === 0
+        ? 'Noch kein Tor auf dieser Karte. Klick ins Gelände setzt eines.'
+        : 'Kein Tor ausgewählt. Klick auf einen Bogen wählt ihn aus.';
+    box.appendChild(hint_);
+    return box;
+  }
+
+  // Auswahl unter mehreren Toren.
+  if (doc.portals.length > 1) {
+    const list = document.createElement('div');
+    list.className = 'palette';
+    for (const g of doc.portals) {
+      const button = document.createElement('button');
+      button.textContent = g.label || g.id;
+      button.setAttribute('aria-pressed', String(g.id === selectedGateId));
+      button.addEventListener('click', () => {
+        selectedGateId = g.id;
+        rebuildGates();
+        renderPanel();
+      });
+      list.appendChild(button);
+    }
+    box.appendChild(list);
+  }
+
+  const touched = (rebuild: boolean) => {
+    if (rebuild) rebuildGates();
+    renderPanel();
+  };
+
+  box.appendChild(textField('Beschriftung', portal.label, (v) => {
+    portal.label = v;
+    touched(false);
+  }));
+
+  // --- Wo das Tor steht ----------------------------------------------------
+
+  const whereLabel = document.createElement('h3');
+  whereLabel.textContent = 'Standort';
+  box.appendChild(whereLabel);
+
+  box.appendChild(numberField('X', portal.position[0], 1, (v) => {
+    portal.position[0] = v;
+    touched(true);
+  }));
+  box.appendChild(numberField('Z', portal.position[1], 1, (v) => {
+    portal.position[1] = v;
+    touched(true);
+  }));
+  box.appendChild(numberField('Ausrichtung', round(portal.yaw), 0.1, (v) => {
+    portal.yaw = v;
+    touched(true);
+  }));
+  box.appendChild(numberField('Auslöseradius', portal.radius, 0.5, (v) => {
+    portal.radius = Math.max(0.5, v);
+    touched(false);
+  }));
+
+  // --- Wohin es geht -------------------------------------------------------
+
+  const targetLabel = document.createElement('h3');
+  targetLabel.textContent = 'Ziel';
+  box.appendChild(targetLabel);
+
+  const mapWrap = document.createElement('label');
+  mapWrap.className = 'field';
+  const mapText = document.createElement('span');
+  mapText.textContent = 'Karte';
+  const mapSelect = document.createElement('select');
+  for (const id of MAPS) {
+    const option = document.createElement('option');
+    option.value = id;
+    option.textContent = id;
+    option.selected = portal.target.map === id;
+    mapSelect.appendChild(option);
+  }
+  mapSelect.addEventListener('change', () => {
+    portal.target.map = mapSelect.value;
+    // Sofort neu zeichnen, damit die alte Warnung samt ihrer Marke verschwindet
+    // — sonst stünde einen Moment lang ein geprüftes Ergebnis zu einem Ziel da,
+    // das es nicht mehr gibt.
+    renderPanel();
+    void peekMap(mapSelect.value).then((target) => {
+      // Beim Kartenwechsel auf deren Startpunkt springen: der ist per
+      // Konstruktion frei, und ein Zielpunkt aus der alten Karte waere es
+      // hoechstens zufaellig.
+      if (target) {
+        portal.target.x = target.spawn.x;
+        portal.target.z = target.spawn.z;
+      }
+      renderPanel();
+    });
+  });
+  mapWrap.append(mapText, mapSelect);
+  box.appendChild(mapWrap);
+
+  box.appendChild(numberField('Ziel-X', portal.target.x, 1, (v) => {
+    portal.target.x = v;
+    touched(false);
+  }));
+  box.appendChild(numberField('Ziel-Z', portal.target.z, 1, (v) => {
+    portal.target.z = v;
+    touched(false);
+  }));
+  box.appendChild(numberField('Blickrichtung', round(portal.target.yaw), 0.1, (v) => {
+    portal.target.yaw = v;
+    touched(false);
+  }));
+
+  // Bequemer Weg fuer Tore innerhalb derselben Karte: den Punkt unter dem
+  // Zeiger uebernehmen, statt Koordinaten abzutippen.
+  const here = document.createElement('button');
+  here.textContent = 'Ziel = Zeigerposition';
+  here.disabled = portal.target.map !== doc.id;
+  here.addEventListener('click', () => {
+    if (!lastGroundPoint) return;
+    portal.target.x = round(lastGroundPoint.x);
+    portal.target.z = round(lastGroundPoint.z);
+    renderPanel();
+  });
+  box.appendChild(here);
+
+  box.appendChild(numberField('Mindeststufe', portal.minLevel, 1, (v) => {
+    portal.minLevel = Math.max(0, Math.round(v));
+    touched(false);
+  }));
+
+  // --- Warnung -------------------------------------------------------------
+
+  const warning = document.createElement('div');
+  warning.className = 'warning';
+  warning.hidden = true;
+  box.appendChild(warning);
+  // Die Prüfung braucht die Tore der Zielkarte, holt sie also gegebenenfalls
+  // erst. Bis dahin ist „keine Warnung" nicht dasselbe wie „geprüft und in
+  // Ordnung" — deshalb die Marke, an der man beides unterscheiden kann.
+  void checkGateTarget(portal).then((problem) => {
+    // Das Bedienfeld kann inzwischen neu gezeichnet worden sein.
+    if (!warning.isConnected) return;
+    warning.hidden = problem === undefined;
+    warning.textContent = problem ?? '';
+    warning.dataset.checked = '1';
+  });
+
+  const remove = document.createElement('button');
+  remove.textContent = 'Tor löschen';
+  remove.addEventListener('click', () => {
+    if (!doc) return;
+    doc.portals = doc.portals.filter((g) => g !== portal);
+    selectedGateId = doc.portals[0]?.id;
+    rebuildGates();
+    renderPanel();
+  });
+  box.appendChild(remove);
+
+  return box;
+}
+
 function renderPanel(): void {
   panel.replaceChildren();
 
@@ -357,6 +702,7 @@ function renderPanel(): void {
   tools.className = 'palette';
   const TOOLS: [Tool, string][] = [
     ['props', 'Props'],
+    ['gates', 'Tore'],
     ['raise', 'Anheben'],
     ['lower', 'Absenken'],
     ['smooth', 'Glätten'],
@@ -376,7 +722,7 @@ function renderPanel(): void {
 
   // --- Pinsel --------------------------------------------------------------
 
-  if (tool !== 'props') {
+  if (isBrushTool(tool)) {
     const brushLabel = document.createElement('h2');
     brushLabel.textContent = 'Pinsel';
     panel.appendChild(brushLabel);
@@ -429,6 +775,14 @@ function renderPanel(): void {
       }
       panel.append(layerLabel, layers);
     }
+  }
+
+  // --- Tore ----------------------------------------------------------------
+
+  if (tool === 'gates') {
+    const gateLabel = document.createElement('h2');
+    gateLabel.textContent = 'Tor';
+    panel.append(gateLabel, renderGatePanel());
   }
 
   // --- Props ---------------------------------------------------------------
@@ -566,7 +920,7 @@ canvas.addEventListener('pointerdown', (e) => {
 
   // Ein Pinsel wirkt beim Ziehen, nicht erst beim Loslassen — sonst müsste man
   // für einen Hügel hundertmal klicken.
-  if (gesture === 'tool' && tool !== 'props') {
+  if (gesture === 'tool' && isBrushTool(tool)) {
     strokeActive = true;
     strokeTouched = 0;
     applyBrush(0.05);
@@ -620,8 +974,15 @@ window.addEventListener('pointerup', (e) => {
   // Ein Klick, der sich kaum bewegt hat, ist ein Klick — kein Ziehen.
   if (dragDistance > 6) return;
 
-  if (wasGesture === 'tool' && e.button === 0 && tool === 'props') placeProp();
-  if (wasGesture === 'orbit' && e.button === 2) removePropUnderPointer();
+  if (wasGesture === 'tool' && e.button === 0) {
+    if (tool === 'props') placeProp();
+    else if (tool === 'gates') placeOrSelectGate();
+  }
+  if (wasGesture === 'orbit' && e.button === 2) {
+    // Erst Tore, dann Props: der Bogen ist gross, und wer ihn anvisiert, meint
+    // ihn — nicht den Baum dahinter.
+    if (!removeGateUnderPointer()) removePropUnderPointer();
+  }
 });
 
 canvas.addEventListener('wheel', (e) => {
@@ -629,7 +990,7 @@ canvas.addEventListener('wheel', (e) => {
   // Mit Strg regelt das Rad die Pinselgrösse. Das ist der Griff, den man beim
   // Malen ständig braucht — über einen Schieber im Bedienfeld wäre es ein
   // Weg quer über den Bildschirm für jeden zweiten Strich.
-  if (e.ctrlKey && tool !== 'props') {
+  if (e.ctrlKey && isBrushTool(tool)) {
     setBrushRadius(brush.radius * (e.deltaY < 0 ? 1.15 : 1 / 1.15));
     renderPanel();
     return;
@@ -730,6 +1091,58 @@ function placeProp(): void {
   renderPanel();
 }
 
+/**
+ * Setzt ein Tor — oder wählt das an, das schon dort steht.
+ *
+ * Der Zielort ist zunächst der Startpunkt der eigenen Karte. Das ist bewusst
+ * ein gültiges Ziel und kein leeres Feld: ein Tor, das ins Nichts zeigt, wäre
+ * eine Falle, in die man im Spiel hineinläuft und aus der man nicht
+ * herauskommt. Wohin es wirklich gehen soll, stellt man daneben ein.
+ */
+function placeOrSelectGate(): void {
+  if (!doc) return;
+
+  const existing = gateUnderPointer();
+  if (existing) {
+    selectedGateId = existing.id;
+    rebuildGates();
+    renderPanel();
+    return;
+  }
+
+  const point = groundPoint();
+  if (!point) return;
+
+  const portal: PortalDef = {
+    id: `g_${String(nextGateId++).padStart(3, '0')}`,
+    position: [round(point.x), round(point.z)],
+    // Der Bogen schaut zur Kamera, also dorthin, von wo man ihn gerade sieht.
+    // Das trifft öfter als Norden.
+    yaw: round(camYaw + Math.PI),
+    radius: 4,
+    label: 'Neues Tor',
+    target: { map: doc.id, x: doc.spawn.x, z: doc.spawn.z, yaw: 0 },
+    minLevel: 0,
+  };
+  doc.portals.push(portal);
+  selectedGateId = portal.id;
+
+  rebuildGates();
+  renderPanel();
+}
+
+function removeGateUnderPointer(): boolean {
+  if (!doc) return false;
+  const victim = gateUnderPointer();
+  if (!victim) return false;
+
+  doc.portals = doc.portals.filter((g) => g !== victim);
+  if (selectedGateId === victim.id) selectedGateId = doc.portals[0]?.id;
+  rebuildGates();
+  renderPanel();
+  return true;
+}
+
 function removePropUnderPointer(): void {
   if (!doc) return;
   raycaster.setFromCamera(pointer, camera);
@@ -773,6 +1186,13 @@ declare global {
       paintPeak: number;
       paintResolution: number;
       heightUnderPointer: number | null;
+      selectedGate: string;
+      /** Gezeichnete Bilder. Woran man erkennt, ob diese Auskunft frisch ist. */
+      frames: number;
+      /** Text der Warnung zum Zielpunkt, leer wenn alles passt. */
+      gateWarning: string;
+      /** Ob die Zielprüfung überhaupt schon durchgelaufen ist. */
+      gateWarningChecked: boolean;
       /**
        * Speichern und wieder laden, ohne Datei.
        *
@@ -785,6 +1205,8 @@ declare global {
         note: string;
         sculptSurvives: boolean;
         peakAfter: number;
+        portalsAfter: number;
+        targetAfter: string;
       };
     };
   }
@@ -815,8 +1237,18 @@ function roundTrip(): {
   note: string;
   sculptSurvives: boolean;
   peakAfter: number;
+  portalsAfter: number;
+  targetAfter: string;
 } {
-  if (!doc) return { ok: false, note: 'keine Karte geladen', sculptSurvives: false, peakAfter: 0 };
+  const failed = (note: string) => ({
+    ok: false,
+    note,
+    sculptSurvives: false,
+    peakAfter: 0,
+    portalsAfter: 0,
+    targetAfter: '',
+  });
+  if (!doc) return failed('keine Karte geladen');
   syncFieldsIntoDocument();
   try {
     const text = serializeMapDocument(doc);
@@ -825,14 +1257,17 @@ function roundTrip(): {
     const peakAfter = values
       ? sculptPeak({ values, resolution: again.terrain.sculpt?.resolution ?? 0 })
       : 0;
+    const selected = again.portals.find((g) => g.id === selectedGateId);
     return {
       ok: true,
       note: `${(text.length / 1024).toFixed(0)} KB`,
       sculptSurvives: peakAfter > 0.3,
       peakAfter,
+      portalsAfter: again.portals.length,
+      targetAfter: selected?.target.map ?? '',
     };
   } catch (err) {
-    return { ok: false, note: String(err), sculptSurvives: false, peakAfter: 0 };
+    return failed(String(err));
   }
 }
 
@@ -851,6 +1286,13 @@ function publishDiagnostics(): void {
     paintPeak: paintPeak(paint),
     paintResolution: paint?.resolution ?? 0,
     heightUnderPointer: lastGroundPoint ? lastGroundPoint.y : null,
+    selectedGate: selectedGateId ?? '',
+    frames,
+    gateWarning: (() => {
+      const el = panel.querySelector('.warning');
+      return el && !(el as HTMLElement).hidden ? (el.textContent ?? '') : '';
+    })(),
+    gateWarningChecked: panel.querySelector('.warning[data-checked]') !== null,
     roundTrip,
   };
 }
@@ -868,6 +1310,7 @@ window.addEventListener('resize', resize);
 resize();
 
 let lastFrameAt = performance.now();
+let frames = 0;
 
 function frame(now = performance.now()): void {
   requestAnimationFrame(frame);
@@ -905,7 +1348,7 @@ function frame(now = performance.now()): void {
     cursor.position.set(point.x, point.y + 0.15, point.z);
     // Der Ring zeigt den Pinsel. Beim Prop-Werkzeug bleibt er klein — dort
     // gibt es keinen Radius, und ein grosser Ring wäre gelogen.
-    const shown = tool === 'props' ? 1 : brush.radius;
+    const shown = isBrushTool(tool) ? brush.radius : 1;
     cursor.scale.setScalar(shown);
     cursor.visible = true;
   } else {
@@ -913,6 +1356,7 @@ function frame(now = performance.now()): void {
   }
 
   renderer.render(scene, camera);
+  frames++;
   publishDiagnostics();
 }
 

@@ -126,3 +126,51 @@ select:hover {
   width: 100%;
   accent-color: #4cc9bf;
 }
+
+/* Eingabefelder des Tor-Editors. */
+.field {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--ink-dim);
+}
+
+.field input {
+  width: 6.5rem;
+  padding: 0.25rem 0.35rem;
+  background: rgba(8, 12, 16, 0.8);
+  border: 1px solid var(--edge);
+  border-radius: 3px;
+  color: var(--ink);
+  font: inherit;
+}
+
+.field select {
+  width: 6.5rem;
+}
+
+.gate-editor {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.gate-editor h3 {
+  margin: 0.4rem 0 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-dim);
+}
+
+/* Warnung, wenn der Zielpunkt in einem Tor landet. */
+.warning {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #a8642e;
+  border-radius: 3px;
+  background: rgba(84, 46, 14, 0.5);
+  color: #f0c48a;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
