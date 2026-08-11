@@ -65,28 +65,60 @@ export interface HumanoidConfig {
   weapon: 'sword' | 'club' | 'staff' | 'none';
 }
 
-function buildWeapon(kind: HumanoidConfig['weapon'], scale: number): THREE.BufferGeometry | null {
-  switch (kind) {
-    case 'sword':
-      return assemble([
-        { geometry: box(0.07, 0.9, 0.02).scale(scale, scale, scale), color: 0xb9863f, position: [0, 0.45 * scale, 0] },
-        { geometry: box(0.22, 0.06, 0.06).scale(scale, scale, scale), color: 0x5d4324, position: [0, 0.02 * scale, 0] },
-        { geometry: box(0.06, 0.22, 0.06).scale(scale, scale, scale), color: 0x3f2d18, position: [0, -0.12 * scale, 0] },
-      ]);
-    case 'club':
-      return assemble([
-        { geometry: cylinder(0.05, 0.06, 0.9, 6).scale(scale, scale, scale), color: 0x5d4324, position: [0, 0.35 * scale, 0] },
-        { geometry: sphere(0.2, 0).scale(scale, scale, scale), color: 0x4a4a52, position: [0, 0.85 * scale, 0] },
-      ]);
-    case 'staff':
-      return assemble([
-        { geometry: cylinder(0.04, 0.05, 1.5, 6).scale(scale, scale, scale), color: 0x6b4f34, position: [0, 0.6 * scale, 0] },
-        { geometry: new THREE.OctahedronGeometry(0.14, 0).scale(scale, scale, scale), color: 0x7fd8e8, position: [0, 1.35 * scale, 0] },
-      ]);
-    default:
-      return null;
-  }
+/**
+ * Waffe samt Halteposition.
+ *
+ * Die Geometrie allein reicht nicht: eine Klinge waechst vom Griff aus in
+ * `+Y`, und wer sie einfach an die Hand haengt, laesst sie am Arm entlang nach
+ * oben durch Schulter und Rumpf wachsen. Deshalb gehoert zu jeder Waffe, wie
+ * sie gehalten wird — und zwar hier, nicht verstreut beim Zusammenbau.
+ *
+ * `position` ist relativ zur Hand, `rotation` in Bogenmass um die jeweilige
+ * Achse. Beides in Einheiten einer 1,8 m hohen Figur; der Arm skaliert es mit.
+ */
+interface WeaponSpec {
+  build(): THREE.BufferGeometry;
+  position: [number, number, number];
+  rotation: [number, number, number];
 }
+
+const WEAPON_SPECS: Record<Exclude<HumanoidConfig['weapon'], 'none'>, WeaponSpec> = {
+  sword: {
+    build: () =>
+      assemble([
+        { geometry: box(0.07, 0.9, 0.02), color: 0xb9863f, position: [0, 0.45, 0] },
+        { geometry: box(0.22, 0.06, 0.06), color: 0x5d4324, position: [0, 0.02, 0] },
+        { geometry: box(0.06, 0.22, 0.06), color: 0x3f2d18, position: [0, -0.12, 0] },
+      ]),
+    // Etwas mehr als eine Vierteldrehung: die Klinge zeigt nach vorn und
+    // leicht nach unten, wie eine locker getragene Waffe — und vor allem vom
+    // Arm weg statt an ihm entlang.
+    position: [0.02, 0, 0.04],
+    rotation: [Math.PI * 0.66, 0, 0],
+  },
+
+  club: {
+    build: () =>
+      assemble([
+        { geometry: cylinder(0.05, 0.06, 0.9, 6), color: 0x5d4324, position: [0, 0.35, 0] },
+        { geometry: sphere(0.2, 0), color: 0x4a4a52, position: [0, 0.85, 0] },
+      ]),
+    position: [0.02, 0, 0.04],
+    rotation: [Math.PI * 0.62, 0, 0],
+  },
+
+  staff: {
+    build: () =>
+      assemble([
+        { geometry: cylinder(0.04, 0.05, 1.5, 6), color: 0x6b4f34, position: [0, 0.6, 0] },
+        { geometry: new THREE.OctahedronGeometry(0.14, 0), color: 0x7fd8e8, position: [0, 1.35, 0] },
+      ]),
+    // Ein Stab bleibt aufrecht — aber nach aussen versetzt, damit er am Arm
+    // vorbeigeht und nicht hindurch.
+    position: [0.17, -0.42, 0.02],
+    rotation: [0, 0, 0],
+  },
+};
 
 function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterRig {
   const disposables: THREE.BufferGeometry[] = [];
@@ -140,13 +172,19 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
   armR.add(hand);
   disposables.push(handGeo);
 
-  // Ohne Skalierung: der Arm, an dem die Waffe hängt, ist bereits mit `s`
-  // skaliert, und zweimal skaliert wäre der Gruftwärter-Knüppel dreimal zu groß.
-  const weaponGeo = buildWeapon(cfg.weapon, 1);
-  if (weaponGeo) {
+  // Die Waffe haengt an der Hand. Nicht mitskalieren: der Arm ist bereits mit
+  // `s` skaliert, und zweimal skaliert waere der Gruftwaerter-Knueppel dreimal
+  // zu gross.
+  const spec = cfg.weapon === 'none' ? undefined : WEAPON_SPECS[cfg.weapon];
+  if (spec) {
+    const weaponGeo = spec.build();
     const weapon = new THREE.Mesh(weaponGeo, material);
-    weapon.position.set(0, -armLength - 0.04, 0.05);
-    weapon.rotation.x = -0.25;
+    weapon.position.set(
+      spec.position[0],
+      -armLength + spec.position[1],
+      spec.position[2],
+    );
+    weapon.rotation.set(spec.rotation[0], spec.rotation[1], spec.rotation[2]);
     armR.add(weapon);
     disposables.push(weaponGeo);
   }
