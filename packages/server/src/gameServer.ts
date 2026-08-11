@@ -53,17 +53,8 @@ import { config } from './config.ts';
 import type { CoreBundle } from './core.ts';
 import type { MapStore } from './maps.ts';
 import { MapInstance } from './mapInstance.ts';
-import { Session } from './session.ts';
+import { INPUT_QUEUE_DRAIN_AT, INPUT_QUEUE_DRAIN_MAX, Session } from './session.ts';
 import type { GameStore } from './db/index.ts';
-
-/**
- * Wie lange dieselbe Portalmeldung nicht wiederholt wird.
- *
- * Gegen das Zurückpendeln stand hier früher eine Sperre von drei Sekunden. Die
- * hat nicht gehalten: wer im Gegenportal landet, reist nach ihrem Ablauf
- * einfach zurück. Das übernimmt jetzt `Session.portalArmed`.
- */
-const PORTAL_MESSAGE_COOLDOWN_SECONDS = 3;
 
 export class GameServer {
   private readonly instances = new Map<string, MapInstance>();
@@ -169,10 +160,7 @@ export class GameServer {
         case ClientOp.Input: {
           if (session.state !== 'playing') break;
           if (!session.consumeInputBudget()) break;
-          const input = decodeInput(reader);
-          // Nur die neueste Eingabe zählt: ältere Pakete, die verspätet
-          // eintreffen, würden die Figur zurückwerfen.
-          if (input.seq >= session.lastInputSeq) session.pendingInput = input;
+          session.queueInput(decodeInput(reader));
           break;
         }
         case ClientOp.Ping: {
@@ -362,33 +350,41 @@ export class GameServer {
     this.dropTimedOutSessions();
 
     for (const session of this.sessions) {
-      if (session.state !== 'playing' || !session.pendingInput) continue;
+      if (session.state !== 'playing' || session.inputQueue.length === 0) continue;
       const instance = this.instances.get(session.mapId);
       if (!instance) continue;
 
-      const input = session.pendingInput;
-      instance.world.applyInput(
-        session.entityId,
-        input.moveX,
-        input.moveZ,
-        input.yaw,
-        input.buttons & CoreButton.Attack,
-        TICK_SECONDS,
-      );
-      session.lastInputSeq = input.seq;
-      session.pendingInput = undefined;
+      // Genau eine Eingabe je Tick — dieselbe Rechnung wie im Client, der je
+      // Schritt eine erzeugt und anwendet. Nur wenn sich ein Rückstand
+      // aufgebaut hat, werden mehrere verarbeitet, damit ein einmaliger Burst
+      // nicht als dauerhafte Verzögerung stehenbleibt.
+      //
+      // Mehrere in einem Tick heisst: `applyInput` läuft mehrfach, `step` nur
+      // einmal. Die Bewegung stimmt dabei, weil sie vollständig in
+      // `applyInput` passiert; die Zeitgeber für Schlag und Treffer laufen
+      // etwas langsamer. Das ist der Preis fürs Aufholen, und er fällt nur an,
+      // wenn ohnehin schon etwas klemmt.
+      const budget =
+        session.inputQueue.length >= INPUT_QUEUE_DRAIN_AT ? INPUT_QUEUE_DRAIN_MAX : 1;
+
+      for (let i = 0; i < budget && session.inputQueue.length > 0; i++) {
+        const input = session.inputQueue.shift()!;
+        instance.world.applyInput(
+          session.entityId,
+          input.moveX,
+          input.moveZ,
+          input.yaw,
+          input.buttons & CoreButton.Attack,
+          TICK_SECONDS,
+        );
+        session.lastInputSeq = input.seq;
+      }
     }
 
     for (const instance of this.instances.values()) {
       instance.world.step(TICK_SECONDS);
       instance.refresh();
       this.dispatchEvents(instance);
-    }
-
-    for (const session of this.sessions) {
-      if (session.state !== 'playing') continue;
-      if (session.portalCooldown > 0) session.portalCooldown -= TICK_SECONDS;
-      this.checkPortals(session);
     }
 
     const instanceTick = this.instances.values().next().value?.world.tick ?? 0;
@@ -611,27 +607,31 @@ export class GameServer {
   // Portale
   // -------------------------------------------------------------------------
 
-  private checkPortals(session: Session): void {
+  /**
+   * Ein Tor benutzen.
+   *
+   * Nur auf ausdrückliche Anfrage — Hineinlaufen allein bewirkt nichts mehr.
+   * Das ist nicht bloss angenehmer, es macht auch die ganze Mechanik einfacher:
+   * ohne selbsttätiges Auslösen gibt es kein Zurückpendeln, also braucht es
+   * weder eine Zeitsperre noch eine Merke, ob ein Tor gerade scharf ist. Wer
+   * im Gegentor landet, steht eben darin, bis er F drückt.
+   *
+   * Geprüft wird trotzdem hier: der Client sagt nur, *welches* Tor er meint.
+   * Ob die Figur dort steht, entscheidet der Server — sonst wäre es eine
+   * Einladung, sich von überall aus überallhin zu setzen.
+   */
+  private usePortal(session: Session, portalId: string): void {
     const instance = this.instances.get(session.mapId);
     const row = instance?.entity(session.entityId);
     if (!instance || !row || row.state === EntityState.Dead) return;
 
-    const portal = instance.portalAt(row.x, row.z);
+    const portal = instance.doc.portals.find((p) => p.id === portalId);
+    if (!portal) return;
 
-    // Wer kein Portal mehr berührt, darf wieder eines auslösen. Das ist die
-    // ganze Sperre: sie hängt daran, dass man das Tor verlassen hat, nicht
-    // daran, dass genug Zeit vergangen ist.
-    if (!portal) {
-      session.portalArmed = true;
-      return;
-    }
+    const dx = row.x - portal.position[0];
+    const dz = row.z - portal.position[1];
+    if (dx * dx + dz * dz > portal.radius * portal.radius) return;
 
-    if (!session.portalArmed) return;
-    this.transfer(session, portal.id);
-  }
-
-  private usePortal(session: Session, portalId: string): void {
-    if (!session.portalArmed) return;
     this.transfer(session, portalId);
   }
 
@@ -643,23 +643,16 @@ export class GameServer {
     const portal = from.doc.portals.find((p) => p.id === portalId);
     if (!portal) return;
 
-    // Abgewiesen wird ohne Sperre: wer die Stufe nicht hat, steht danach immer
-    // noch im Tor und soll durchgehen können, sobald er sie hat. Nur die
-    // Meldung bekommt eine Uhr, sonst füllt sie den Chat zwanzigmal je Sekunde.
+    // Eine Meldung je Anfrage — es gibt keine Wiederholung mehr abzufangen,
+    // seit nur noch der Tastendruck auslöst.
     if (character.level < portal.minLevel) {
-      if (session.portalCooldown <= 0) {
-        this.systemMessage(session, `Für ${portal.label} brauchst du Stufe ${portal.minLevel}.`);
-        session.portalCooldown = PORTAL_MESSAGE_COOLDOWN_SECONDS;
-      }
+      this.systemMessage(session, `Für ${portal.label} brauchst du Stufe ${portal.minLevel}.`);
       return;
     }
 
     const to = this.instances.get(portal.target.map);
     if (!to) {
-      if (session.portalCooldown <= 0) {
-        this.systemMessage(session, `${portal.label} ist derzeit nicht erreichbar.`);
-        session.portalCooldown = PORTAL_MESSAGE_COOLDOWN_SECONDS;
-      }
+      this.systemMessage(session, `${portal.label} ist derzeit nicht erreichbar.`);
       return;
     }
 
@@ -676,9 +669,6 @@ export class GameServer {
     session.entityId = this.nextEntityId++;
     session.mapId = to.doc.id;
     session.known.clear();
-    // Erst wieder scharf, wenn die Figur das Gegenportal verlassen hat.
-    session.portalArmed = false;
-    session.portalCooldown = 0;
 
     to.world.spawnPlayer({
       id: session.entityId,
@@ -744,9 +734,6 @@ export class GameServer {
     if (!instance || !row || row.state !== EntityState.Dead) return;
 
     instance.world.respawnPlayer(session.entityId, instance.doc.spawn.x, instance.doc.spawn.z);
-    // Liegt der Startpunkt in einem Tor, soll das Wiederbeleben nicht sofort
-    // eine Reise auslösen.
-    session.portalArmed = false;
     this.sendStats(session);
   }
 

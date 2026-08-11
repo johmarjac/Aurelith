@@ -11,7 +11,6 @@ import {
   EntityType,
   getNpc,
   type MapDocument,
-  type PortalDef,
   terrainSetup,
 } from '@aurelith/shared';
 import type { CoreBundle } from './core.ts';
@@ -124,16 +123,6 @@ export class MapInstance {
     this.world.removeEntity(id);
     this.meta.delete(id);
     this.playerIds.delete(id);
-  }
-
-  /** Portal, in dessen Radius die Position liegt — oder nichts. */
-  portalAt(x: number, z: number): PortalDef | undefined {
-    for (const p of this.doc.portals) {
-      const dx = x - p.position[0];
-      const dz = z - p.position[1];
-      if (dx * dx + dz * dz <= p.radius * p.radius) return p;
-    }
-    return undefined;
   }
 
   dispose(): void {

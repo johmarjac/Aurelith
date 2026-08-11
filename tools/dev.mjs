@@ -8,7 +8,7 @@
  *   npm run dev
  */
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,14 +34,22 @@ const targets = [
   { name: 'client', color: '[35m', command: 'npm run dev --workspace @aurelith/client' },
 ];
 
+const isWindows = process.platform === 'win32';
+
 const children = [];
+let stopping = false;
 
 for (const target of targets) {
-  const child = spawn('bash', ['-lc', target.command], {
-    cwd: root,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    detached: true,
-  });
+  const child = isWindows
+    ? spawn(target.command, { cwd: root, stdio: ['ignore', 'pipe', 'pipe'], shell: true })
+    : spawn('bash', ['-lc', target.command], {
+        cwd: root,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        // Eigene Prozessgruppe, damit `kill(-pid)` alles erwischt, was darunter
+        // haengt: bash, npm, tsx und der eigentliche Node-Prozess. Ohne das
+        // ueberlebt der Server das Ende der Shell und haelt den Port weiter.
+        detached: true,
+      });
 
   const prefix = `${target.color}[${target.name}][0m `;
   const forward = (stream, sink) => {
@@ -57,34 +65,98 @@ for (const target of targets) {
   forward(child.stdout, process.stdout);
   forward(child.stderr, process.stderr);
 
+  child.exited = false;
   child.on('exit', (code) => {
+    child.exited = true;
     console.log(`${prefix}beendet (${code})`);
-    stopAll();
-    process.exit(code ?? 0);
+    // Faellt einer aus, hat der andere allein keinen Sinn.
+    if (!stopping) void stopAll(code ?? 0);
   });
 
   children.push(child);
 }
 
-function stopAll() {
-  for (const child of children) {
-    try {
-      // Ganze Prozessgruppe, sonst überlebt das Node hinter der Shell.
-      process.kill(-child.pid, 'SIGTERM');
-    } catch {
-      // Schon beendet.
+/**
+ * Beendet ein Kind samt allem, was darunter hängt.
+ *
+ * Zwei Wege, weil es zwei Welten sind:
+ *
+ *   **Unix.** Die Kinder laufen in einer eigenen Prozessgruppe, und ein Signal
+ *   an die negative Kennung erreicht die ganze Gruppe — bash, npm, tsx und den
+ *   Server darunter. Ein Signal nur an `child.pid` träfe die Shell und liesse
+ *   den Server als Waisen zurück, der weiter auf dem Port sitzt.
+ *
+ *   **Windows.** Dort gibt es keine Prozessgruppen in diesem Sinn, und
+ *   `process.kill` mit negativer Kennung schlägt fehl. Genau das war hier eine
+ *   stille Falle: der Fehlschlag landete im `catch`, es passierte nichts, und
+ *   nach Strg+C liefen Server und Vite unbeirrt weiter. `taskkill /T` beendet
+ *   stattdessen den ganzen Baum.
+ */
+function signal(child, sig) {
+  if (child.exited) return;
+
+  if (isWindows) {
+    // /T nimmt die Kinder mit, /F erzwingt. Ein sanftes Beenden gibt es unter
+    // Windows für Konsolenprogramme nicht auf diesem Weg — deshalb wird hier
+    // erst bei SIGKILL zugeschlagen und bei SIGTERM nur gebeten.
+    if (sig === 'SIGKILL') {
+      spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+    } else {
+      spawnSync('taskkill', ['/pid', String(child.pid), '/T'], { stdio: 'ignore' });
     }
+    return;
+  }
+
+  try {
+    process.kill(-child.pid, sig);
+  } catch {
+    // Schon beendet.
   }
 }
 
+const alive = () => children.filter((c) => !c.exited);
+
+/**
+ * Beendet beide Kinder — und wartet darauf.
+ *
+ * Das Warten ist der Punkt. Vorher wurde nur signalisiert und sofort
+ * `process.exit` gerufen: die Eingabeaufforderung war zurück, während der
+ * Server noch dabei war, Sitzungen zu speichern und den Horcher zu schliessen.
+ * Wer dann gleich wieder `npm run dev` tippte, bekam „Adresse bereits in
+ * Benutzung" — nicht, weil der Server nicht herunterfährt, sondern weil ihm
+ * niemand die Zeit dafür liess.
+ *
+ * Nach der Frist wird nachgesetzt. Ein Prozess, der auf SIGTERM nicht
+ * reagiert, soll den Port nicht behalten.
+ */
+async function stopAll(exitCode = 0) {
+  if (stopping) return;
+  stopping = true;
+
+  for (const child of children) signal(child, 'SIGTERM');
+
+  const deadline = Date.now() + GRACE_MS;
+  while (alive().length > 0 && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 100));
+  }
+
+  if (alive().length > 0) {
+    console.log(`\nNoch ${alive().length} Prozess(e) offen — setze nach.`);
+    for (const child of children) signal(child, 'SIGKILL');
+    await new Promise((r) => setTimeout(r, 300));
+  }
+
+  process.exit(exitCode);
+}
+
+/** So lange darf ein Kind sich Zeit lassen, bevor nachgesetzt wird. */
+const GRACE_MS = 6000;
+
 process.on('SIGINT', () => {
-  stopAll();
-  process.exit(0);
+  console.log('\nBeende …');
+  void stopAll(0);
 });
-process.on('SIGTERM', () => {
-  stopAll();
-  process.exit(0);
-});
+process.on('SIGTERM', () => void stopAll(0));
 
 console.log('\nAurelith läuft.');
 console.log('  Client   http://localhost:5173');

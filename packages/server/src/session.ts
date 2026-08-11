@@ -16,6 +16,27 @@ import type { CharacterRecord, ItemRecord } from './db/index.ts';
 
 export type SessionState = 'handshake' | 'playing' | 'closed';
 
+/**
+ * Wie viele unverarbeitete Eingaben höchstens gepuffert werden.
+ *
+ * Grosszügig, weil Verwerfen teurer ist als Warten: eine verworfene Eingabe
+ * lässt die Figur im Client zurückspringen, eine gepufferte kostet nur einen
+ * Tick Verzögerung. Sechzehn Ticks sind acht Zehntelsekunden — mehr Rückstand
+ * als das hat kein Jitter, sondern ein Client, der zu schnell sendet.
+ */
+const MAX_INPUT_QUEUE = 16;
+
+/**
+ * Ab dieser Länge wird der Rückstand schneller abgebaut.
+ *
+ * Sonst bliebe ein einmaliger Burst als dauerhafte Verzögerung stehen: die
+ * Schlange schrumpft nie, weil je Tick genau eine Eingabe hinzukommt und eine
+ * verarbeitet wird.
+ */
+export const INPUT_QUEUE_DRAIN_AT = 4;
+/** Wie viele Eingaben dann höchstens je Tick verarbeitet werden. */
+export const INPUT_QUEUE_DRAIN_MAX = 3;
+
 export class Session {
   state: SessionState = 'handshake';
 
@@ -28,37 +49,43 @@ export class Session {
 
   /** Letzte verarbeitete Eingabesequenz — Anker der Reconciliation im Client. */
   lastInputSeq = 0;
-  /** Neueste Eingabe, die im nächsten Tick angewandt wird. */
-  pendingInput?: InputMsg;
+  /**
+   * Eingaben, die noch nicht verarbeitet sind — in der Reihenfolge, in der sie
+   * gesendet wurden.
+   *
+   * Hier stand vorher ein einzelner Platz, in dem immer nur die *neueste*
+   * Eingabe lag. Das war der Grund, warum die eigene Figur beim Laufen
+   * gelegentlich zurücksprang: der Client rechnet jede Eingabe, der Server nahm
+   * aber nur eine je Tick, und was in derselben Lücke ankam, fiel heraus.
+   * Zwanzig Eingaben je Sekunde treffen auf zwanzig Ticks je Sekunde — im
+   * Mittel passt das, aber Netzjitter schiebt regelmässig zwei in dieselbe
+   * Lücke und keine in die nächste. Jede verworfene Eingabe ist ein
+   * Simulationsschritt Unterschied, und nach ein paar Sekunden reicht die
+   * Summe über die Korrekturschwelle.
+   *
+   * Als Warteschlange geht nichts verloren: der Burst wird gepuffert, die Lücke
+   * danach zehrt ihn auf.
+   */
+  readonly inputQueue: InputMsg[] = [];
 
   /** Entities, von denen der Client bereits die vollständige Zeile hat. */
   readonly known = new Set<number>();
 
   /**
-   * Sekunden, bis wieder eine Meldung zu einem Portal kommt.
+   * Nimmt eine Eingabe entgegen.
    *
-   * Nur noch gegen Textwiederholung — „dafür brauchst du Stufe zehn" soll
-   * nicht zwanzigmal je Sekunde im Chat stehen. Gegen das Zurückwerfen hilft
-   * `portalArmed`, nicht diese Uhr.
+   * Verspätete und doppelte werden verworfen — sie würden die Figur
+   * zurückwerfen. Die Länge ist gedeckelt: ein Client, der dauerhaft schneller
+   * sendet, als der Server tickt, soll nicht unbegrenzt Verzögerung anhäufen.
    */
-  portalCooldown = 0;
+  queueInput(input: InputMsg): void {
+    if (input.seq <= this.lastInputSeq) return;
+    const last = this.inputQueue[this.inputQueue.length - 1];
+    if (last && input.seq <= last.seq) return;
 
-  /**
-   * Ob ein Portal überhaupt auslösen darf.
-   *
-   * Nach einer Reise steht die Figur oft mitten im Gegenportal. Solange das so
-   * ist, darf nichts auslösen — sonst reist man beim Ablauf einer Zeitsperre
-   * automatisch wieder zurück, und genau das ist passiert: der Zielpunkt von
-   * Lichtmoor lag exakt auf dem Rückportal in Dornwald.
-   *
-   * Scharf wird wieder, wer kein Portal mehr berührt. Das ist unabhängig
-   * davon, wie eng Zielpunkt und Gegenportal beieinanderliegen — eine Uhr wäre
-   * es nicht.
-   *
-   * Startwert bewusst `false`: wessen Spielstand mitten in einem Tor liegt,
-   * soll beim Anmelden nicht sofort weiterbefördert werden.
-   */
-  portalArmed = false;
+    this.inputQueue.push(input);
+    if (this.inputQueue.length > MAX_INPUT_QUEUE) this.inputQueue.shift();
+  }
 
   lastSeenAt = Date.now();
   /** Verbleibendes Eingabekontingent dieser Sekunde. */

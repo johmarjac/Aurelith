@@ -61,6 +61,14 @@ import { UI } from '../ui/index.ts';
 const RECONCILE_THRESHOLD = 1.2;
 /** So viele Eingaben werden für das Nachspielen aufbewahrt. */
 const MAX_PENDING_INPUTS = 60;
+/**
+ * So viele Snapshots werden waehrend eines Kartenwechsels aufgehoben.
+ *
+ * Zwei Sekunden bei zehn Snapshots je Sekunde. Dauert ein Ladevorgang laenger,
+ * ist der aelteste Stand ohnehin ueberholt.
+ */
+const MAX_QUEUED_SNAPSHOTS = 20;
+
 /** Ein Klick trifft ein Entity, wenn es näher als das am Zeiger liegt. */
 const PICK_RADIUS_PX = 70;
 
@@ -122,8 +130,29 @@ export interface Diagnostics {
   input: { moveX: number; moveZ: number; yaw: number; attack: boolean };
   /** Simulationsschritte seit dem Start. */
   ticks: number;
+  /**
+   * Wie oft die Vorhersage hart zurechtgerückt werden musste.
+   *
+   * Sichtbar als Zurückspringen der eigenen Figur. Im Idealfall null: Client
+   * und Server rechnen dieselbe wasm-Binärdatei auf denselben Eingaben, es gibt
+   * also nichts, worin sie sich unterscheiden könnten — ausser darin, dass eine
+   * Eingabe unterwegs verlorengeht oder der Server sie verwirft.
+   */
+  reconciles: number;
+  /** Grösste Abweichung, die dabei je gemessen wurde, in Weltnenheiten. */
+  maxReconcileError: number;
   /** Ist die Vorhersagewelt aufgebaut? Ohne sie laeuft kein Schritt. */
   hasPrediction: boolean;
+  /**
+   * Trägt die Vorhersage die eigene Figur schon?
+   *
+   * Zwischen der Willkommensnachricht und dem ersten Snapshot gibt es ein
+   * Fenster, in dem `localId` bereits steht, die Figur in der Vorhersagewelt
+   * aber noch fehlt. Alles, was von ihrer Lage abhängt — die gezeichnete
+   * Position, der Hinweis auf ein Tor, die Kamera — steht darin auf dem
+   * Ausgangswert. Nach einem Kartenwechsel dasselbe.
+   */
+  predictionReady: boolean;
   hasConnection: boolean;
   mapId: string;
   localId: number;
@@ -163,6 +192,13 @@ export class Game {
   private pending: PendingInput[] = [];
   private targetId = 0;
   private dead = false;
+  /** Das Tor, in dem die Figur gerade steht. Nur Anzeige — der Server prüft. */
+  private nearbyPortalId?: string;
+
+  /** Laeuft gerade ein Kartenwechsel? Dann warten Snapshots. */
+  private mapLoad?: Promise<void>;
+  private loadingMapId?: string;
+  private queuedSnapshots: Parameters<Game['applySnapshot']>[0][] = [];
   private stats?: StatsMsg;
 
   private accumulator = 0;
@@ -190,7 +226,10 @@ export class Game {
     playerSim: { x: 0, y: 0, z: 0, yaw: 0 },
     input: { moveX: 0, moveZ: 0, yaw: 0, attack: false },
     ticks: 0,
+    reconciles: 0,
+    maxReconcileError: 0,
     hasPrediction: false,
+    predictionReady: false,
     hasConnection: false,
     mapId: '',
     localId: 0,
@@ -222,6 +261,7 @@ export class Game {
 
     this.ui.onChatSubmit = (text) => this.onChatInput(text);
     this.ui.onRespawn = () => this.connection?.sendRespawn();
+    this.ui.onUsePortal = () => this.usePortal();
     this.ui.onAttackHold = (held) => this.input.setAttackButton(held);
     this.input.onPick = (x, y) => this.pickTarget(x, y);
     this.input.onAttackPressed = () => this.view.triggerAttack(this.localId);
@@ -275,13 +315,57 @@ export class Game {
       console.warn('[assets] Manifest nicht verfügbar, lade ohne Priorisierung:', err);
     }
 
-    await this.loadMap(BOOTSTRAP_MAP);
+    await this.ensureMap(BOOTSTRAP_MAP);
     this.connect(accountName);
   }
 
   // -------------------------------------------------------------------------
   // Karten
   // -------------------------------------------------------------------------
+
+  /**
+   * Laedt eine Karte — hoechstens einmal gleichzeitig je Kennung.
+   *
+   * Bei einem Kartenwechsel schickt der Server erst `Welcome`, dann
+   * `MapChange`. Beide Behandlungen wollten laden, beide sahen `view.mapId`
+   * noch auf der alten Karte — und starteten zwei Ladevorgaenge, von denen der
+   * zweite die Welt des ersten wegwarf.
+   */
+  private ensureMap(mapId: string): Promise<void> {
+    if (this.view.mapId === mapId && this.mapLoad === undefined) return Promise.resolve();
+    if (this.loadingMapId === mapId && this.mapLoad) return this.mapLoad;
+
+    this.loadingMapId = mapId;
+    const load = this.loadMap(mapId).finally(() => {
+      if (this.loadingMapId === mapId) {
+        this.loadingMapId = undefined;
+        this.mapLoad = undefined;
+        this.drainSnapshots();
+      }
+    });
+    this.mapLoad = load;
+    return load;
+  }
+
+  /**
+   * Spielt Snapshots nach, die waehrend eines Kartenwechsels eintrafen.
+   *
+   * Ohne das ging die eigene Figur beim Reisen verloren: der erste Snapshot
+   * nach der Ankunft kam an, waehrend die neue Karte noch geholt wurde. Er
+   * setzte die Figur in die alte Vorhersagewelt, die einen Wimpernschlag
+   * spaeter verworfen wurde — und der Server schickte sie kein zweites Mal,
+   * weil er sie als bekannt vermerkt hatte. Was blieb, war eine Figur, die
+   * sich nicht mehr bewegte.
+   *
+   * Aufgehoben statt verworfen, weil in einem `spawn` die vollstaendige Zeile
+   * steht: nachtraeglich angewandt ist sie genauso richtig wie sofort.
+   */
+  private drainSnapshots(): void {
+    if (this.queuedSnapshots.length === 0) return;
+    const queued = this.queuedSnapshots;
+    this.queuedSnapshots = [];
+    for (const msg of queued) this.applySnapshot(msg);
+  }
 
   private async loadMap(mapId: string): Promise<void> {
     const core = this.core;
@@ -349,11 +433,16 @@ export class Game {
         this.inputSeq = 0;
         this.targetId = 0;
         this.poseValid = false;
-        if (msg.mapId !== this.view.mapId) await this.loadMap(msg.mapId);
+        await this.ensureMap(msg.mapId);
       },
 
       onMapChange: async (msg) => {
-        if (msg.mapId !== this.view.mapId) await this.loadMap(msg.mapId);
+        // Zuerst den Hinweis wegnehmen: bis die neue Karte geladen ist, würde
+        // die neue Position gegen die Tore der alten geprüft.
+        this.nearbyPortalId = undefined;
+        this.ui.setPortalPrompt(undefined);
+
+        await this.ensureMap(msg.mapId);
         this.scene.snapTo(msg.x, msg.y, msg.z);
         this.pending = [];
         this.poseValid = false;
@@ -477,6 +566,14 @@ export class Game {
     updates: Array<Parameters<WorldView['update']>[0]>;
     despawns: number[];
   }): void {
+    // Waehrend eine Karte geladen wird, gehoert dieser Snapshot noch keiner
+    // Welt. Aufheben und danach nachspielen.
+    if (this.mapLoad !== undefined) {
+      this.queuedSnapshots.push(msg);
+      if (this.queuedSnapshots.length > MAX_QUEUED_SNAPSHOTS) this.queuedSnapshots.shift();
+      return;
+    }
+
     for (const row of msg.spawns) {
       this.view.spawn(row);
       if (row.id === this.localId) this.seedPrediction(row.x, row.z, row.yaw, row.hp, row.maxHp);
@@ -556,7 +653,9 @@ export class Game {
     if (!anchor) return;
 
     const error = Math.hypot(serverX - anchor.x, serverZ - anchor.z);
+    if (error > this.diagnostics.maxReconcileError) this.diagnostics.maxReconcileError = error;
     if (error <= RECONCILE_THRESHOLD) return;
+    this.diagnostics.reconciles++;
 
     // Zurück auf den Stand des Servers, dann alles nachspielen, was der Server
     // noch nicht gesehen hat.
@@ -628,6 +727,41 @@ export class Game {
     this.setTarget(best?.id ?? 0);
   }
 
+  /**
+   * Sucht das Tor, in dem die Figur steht.
+   *
+   * Dieselbe Rechnung, die der Server bei der Anfrage nochmals anstellt — hier
+   * nur, um den Hinweis einzublenden. Was der Client hier findet, ist ein
+   * Vorschlag, keine Erlaubnis.
+   */
+  private updateNearbyPortal(x: number, z: number): void {
+    const portals = this.mapDoc?.portals;
+    let found: string | undefined;
+    let label = '';
+
+    if (portals && !this.dead) {
+      for (const portal of portals) {
+        const dx = x - portal.position[0];
+        const dz = z - portal.position[1];
+        if (dx * dx + dz * dz <= portal.radius * portal.radius) {
+          found = portal.id;
+          label = portal.label || 'Tor';
+          break;
+        }
+      }
+    }
+
+    if (found === this.nearbyPortalId) return;
+    this.nearbyPortalId = found;
+    this.ui.setPortalPrompt(found ? label : undefined);
+  }
+
+  /** Schickt die Bitte, das Tor zu benutzen, in dem die Figur steht. */
+  private usePortal(): void {
+    if (!this.nearbyPortalId) return;
+    this.connection?.sendUsePortal(this.nearbyPortalId);
+  }
+
   private setTarget(id: number): void {
     if (this.targetId === id) return;
     this.targetId = id;
@@ -694,6 +828,8 @@ export class Game {
       }
     }
 
+    if (snapshot.interact) this.usePortal();
+
     this.pending.push({
       seq,
       moveX: snapshot.moveX,
@@ -749,6 +885,7 @@ export class Game {
       this.view.setLocal(this.localId, x, y, z, yaw, curr.speed);
       this.scene.follow(x, y, z, this.prediction, dt);
       this.streamer.setViewer(x, z);
+      this.updateNearbyPortal(x, z);
 
       const self = this.view.entities.get(this.localId);
       if (self) self.rig.root.visible = !this.scene.isFirstPerson;
@@ -784,6 +921,7 @@ export class Game {
     d.playerSim.yaw = this.poseCurr.yaw;
 
     d.hasPrediction = this.prediction !== undefined;
+    d.predictionReady = this.poseValid;
     d.hasConnection = this.connection !== undefined;
     d.mapId = this.view.mapId;
     d.localId = this.localId;

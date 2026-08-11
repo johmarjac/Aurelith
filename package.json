@@ -26,14 +26,16 @@
     "manifest": "node tools/build-manifest.mjs",
     "typecheck": "tsc --noEmit -p packages/shared && tsc --noEmit -p packages/core && tsc --noEmit -p packages/server && tsc --noEmit -p packages/client && tsc --noEmit -p packages/editor",
     "db:migrate": "npm run migrate --workspace @aurelith/server",
-    "test": "npm run core:test && npm run test:wasm && npm run test:steering && npm run test:brushes && node tools/smoke-e2e.mjs && node tools/smoke-background.mjs && node tools/smoke-editor.mjs && node tools/smoke-pages.mjs",
+    "test": "npm run core:test && npm run test:wasm && npm run test:steering && npm run test:brushes && node tools/smoke-e2e.mjs && node tools/smoke-prediction.mjs && node tools/smoke-portal.mjs && node tools/smoke-background.mjs && node tools/smoke-editor.mjs && node tools/smoke-pages.mjs",
     "test:wasm": "tsx packages/core/test/wasm_smoke.ts",
     "test:steering": "tsx packages/client/test/steering_test.ts",
     "test:brushes": "tsx packages/editor/test/brushes_test.ts",
     "test:e2e": "node tools/smoke-e2e.mjs",
     "test:editor": "node tools/smoke-editor.mjs",
     "test:pages": "node tools/smoke-pages.mjs",
-    "test:background": "node tools/smoke-background.mjs"
+    "test:background": "node tools/smoke-background.mjs",
+    "test:prediction": "node tools/smoke-prediction.mjs",
+    "test:portal": "node tools/smoke-portal.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

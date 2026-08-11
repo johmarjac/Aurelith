@@ -56,6 +56,8 @@ export class UI {
   onChatSubmit?: (text: string) => void;
   onRespawn?: () => void;
   onAttackHold?: (held: boolean) => void;
+  /** Der Spieler will das Tor benutzen, in dem er steht. */
+  onUsePortal?: () => void;
 
   private readonly host: HTMLElement;
 
@@ -77,6 +79,7 @@ export class UI {
   private readonly statusText: HTMLElement;
 
   private readonly deathScreen: HTMLElement;
+  private readonly portalPrompt: HTMLButtonElement;
 
   private readonly inventoryWindow: GameWindow;
   private readonly inventoryGrid: HTMLElement;
@@ -178,6 +181,17 @@ export class UI {
       host.appendChild(attack);
     }
 
+    // --- Tor-Hinweis ------------------------------------------------------
+    //
+    // Auf dem PC eine Zeile mit der Taste, auf Mobil ein Knopf — dasselbe
+    // Element, nur unterschiedlich bedient. Sichtbar wird es nur, wenn die
+    // Figur wirklich in einem Tor steht.
+    this.portalPrompt = el('button', 'portal-prompt panel');
+    this.portalPrompt.type = 'button';
+    this.portalPrompt.hidden = true;
+    this.portalPrompt.addEventListener('click', () => this.onUsePortal?.());
+    host.appendChild(this.portalPrompt);
+
     // --- Todesbildschirm --------------------------------------------------
     this.deathScreen = el('div', 'death');
     const deathPanel = el('div', 'death-panel panel');
@@ -273,6 +287,19 @@ export class UI {
     const ratio = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
     b.fill.style.transform = `scaleX(${ratio})`;
     b.label.textContent = text;
+  }
+
+  /**
+   * Zeigt oder verbirgt den Hinweis auf ein Tor.
+   *
+   * `undefined` heisst: die Figur steht in keinem. Bewusst nur eine Anzeige —
+   * ob die Reise stattfindet, entscheidet der Server, der die Entfernung
+   * nochmals prüft.
+   */
+  setPortalPrompt(label: string | undefined): void {
+    const text = label === undefined ? '' : this.touch ? `${label} betreten` : `[F] ${label} betreten`;
+    if (this.portalPrompt.textContent !== text) this.portalPrompt.textContent = text;
+    this.portalPrompt.hidden = label === undefined;
   }
 
   setTarget(target: EntityVisual | undefined): void {

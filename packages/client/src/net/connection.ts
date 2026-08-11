@@ -33,6 +33,7 @@ import {
   encodePing,
   encodeRespawn,
   encodeSetTarget,
+  encodeUsePortal,
   nullCipher,
   readPacket,
   type ChatMsg,
@@ -251,6 +252,12 @@ export class Connection {
 
   sendRespawn(): void {
     this.send(encodeRespawn());
+  }
+
+  sendUsePortal(portalId: string): void {
+    this.send(encodeUsePortal(portalId));
+    // Sofort raus: ein Tastendruck soll nicht bis zum nächsten Bild warten.
+    this.flush();
   }
 
   /**
