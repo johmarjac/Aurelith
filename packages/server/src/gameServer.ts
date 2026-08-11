@@ -234,11 +234,14 @@ export class GameServer {
     }
 
     const startMap = this.maps.require(config.startMap);
+    // `startPos` übersteuert den Startpunkt der Karte — nur für Prüfungen
+    // gedacht, und nur beim Anlegen eines Charakters.
+    const spawn = config.startPos ?? startMap.spawn;
     const login = await this.store.loginOrCreate(accountName, {
       mapId: startMap.id,
-      x: startMap.spawn.x,
-      z: startMap.spawn.z,
-      yaw: startMap.spawn.yaw,
+      x: spawn.x,
+      z: spawn.z,
+      yaw: spawn.yaw,
     });
 
     // Eine Map, die es nicht mehr gibt, darf keinen Login blockieren.

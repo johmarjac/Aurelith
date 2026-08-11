@@ -37,6 +37,31 @@ export const config = {
   startMap: env('AURELITH_START_MAP', 'lichtmoor'),
 
   /**
+   * Startpunkt eines neuen Charakters, als `"x,z"` oder `"x,z,blickrichtung"`.
+   *
+   * Ohne die Angabe gilt der Startpunkt der Karte, und das ist im Betrieb auch
+   * das Richtige. Gedacht ist sie für Prüfungen: der Portaltest musste bisher
+   * erst achtundzwanzig Simulationsschritte zum Tor laufen, und auf Lichtmoor
+   * wären es zweihundert Einheiten gewesen. Wer den Startpunkt setzen kann,
+   * prüft in Sekunden, was sonst eine Minute Anlauf braucht.
+   *
+   * Wirkt nur bei der **Erzeugung** eines Charakters. Wer schon einen hat,
+   * behält seine gespeicherte Stelle — sonst würde die Angabe im Betrieb
+   * jeden bei jedem Anmelden verschieben.
+   */
+  startPos: ((): { x: number; z: number; yaw: number } | undefined => {
+    const raw = process.env.AURELITH_START_POS ?? '';
+    if (raw === '') return undefined;
+
+    const parts = raw.split(',').map((p) => Number(p.trim()));
+    if (parts.length < 2 || parts.some((n) => !Number.isFinite(n))) {
+      console.warn(`[config] AURELITH_START_POS="${raw}" nicht lesbar — erwartet "x,z" oder "x,z,yaw".`);
+      return undefined;
+    }
+    return { x: parts[0]!, z: parts[1]!, yaw: parts[2] ?? 0 };
+  })(),
+
+  /**
    * PostgreSQL-Verbindung. Fehlt sie, läuft der Server mit einem
    * Speicher-Backend weiter — praktisch für schnelle Tests, aber alles ist
    * beim Neustart weg. Der Server sagt das beim Hochfahren deutlich.

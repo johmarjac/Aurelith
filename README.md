@@ -166,8 +166,22 @@ der begehbare Boden.
 
 ```bash
 npm run typecheck    # alle fünf Pakete
-npm run core:test    # 27 native Prüfungen des Kerns
-npm test             # Kern + End-to-End im Browser + Editor + Pages-Bau
+npm run core:test    # native Prüfungen des Kerns
+npm test             # alles: Kern, wasm-Brücke, Lenkung, Pinsel, Browser, Pages
+```
+
+Einzeln, wenn nur ein Bereich betroffen ist:
+
+```bash
+npm run test:wasm        # der Vertrag über die wasm-Brücke
+npm run test:steering    # Drehen, Anlaufen, Auslaufen — ohne Browser
+npm run test:brushes     # die Editor-Pinsel — ohne Browser
+npm run test:e2e         # Spiel im Browser, Desktop und Berührung
+npm run test:prediction  # springt die eigene Figur beim Laufen zurück?
+npm run test:portal      # Tore: hineinlaufen, stehen, F drücken, zurück
+npm run test:background  # überlebt die Verbindung einen Tab im Hintergrund?
+npm run test:editor      # Editor: Werkzeuge, Pinsel, Tore, Speichern
+npm run test:pages       # der Pages-Bau unter einem Unterpfad
 ```
 
 Die native Prüfung enthält eine auf **Reproduzierbarkeit**: zwei gleiche Läufe
@@ -185,6 +199,30 @@ Zwei-Finger-Zoom greifen.
 gezeichnete Position. Ohne den lässt sich von außen nicht ansehen, was auf dem
 Bildschirm tatsächlich passiert — und genau daran hingen mehrere Fehler, die
 man sieht, aber nicht kompiliert bekommt.
+
+### Startpunkt für Prüfungen
+
+`AURELITH_START_POS="x,z"` (oder `"x,z,blickrichtung"`) setzt, wo ein **neu
+angelegter** Charakter erscheint, statt am Startpunkt der Karte. Zusammen mit
+`AURELITH_START_MAP` steht die Figur damit sofort dort, wo geprüft werden soll.
+
+Der Portaltest hat das von 43 auf 21 Sekunden gebracht — er lief vorher acht
+Einheiten zum Tor, und in SwiftShader kommt der Client auf etwa fünf
+Simulationsschritte je Sekunde.
+
+Wirkt nur beim **Anlegen** eines Charakters. Wer schon einen hat, behält seine
+gespeicherte Stelle — sonst würde die Angabe im Betrieb jeden bei jedem
+Anmelden verschieben.
+
+Zwei Dinge, die beim Kürzen solcher Prüfungen wiederkehren:
+
+- **Wartezeiten nach der Uhr, wenn der Server entscheidet.** Ob ein Tor von
+  selbst auslöst, hängt am Servertakt — der läuft mit zwanzig Hertz, egal wie
+  oft der Client zeichnet. Hundertzwanzig *Simulationsschritte* abzuwarten
+  kostete dafür vierundzwanzig Sekunden, fünf Sekunden Uhrzeit reichen.
+- **Schritte abwarten, wenn der Client sich bewegen muss.** Umgekehrt ist eine
+  Wartezeit nach der Uhr dort wertlos: bei zwei Bildern je Sekunde ergeben
+  1,2 Sekunden mal dreißig Schritte und mal zwei.
 
 `npm run test:pages` baut zusätzlich genau das, was der Pages-Workflow baut,
 legt es hinter einen Unterpfad und lädt es. Unterpfade gehen still kaputt:

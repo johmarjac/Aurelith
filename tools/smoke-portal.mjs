@@ -64,17 +64,24 @@ const waitUntil = async (fn, ms) => {
   return false;
 };
 
+const t0 = Date.now();
+const seit = () => `${((Date.now() - t0) / 1000).toFixed(1)} s`;
+
 console.log('Aurelith — Tore\n');
 
 const server = launch('npx tsx packages/server/src/index.ts', {
-  // Dornwald: Startpunkt (0, -178), Tor nach Lichtmoor bei (0, -186), Radius 4.
-  // Von dort geht es nach Lichtmoor auf (0, 196), wo das Gegentor bei (0, 204)
-  // steht — beide ohne Stufensperre, also derselbe Weg hin und zurueck.
+  // Dornwald: Tor nach Lichtmoor bei (0, -186), Radius 4. Von dort geht es nach
+  // Lichtmoor auf (0, 196), wo das Gegentor bei (0, 204) steht — beide ohne
+  // Stufensperre, also derselbe Weg hin und zurueck.
   //
   // Bewusst nicht ueber die Schattengruft: die verlangt Stufe zehn, und eine
   // Abweisung saehe genauso aus wie ein Fehler. Eine fruehere Fassung dieses
   // Tests ist genau darauf hereingefallen.
   AURELITH_START_MAP: 'dornwald',
+  // Knapp ausserhalb des Tores statt am Startpunkt der Karte: nah genug, dass
+  // der Anlauf kurz ist, weit genug, dass die erste Pruefung — „abseits eines
+  // Tores kein Hinweis" — noch etwas zu pruefen hat. Der Radius betraegt vier.
+  AURELITH_START_POS: '0,-179',
 });
 launch('cd packages/client && npx vite --port 5195 --strictPort --host 127.0.0.1');
 
@@ -93,6 +100,8 @@ if (
 ) {
   throw new Error('Client-Server kam nicht hoch');
 }
+
+console.log(`  (Server und Client bereit nach ${seit()})`);
 
 const executablePath = [
   '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
@@ -153,6 +162,7 @@ const state = () =>
     chat: [...document.querySelectorAll('.chat-log > *')].slice(-3).map((n) => n.textContent).join(' | '),
   }));
 
+console.log(`  (Browser und Anmeldung bereit nach ${seit()})`);
 console.log('Pruefungen');
 
 const start = await state();
@@ -160,16 +170,17 @@ check(start.mapId === 'dornwald', `auf der Testkarte gestartet (${start.mapId})`
 check(start.prompt === '', `kein Hinweis abseits eines Tores ("${start.prompt}")`);
 
 /** Laeuft `ticks` Schritte in eine Richtung und laesst die Figur auslaufen. */
-async function walk(key, ticks = 27) {
+async function walk(key, ticks = 12) {
   await page.keyboard.down(key);
   await waitTicks(ticks);
   await page.keyboard.up(key);
-  await waitTicks(8);
+  // Auslaufen: 0,2 s Bremsweg sind vier Schritte.
+  await waitTicks(4);
 }
 
 // --- Erster Wechsel: Dornwald -> Lichtmoor --------------------------------
 //
-// Das Tor liegt acht Einheiten in Richtung -Z, die Kamera schaut nach +Z.
+// Vier Einheiten in Richtung -Z, die Kamera schaut nach +Z.
 
 await walk('KeyS');
 
@@ -180,12 +191,19 @@ check(
 );
 check(inGate.prompt.startsWith('[F]'), `mit der Taste davor ("${inGate.prompt}")`);
 
-// Das Entscheidende: stehenbleiben. Frueher haette das gereicht.
-await waitTicks(120);
+// Das Entscheidende: stehenbleiben. Frueher haette das gereicht — die alte
+// Zeitsperre lag bei drei Sekunden.
+//
+// Gewartet wird hier nach der Uhr und nicht nach Simulationsschritten des
+// Clients. Ausloesen wuerde der **Server**, und der tickt mit zwanzig Hertz,
+// egal wie oft der Client zeichnet. In SwiftShader kommt der auf etwa fuenf
+// Schritte je Sekunde — hundertzwanzig davon waeren vierundzwanzig Sekunden
+// Wartezeit fuer etwas, das nach fuenf entschieden ist.
+await page.waitForTimeout(5000);
 const stillThere = await state();
 check(
   stillThere.mapId === 'dornwald',
-  `Stehen im Tor reist nicht (nach 120 Schritten noch auf ${stillThere.mapId})`,
+  `Stehen im Tor reist nicht (nach fuenf Sekunden noch auf ${stillThere.mapId})`,
 );
 check(stillThere.prompt.includes('Lichtmoor'), 'der Hinweis bleibt stehen, solange man drinsteht');
 
@@ -216,8 +234,10 @@ if (arrived) {
   );
   check(after.prompt === '', `nach der Ankunft kein Hinweis ("${after.prompt}")`);
 
-  // Gegentor bei (0, 204), also in Richtung +Z.
-  await walk('KeyW');
+  // Gegentor bei (0, 204), also acht Einheiten in Richtung +Z. Der Weg bleibt:
+  // hier geht es gerade darum, dass die Figur sich nach einem Wechsel noch
+  // bewegen laesst und der Server das mitbekommt.
+  await walk('KeyW', 27);
 
   const back = await state();
   const moved = Math.hypot(back.x - after.x, back.z - after.z);
@@ -262,6 +282,8 @@ const cheated = await page.evaluate(async () => {
   return { before, offered: !!el && !el.hidden };
 });
 check(!cheated.offered, 'die Oberflaeche bietet abseits eines Tores nichts an');
+
+console.log(`\n  (Pruefungen fertig nach ${seit()})`);
 
 await browser.close();
 shutdown();
