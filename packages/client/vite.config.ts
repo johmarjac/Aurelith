@@ -76,6 +76,16 @@ function serveCoreRaw(): Plugin {
 }
 
 export default defineConfig({
+  /**
+   * Unterpfad, unter dem die Seite liegt.
+   *
+   * Bei GitHub Pages ohne eigene Domain ist das `/<repo>/`, im
+   * Entwicklungsbetrieb schlicht `/`. Der Client liest den Wert zur Laufzeit
+   * über `import.meta.env.BASE_URL` und hängt ihn vor jede Asset-Adresse —
+   * damit gibt es genau eine Stelle, an der der Pfad steht.
+   */
+  base: process.env.AURELITH_BASE ?? '/',
+
   // `assets/` ist im Betrieb das CDN. Im Entwicklungsbetrieb serviert Vite
   // denselben Baum unter denselben Pfaden, damit der Streamer nichts von der
   // Umgebung wissen muss.
@@ -98,7 +108,10 @@ export default defineConfig({
 
   build: {
     target: 'es2022',
-    sourcemap: true,
+    // Quellkarten sind größer als alles andere zusammen (2,8 MB allein für
+    // Three.js). Beim Veröffentlichen bleiben sie draußen, beim Fehlersuchen
+    // holt man sie mit AURELITH_SOURCEMAP=1 zurück.
+    sourcemap: process.env.AURELITH_SOURCEMAP === '1',
     rollupOptions: {
       output: {
         // Three.js separat halten: es ändert sich selten, unser Code oft.

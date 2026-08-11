@@ -12,13 +12,31 @@ declare const __BUILD__: string;
 export const BUILD = typeof __BUILD__ === 'string' ? __BUILD__ : 'dev';
 
 /**
- * Wurzel der Assets. Im Entwicklungsbetrieb serviert Vite den Ordner
- * `assets/`, im Betrieb steht hier das CDN. Der Streamer redet ausschließlich
- * mit dieser Adresse — nie mit dem Spielserver.
+ * Wurzel der Assets. Der Streamer redet ausschließlich mit dieser Adresse —
+ * nie mit dem Spielserver.
+ *
+ * Standard ist der Unterpfad der Seite: im Entwicklungsbetrieb leer, bei
+ * GitHub Pages ohne eigene Domain `/<repo>`. `VITE_ASSET_BASE` überschreibt
+ * das und zeigt später auf ein echtes CDN — dann liegen Assets und Seite auf
+ * verschiedenen Hosts, so wie es der Blueprint vorsieht.
  */
-export const ASSET_BASE = (import.meta.env?.VITE_ASSET_BASE as string | undefined) ?? '';
+export const ASSET_BASE =
+  (import.meta.env?.VITE_ASSET_BASE as string | undefined) ??
+  (import.meta.env?.BASE_URL ?? '/').replace(/\/$/, '');
 
-/** Adresse des Spielservers. Leer heißt: derselbe Host wie die Seite. */
+/** Wurde eine Serveradresse mitgegeben? Siehe `serverUrl`. */
+export const SERVER_CONFIGURED = Boolean(import.meta.env?.VITE_SERVER_URL);
+
+/**
+ * Adresse des Spielservers.
+ *
+ * Ohne Angabe wird derselbe Host angenommen — das stimmt im
+ * Entwicklungsbetrieb, wo Vite `/ws` durchreicht. Auf einer rein statischen
+ * Auslieferung wie GitHub Pages stimmt es nicht: dort gibt es keinen
+ * WebSocket-Endpunkt, und weil die Seite über HTTPS kommt, verbietet der
+ * Browser ohnehin ein unverschlüsseltes `ws://`. Der Spielserver muss dann
+ * über `VITE_SERVER_URL` benannt werden und `wss://` sprechen.
+ */
 export function serverUrl(): string {
   const configured = import.meta.env?.VITE_SERVER_URL as string | undefined;
   if (configured) return configured;

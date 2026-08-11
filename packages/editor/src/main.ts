@@ -30,6 +30,13 @@ import './style.css';
 
 const MAPS = ['lichtmoor', 'dornwald', 'gruft_01'];
 
+/**
+ * Unterpfad, unter dem der Editor liegt. Bei GitHub Pages ohne eigene Domain
+ * ist das `/<repo>/editor`, im Entwicklungsbetrieb leer. Alle Asset-Adressen
+ * hängen davor — sonst greift der Editor auf der Projektseite ins Leere.
+ */
+const BASE = (import.meta.env.BASE_URL ?? '/').replace(/\/$/, '');
+
 const canvas = document.getElementById('viewport') as HTMLCanvasElement;
 const panel = document.getElementById('panel') as HTMLElement;
 const hint = document.getElementById('hint') as HTMLElement;
@@ -42,11 +49,11 @@ hint.textContent =
 
 // Über eine Variable, damit weder TypeScript noch Vite versuchen, den Glue
 // aufzulösen — er wird zur Laufzeit vom Asset-Pfad geholt.
-const glueUrl = '/core/aurelith_core.js';
+const glueUrl = `${BASE}/core/aurelith_core.js`;
 const glue = (await import(/* @vite-ignore */ glueUrl)) as { default: CoreModuleFactory };
 const core = await Core.fromModule(
   await glue.default({
-    locateFile: (p: string) => (p.endsWith('.wasm') ? '/core/aurelith_core.wasm' : p),
+    locateFile: (p: string) => (p.endsWith('.wasm') ? `${BASE}/core/aurelith_core.wasm` : p),
   }),
 );
 
@@ -99,7 +106,7 @@ function propGeometry(key: string): THREE.BufferGeometry {
 }
 
 async function loadMap(id: string): Promise<void> {
-  const raw = await fetch(`/maps/${id}.json`).then((r) => r.json());
+  const raw = await fetch(`${BASE}/maps/${id}.json`).then((r) => r.json());
   doc = parseMapDocument(raw, id);
 
   world?.dispose();

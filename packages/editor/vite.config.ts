@@ -25,6 +25,10 @@ function serveCoreRaw(): Plugin {
 }
 
 export default defineConfig({
+  // Unterpfad der Seite. Bei GitHub Pages liegt der Editor neben dem Client
+  // unter `/<repo>/editor/`; im Entwicklungsbetrieb schlicht unter `/`.
+  base: process.env.AURELITH_EDITOR_BASE ?? '/',
+
   publicDir: resolve(repoRoot, 'assets'),
   server: { port: 5174 },
   build: { target: 'es2022' },

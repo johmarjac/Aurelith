@@ -1,0 +1,128 @@
+# Veröffentlicht Client und Map-Editor auf GitHub Pages.
+#
+# Pages liefert nur Dateien aus. Der Client läuft dort vollständig — auch der
+# wasm-Kern, denn Pages setzt für `.wasm` den richtigen MIME-Typ, und unser Kern
+# ist single-threaded, braucht also keine COOP/COEP-Header, die Pages nicht
+# setzen kann.
+#
+# Was dort *nicht* läuft, ist der Spielserver: kein WebSocket, kein Node, keine
+# Datenbank. Er muss anderswo stehen und `wss://` sprechen — Pages liefert über
+# HTTPS aus, und der Browser verbietet daraus heraus ein unverschlüsseltes
+# `ws://`. Seine Adresse kommt über die Variable AURELITH_SERVER_URL herein.
+#
+# Einmalig im Repository einzustellen:
+#   Settings → Pages → Source: GitHub Actions
+#   Settings → Secrets and variables → Actions → Variables:
+#     AURELITH_SERVER_URL = wss://…   (optional; ohne das läuft der Client
+#                                      sichtbar, aber ohne Verbindung)
+
+name: Pages
+
+on:
+  push:
+    branches:
+      - main
+      - claude/new-session-9cek38
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Zwei Veröffentlichungen gleichzeitig ergeben keinen Sinn; die laufende darf
+# aber zu Ende gehen, damit Pages nicht in einem halben Zustand stehenbleibt.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  # Festgenagelt, nicht "latest": ein stiller Wechsel der Toolchain wäre die
+  # unangenehmste Art, einen Build kaputtgehen zu lassen.
+  EMSDK_VERSION: 6.0.6
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Emscripten aus dem Cache holen
+        id: emsdk-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/emsdk
+          key: emsdk-${{ runner.os }}-${{ env.EMSDK_VERSION }}
+
+      - name: Emscripten einrichten
+        if: steps.emsdk-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$GITHUB_WORKSPACE/emsdk"
+          cd "$GITHUB_WORKSPACE/emsdk"
+          ./emsdk install "$EMSDK_VERSION"
+          ./emsdk activate "$EMSDK_VERSION"
+
+      - run: npm ci
+
+      - name: Kern bauen und prüfen
+        # tools/build-core.mjs findet das SDK über $EMSDK und baut immer zuerst
+        # nativ, inklusive der 27 Prüfungen. Fällt eine, gibt es keine
+        # Veröffentlichung.
+        env:
+          EMSDK: ${{ github.workspace }}/emsdk
+        run: npm run core
+
+      - name: Karten und Manifest erzeugen
+        env:
+          # Die Laufnummer wird zur Build-Kennung und hängt als `?v=` an jeder
+          # Asset-Adresse. Ein neuer Build ist eine neue Zahl.
+          AURELITH_BUILD: ${{ github.run_number }}
+        run: |
+          npm run maps
+          npm run manifest -- --build "$AURELITH_BUILD"
+
+      - name: Client bauen
+        env:
+          AURELITH_BUILD: ${{ github.run_number }}
+          # Projektseite ohne eigene Domain liegt unter /<repo>/.
+          AURELITH_BASE: /${{ github.event.repository.name }}/
+          VITE_SERVER_URL: ${{ vars.AURELITH_SERVER_URL }}
+        run: npm run build --workspace @aurelith/client
+
+      - name: Editor bauen
+        env:
+          AURELITH_EDITOR_BASE: /${{ github.event.repository.name }}/editor/
+        run: npm run build --workspace @aurelith/editor
+
+      - name: Ausgabe zusammenstellen
+        run: |
+          mkdir -p site
+          cp -r packages/client/dist/. site/
+          mkdir -p site/editor
+          cp -r packages/editor/dist/. site/editor/
+          # Pages liefert 404.html bei unbekannten Pfaden aus. Da der Client
+          # eine einzige Seite ist, führt das zurück auf ihn statt ins Leere.
+          cp site/index.html site/404.html
+          echo "Inhalt:"
+          du -sh site
+          find site -maxdepth 2 -type f | sort
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

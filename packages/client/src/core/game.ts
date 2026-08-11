@@ -34,7 +34,14 @@ import {
   type MapDocument,
   type StatsMsg,
 } from '@aurelith/shared';
-import { BOOTSTRAP_MAP, QUALITY, guessQuality, isTouchDevice, serverUrl } from '../config.ts';
+import {
+  BOOTSTRAP_MAP,
+  QUALITY,
+  SERVER_CONFIGURED,
+  guessQuality,
+  isTouchDevice,
+  serverUrl,
+} from '../config.ts';
 import { AssetStreamer } from '../assets/streamer.ts';
 import { loadClientCore, type ClientCore } from './coreLoader.ts';
 import { Scene3D } from '../render/scene.ts';
@@ -189,8 +196,27 @@ export class Game {
   // -------------------------------------------------------------------------
 
   private connect(accountName: string): void {
+    let explainedMissingServer = false;
+
     this.connection = new Connection(serverUrl(), accountName, {
-      onStatus: (status, detail) => this.ui.setConnection(status, detail),
+      onStatus: (status, detail) => {
+        this.ui.setConnection(status, detail);
+
+        // Eine statisch ausgelieferte Seite hat keinen WebSocket-Endpunkt.
+        // Ohne Erklärung sieht man nur „getrennt" und rätselt, ob etwas kaputt
+        // ist. Der Hinweis kommt erst, wenn die Verbindung tatsächlich
+        // scheitert — im Entwicklungsbetrieb ist dieselbe Vermutung richtig
+        // und soll nichts melden.
+        if (status === 'getrennt' && !SERVER_CONFIGURED && !explainedMissingServer) {
+          explainedMissingServer = true;
+          this.ui.addChat(
+            0,
+            '',
+            'Kein Spielserver hinterlegt — die Welt ist sichtbar, aber ohne Verbindung. ' +
+              'Beim Bauen VITE_SERVER_URL auf eine wss://-Adresse setzen.',
+          );
+        }
+      },
 
       onWelcome: async (msg) => {
         this.localId = msg.entityId;

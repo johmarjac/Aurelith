@@ -167,7 +167,7 @@ der begehbare Boden.
 ```bash
 npm run typecheck    # alle fünf Pakete
 npm run core:test    # 27 native Prüfungen des Kerns
-npm test             # Kern + End-to-End im Browser + Editor
+npm test             # Kern + End-to-End im Browser + Editor + Pages-Bau
 ```
 
 Die native Prüfung enthält eine auf **Reproduzierbarkeit**: zwei gleiche Läufe
@@ -176,6 +176,62 @@ müssen bitgleiche Zustände ergeben. Darauf setzt die Client-Prediction auf.
 Der End-to-End-Test startet Server und Client, öffnet Chromium und prüft, was
 ein Typecheck nicht sehen kann — dass der Kern lädt, die Verbindung steht,
 Snapshots ankommen und tatsächlich ein Bild entsteht.
+
+`npm run test:pages` baut zusätzlich genau das, was der Pages-Workflow baut,
+legt es hinter einen Unterpfad und lädt es. Unterpfade gehen still kaputt:
+lokal unter `/` fällt nie auf, wenn eine selbst gebaute Asset-Adresse den
+Präfix vergisst.
+
+---
+
+## Veröffentlichen auf GitHub Pages
+
+Der Client läuft dort vollständig — auch der wasm-Kern. Pages setzt für `.wasm`
+den richtigen MIME-Typ, und weil unser Kern single-threaded ist, brauchen wir
+keine COOP/COEP-Header, die Pages nicht setzen kann.
+
+Der **Spielserver läuft dort nicht**: Pages liefert nur Dateien aus. Er muss
+anderswo stehen — und weil Pages über HTTPS ausliefert, verbietet der Browser
+daraus ein unverschlüsseltes `ws://`. Der Server muss also `wss://` sprechen;
+das sind die beiden TLS-Variablen von oben.
+
+Einmalig im Repository einstellen:
+
+1. **Settings → Pages → Source:** `GitHub Actions`
+2. **Settings → Secrets and variables → Actions → Variables:**
+   `AURELITH_SERVER_URL` = `wss://…`
+
+Ohne diese Variable wird trotzdem veröffentlicht: die Welt ist sichtbar und
+begehbar-still, und der Client schreibt in den Chat, dass keine Serveradresse
+hinterlegt ist. Für eine Schaufenster-Seite reicht das.
+
+Danach veröffentlicht `.github/workflows/pages.yml` bei jedem Push:
+
+| | |
+|---|---|
+| Client | `https://<name>.github.io/Aurelith/` |
+| Editor | `https://<name>.github.io/Aurelith/editor/` |
+
+Die Laufnummer des Workflows wird zur Build-Kennung und hängt als `?v=` an
+jeder Asset-Adresse. Emscripten ist auf `6.0.6` festgenagelt und wird
+zwischengespeichert — ein stiller Wechsel der Toolchain wäre die unangenehmste
+Art, einen Build kaputtgehen zu lassen.
+
+### Was auf Pages nicht durchgreift
+
+- **Brotli.** Pages ignoriert die im Build erzeugten `.br`-Dateien und
+  komprimiert selbst. Der Blueprint verlangt Brotli im Build statt in der
+  Serverkonfiguration; auf Pages gilt das nicht. Bei 48 KiB Kern belanglos,
+  bei echten Texturen nicht mehr.
+- **Cache-Control.** `immutable, max-age=31536000` lässt sich nicht setzen.
+  Die `?v=`-Versionierung funktioniert weiter, die Jahreshälfte der Übernahme
+  nicht.
+- **Bandbreite.** 100 GB/Monat weich, 1 GB Seitengröße. Für Demos reichlich,
+  für einen Start nicht.
+
+Für den echten Betrieb gehört dieselbe `dist/` später auf ein CDN mit eigenen
+Headern. `VITE_ASSET_BASE` zeigt dann dorthin, und Assets und Seite liegen auf
+verschiedenen Hosts — so wie es der Blueprint vorsieht.
 
 ---
 
