@@ -86,6 +86,21 @@ body {
   pointer-events: auto;
 }
 
+/*
+ * Zwei Ebenen sind reine Anzeige und dürfen nichts abfangen: die
+ * Namensschilder samt Schadenszahlen und der Joystick.
+ *
+ * Die Regel darüber ist spezifischer als eine Klassenauswahl (eine ID schlägt
+ * jede Klasse), deshalb muss die Ausnahme dieselbe ID nennen. Ohne das liegt
+ * eine unsichtbare, bildschirmfüllende Fläche über der Leinwand und
+ * verschluckt Kameradrehung, Zoom und Zielauswahl — sichtbar ist davon
+ * nichts, kaputt ist alles.
+ */
+#ui-root > .overlay,
+#ui-root > .joystick {
+  pointer-events: none;
+}
+
 /* --- Grundformen ---------------------------------------------------------- */
 
 .panel {
@@ -276,12 +291,14 @@ body {
   position: absolute;
   right: calc(var(--safe-r) + 1.2rem);
   bottom: calc(var(--safe-b) + 5.2rem);
-  width: 5.2rem;
-  height: 5.2rem;
+  width: 5.6rem;
+  height: 5.6rem;
   border-radius: 50%;
-  font-size: 1rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
+  /* Knapp bemessen: „ANGRIFF" ist lang, und der Kreis darf nicht wachsen,
+     ohne dem Daumen den Bildschirm zu nehmen. */
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
   background: radial-gradient(circle at 35% 30%, #3a5560, #1a2730);
   border: 2px solid var(--panel-edge-bright);
   color: var(--ink);

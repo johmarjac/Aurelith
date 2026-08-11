@@ -175,7 +175,16 @@ müssen bitgleiche Zustände ergeben. Darauf setzt die Client-Prediction auf.
 
 Der End-to-End-Test startet Server und Client, öffnet Chromium und prüft, was
 ein Typecheck nicht sehen kann — dass der Kern lädt, die Verbindung steht,
-Snapshots ankommen und tatsächlich ein Bild entsteht.
+Snapshots ankommen und tatsächlich ein Bild entsteht. Dazu die Bedienung
+selbst: dass die Leinwand Zeigerereignisse überhaupt erreichen, dass die rechte
+Maustaste dreht und das Rad zoomt, dass A und D auf die richtige Bildschirmseite
+laufen, und in einem zweiten Kontext mit Berührungsbedienung, dass Joystick und
+Zwei-Finger-Zoom greifen.
+
+`window.aurelith` liefert dafür einen **lesenden** Blick auf Kamerastand und
+gezeichnete Position. Ohne den lässt sich von außen nicht ansehen, was auf dem
+Bildschirm tatsächlich passiert — und genau daran hingen mehrere Fehler, die
+man sieht, aber nicht kompiliert bekommt.
 
 `npm run test:pages` baut zusätzlich genau das, was der Pages-Workflow baut,
 legt es hinter einen Unterpfad und lädt es. Unterpfade gehen still kaputt:

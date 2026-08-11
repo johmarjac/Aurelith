@@ -24,6 +24,7 @@
 import * as THREE from 'three';
 import { CoreButton, type CoreEntityRow, type CoreWorld } from '@aurelith/core';
 import {
+  angleDelta,
   CombatFlag,
   EntityState,
   EntityType,
@@ -68,6 +69,58 @@ interface PendingInput {
   z: number;
 }
 
+/** Lage der eigenen Figur zu einem Simulationsschritt. */
+interface LocalPose {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  speed: number;
+}
+
+function copyPose(from: LocalPose, to: LocalPose): void {
+  to.x = from.x;
+  to.y = from.y;
+  to.z = from.z;
+  to.yaw = from.yaw;
+  to.speed = from.speed;
+}
+
+/**
+ * Lesender Blick auf den Clientzustand, unter `window.aurelith`.
+ *
+ * Ausschließlich Anzeige — nichts hier verändert etwas, und der Server glaubt
+ * dem Client ohnehin nichts. Der Nutzen ist Prüfbarkeit: Kamerastand und die
+ * *gezeichnete* Position der Figur lassen sich sonst von außen nicht ansehen,
+ * und genau daran hingen die drei Fehler, die man im Bild sieht, aber in
+ * keinem Typecheck.
+ */
+export interface Diagnostics {
+  camera: { yaw: number; pitch: number; distance: number };
+  /** Gezeichnete Lage — mit Zwischenwerten. */
+  player: { x: number; y: number; z: number; yaw: number; speed: number };
+  /**
+   * Roher Stand des letzten Simulationsschritts, ohne Zwischenwerte.
+   *
+   * Der Vergleich mit `player` ist der einzige bildratenunabhängige Nachweis,
+   * dass zwischen den Schritten überhaupt interpoliert wird: laufen beide
+   * gleich, wird nicht interpoliert, und die Figur zuckt im Takt der
+   * Simulation.
+   */
+  playerSim: { x: number; y: number; z: number; yaw: number };
+  localId: number;
+  entityCount: number;
+  targetId: number;
+  connection: string;
+  latencyMs: number;
+  frames: number;
+}
+
+declare global {
+  // eslint-disable-next-line no-var
+  var aurelith: Diagnostics | undefined;
+}
+
 export class Game {
   private readonly scene: Scene3D;
   private readonly registry = new ModelRegistry();
@@ -97,7 +150,32 @@ export class Game {
   private lastFrameAt = 0;
   private running = false;
 
+  /**
+   * Lage der eigenen Figur vor und nach dem letzten Simulationsschritt.
+   *
+   * Die Simulation läuft mit 20 Hz, gezeichnet wird mit 60 und mehr. Ohne
+   * Zwischenwerte steht die Figur zwei von drei Bildern still und springt im
+   * dritten — genau das Zittern, das fremde Figuren nicht haben, weil die
+   * ohnehin zwischen Snapshots interpoliert werden.
+   */
+  private readonly posePrev: LocalPose = { x: 0, y: 0, z: 0, yaw: 0, speed: 0 };
+  private readonly poseCurr: LocalPose = { x: 0, y: 0, z: 0, yaw: 0, speed: 0 };
+  /** Falsch, solange keine zwei Schritte vorliegen oder gerade gesprungen wurde. */
+  private poseValid = false;
+
   private readonly projection = new THREE.Vector3();
+
+  private readonly diagnostics: Diagnostics = {
+    camera: { yaw: 0, pitch: 0, distance: 0 },
+    player: { x: 0, y: 0, z: 0, yaw: 0, speed: 0 },
+    playerSim: { x: 0, y: 0, z: 0, yaw: 0 },
+    localId: 0,
+    entityCount: 0,
+    targetId: 0,
+    connection: 'getrennt',
+    latencyMs: 0,
+    frames: 0,
+  };
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -116,6 +194,8 @@ export class Game {
     this.ui.onAttackHold = (held) => this.input.setAttackButton(held);
     this.input.onPick = (x, y) => this.pickTarget(x, y);
     this.input.onAttackPressed = () => this.view.triggerAttack(this.localId);
+
+    globalThis.aurelith = this.diagnostics;
 
     window.addEventListener('resize', () => this.scene.resize());
     window.addEventListener('orientationchange', () => {
@@ -223,6 +303,7 @@ export class Game {
         this.pending = [];
         this.inputSeq = 0;
         this.targetId = 0;
+        this.poseValid = false;
         if (msg.mapId !== this.view.mapId) await this.loadMap(msg.mapId);
       },
 
@@ -230,6 +311,7 @@ export class Game {
         if (msg.mapId !== this.view.mapId) await this.loadMap(msg.mapId);
         this.scene.snapTo(msg.x, msg.y, msg.z);
         this.pending = [];
+        this.poseValid = false;
       },
 
       onSnapshot: (msg) => this.applySnapshot(msg),
@@ -291,6 +373,10 @@ export class Game {
     const world = this.prediction;
     if (!world || this.localId === 0) return;
 
+    // Ueber einen Sprung hinweg darf nicht interpoliert werden — sonst
+    // schwebt die Figur sichtbar von der alten zur neuen Stelle.
+    this.poseValid = false;
+
     world.removeEntity(this.localId);
     world.spawnPlayer({
       id: this.localId,
@@ -338,6 +424,7 @@ export class Game {
     // Zurück auf den Stand des Servers, dann alles nachspielen, was der Server
     // noch nicht gesehen hat.
     world.teleport(this.localId, serverX, serverZ, serverYaw);
+    this.poseValid = false;
     for (const p of this.pending) {
       world.applyInput(this.localId, p.moveX, p.moveZ, p.yaw, p.buttons, TICK_SECONDS);
       world.step(TICK_SECONDS);
@@ -450,6 +537,21 @@ export class Game {
     world.drainEvents();
 
     const row = this.localRow();
+    if (row) {
+      // Der Stand vor diesem Schritt wird zum Anfangswert der Zwischenwerte,
+      // der neue zum Endwert.
+      if (this.poseValid) copyPose(this.poseCurr, this.posePrev);
+      this.poseCurr.x = row.x;
+      this.poseCurr.y = row.y;
+      this.poseCurr.z = row.z;
+      this.poseCurr.yaw = row.yaw;
+      this.poseCurr.speed = Math.hypot(row.vx, row.vz);
+      if (!this.poseValid) {
+        copyPose(this.poseCurr, this.posePrev);
+        this.poseValid = true;
+      }
+    }
+
     this.pending.push({
       seq,
       moveX: snapshot.moveX,
@@ -487,12 +589,24 @@ export class Game {
     }
     this.connection?.flush();
 
-    // Eigene Figur aus der Vorhersage übernehmen, nicht aus dem Snapshot.
-    const row = this.localRow();
-    if (row) {
-      this.view.setLocal(row.id, row.x, row.y, row.z, row.yaw, Math.hypot(row.vx, row.vz));
-      this.scene.follow(row.x, row.y, row.z, this.prediction, dt);
-      this.streamer.setViewer(row.x, row.z);
+    // Eigene Figur aus der Vorhersage übernehmen, nicht aus dem Snapshot —
+    // und dabei zwischen den beiden letzten Schritten interpolieren, damit sie
+    // nicht im Takt der Simulation zuckt.
+    if (this.poseValid && this.localId !== 0) {
+      const alpha = Math.max(0, Math.min(1, this.accumulator / TICK_MS));
+      const prev = this.posePrev;
+      const curr = this.poseCurr;
+
+      const x = prev.x + (curr.x - prev.x) * alpha;
+      const y = prev.y + (curr.y - prev.y) * alpha;
+      const z = prev.z + (curr.z - prev.z) * alpha;
+      // Über den kürzesten Weg, sonst dreht sich die Figur beim Übergang von
+      // 359° auf 1° einmal komplett um die eigene Achse.
+      const yaw = prev.yaw + angleDelta(prev.yaw, curr.yaw) * alpha;
+
+      this.view.setLocal(this.localId, x, y, z, yaw, curr.speed);
+      this.scene.follow(x, y, z, this.prediction, dt);
+      this.streamer.setViewer(x, z);
 
       const self = this.view.entities.get(this.localId);
       if (self) self.rig.root.visible = !this.scene.isFirstPerson;
@@ -501,7 +615,39 @@ export class Game {
     this.view.step(dt, this.localId);
     this.ui.updateOverlay(this.scene.camera, this.view.entities.values(), this.localId, this.targetId, dt);
     this.scene.render();
+
+    this.updateDiagnostics();
   };
+
+  private updateDiagnostics(): void {
+    const d = this.diagnostics;
+    d.camera.yaw = this.scene.yaw;
+    d.camera.pitch = this.scene.pitch;
+    d.camera.distance = this.scene.distance;
+
+    const self = this.view.entities.get(this.localId);
+    if (self) {
+      // Die *gezeichnete* Lage, nicht der rohe Simulationsstand — nur so faellt
+      // ein Ruckeln zwischen den Simulationsschritten ueberhaupt auf.
+      d.player.x = self.x;
+      d.player.y = self.y;
+      d.player.z = self.z;
+      d.player.yaw = self.yaw;
+      d.player.speed = self.speed;
+    }
+
+    d.playerSim.x = this.poseCurr.x;
+    d.playerSim.y = this.poseCurr.y;
+    d.playerSim.z = this.poseCurr.z;
+    d.playerSim.yaw = this.poseCurr.yaw;
+
+    d.localId = this.localId;
+    d.entityCount = this.view.entities.size;
+    d.targetId = this.targetId;
+    d.connection = this.connection?.status ?? 'getrennt';
+    d.latencyMs = this.connection?.latency ?? 0;
+    d.frames++;
+  }
 
   stop(): void {
     this.running = false;

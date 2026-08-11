@@ -50,6 +50,12 @@ export class InputManager {
   private lookY = 0;
   private lookMoved = 0;
 
+  /** Zeiger der linken Taste — er wählt aus, dreht aber nicht. */
+  private pickPointer: number | null = null;
+  private pickX = 0;
+  private pickY = 0;
+  private pickMoved = 0;
+
   /** Für die Zwei-Finger-Zoomgeste. */
   private readonly pinchPointers = new Map<number, { x: number; y: number }>();
   private pinchDistance = 0;
@@ -110,37 +116,48 @@ export class InputManager {
   private bindMouse(): void {
     const down = (e: PointerEvent) => {
       if (e.button === 2 || e.button === 1) {
-        // Rechte und mittlere Taste drehen ausschließlich.
+        // Rechte und mittlere Taste drehen die Kamera — und sonst nichts.
         this.startLook(e.pointerId, e.clientX, e.clientY);
         this.canvas.setPointerCapture(e.pointerId);
         e.preventDefault();
         return;
       }
       if (e.button === 0) {
-        // Linke Taste dreht auch — schlägt aber zu, wenn sie sich kaum bewegt.
-        this.startLook(e.pointerId, e.clientX, e.clientY);
-        this.canvas.setPointerCapture(e.pointerId);
+        // Linke Taste schlägt zu und wählt aus. Sie dreht bewusst nicht mit:
+        // sonst zielt jeder Klick daneben, weil die Kamera dabei wegkippt.
+        this.pickPointer = e.pointerId;
+        this.pickMoved = 0;
+        this.pickX = e.clientX;
+        this.pickY = e.clientY;
         this.attackHeld = true;
         this.onAttackPressed?.();
       }
     };
 
     const move = (e: PointerEvent) => {
+      if (this.pickPointer === e.pointerId) {
+        this.pickMoved += Math.abs(e.clientX - this.pickX) + Math.abs(e.clientY - this.pickY);
+        this.pickX = e.clientX;
+        this.pickY = e.clientY;
+        return;
+      }
       if (this.lookPointer !== e.pointerId) return;
       this.applyLook(e.clientX, e.clientY, LOOK_SPEED);
     };
 
     const up = (e: PointerEvent) => {
-      if (this.lookPointer === e.pointerId) {
-        // Ein Klick, der sich kaum bewegt hat, ist ein Klick — nicht ein Drehen.
-        if (e.button === 0 && this.lookMoved < 6) {
+      if (this.lookPointer === e.pointerId) this.lookPointer = null;
+
+      if (this.pickPointer === e.pointerId) {
+        // Ein Klick, der sich kaum bewegt hat, ist ein Klick — kein Wischen.
+        if (this.pickMoved < 6) {
           const rect = this.canvas.getBoundingClientRect();
           this.onPick?.(
             ((e.clientX - rect.left) / rect.width) * 2 - 1,
             -(((e.clientY - rect.top) / rect.height) * 2 - 1),
           );
         }
-        this.lookPointer = null;
+        this.pickPointer = null;
       }
       if (e.button === 0) this.attackHeld = false;
     };
@@ -305,11 +322,24 @@ export class InputManager {
     }
 
     // Kamerarelativ in Weltachsen drehen.
+    //
+    // Die Kamera steht bei `ziel - (sin yaw, cos yaw) * abstand`, ihre
+    // Blickrichtung ist also `vorwärts = (sin yaw, cos yaw)`. Bildschirmrechts
+    // ergibt sich daraus als Kreuzprodukt aus Blickrichtung und Oben —
+    // `rechts = vorwärts × oben = (-cos yaw, sin yaw)`.
+    //
+    // Hier stand vorher das Negative davon, wodurch A und D vertauscht waren.
     const yaw = this.scene.yaw;
     const sin = Math.sin(yaw);
     const cos = Math.cos(yaw);
-    const moveX = localX * cos + localZ * sin;
-    const moveZ = -localX * sin + localZ * cos;
+
+    const forwardX = sin;
+    const forwardZ = cos;
+    const rightX = -cos;
+    const rightZ = sin;
+
+    const moveX = localX * rightX + localZ * forwardX;
+    const moveZ = localX * rightZ + localZ * forwardZ;
 
     const moving = Math.hypot(moveX, moveZ) > 0.001;
     const interact = this.interactPressed;
