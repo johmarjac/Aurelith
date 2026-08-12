@@ -32,6 +32,14 @@ export interface EnvironmentDef {
   sunIntensity: number;
   ambientColor: number;
   ambientIntensity: number;
+  /**
+   * Läuft auf dieser Karte ein Tag-und-Nacht-Wechsel?
+   *
+   * Standardmäßig ja. Wer es abschaltet, bekommt die Werte oben unverändert —
+   * gedacht für alles unter Tage, wo eine wandernde Sonne durch den Fels
+   * scheinen würde.
+   */
+  daylight?: boolean;
   /** Optionale Hintergrundmusik, Pfad im Asset-Manifest. */
   music?: string;
   ambientSound?: string;
@@ -303,6 +311,7 @@ export function parseMapDocument(raw: unknown, source = 'map'): MapDocument {
     sunIntensity: optNum(envRaw, 'sunIntensity', 1.5, envPath),
     ambientColor: optNum(envRaw, 'ambientColor', 0x9fb8d4, envPath),
     ambientIntensity: optNum(envRaw, 'ambientIntensity', 0.85, envPath),
+    daylight: optBool(envRaw, 'daylight', true),
   };
   if (typeof envRaw.music === 'string') environment.music = envRaw.music;
   if (typeof envRaw.ambientSound === 'string') environment.ambientSound = envRaw.ambientSound;
@@ -473,6 +482,7 @@ export function createEmptyMap(id: string, name: string): MapDocument {
       sunIntensity: 1.5,
       ambientColor: 0x9fb8d4,
       ambientIntensity: 0.85,
+      daylight: true,
     },
     terrain: {
       size: 512,

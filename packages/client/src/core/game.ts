@@ -38,6 +38,7 @@ import {
   type StatsMsg,
   terrainSetup,
 } from '@aurelith/shared';
+import { DayCycle } from '../render/daycycle.ts';
 import {
   BOOTSTRAP_MAP,
   QUALITY,
@@ -218,6 +219,8 @@ export class Game {
   private readonly textures: TextureLoader;
   private readonly quality = QUALITY[guessQuality()];
   private readonly mixer = new Mixer();
+  /** Tag und Nacht. Läuft nach der Serveruhr, nicht nach der des Geräts. */
+  private readonly dayCycle = new DayCycle();
   /**
    * Was gerade angelegt ist, als sortierte Kennungsliste.
    *
@@ -252,6 +255,18 @@ export class Game {
    * Zielen, der Server für den Schaden.
    */
   private profile = attackProfileFor(undefined);
+
+  /**
+   * Wie weit die Serveruhr von der des Geräts abweicht, in Millisekunden.
+   *
+   * Daran hängt die Tageszeit. Sie aus `Date.now()` zu nehmen wäre einfacher
+   * und falsch: zwei Spieler nebeneinander hätten verschiedene Tageszeiten,
+   * und wer seine Systemuhr verstellt, hätte Mittag, wenn alle anderen Nacht
+   * haben. Geglättet, damit ein einzelner verspäteter Snapshot die Sonne nicht
+   * springen lässt.
+   */
+  private clockOffset = 0;
+  private clockSeen = false;
 
   /** Zuletzt vom Server gemeldete Lage der eigenen Figur. Nur zur Auskunft. */
   private serverX = 0;
@@ -330,6 +345,10 @@ export class Game {
     this.ui.onRespawn = () => this.connection?.sendRespawn();
     this.ui.onEquipItem = (itemId) => this.connection?.sendEquipItem(itemId);
     this.ui.onUsePortal = () => this.usePortal();
+    this.ui.onQuestAction = (questId, action) =>
+      this.connection?.sendQuestAction(questId, action);
+    this.ui.onBuy = (itemId, count) => this.connection?.sendShopTrade(0, itemId, count);
+    this.ui.onSell = (itemId, count) => this.connection?.sendShopTrade(1, itemId, count);
     this.ui.onAttackHold = (held) => this.input.setAttackButton(held);
     this.input.onPick = (x, y) => this.pickTarget(x, y);
     this.input.onAttackPressed = () => this.view.triggerAttack(this.localId);
@@ -574,6 +593,9 @@ export class Game {
     this.prediction = world;
 
     this.scene.applyEnvironment(doc.environment, this.quality.viewDistance);
+    // Die Karteneinstellung ist der Mittagsstand; alles andere rechnet der
+    // Zyklus daraus.
+    this.dayCycle.setEnvironment(doc.environment);
     this.view.setMap(world, doc, this.quality);
     this.streamer.setViewer(doc.spawn.x, doc.spawn.z);
     this.scene.snapTo(doc.spawn.x, world.heightAt(doc.spawn.x, doc.spawn.z), doc.spawn.z);
@@ -615,6 +637,7 @@ export class Game {
 
       onWelcome: async (msg) => {
         this.localId = msg.entityId;
+        this.syncClock(msg.serverTimeMs);
         this.pending = [];
         this.targetId = 0;
         this.poseValid = false;
@@ -645,6 +668,8 @@ export class Game {
         this.nearbyPortalId = undefined;
         this.serverSeen = false;
         this.ui.setPortalPrompt(undefined);
+        // Der NPC, mit dem man eben sprach, steht auf der alten Karte.
+        this.ui.closeDialog();
 
         await this.ensureMap(msg.mapId);
         this.scene.snapTo(msg.x, msg.y, msg.z);
@@ -653,7 +678,15 @@ export class Game {
         this.input.setFacing(msg.yaw);
       },
 
-      onSnapshot: (msg) => this.applySnapshot(msg),
+      onSnapshot: (msg) => {
+        // Die Uhr laeuft mit jedem Snapshot mit, nicht nur beim Anmelden: eine
+        // Sitzung dauert laenger, als eine Geraeteuhr genau geht. Hier und
+        // nicht in `applySnapshot`: der wird beim Kartenwechsel mit
+        // aufgehobenen Snapshots ein zweites Mal gerufen, und deren Zeitstempel
+        // sind dann alt.
+        this.syncClock(msg.serverTimeMs);
+        this.applySnapshot(msg);
+      },
 
       onStats: (msg) => {
         this.stats = msg;
@@ -694,6 +727,10 @@ export class Game {
         }
         this.equipped = angelegt;
       },
+
+      onNpcDialog: (msg) => this.ui.showDialog(msg),
+
+      onQuestLog: (rows) => this.ui.setQuests(rows),
 
       onChat: (msg) => this.ui.addChat(msg.channel, msg.from, msg.text),
 
@@ -800,6 +837,7 @@ export class Game {
   private applySnapshot(msg: {
     tick: number;
     ackInputSeq: number;
+    serverTimeMs?: number;
     spawns: Array<Parameters<WorldView['spawn']>[0]>;
     updates: Array<Parameters<WorldView['update']>[0]>;
     despawns: number[];
@@ -999,6 +1037,29 @@ export class Game {
   // Zielauswahl
   // -------------------------------------------------------------------------
 
+  /**
+   * Zieht die Serveruhr nach.
+   *
+   * Beim ersten Mal hart, danach geglättet — ein einzelner verspäteter
+   * Snapshot soll die Sonne nicht springen lassen. Die Laufzeit des Pakets
+   * wird nicht herausgerechnet: bei einer Tageslänge von vierundzwanzig
+   * Minuten sind fünfzig Millisekunden Versatz drei Zehntel einer Spielsekunde.
+   */
+  private syncClock(serverTimeMs: number): void {
+    const offset = serverTimeMs - Date.now();
+    if (!this.clockSeen) {
+      this.clockOffset = offset;
+      this.clockSeen = true;
+      return;
+    }
+    this.clockOffset = this.clockOffset * 0.95 + offset * 0.05;
+  }
+
+  /** Die Weltzeit in Millisekunden — Geräteuhr plus gemessener Versatz. */
+  private get worldTimeMs(): number {
+    return Date.now() + this.clockOffset;
+  }
+
   private pickTarget(ndcX: number, ndcY: number): void {
     const width = window.innerWidth;
     const height = window.innerHeight;
@@ -1007,10 +1068,28 @@ export class Game {
 
     let best: EntityVisual | undefined;
     let bestDist = PICK_RADIUS_PX;
+    // NPCs werden nicht angegriffen, sondern angesprochen. Sie stehen deshalb
+    // in einer eigenen Auswahl: sonst nähme ein NPC dem Monster dahinter das
+    // Ziel weg, und man schlüge ins Leere, statt zu reden.
+    let bestNpc: EntityVisual | undefined;
+    let bestNpcDist = PICK_RADIUS_PX;
 
     for (const e of this.view.entities.values()) {
-      if (e.id === this.localId || e.type === EntityType.Npc) continue;
+      if (e.id === this.localId) continue;
       if (e.state === EntityState.Dead) continue;
+
+      if (e.type === EntityType.Npc) {
+        this.projection.set(e.x, e.y + e.height * 0.5, e.z).project(this.scene.camera);
+        if (this.projection.z > 1) continue;
+        const nx = (this.projection.x * 0.5 + 0.5) * width;
+        const ny = (-this.projection.y * 0.5 + 0.5) * height;
+        const nd = Math.hypot(nx - clickX, ny - clickY);
+        if (nd < bestNpcDist) {
+          bestNpcDist = nd;
+          bestNpc = e;
+        }
+        continue;
+      }
 
       this.projection.set(e.x, e.y + e.height * 0.5, e.z).project(this.scene.camera);
       if (this.projection.z > 1) continue;
@@ -1022,6 +1101,13 @@ export class Game {
         bestDist = d;
         best = e;
       }
+    }
+
+    // Ein getroffenes Monster gewinnt gegen einen NPC dahinter — im Gefecht
+    // will man kämpfen, nicht plaudern.
+    if (!best && bestNpc) {
+      this.connection?.sendInteract(bestNpc.id);
+      return;
     }
 
     this.setTarget(best?.id ?? 0);
@@ -1255,6 +1341,11 @@ export class Game {
       const self = this.view.entities.get(this.localId);
       if (self) self.rig.root.visible = !this.scene.isFirstPerson;
     }
+
+    // Tag und Nacht. Vor dem Zeichnen, damit Himmel und Licht zum Bild
+    // passen, das gleich entsteht.
+    this.dayCycle.update(this.worldTimeMs, this.scene, this.view.lanterns, now);
+    this.ui.setWorldTime(this.dayCycle.time, this.dayCycle.state?.darkness ?? 0);
 
     this.view.step(dt, this.localId);
     this.ui.updateOverlay(this.scene.camera, this.view.entities.values(), this.localId, this.targetId, dt);

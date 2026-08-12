@@ -130,6 +130,39 @@ export function encodeRespawn(): Uint8Array {
   return packet(ClientOp.Respawn, 4).finish();
 }
 
+/**
+ * Einen NPC ansprechen.
+ *
+ * Der Client schickt nur die Kennung. Ob die Figur nah genug steht und ob dort
+ * überhaupt ein NPC ist, prüft der Server — von hier aus liesse sich sonst quer
+ * über die Karte handeln.
+ */
+export function encodeInteract(entityId: number): Uint8Array {
+  return packet(ClientOp.Interact, 8).u32(entityId).finish();
+}
+
+export function decodeInteract(r: ByteReader): { entityId: number } {
+  return { entityId: r.u32() };
+}
+
+/** Auftrag annehmen, abgeben oder aufgeben. `action` ist ein `QuestAction`. */
+export function encodeQuestAction(questId: string, action: number): Uint8Array {
+  return packet(ClientOp.QuestAction, 64).str(questId).u8(action).finish();
+}
+
+export function decodeQuestAction(r: ByteReader): { questId: string; action: number } {
+  return { questId: r.str(), action: r.u8() };
+}
+
+/** Handel. `mode` ist 0 für kaufen und 1 für verkaufen. */
+export function encodeShopTrade(mode: number, itemId: string, count: number): Uint8Array {
+  return packet(ClientOp.ShopTrade, 64).u8(mode).str(itemId).u16(count).finish();
+}
+
+export function decodeShopTrade(r: ByteReader): { mode: number; itemId: string; count: number } {
+  return { mode: r.u8(), itemId: r.str(), count: r.u16() };
+}
+
 // ---------------------------------------------------------------------------
 // Server → Client
 // ---------------------------------------------------------------------------
@@ -461,6 +494,77 @@ export function decodeInventory(r: ByteReader): InventoryRow[] {
   const rows: InventoryRow[] = new Array(count);
   for (let i = 0; i < count; i++) {
     rows[i] = { itemId: r.str(), count: r.u16(), slot: r.u16(), equipped: r.bool() };
+  }
+  return rows;
+}
+
+/**
+ * Was ein angesprochener NPC anzubieten hat.
+ *
+ * Bewusst schmal: nur Kennungen und Zustände. Namen, Begrüssung, Auftragstexte
+ * und der Ladenbestand stehen in der Content-Tabelle, und die hat der Client
+ * ohnehin — sie mitzuschicken hiesse, dieselben Sätze bei jedem Gespräch neu
+ * über die Leitung zu tragen.
+ */
+export interface NpcDialogMsg {
+  entityId: number;
+  npcDefId: string;
+  /** Hat dieser NPC einen Laden? Der Bestand kommt aus der Tabelle. */
+  shop: boolean;
+  /** Aufträge, die hier eine Rolle spielen, mit ihrem Zustand (`QuestStatus`). */
+  quests: Array<{ questId: string; status: number }>;
+}
+
+export function encodeNpcDialog(m: NpcDialogMsg): Uint8Array {
+  const w = packet(ServerOp.NpcDialog, 256);
+  w.u32(m.entityId).str(m.npcDefId).bool(m.shop).u8(m.quests.length);
+  for (const q of m.quests) w.str(q.questId).u8(q.status);
+  return w.finish();
+}
+
+export function decodeNpcDialog(r: ByteReader): NpcDialogMsg {
+  const entityId = r.u32();
+  const npcDefId = r.str();
+  const shop = r.bool();
+  const count = r.u8();
+  const quests: Array<{ questId: string; status: number }> = new Array(count);
+  for (let i = 0; i < count; i++) quests[i] = { questId: r.str(), status: r.u8() };
+  return { entityId, npcDefId, shop, quests };
+}
+
+export interface QuestLogRow {
+  questId: string;
+  /** `QuestStatus` — aktiv, erfüllt oder abgeschlossen. */
+  status: number;
+  /** Fortschritt je Ziel, in der Reihenfolge der Definition. */
+  progress: number[];
+}
+
+/**
+ * Der vollständige Auftragsstand. Wie beim Inventar ein Vollbild statt eines
+ * Abgleichs: eine Handvoll Aufträge kostet nichts, und Vollbilder können nicht
+ * auseinanderlaufen.
+ */
+export function encodeQuestLog(rows: QuestLogRow[]): Uint8Array {
+  const w = packet(ServerOp.QuestLog, 256);
+  w.u16(rows.length);
+  for (const row of rows) {
+    w.str(row.questId).u8(row.status).u8(row.progress.length);
+    for (const p of row.progress) w.u16(Math.max(0, Math.min(0xffff, Math.round(p))));
+  }
+  return w.finish();
+}
+
+export function decodeQuestLog(r: ByteReader): QuestLogRow[] {
+  const count = r.u16();
+  const rows: QuestLogRow[] = new Array(count);
+  for (let i = 0; i < count; i++) {
+    const questId = r.str();
+    const status = r.u8();
+    const n = r.u8();
+    const progress: number[] = new Array(n);
+    for (let j = 0; j < n; j++) progress[j] = r.u16();
+    rows[i] = { questId, status, progress };
   }
   return rows;
 }

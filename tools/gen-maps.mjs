@@ -680,6 +680,9 @@ function gruft() {
       sunIntensity: 0.45,
       ambientColor: 0x2b3a49,
       ambientIntensity: 0.6,
+      // Unter Tage wandert keine Sonne. Ohne das liefe der Tageswechsel auch
+      // hier, und um die Mittagszeit stuende die Gruft im Sonnenlicht.
+      daylight: false,
     },
     terrain: {
       size,

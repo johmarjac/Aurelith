@@ -28,9 +28,18 @@ export interface ItemRecord {
   equipped: boolean;
 }
 
+export interface QuestRecord {
+  questId: string;
+  /** `QuestStatus` aus dem geteilten Paket. */
+  status: number;
+  /** Fortschritt je Ziel, in der Reihenfolge der Definition. */
+  progress: number[];
+}
+
 export interface LoginResult {
   character: CharacterRecord;
   items: ItemRecord[];
+  quests: QuestRecord[];
   /** Wahr, wenn der Charakter in diesem Aufruf neu angelegt wurde. */
   created: boolean;
 }
@@ -54,4 +63,11 @@ export interface GameStore {
   loginOrCreate(accountName: string, spawn: SpawnPoint): Promise<LoginResult>;
   saveCharacter(character: CharacterRecord): Promise<void>;
   saveInventory(characterId: number, items: ItemRecord[]): Promise<void>;
+  /**
+   * Schreibt den Auftragsstand.
+   *
+   * Wie beim Inventar vollständig ersetzend: eine Handvoll Zeilen je Charakter,
+   * und ein Abgleich wäre mehr Code für dieselbe Wirkung.
+   */
+  saveQuests(characterId: number, quests: QuestRecord[]): Promise<void>;
 }

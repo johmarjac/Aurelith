@@ -31,6 +31,15 @@ export interface MobDef {
   radius: number;
   /** Höhe für Nameplate und Trefferzahlen. */
   height: number;
+  /**
+   * Was beim Tod herausfällt.
+   *
+   * Landet ohne Umweg im Beutel des Spielers, der den letzten Schlag gesetzt
+   * hat — es gibt keine Beutel am Boden, und es soll auch keine geben: ein
+   * Gegenstand, den man erst noch aufheben muss, ist auf dem Telefon eine
+   * Zumutung. `chance` ist eine Wahrscheinlichkeit von 0 bis 1.
+   */
+  drops?: ReadonlyArray<{ item: string; chance: number; min?: number; max?: number }>;
 }
 
 const mobList: MobDef[] = [
@@ -55,6 +64,7 @@ const mobList: MobDef[] = [
     scale: 1,
     radius: 0.55,
     height: 1.4,
+    drops: [{ item: 'mote_essence', chance: 0.45 }],
   },
   {
     id: 'burrow_pup',
@@ -77,6 +87,10 @@ const mobList: MobDef[] = [
     scale: 1,
     radius: 0.7,
     height: 1.2,
+    drops: [
+      { item: 'mote_essence', chance: 0.15 },
+      { item: 'potion_hp_small', chance: 0.12 },
+    ],
   },
   {
     id: 'thistle_boar',
@@ -99,6 +113,10 @@ const mobList: MobDef[] = [
     scale: 1.15,
     radius: 0.95,
     height: 1.5,
+    drops: [
+      { item: 'boar_hide', chance: 0.5 },
+      { item: 'potion_hp_small', chance: 0.18 },
+    ],
   },
   {
     id: 'bandit_scout',
@@ -121,6 +139,11 @@ const mobList: MobDef[] = [
     scale: 1,
     radius: 0.6,
     height: 1.9,
+    drops: [
+      { item: 'boar_hide', chance: 0.2 },
+      { item: 'rusty_dagger', chance: 0.06 },
+      { item: 'potion_hp_small', chance: 0.25 },
+    ],
   },
   {
     id: 'cave_crawler',
@@ -143,6 +166,10 @@ const mobList: MobDef[] = [
     scale: 1.1,
     radius: 0.9,
     height: 1.3,
+    drops: [
+      { item: 'crawler_chitin', chance: 0.55 },
+      { item: 'potion_hp_small', chance: 0.3 },
+    ],
   },
   {
     id: 'dungeon_warden',
@@ -165,6 +192,10 @@ const mobList: MobDef[] = [
     scale: 1.9,
     radius: 1.8,
     height: 3.4,
+    drops: [
+      { item: 'crawler_chitin', chance: 1, min: 2, max: 4 },
+      { item: 'iron_blade', chance: 0.35 },
+    ],
   },
 ];
 
@@ -187,6 +218,14 @@ export interface NpcDef {
   height: number;
   /** Erste Zeile im Dialogfenster. */
   greeting: string;
+  /**
+   * Was dieser NPC verkauft — Gegenstandskennungen.
+   *
+   * Fehlt die Liste, hat er keinen Laden. Der Bestand ist unbegrenzt: ein
+   * Händler, dem die Tränke ausgehen, ist eine Verwaltungsaufgabe ohne
+   * Spielwert, solange es nur einen Server und eine Handvoll Spieler gibt.
+   */
+  shop?: ReadonlyArray<string>;
 }
 
 const npcList: NpcDef[] = [
@@ -212,6 +251,7 @@ const npcList: NpcDef[] = [
     radius: 0.55,
     height: 1.9,
     greeting: 'Holzschwerter halten nicht ewig. Bring mir Erz, dann reden wir über Stahl.',
+    shop: ['rusty_dagger', 'iron_blade', 'training_vest'],
   },
   {
     id: 'npc_merchant',
@@ -223,6 +263,7 @@ const npcList: NpcDef[] = [
     radius: 0.5,
     height: 1.72,
     greeting: 'Tränke, Bandagen, Reiseproviant. Alles ehrlich gehandelt.',
+    shop: ['potion_hp_small', 'wooden_bow', 'wooden_sword'],
   },
   {
     id: 'npc_gatekeeper',
@@ -415,6 +456,38 @@ const itemList: ItemDef[] = [
     model: 'item_essence',
     iconColor: 0x7fd8e8,
     description: 'Kühles Leuchten, das nach dem Verlöschen zurückbleibt.',
+  },
+  {
+    id: 'boar_hide',
+    name: 'Keilerhaut',
+    kind: 'material',
+    slot: 'none',
+    levelReq: 1,
+    attackDamage: 0,
+    defense: 0,
+    effectValue: 0,
+    stackable: true,
+    maxStack: 999,
+    value: 22,
+    model: 'item_hide',
+    iconColor: 0x8a6a42,
+    description: 'Zäh, borstig, und bei jedem Sattler gefragt.',
+  },
+  {
+    id: 'crawler_chitin',
+    name: 'Kriecherpanzer',
+    kind: 'material',
+    slot: 'none',
+    levelReq: 1,
+    attackDamage: 0,
+    defense: 0,
+    effectValue: 0,
+    stackable: true,
+    maxStack: 999,
+    value: 64,
+    model: 'item_chitin',
+    iconColor: 0x6f7f8a,
+    description: 'Eine Schale, die schon einmal etwas ausgehalten hat.',
   },
 ];
 

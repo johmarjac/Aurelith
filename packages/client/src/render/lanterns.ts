@@ -58,6 +58,16 @@ export class Lanterns {
   /** Wiederverwendet je Bild, damit die Auswahl nichts anlegt. */
   private readonly ranked: Array<{ place: LanternPlacement; d2: number }> = [];
 
+  /**
+   * Wie dunkel es draußen ist, 0 bis 1.
+   *
+   * Eine Laterne, die mittags mit voller Kraft leuchtet, sieht aus wie ein
+   * Fehler — man sieht die Lichtpfütze auf dem sonnenbeschienenen Boden. Sie
+   * ganz auszuschalten wäre aber ebenso falsch: dann springt sie in der
+   * Dämmerung in einem Bild an. Also ein Faktor, kein Schalter.
+   */
+  private darkness = 1;
+
   constructor(private readonly maxLights: number) {
     for (let i = 0; i < maxLights; i++) {
       const light = new THREE.PointLight(WARM, 0, RANGE, 1.6);
@@ -73,6 +83,20 @@ export class Lanterns {
   /** Wie viele Laternen die Karte hat. Nur für die Diagnose. */
   get count(): number {
     return this.places.length;
+  }
+
+  /**
+   * Setzt die Dunkelheit, aus der die Helligkeit folgt.
+   *
+   * Der Schein am Glas bleibt auch tagsüber ein wenig stehen — eine Laterne,
+   * deren Flamme brennt, hat ein helles Fenster, egal wie hell es ringsum ist.
+   * Die Lichtpfütze auf dem Boden dagegen verschwindet ganz.
+   */
+  setDarkness(darkness: number): void {
+    this.darkness = darkness < 0 ? 0 : darkness > 1 ? 1 : darkness;
+    if (this.glowMaterial) {
+      this.glowMaterial.uniforms.staerke!.value = 0.28 + 0.72 * this.darkness;
+    }
   }
 
   /**
@@ -121,6 +145,8 @@ export class Lanterns {
         groesse: { value: 260 },
         // Wie weit der Schein zur Kamera hin vorgezogen wird. Siehe unten.
         vorlauf: { value: 0.45 },
+        // Aus der Tageszeit, siehe `setDarkness`.
+        staerke: { value: 1 },
       },
       vertexShader: `
         uniform float groesse;
@@ -144,6 +170,7 @@ export class Lanterns {
       `,
       fragmentShader: `
         uniform vec3 farbe;
+        uniform float staerke;
         void main() {
           // Weicher Abfall nach außen, im Kern fast weiß — so sieht eine
           // Flamme durch Glas aus, ein gleichmäßiger Kreis dagegen nach
@@ -153,7 +180,7 @@ export class Lanterns {
           float f = 1.0 - d * 2.0;
           float kern = pow(f, 6.0);
           float hof = pow(f, 2.0) * 0.35;
-          gl_FragColor = vec4(mix(farbe, vec3(1.0), kern * 0.6), kern + hof);
+          gl_FragColor = vec4(mix(farbe, vec3(1.0), kern * 0.6), (kern + hof) * staerke);
         }
       `,
     });
@@ -195,8 +222,8 @@ export class Lanterns {
       // Zwischen RANGE und CONSIDER ausblenden.
       const fade = d <= RANGE ? 1 : Math.max(0, 1 - (d - RANGE) / (CONSIDER - RANGE));
       light.position.set(entry.place.x, entry.place.y, entry.place.z);
-      light.intensity = 14 * fade;
-      light.visible = fade > 0.001;
+      light.intensity = 14 * fade * this.darkness;
+      light.visible = light.intensity > 0.01;
     }
   }
 

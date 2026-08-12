@@ -13,6 +13,7 @@ import {
   type PacketCipher,
 } from '@aurelith/shared';
 import type { CharacterRecord, ItemRecord } from './db/index.ts';
+import { QuestBook } from './quests.ts';
 
 export type SessionState = 'handshake' | 'playing' | 'closed';
 
@@ -46,6 +47,17 @@ export class Session {
   accountName = '';
   character?: CharacterRecord;
   items: ItemRecord[] = [];
+  /** Auftragsstand. Leer, solange nicht eingeloggt. */
+  readonly quests = new QuestBook();
+  /**
+   * Hat sich seit dem letzten Speichern etwas an Beutel oder Aufträgen getan?
+   *
+   * Beides wird ersetzend geschrieben, und das ist teurer als ein
+   * Positionsupdate. Ohne die Merke schriebe der Server alle dreissig Sekunden
+   * dreissig Inventarzeilen neu, auch wenn niemand etwas angefasst hat.
+   */
+  itemsDirty = false;
+  questsDirty = false;
 
   /** Letzte verarbeitete Eingabesequenz — Anker der Reconciliation im Client. */
   lastInputSeq = 0;

@@ -4,7 +4,14 @@
 
 import pg from 'pg';
 import { STARTER_INVENTORY } from '@aurelith/shared';
-import type { CharacterRecord, GameStore, ItemRecord, LoginResult, SpawnPoint } from './types.ts';
+import type {
+  CharacterRecord,
+  GameStore,
+  ItemRecord,
+  LoginResult,
+  QuestRecord,
+  SpawnPoint,
+} from './types.ts';
 
 const { Pool } = pg;
 
@@ -89,6 +96,14 @@ export class PostgresStore implements GameStore {
         [character.id],
       );
 
+      const quests = await client.query(
+        `SELECT quest_id, status, progress
+           FROM character_quests
+          WHERE character_id = $1
+          ORDER BY quest_id`,
+        [character.id],
+      );
+
       await client.query('COMMIT');
 
       return {
@@ -98,6 +113,13 @@ export class PostgresStore implements GameStore {
           count: Number(r.count),
           slot: Number(r.slot),
           equipped: Boolean(r.equipped),
+        })),
+        quests: quests.rows.map((r) => ({
+          questId: String(r.quest_id),
+          status: Number(r.status),
+          // pg liefert INTEGER[] als JS-Array; die Zahlen kommen je nach
+          // Treiberfassung als Text zurueck, deshalb der Durchlauf.
+          progress: Array.isArray(r.progress) ? r.progress.map((p: unknown) => Number(p)) : [],
         })),
         created,
       };
@@ -131,6 +153,31 @@ export class PostgresStore implements GameStore {
           `INSERT INTO character_items (character_id, item_id, count, slot, equipped)
            VALUES ($1, $2, $3, $4, $5)`,
           [characterId, item.itemId, item.count, item.slot, item.equipped],
+        );
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async saveQuests(characterId: number, quests: QuestRecord[]): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Ersetzen statt abgleichen, genau wie beim Inventar. Das raeumt
+      // nebenbei aufgegebene Auftraege weg — mit einem reinen UPSERT bliebe
+      // ihre Zeile stehen und der Auftrag waere nach dem naechsten Anmelden
+      // wieder da.
+      await client.query('DELETE FROM character_quests WHERE character_id = $1', [characterId]);
+      for (const quest of quests) {
+        await client.query(
+          `INSERT INTO character_quests (character_id, quest_id, status, progress)
+           VALUES ($1, $2, $3, $4)`,
+          [characterId, quest.questId, quest.status, quest.progress],
         );
       }
       await client.query('COMMIT');

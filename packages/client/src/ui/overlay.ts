@@ -52,7 +52,10 @@ export class Overlay {
 
     el = document.createElement('div');
     el.className = 'nameplate';
-    el.innerHTML = '<div class="np-name"></div><div class="np-bar"><span></span></div>';
+    // Das Auftragszeichen steht *über* dem Namen, wie man es kennt: ein „!"
+    // heisst „hier gibt es etwas", ein „?" heisst „hier gibst du es ab".
+    el.innerHTML =
+      '<div class="np-mark"></div><div class="np-name"></div><div class="np-bar"><span></span></div>';
     this.element.appendChild(el);
     this.plates[index] = el;
     return el;
@@ -69,6 +72,8 @@ export class Overlay {
     targetId: number,
     width: number,
     height: number,
+    /** Auftragszeichen je NPC-Kennung: „neu", „laeuft" oder „fertig". */
+    marks?: ReadonlyMap<string, string>,
   ): void {
     const candidates: Array<{ e: EntityVisual; dist: number }> = [];
 
@@ -108,7 +113,17 @@ export class Overlay {
       // wenn man ihm in den Weg läuft.
       el.dataset.aggro = String(e.type === EntityType.Monster && e.aggro);
 
-      const name = el.firstElementChild as HTMLElement;
+      // Reihenfolge der Kinder: Zeichen, Name, Balken. `firstElementChild` war
+      // einmal der Name — seit über ihm das Auftragszeichen hängt, wäre das
+      // still der falsche Knoten.
+      const mark = el.children[0] as HTMLElement;
+      const name = el.children[1] as HTMLElement;
+
+      const markKind = e.type === EntityType.Npc ? marks?.get(e.defId) : undefined;
+      const markText = markKind === 'neu' ? '!' : markKind ? '?' : '';
+      if (mark.textContent !== markText) mark.textContent = markText;
+      mark.dataset.kind = markKind ?? '';
+
       const label = e.type === EntityType.Monster ? `${e.name} (${e.level})` : e.name;
       if (name.textContent !== label) name.textContent = label;
 

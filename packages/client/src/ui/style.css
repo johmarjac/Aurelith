@@ -884,3 +884,245 @@ body {
 .item-slot.item-equippable:hover {
   border-color: #4cc9bf;
 }
+
+/* ==========================================================================
+ * Uhr, Gespräch, Aufträge, Handel
+ * ==========================================================================
+ */
+
+/*
+ * Die Weltuhr steht zwischen Name und Stufe. Nicht daneben, sondern dazwischen:
+ * links steht, wer man ist, rechts, wie weit man ist, und die Tageszeit gehört
+ * zu keinem von beidem.
+ */
+.vitals-clock {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+
+/* --- Auftragszeichen über den Köpfen ------------------------------------- */
+
+.np-mark {
+  font-weight: 700;
+  font-size: 1.1rem;
+  line-height: 1;
+  text-shadow: 0 0 4px #000, 0 1px 2px #000;
+}
+
+.np-mark:empty {
+  display: none;
+}
+
+.np-mark[data-kind='neu'] {
+  color: var(--gold);
+}
+
+/* Läuft noch: gedämpft. Ein Zeichen, das immer gleich schreit, sagt nichts. */
+.np-mark[data-kind='laeuft'] {
+  color: var(--ink-faint);
+}
+
+.np-mark[data-kind='fertig'] {
+  color: var(--accent);
+}
+
+/* --- Gespräch ------------------------------------------------------------ */
+
+.window[data-window='dialog'] {
+  width: min(28rem, calc(100vw - 2rem));
+}
+
+.dialog-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.dialog-name {
+  font-weight: 600;
+  color: var(--gold);
+}
+
+.dialog-title {
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+}
+
+.dialog-greeting {
+  margin: 0 0 0.6rem;
+  color: var(--ink-dim);
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.dialog-quest {
+  border-top: 1px solid var(--panel-edge);
+  padding-top: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.dialog-quest-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.quest-mark {
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.quest-name {
+  font-weight: 600;
+}
+
+.dialog-text {
+  margin: 0.3rem 0;
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
+
+.quest-reward {
+  margin: 0.3rem 0 0.5rem;
+  font-size: 0.78rem;
+  color: var(--gold);
+}
+
+.dialog-shop {
+  margin-top: 0.6rem;
+  width: 100%;
+}
+
+/* --- Questlog ------------------------------------------------------------ */
+
+.window[data-window='quests'] {
+  width: min(24rem, calc(100vw - 2rem));
+  max-height: 60vh;
+}
+
+.quest-entry {
+  border-top: 1px solid var(--panel-edge);
+  padding-top: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.quest-entry:first-child {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.quest-entry-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.quest-state {
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+}
+
+/* Abgabebereit sticht hervor — das ist der Zustand, der eine Handlung will. */
+.quest-entry[data-status='2'] .quest-state {
+  color: var(--accent);
+}
+
+.quest-summary {
+  margin: 0.25rem 0 0.4rem;
+  color: var(--ink-dim);
+  line-height: 1.4;
+}
+
+.quest-objectives {
+  list-style: none;
+  margin: 0 0 0.4rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.quest-objectives li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.quest-objectives li[data-done='true'] {
+  color: var(--exp);
+}
+
+.quest-obj-count {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+
+.quest-turnin {
+  margin: 0 0 0.4rem;
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+}
+
+.quest-drop {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
+}
+
+.quest-empty {
+  margin: 0;
+  color: var(--ink-faint);
+  line-height: 1.4;
+}
+
+/* --- Handel -------------------------------------------------------------- */
+
+.window[data-window='shop'] {
+  width: min(26rem, calc(100vw - 2rem));
+  max-height: 62vh;
+}
+
+.shop-gold {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--gold);
+}
+
+.shop-head {
+  margin: 0.6rem 0 0.3rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+}
+
+.shop-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+  border-bottom: 1px solid rgba(44, 58, 69, 0.5);
+}
+
+.shop-price {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--gold);
+}
+
+/* Was man sich nicht leisten kann, bleibt sichtbar — aber leise. */
+.shop-row[data-leistbar='false'] .shop-price {
+  color: var(--ink-faint);
+}
+
+.shop-action {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
+}

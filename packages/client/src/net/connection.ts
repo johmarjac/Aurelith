@@ -21,7 +21,9 @@ import {
   decodeInventory,
   decodeKick,
   decodeMapChange,
+  decodeNpcDialog,
   decodePong,
+  decodeQuestLog,
   decodeServerChat,
   decodeSnapshot,
   decodeStats,
@@ -33,7 +35,10 @@ import {
   encodePing,
   encodeRespawn,
   encodeEquipItem,
+  encodeInteract,
+  encodeQuestAction,
   encodeSetTarget,
+  encodeShopTrade,
   encodeUsePortal,
   nullCipher,
   readPacket,
@@ -42,6 +47,8 @@ import {
   type InputMsg,
   type InventoryRow,
   type MapChangeMsg,
+  type NpcDialogMsg,
+  type QuestLogRow,
   type SnapshotMsg,
   type StatsMsg,
   type WelcomeMsg,
@@ -59,6 +66,8 @@ export interface ConnectionHandlers {
   onChat?: (msg: ChatMsg) => void;
   onStats?: (msg: StatsMsg) => void;
   onInventory?: (rows: InventoryRow[]) => void;
+  onNpcDialog?: (msg: NpcDialogMsg) => void;
+  onQuestLog?: (rows: QuestLogRow[]) => void;
   onKick?: (reason: number, message: string) => void;
 }
 
@@ -199,6 +208,12 @@ export class Connection {
         case ServerOp.Inventory:
           this.handlers.onInventory?.(decodeInventory(reader));
           break;
+        case ServerOp.NpcDialog:
+          this.handlers.onNpcDialog?.(decodeNpcDialog(reader));
+          break;
+        case ServerOp.QuestLog:
+          this.handlers.onQuestLog?.(decodeQuestLog(reader));
+          break;
         case ServerOp.Pong: {
           const { clientTime } = decodePong(reader);
           const rtt = performance.now() - clientTime;
@@ -257,6 +272,21 @@ export class Connection {
 
   sendEquipItem(itemId: string): void {
     this.send(encodeEquipItem(itemId));
+    this.flush();
+  }
+
+  sendInteract(entityId: number): void {
+    this.send(encodeInteract(entityId));
+    this.flush();
+  }
+
+  sendQuestAction(questId: string, action: number): void {
+    this.send(encodeQuestAction(questId, action));
+    this.flush();
+  }
+
+  sendShopTrade(mode: number, itemId: string, count: number): void {
+    this.send(encodeShopTrade(mode, itemId, count));
     this.flush();
   }
 

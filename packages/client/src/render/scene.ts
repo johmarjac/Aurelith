@@ -8,7 +8,7 @@
 
 import * as THREE from 'three';
 import type { CoreWorld } from '@aurelith/core';
-import type { EnvironmentDef } from '@aurelith/shared';
+import type { EnvironmentDef, SkyState } from '@aurelith/shared';
 import type { QualitySettings } from '../config.ts';
 
 /** Wie weit die Kamera hinter der Figur steht, in Stufen. */
@@ -67,6 +67,18 @@ export class Scene3D {
 
   private readonly followed = new THREE.Vector3();
   private readonly desired = new THREE.Vector3();
+
+  /** Nebelweiten der Karte. Der Tageszyklus färbt nur, er verschiebt nicht. */
+  private fogNear = 90;
+  private fogFar = 320;
+  /**
+   * Wohin die Sonne gerade steht, als Einheitsvektor.
+   *
+   * Mit Schatten wird die Lichtquelle in `follow` dem Spieler nachgeführt —
+   * sonst stünde sie fest im Ursprung und die Schattenkamera liefe leer. Ihre
+   * *Richtung* kommt aber vom Tageszyklus, und deshalb steht sie hier.
+   */
+  private readonly sunDirection = new THREE.Vector3(0.42, 0.82, 0.38).normalize();
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -131,23 +143,11 @@ export class Scene3D {
 
   /** Übernimmt Himmel, Nebel und Licht aus dem Map-Dokument. */
   applyEnvironment(env: EnvironmentDef, viewDistance: number): void {
-    const sky = new THREE.Color(env.skyColor);
-    const horizon = new THREE.Color(env.horizonColor);
+    this.fogNear = env.fogNear;
+    this.fogFar = Math.min(env.fogFar, viewDistance);
+    this.paintSky(env.skyColor, env.horizonColor);
 
-    const pos = this.skyGeometry.attributes.position as THREE.BufferAttribute;
-    const colors = new Float32Array(pos.count * 3);
-    const c = new THREE.Color();
-    for (let i = 0; i < pos.count; i++) {
-      // Oben Himmelsfarbe, unten Horizontfarbe, dazwischen weich.
-      const t = Math.max(0, Math.min(1, pos.getY(i) * 0.5 + 0.5));
-      c.copy(horizon).lerp(sky, Math.pow(t, 0.6));
-      colors[i * 3] = c.r;
-      colors[i * 3 + 1] = c.g;
-      colors[i * 3 + 2] = c.b;
-    }
-    this.skyGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
-    this.scene.fog = new THREE.Fog(env.fogColor, env.fogNear, Math.min(env.fogFar, viewDistance));
+    this.scene.fog = new THREE.Fog(env.fogColor, this.fogNear, this.fogFar);
     this.scene.background = new THREE.Color(env.fogColor);
 
     const [sx, sy, sz] = env.sunDirection;
@@ -162,6 +162,58 @@ export class Scene3D {
 
     this.camera.far = Math.max(120, viewDistance * 2.2);
     this.camera.updateProjectionMatrix();
+  }
+
+  /**
+   * Übernimmt einen Stand des Tageszyklus.
+   *
+   * Dieselben Größen wie `applyEnvironment`, nur ohne Kamera und Nebelweiten —
+   * die gehören der Karte und ändern sich mit der Tageszeit nicht. Die
+   * Sonnenrichtung wird hier **nicht** in die Szene übernommen, solange
+   * Schatten an sind: dort führt `follow` die Lichtposition dem Spieler nach,
+   * damit er nicht aus der Schattenkamera fällt.
+   */
+  applySky(state: SkyState): void {
+    this.paintSky(state.skyColor, state.horizonColor);
+
+    const fog = this.scene.fog;
+    if (fog instanceof THREE.Fog) fog.color.setHex(state.fogColor);
+    else this.scene.fog = new THREE.Fog(state.fogColor, this.fogNear, this.fogFar);
+    if (this.scene.background instanceof THREE.Color) {
+      this.scene.background.setHex(state.fogColor);
+    }
+
+    const [sx, sy, sz] = state.sunDirection;
+    const len = Math.hypot(sx, sy, sz) || 1;
+    this.sunDirection.set(sx / len, sy / len, sz / len);
+    if (!this.quality.shadows) {
+      this.sun.position.copy(this.sunDirection).multiplyScalar(60);
+    }
+
+    this.sun.color.setHex(state.sunColor);
+    this.sun.intensity = state.sunIntensity;
+    this.ambient.color.setHex(state.skyColor);
+    this.ambient.groundColor.setHex(state.ambientColor);
+    this.ambient.intensity = state.ambientIntensity;
+  }
+
+  /** Färbt die Himmelskuppel neu ein. */
+  private paintSky(skyColor: number, horizonColor: number): void {
+    const sky = new THREE.Color(skyColor);
+    const horizon = new THREE.Color(horizonColor);
+
+    const pos = this.skyGeometry.attributes.position as THREE.BufferAttribute;
+    const colors = new Float32Array(pos.count * 3);
+    const c = new THREE.Color();
+    for (let i = 0; i < pos.count; i++) {
+      // Oben Himmelsfarbe, unten Horizontfarbe, dazwischen weich.
+      const t = Math.max(0, Math.min(1, pos.getY(i) * 0.5 + 0.5));
+      c.copy(horizon).lerp(sky, Math.pow(t, 0.6));
+      colors[i * 3] = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
+    }
+    this.skyGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   }
 
   setQuality(quality: QualitySettings): void {
@@ -240,9 +292,15 @@ export class Scene3D {
     this.skyMesh.scale.setScalar(this.camera.far * 0.9);
 
     // Schattenkamera dem Spieler nachführen, sonst fällt er aus ihr heraus.
+    // Die Richtung kommt vom Tageszyklus: dadurch wandern die Schatten über
+    // den Tag mit, statt immer aus derselben Ecke zu fallen.
     if (this.quality.shadows) {
       this.sun.target.position.set(targetX, targetY, targetZ);
-      this.sun.position.set(targetX + 40, targetY + 60, targetZ + 30);
+      this.sun.position.set(
+        targetX + this.sunDirection.x * 70,
+        targetY + Math.max(20, this.sunDirection.y * 70),
+        targetZ + this.sunDirection.z * 70,
+      );
       this.sun.target.updateMatrixWorld();
     }
   }

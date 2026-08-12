@@ -5,11 +5,19 @@
  */
 
 import { STARTER_INVENTORY } from '@aurelith/shared';
-import type { CharacterRecord, GameStore, ItemRecord, LoginResult, SpawnPoint } from './types.ts';
+import type {
+  CharacterRecord,
+  GameStore,
+  ItemRecord,
+  LoginResult,
+  QuestRecord,
+  SpawnPoint,
+} from './types.ts';
 
 interface Row {
   character: CharacterRecord;
   items: ItemRecord[];
+  quests: QuestRecord[];
 }
 
 export class MemoryStore implements GameStore {
@@ -29,7 +37,12 @@ export class MemoryStore implements GameStore {
   async loginOrCreate(accountName: string, spawn: SpawnPoint): Promise<LoginResult> {
     const existing = this.byAccount.get(accountName);
     if (existing) {
-      return { character: { ...existing.character }, items: existing.items.map((i) => ({ ...i })), created: false };
+      return {
+        character: { ...existing.character },
+        items: existing.items.map((i) => ({ ...i })),
+        quests: existing.quests.map((q) => ({ ...q, progress: [...q.progress] })),
+        created: false,
+      };
     }
 
     const id = this.nextId++;
@@ -54,8 +67,13 @@ export class MemoryStore implements GameStore {
       equipped: s.equipped,
     }));
 
-    this.byAccount.set(accountName, { character, items });
-    return { character: { ...character }, items: items.map((i) => ({ ...i })), created: true };
+    this.byAccount.set(accountName, { character, items, quests: [] });
+    return {
+      character: { ...character },
+      items: items.map((i) => ({ ...i })),
+      quests: [],
+      created: true,
+    };
   }
 
   async saveCharacter(character: CharacterRecord): Promise<void> {
@@ -67,6 +85,15 @@ export class MemoryStore implements GameStore {
     for (const row of this.byAccount.values()) {
       if (row.character.id === characterId) {
         row.items = items.map((i) => ({ ...i }));
+        return;
+      }
+    }
+  }
+
+  async saveQuests(characterId: number, quests: QuestRecord[]): Promise<void> {
+    for (const row of this.byAccount.values()) {
+      if (row.character.id === characterId) {
+        row.quests = quests.map((q) => ({ ...q, progress: [...q.progress] }));
         return;
       }
     }

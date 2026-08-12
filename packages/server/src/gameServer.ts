@@ -20,6 +20,7 @@ import {
   MOBS,
   PLAYER_PROFILE,
   PROTOCOL_VERSION,
+  QuestAction,
   SNAPSHOT_TICK_DIVISOR,
   TICK_MS,
   TICK_SECONDS,
@@ -31,14 +32,19 @@ import {
   decodeFrame,
   decodeHello,
   decodeInput,
+  decodeInteract,
   decodePing,
+  decodeQuestAction,
   decodeSetTarget,
+  decodeShopTrade,
   decodeUsePortal,
   encodeCombatEvent,
   encodeInventory,
   encodeKick,
   encodeMapChange,
+  encodeNpcDialog,
   encodePong,
+  encodeQuestLog,
   encodeServerChat,
   encodeSnapshot,
   encodeStats,
@@ -46,9 +52,12 @@ import {
   expForLevel,
   expGain,
   getItem,
+  getNpc,
+  getQuest,
   type ItemDef,
   readPacket,
   type SpawnRow,
+  turnInOf,
   type UpdateRow,
 } from '@aurelith/shared';
 import { CoreEventType, CoreButton } from '@aurelith/core';
@@ -57,7 +66,11 @@ import type { CoreBundle } from './core.ts';
 import type { MapStore } from './maps.ts';
 import { MapInstance } from './mapInstance.ts';
 import { INPUT_QUEUE_DRAIN_AT, INPUT_QUEUE_DRAIN_MAX, Session } from './session.ts';
+import { addItem, removeItem, sellPrice } from './inventory.ts';
 import type { GameStore } from './db/index.ts';
+
+/** Wie nah man an einem NPC stehen muss, um ihn anzusprechen. */
+const INTERACT_RANGE = 6;
 
 export class GameServer {
   private readonly instances = new Map<string, MapInstance>();
@@ -195,6 +208,24 @@ export class GameServer {
           this.equipItem(session, itemId);
           break;
         }
+        case ClientOp.Interact: {
+          if (session.state !== 'playing') break;
+          const { entityId } = decodeInteract(reader);
+          this.interact(session, entityId);
+          break;
+        }
+        case ClientOp.QuestAction: {
+          if (session.state !== 'playing') break;
+          const { questId, action } = decodeQuestAction(reader);
+          this.questAction(session, questId, action);
+          break;
+        }
+        case ClientOp.ShopTrade: {
+          if (session.state !== 'playing') break;
+          const { mode, itemId, count } = decodeShopTrade(reader);
+          this.shopTrade(session, mode, itemId, count);
+          break;
+        }
         case ClientOp.Respawn:
           if (session.state === 'playing') this.respawn(session);
           break;
@@ -266,6 +297,10 @@ export class GameServer {
     session.accountName = accountName;
     session.character = login.character;
     session.items = login.items;
+    session.quests.load(login.quests);
+    // Sammelziele einmal am Beutel messen: wer sich abgemeldet hat, während
+    // die Essenzen im Beutel lagen, ist beim Anmelden abgabebereit.
+    session.quests.syncCollect(session.items);
     session.entityId = this.nextEntityId++;
     session.mapId = instance.doc.id;
     session.state = 'playing';
@@ -318,6 +353,7 @@ export class GameServer {
     );
     this.sendStats(session);
     this.sendInventory(session);
+    this.sendQuestLog(session);
     this.systemMessage(
       session,
       login.created
@@ -491,25 +527,25 @@ export class GameServer {
     const gained = expGain(baseExp, character.level, mobLevel);
     character.exp += gained;
     character.gold += Math.round(gold);
+    this.levelUpIfNeeded(session);
 
-    let levelled = false;
-    while (character.exp >= expForLevel(character.level)) {
-      character.exp -= expForLevel(character.level);
-      character.level++;
-      levelled = true;
+    // Beute und Auftragsfortschritt hängen an derselben Stelle, weil beide
+    // dieselbe Frage beantworten: *wer* hat *was* erlegt. Der Kern meldet den
+    // Erfahrungsgewinn nur an den, der den Todesstoss gesetzt hat — genau der
+    // soll auch die Haut bekommen.
+    const mobId = meta?.defId ?? '';
+    const beute = mobId ? this.rollDrops(session, mobId) : false;
+    let logGeaendert = mobId ? session.quests.onKill(mobId) : false;
+
+    if (beute) {
+      session.itemsDirty = true;
+      // Was eben hereinkam, kann ein Sammelziel erfüllen.
+      if (session.quests.syncCollect(session.items)) logGeaendert = true;
+      this.sendInventory(session);
     }
-
-    if (levelled) {
-      const stats = this.statsFor(session);
-      instance.world.setPlayerStats(
-        session.entityId,
-        character.level,
-        stats.maxHp,
-        stats.maxMp,
-        stats.attackDamage,
-        stats.defense,
-      );
-      this.systemMessage(session, `Stufe ${character.level} erreicht.`);
+    if (logGeaendert) {
+      session.questsDirty = true;
+      this.sendQuestLog(session);
     }
 
     this.sendStats(session);
@@ -780,6 +816,7 @@ export class GameServer {
       if (getItem(other.itemId)?.slot === def.slot) other.equipped = false;
     }
     entry.equipped = true;
+    session.itemsDirty = true;
 
     this.applyLoadout(session);
     this.sendInventory(session);
@@ -848,6 +885,283 @@ export class GameServer {
 
     instance.world.respawnPlayer(session.entityId, instance.doc.spawn.x, instance.doc.spawn.z);
     this.sendStats(session);
+  }
+
+  // -------------------------------------------------------------------------
+  // NPCs, Aufträge, Handel
+  // -------------------------------------------------------------------------
+
+  /**
+   * Einen NPC ansprechen.
+   *
+   * Der Client schickt eine Entity-Kennung; alles andere wird hier geprüft.
+   * Ohne die Entfernungsprüfung liesse sich vom anderen Ende der Karte aus
+   * handeln — und Handeln heisst Gold, also ist das keine Kleinigkeit.
+   */
+  private interact(session: Session, entityId: number): void {
+    const instance = this.instances.get(session.mapId);
+    const self = instance?.entity(session.entityId);
+    const target = instance?.entity(entityId);
+    if (!instance || !self || !target) return;
+    if (self.state === EntityState.Dead) return;
+
+    const meta = instance.metaFor(entityId);
+    if (!meta || meta.type !== EntityType.Npc) return;
+
+    const dx = target.x - self.x;
+    const dz = target.z - self.z;
+    if (dx * dx + dz * dz > INTERACT_RANGE * INTERACT_RANGE) {
+      this.systemMessage(session, 'Zu weit weg.');
+      return;
+    }
+
+    const def = getNpc(meta.defId);
+    if (!def) return;
+
+    // Ansprechen ist selbst ein Auftragsziel — die halbe Wegbeschreibung im
+    // Spiel besteht daraus, jemanden aufzusuchen.
+    if (session.quests.onTalk(meta.defId)) {
+      session.questsDirty = true;
+      this.sendQuestLog(session);
+    }
+
+    session.send(
+      encodeNpcDialog({
+        entityId,
+        npcDefId: meta.defId,
+        shop: (def.shop?.length ?? 0) > 0,
+        quests: session.quests.dialogFor(meta.defId, session.character?.level ?? 1),
+      }),
+    );
+    session.flush();
+  }
+
+  /**
+   * Auftrag annehmen, abgeben oder aufgeben.
+   *
+   * Beim Abgeben wird zusätzlich geprüft, ob die Figur beim richtigen NPC
+   * steht. Der Client zeigt den Knopf nur dort an — aber der Client ist ein
+   * Wunsch, keine Erlaubnis.
+   */
+  private questAction(session: Session, questId: string, action: number): void {
+    const def = getQuest(questId);
+    const character = session.character;
+    if (!def || !character) return;
+
+    switch (action) {
+      case QuestAction.Annehmen: {
+        if (!this.nearNpc(session, def.giver)) return;
+        if (!session.quests.accept(def, character.level, session.items)) {
+          this.systemMessage(session, `„${def.name}" ist gerade nicht verfügbar.`);
+          return;
+        }
+        this.systemMessage(session, `Auftrag angenommen: ${def.name}.`);
+        break;
+      }
+
+      case QuestAction.Abgeben: {
+        if (!this.nearNpc(session, turnInOf(def))) return;
+        if (!session.quests.canComplete(def)) {
+          this.systemMessage(session, `„${def.name}" ist noch nicht erledigt.`);
+          return;
+        }
+
+        // Erst die Sammelgegenstände einziehen, dann belohnen. Andersherum
+        // könnte der Beutel durch die Belohnung voll sein und das Einziehen
+        // scheitern — nachdem die Belohnung schon vergeben ist.
+        for (const obj of def.objectives) {
+          if (obj.kind !== 'collect') continue;
+          if (!removeItem(session.items, obj.target, obj.count)) {
+            this.systemMessage(session, 'Es fehlt etwas im Beutel.');
+            session.quests.syncCollect(session.items);
+            this.sendQuestLog(session);
+            return;
+          }
+        }
+
+        session.quests.complete(def);
+        character.exp += def.reward.exp;
+        character.gold += def.reward.gold;
+
+        for (const geschenk of def.reward.items) {
+          const angekommen = addItem(session.items, geschenk.item, geschenk.count);
+          if (angekommen < geschenk.count) {
+            this.systemMessage(session, 'Der Beutel ist voll — ein Teil der Belohnung blieb liegen.');
+          }
+        }
+
+        this.levelUpIfNeeded(session);
+        session.itemsDirty = true;
+        this.systemMessage(
+          session,
+          `Auftrag abgeschlossen: ${def.name} (+${def.reward.exp} EP, +${def.reward.gold} Gold).`,
+        );
+        break;
+      }
+
+      case QuestAction.Aufgeben: {
+        if (!session.quests.abandon(questId)) return;
+        this.systemMessage(session, `Auftrag aufgegeben: ${def.name}.`);
+        break;
+      }
+
+      default:
+        return;
+    }
+
+    session.questsDirty = true;
+    session.quests.syncCollect(session.items);
+    this.sendQuestLog(session);
+    this.sendInventory(session);
+    this.sendStats(session);
+    session.flush();
+  }
+
+  /** Kaufen und verkaufen. `mode` ist 0 für kaufen, 1 für verkaufen. */
+  private shopTrade(session: Session, mode: number, itemId: string, count: number): void {
+    const character = session.character;
+    const def = getItem(itemId);
+    if (!character || !def) return;
+
+    const menge = Math.max(1, Math.min(99, Math.round(count)));
+    const npc = this.nearestShopNpc(session);
+    if (!npc) {
+      this.systemMessage(session, 'Kein Händler in der Nähe.');
+      return;
+    }
+
+    if (mode === 0) {
+      // Nur was der Händler auch führt. Sonst kaufte man sich per Paket die
+      // Eisenklinge bei der Kräuterfrau.
+      if (!npc.shop?.includes(itemId)) return;
+
+      const preis = def.value * menge;
+      if (character.gold < preis) {
+        this.systemMessage(session, `Dafür fehlen ${preis - character.gold} Gold.`);
+        return;
+      }
+
+      const angekommen = addItem(session.items, itemId, menge);
+      if (angekommen === 0) {
+        this.systemMessage(session, 'Der Beutel ist voll.');
+        return;
+      }
+      character.gold -= def.value * angekommen;
+      this.systemMessage(session, `${def.name} ×${angekommen} gekauft.`);
+    } else {
+      if (!removeItem(session.items, itemId, menge)) {
+        this.systemMessage(session, 'So viel ist nicht da.');
+        return;
+      }
+      const erloes = sellPrice(def) * menge;
+      character.gold += erloes;
+      this.systemMessage(session, `${def.name} ×${menge} verkauft (+${erloes} Gold).`);
+    }
+
+    session.itemsDirty = true;
+    // Verkaufen kann ein Sammelziel zunichtemachen — und Kaufen eines
+    // erfüllen. Beides ist derselbe Aufruf, weil der Beutel gemessen wird.
+    if (session.quests.syncCollect(session.items)) {
+      session.questsDirty = true;
+      this.sendQuestLog(session);
+    }
+    this.sendInventory(session);
+    this.sendStats(session);
+    session.flush();
+  }
+
+  /** Steht die Figur bei einem NPC dieser Art? */
+  private nearNpc(session: Session, npcDefId: string): boolean {
+    const instance = this.instances.get(session.mapId);
+    const self = instance?.entity(session.entityId);
+    if (!instance || !self) return false;
+
+    for (const row of instance.entities) {
+      const meta = instance.metaFor(row.id);
+      if (!meta || meta.type !== EntityType.Npc || meta.defId !== npcDefId) continue;
+      const dx = row.x - self.x;
+      const dz = row.z - self.z;
+      if (dx * dx + dz * dz <= INTERACT_RANGE * INTERACT_RANGE) return true;
+    }
+    return false;
+  }
+
+  /** Der nächstgelegene NPC mit Laden, oder nichts. */
+  private nearestShopNpc(session: Session): ReturnType<typeof getNpc> {
+    const instance = this.instances.get(session.mapId);
+    const self = instance?.entity(session.entityId);
+    if (!instance || !self) return undefined;
+
+    for (const row of instance.entities) {
+      const meta = instance.metaFor(row.id);
+      if (!meta || meta.type !== EntityType.Npc) continue;
+      const def = getNpc(meta.defId);
+      if (!def?.shop?.length) continue;
+      const dx = row.x - self.x;
+      const dz = row.z - self.z;
+      if (dx * dx + dz * dz <= INTERACT_RANGE * INTERACT_RANGE) return def;
+    }
+    return undefined;
+  }
+
+  private sendQuestLog(session: Session): void {
+    session.send(encodeQuestLog(session.quests.rows()));
+  }
+
+  /**
+   * Beute.
+   *
+   * Fällt ohne Umweg in den Beutel des Spielers, der den Todesstoss gesetzt
+   * hat. Kein Beutel am Boden — auf dem Telefon wäre das Aufheben eine
+   * Zumutung, und für den Server ist es eine zweite Sorte Entity.
+   */
+  private rollDrops(session: Session, mobId: string): boolean {
+    const mob = MOBS.get(mobId);
+    if (!mob?.drops?.length) return false;
+
+    let etwas = false;
+    for (const drop of mob.drops) {
+      if (Math.random() > drop.chance) continue;
+      const min = drop.min ?? 1;
+      const max = drop.max ?? min;
+      const menge = min + Math.floor(Math.random() * (max - min + 1));
+      const angekommen = addItem(session.items, drop.item, menge);
+      if (angekommen <= 0) continue;
+
+      etwas = true;
+      const def = getItem(drop.item);
+      this.systemMessage(
+        session,
+        `Erhalten: ${def?.name ?? drop.item}${angekommen > 1 ? ` ×${angekommen}` : ''}.`,
+      );
+    }
+    return etwas;
+  }
+
+  /** Stufenaufstiege einlösen, solange die Erfahrung reicht. */
+  private levelUpIfNeeded(session: Session): void {
+    const character = session.character;
+    const instance = this.instances.get(session.mapId);
+    if (!character || !instance) return;
+
+    let levelled = false;
+    while (character.exp >= expForLevel(character.level)) {
+      character.exp -= expForLevel(character.level);
+      character.level++;
+      levelled = true;
+    }
+    if (!levelled) return;
+
+    const stats = this.statsFor(session);
+    instance.world.setPlayerStats(
+      session.entityId,
+      character.level,
+      stats.maxHp,
+      stats.maxMp,
+      stats.attackDamage,
+      stats.defense,
+    );
+    this.systemMessage(session, `Stufe ${character.level} erreicht.`);
   }
 
   // -------------------------------------------------------------------------
@@ -959,6 +1273,18 @@ export class GameServer {
       character.mapId = session.mapId;
     }
     await this.store.saveCharacter(character);
+
+    // Beutel und Aufträge nur, wenn sich etwas getan hat: beide werden
+    // ersetzend geschrieben, und das ist deutlich teurer als eine Zeile mit
+    // der neuen Position.
+    if (session.itemsDirty) {
+      await this.store.saveInventory(character.id, session.items);
+      session.itemsDirty = false;
+    }
+    if (session.questsDirty) {
+      await this.store.saveQuests(character.id, session.quests.records());
+      session.questsDirty = false;
+    }
   }
 }
 

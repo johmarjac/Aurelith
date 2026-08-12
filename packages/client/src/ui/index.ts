@@ -11,9 +11,19 @@
  */
 
 import * as THREE from 'three';
-import { ChatChannel, getItem, type StatsMsg } from '@aurelith/shared';
+import {
+  ChatChannel,
+  QUESTS,
+  QuestStatus,
+  clockText,
+  getItem,
+  type NpcDialogMsg,
+  type QuestLogRow,
+  type StatsMsg,
+} from '@aurelith/shared';
 import type { EntityVisual } from '../render/worldView.ts';
 import { GameWindow } from './windows.ts';
+import { DialogWindow, QuestLogWindow, ShopWindow } from './npcWindows.ts';
 import { Overlay } from './overlay.ts';
 import { DEFAULT_LEVELS, type MixerLevels } from '../audio/mixer.ts';
 import './style.css';
@@ -63,6 +73,11 @@ export class UI {
   onUsePortal?: () => void;
   /** Doppelklick auf einen Gegenstand — anlegen. */
   onEquipItem?: (itemId: string) => void;
+  /** Auftrag annehmen, abgeben oder aufgeben. */
+  onQuestAction?: (questId: string, action: number) => void;
+  /** Kaufen und verkaufen. */
+  onBuy?: (itemId: string, count: number) => void;
+  onSell?: (itemId: string, count: number) => void;
 
   private readonly host: HTMLElement;
 
@@ -96,6 +111,17 @@ export class UI {
   private readonly characterStats: HTMLElement;
   private readonly settingsWindow: GameWindow;
 
+  private readonly dialogWindow: DialogWindow;
+  private readonly questWindow: QuestLogWindow;
+  private readonly shopWindow: ShopWindow;
+  /** Die Uhr oben links. Zeigt die Weltzeit, nicht die des Geräts. */
+  private readonly clockLabel: HTMLElement;
+  /** Zuletzt gesehenes Inventar — der Laden verkauft daraus. */
+  private inventory: InventoryEntry[] = [];
+  /** Zuletzt gesehener Auftragsstand, samt daraus gerechneten Zeichen. */
+  private questQuests: QuestLogRow[] = [];
+  private readonly questMarks = new Map<string, string>();
+
   /** Lautstärken, wie sie im Fenster stehen. */
   private levels: MixerLevels = DEFAULT_LEVELS;
   private muteBox?: HTMLInputElement;
@@ -127,7 +153,8 @@ export class UI {
     const head = el('div', 'vitals-head');
     this.nameLabel = el('span', 'vitals-name', '—');
     this.levelLabel = el('span', 'vitals-level', 'Stufe 1');
-    head.append(this.nameLabel, this.levelLabel);
+    this.clockLabel = el('span', 'vitals-clock', '');
+    head.append(this.nameLabel, this.clockLabel, this.levelLabel);
     vitals.append(head, this.hpBar.root, this.mpBar.root, this.expBar.root);
     host.appendChild(vitals);
 
@@ -184,6 +211,20 @@ export class UI {
     this.chat.append(this.chatLog, this.chatInput);
     host.appendChild(this.chat);
 
+    // --- NPC-Fenster ------------------------------------------------------
+    this.dialogWindow = new DialogWindow(host);
+    this.questWindow = new QuestLogWindow(host);
+    this.shopWindow = new ShopWindow(host);
+
+    this.dialogWindow.onQuestAction = (id, action) => this.onQuestAction?.(id, action);
+    this.questWindow.onQuestAction = (id, action) => this.onQuestAction?.(id, action);
+    this.dialogWindow.onOpenShop = (npcDefId) => {
+      this.shopWindow.setInventory(this.sellableItems(), this.lastStats?.gold ?? 0);
+      this.shopWindow.open(npcDefId);
+    };
+    this.shopWindow.onBuy = (itemId, count) => this.onBuy?.(itemId, count);
+    this.shopWindow.onSell = (itemId, count) => this.onSell?.(itemId, count);
+
     // --- Fenster ----------------------------------------------------------
     this.inventoryWindow = new GameWindow(
       host,
@@ -221,6 +262,7 @@ export class UI {
     actionbar.append(
       this.slot('🎒', 'I', 'Inventar', () => this.inventoryWindow.toggle()),
       this.slot('👤', 'C', 'Charakter', () => this.characterWindow.toggle()),
+      this.slot('📜', 'J', 'Aufträge', () => this.questWindow.toggle()),
       this.slot('💬', '⏎', 'Chat', () => this.setChatOpen(!this.chatOpen)),
       this.slot('⚙', 'O', 'Einstellungen', () => this.settingsWindow.toggle()),
     );
@@ -450,6 +492,7 @@ export class UI {
       }
       if (e.code === 'KeyI') this.inventoryWindow.toggle();
       else if (e.code === 'KeyC') this.characterWindow.toggle();
+      else if (e.code === 'KeyJ') this.questWindow.toggle();
       else if (e.code === 'KeyO') this.settingsWindow.toggle();
       else if (e.code === 'Enter') {
         e.preventDefault();
@@ -468,8 +511,14 @@ export class UI {
 
   setStats(stats: StatsMsg): void {
     this.lastStats = stats;
+    // Das Gold steht im Laden — wer eben etwas verkauft hat, soll den neuen
+    // Stand sehen, ohne das Fenster zu schliessen.
+    this.shopWindow.setInventory(this.sellableItems(), stats.gold);
 
     this.levelLabel.textContent = `Stufe ${stats.level}`;
+    // Eine neue Stufe kann Aufträge freischalten — die Zeichen über den NPCs
+    // hängen an der Stufe genauso wie am Auftragsstand.
+    this.rebuildQuestMarks();
     this.setBar(this.hpBar, stats.hp, stats.maxHp, `${Math.round(stats.hp)} / ${stats.maxHp}`);
     this.setBar(this.mpBar, stats.mp, stats.maxMp, `${Math.round(stats.mp)} / ${stats.maxMp}`);
 
@@ -608,7 +657,79 @@ export class UI {
     }, CHAT_FLASH_MS);
   }
 
+  /**
+   * Stellt die Uhr.
+   *
+   * `t` ist der Anteil des Tages, wie ihn der Tageszyklus rechnet. Das Symbol
+   * wechselt mit — eine Zahl allein sagt einem nicht, ob 05:00 morgens noch
+   * dunkel ist.
+   */
+  setWorldTime(t: number, darkness: number): void {
+    const text = `${darkness > 0.5 ? '🌙' : '☀'} ${clockText(t)}`;
+    if (this.clockLabel.textContent !== text) this.clockLabel.textContent = text;
+  }
+
+  /** Zeigt das Gespräch mit einem NPC. */
+  showDialog(msg: NpcDialogMsg): void {
+    this.dialogWindow.show(msg);
+  }
+
+  closeDialog(): void {
+    this.dialogWindow.close();
+    this.shopWindow.close();
+  }
+
+  setQuests(rows: QuestLogRow[]): void {
+    this.questQuests = rows;
+    this.questWindow.setQuests(rows);
+    this.rebuildQuestMarks();
+  }
+
+  /**
+   * Rechnet die Zeichen über den NPCs.
+   *
+   * Dieselbe Frage, die der Server beim Gespräch beantwortet — hier nur
+   * vorweggenommen, damit man von weitem sieht, wo es etwas zu holen gibt.
+   * Weicht das Ergebnis ab, entscheidet das Gespräch: der Server prüft
+   * ohnehin nochmal, und ein Zeichen, das zu viel steht, kostet einen Klick.
+   */
+  private rebuildQuestMarks(): void {
+    const level = this.lastStats?.level ?? 1;
+    const status = new Map(this.questQuests.map((r) => [r.questId, r.status]));
+    this.questMarks.clear();
+
+    for (const quest of QUESTS.values()) {
+      const eigener = status.get(quest.id) ?? QuestStatus.Verfuegbar;
+
+      if (eigener === QuestStatus.Erfuellt) {
+        this.questMarks.set(quest.turnIn ?? quest.giver, 'fertig');
+        continue;
+      }
+      if (eigener === QuestStatus.Aktiv) {
+        const ziel = quest.turnIn ?? quest.giver;
+        if (this.questMarks.get(ziel) !== 'fertig') this.questMarks.set(ziel, 'laeuft');
+        continue;
+      }
+      if (eigener !== QuestStatus.Verfuegbar) continue;
+
+      // Noch nicht angenommen: nur zeigen, wenn er auch annehmbar wäre.
+      if (level < quest.levelReq) continue;
+      if (quest.requires && status.get(quest.requires) !== QuestStatus.Abgeschlossen) continue;
+      if (this.questMarks.get(quest.giver) !== 'fertig') this.questMarks.set(quest.giver, 'neu');
+    }
+  }
+
+  /** Was sich verkaufen lässt: alles im Beutel, was nicht angelegt ist. */
+  private sellableItems(): Array<{ itemId: string; count: number }> {
+    return this.inventory
+      .filter((e) => !e.equipped)
+      .map((e) => ({ itemId: e.itemId, count: e.count }));
+  }
+
   setInventory(entries: InventoryEntry[]): void {
+    this.inventory = entries;
+    this.shopWindow.setInventory(this.sellableItems(), this.lastStats?.gold ?? 0);
+
     const bySlot = new Map(entries.map((e) => [e.slot, e]));
     const slots: HTMLElement[] = [];
 
@@ -663,7 +784,15 @@ export class UI {
   ): void {
     const width = window.innerWidth;
     const height = window.innerHeight;
-    this.overlay.updateNameplates(camera, entities, localId, targetId, width, height);
+    this.overlay.updateNameplates(
+      camera,
+      entities,
+      localId,
+      targetId,
+      width,
+      height,
+      this.questMarks,
+    );
     this.overlay.updateNumbers(camera, dt, width, height);
   }
 

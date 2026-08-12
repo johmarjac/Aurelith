@@ -7,7 +7,7 @@
  * ändert, zählt PROTOCOL_VERSION hoch.
  */
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 export const ClientOp = {
   Hello: 0x01,
@@ -19,6 +19,12 @@ export const ClientOp = {
   Respawn: 0x07,
   /** Einen Gegenstand anlegen oder ablegen. */
   EquipItem: 0x08,
+  /** Einen NPC ansprechen. */
+  Interact: 0x09,
+  /** Auftrag annehmen, abgeben oder aufgeben. */
+  QuestAction: 0x0a,
+  /** Beim Händler kaufen oder verkaufen. */
+  ShopTrade: 0x0b,
 } as const;
 export type ClientOp = (typeof ClientOp)[keyof typeof ClientOp];
 
@@ -32,6 +38,10 @@ export const ServerOp = {
   Kick: 0x87,
   Stats: 0x88,
   Inventory: 0x89,
+  /** Antwort auf `Interact`: wer da steht und was er anzubieten hat. */
+  NpcDialog: 0x8a,
+  /** Der vollständige Auftragsstand des Spielers. */
+  QuestLog: 0x8b,
 } as const;
 export type ServerOp = (typeof ServerOp)[keyof typeof ServerOp];
 
