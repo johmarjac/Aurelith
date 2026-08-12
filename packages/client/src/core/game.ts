@@ -53,12 +53,12 @@ import { AssetStreamer } from '../assets/streamer.ts';
 import { loadClientCore, type ClientCore } from './coreLoader.ts';
 import { Scene3D } from '../render/scene.ts';
 import { ModelRegistry } from '../render/modelRegistry.ts';
-import { WorldView, type EntityVisual } from '../render/worldView.ts';
+import { ATTACK_ANIM_SECONDS, WorldView, type EntityVisual } from '../render/worldView.ts';
 import { burstHit } from '../render/particles.ts';
 import { TextureLoader } from '../render/textures.ts';
 import { InputManager } from '../input/input.ts';
 import { Mixer } from '../audio/mixer.ts';
-import { PRELOAD, SOUNDS, WEAPON_SWING } from '../audio/sounds.ts';
+import { PRELOAD, SOUNDS, WEAPON_SWING, type SoundDef } from '../audio/sounds.ts';
 import { Connection } from '../net/connection.ts';
 import { UI } from '../ui/index.ts';
 
@@ -436,6 +436,30 @@ export class Game {
     if (!id) return;
 
     const def = SOUNDS[id];
+    const delayMs = def.cue * ATTACK_ANIM_SECONDS * 1000;
+    if (delayMs < 1) {
+      this.emitSound(def, entity.id);
+      return;
+    }
+
+    // Der Ton hängt an der Animation, nicht an ihrem Beginn: wer den Bogen
+    // hebt, hat noch nichts abgeschossen. Gemerkt wird die Kennung, nicht die
+    // Figur — bis der Ton fällt, ist sie ein Stück weitergelaufen, und der
+    // Ton gehört dorthin, wo sie *dann* steht.
+    const attacker = entity.id;
+    setTimeout(() => {
+      const still = this.view.entities.get(attacker);
+      // Weg oder längst fertig? Dann gehörte der Ton zu einem Schlag, den es
+      // nicht mehr gibt — etwa weil die Figur mitten im Ausholen gefallen ist.
+      if (!still || still.attackTimer < 0) return;
+      this.emitSound(def, attacker);
+    }, delayMs);
+  }
+
+  private emitSound(def: SoundDef, entityId: number): void {
+    const entity = this.view.entities.get(entityId);
+    if (!entity) return;
+
     this.mixer.play(def.path, def.category, (path) => this.streamer.request(path), {
       // Auf Brusthöhe, nicht am Boden: die Höhe geht in die Entfernung ein.
       at: { x: entity.x, y: entity.y + entity.height * 0.6, z: entity.z },

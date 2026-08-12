@@ -32,7 +32,7 @@ import type { TextureLoader } from './textures.ts';
 import type { CharacterRig } from './rigs.ts';
 
 /** Wie lange die Schlaganimation läuft, unabhängig von der Serverabklingzeit. */
-const ATTACK_ANIM_SECONDS = 0.45;
+export const ATTACK_ANIM_SECONDS = 0.45;
 
 /**
  * Flugzeit eines Pfeils, unabhängig von der Entfernung.
@@ -44,10 +44,23 @@ const ATTACK_ANIM_SECONDS = 0.45;
  */
 const ARROW_FLIGHT_SECONDS = 0.16;
 
+/**
+ * Abstand zwischen zwei Schweifpunkten, in Sekunden Flugzeit.
+ *
+ * In Zeit gerechnet und nicht je Bild: sonst zöge ein Pfeil bei 120 Bildern
+ * die doppelte Zahl Punkte hinter sich her wie bei 60, und der Schweif wäre
+ * auf schnellen Geräten doppelt so dicht. Bei 0,16 Sekunden Flug ergeben
+ * zwölf Millisekunden gut ein Dutzend Punkte — genug für eine Linie, wenig
+ * genug, dass zehn gleichzeitige Pfeile die Wolke nicht füllen.
+ */
+const ARROW_TRAIL_STEP = 0.012;
+
 interface FlyingArrow {
   mesh: THREE.Mesh;
   /** Läuft, wenn der Pfeil ankommt. Dort gehören Funken und Zahl hin. */
   onArrive?: () => void;
+  /** Reststrecke bis zum nächsten Schweifpunkt. */
+  trailAccum: number;
   fromX: number;
   fromY: number;
   fromZ: number;
@@ -467,6 +480,7 @@ export class WorldView {
       toY,
       toZ,
       elapsed: 0,
+      trailAccum: 0,
       ...(onArrive ? { onArrive } : {}),
     });
   }
@@ -485,6 +499,39 @@ export class WorldView {
       // Der Pfeil zeigt dorthin, wo er hinfliegt. Der Schaft liegt entlang +Z,
       // also reicht die Blickrichtung.
       a.mesh.lookAt(a.toX, a.toY, a.toZ);
+
+      // --- Schweif ---
+      //
+      // Der Pfeil ist ein Strich von zwölf Zentimetern, der eine Sechstel
+      // Sekunde unterwegs ist — man sieht ihn kaum, und bei ungünstiger
+      // Bildrate springt er von der Hand zum Ziel, ohne dazwischen zu sein.
+      // Die Punkte bleiben stehen und zeichnen den Weg nach, den er genommen
+      // hat.
+      //
+      // Gesetzt wird auf der Strecke *zwischen* altem und neuem Ort, nicht am
+      // neuen: sonst hinge der Abstand der Punkte doch wieder an der Bildrate,
+      // nur eine Ebene tiefer.
+      a.trailAccum += dt;
+      while (a.trailAccum >= ARROW_TRAIL_STEP) {
+        a.trailAccum -= ARROW_TRAIL_STEP;
+        const back = Math.max(0, t - a.trailAccum / ARROW_FLIGHT_SECONDS);
+        this.particles.burst(
+          a.fromX + (a.toX - a.fromX) * back,
+          a.fromY + (a.toY - a.fromY) * back,
+          a.fromZ + (a.toZ - a.fromZ) * back,
+          {
+            count: 1,
+            // Helles Holzgelb, kein Feuer: der Pfeil brennt nicht.
+            color: 0xe8d7a6,
+            // Fast keine Eigenbewegung — der Schweif soll stehenbleiben und
+            // verblassen, nicht auseinanderstieben wie ein Treffer.
+            speed: 0.35,
+            size: 1.6,
+            life: 0.22,
+            lift: 0.35,
+          },
+        );
+      }
 
       if (t < 1) continue;
       this.root.remove(a.mesh);

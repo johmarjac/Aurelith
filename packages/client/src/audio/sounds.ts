@@ -19,6 +19,20 @@ export interface SoundDef {
   gain: number;
   /** Tonhöhenstreuung in Halbtönen, gegen den Maschinengewehr-Eindruck. */
   spread: number;
+  /**
+   * Wo im Schlag der Ton liegt — als Anteil der Animation, 0 bis 1.
+   *
+   * Nicht am Anfang, denn dort beginnt das Ausholen. Wer den Bogen hebt, hat
+   * noch nichts abgeschossen; das Sirren gehört an den Punkt, an dem der Pfeil
+   * die Sehne verlässt. Beim Schwert ebenso: der Ton gehört zum Durchziehen,
+   * nicht zum Heben.
+   *
+   * Die Schlaganimation teilt sich bei 0,45 — davor wird ausgeholt, danach
+   * durchgezogen. Deshalb liegen beide Werte dahinter.
+   *
+   * 0 bedeutet: sofort, ohne Verzögerung.
+   */
+  cue: number;
 }
 
 export type SoundId = 'bogen_schuss' | 'schwert_schwung';
@@ -29,6 +43,9 @@ export const SOUNDS: Record<SoundId, SoundDef> = {
     category: 'weapons',
     gain: 0.9,
     spread: 0.6,
+    // Der Moment des Loslassens: das Ausholen endet bei 0,45, und die Sehne
+    // schnellt unmittelbar danach vor.
+    cue: 0.5,
   },
   schwert_schwung: {
     path: 'audio/schwert_schwung.mp3',
@@ -38,6 +55,9 @@ export const SOUNDS: Record<SoundId, SoundDef> = {
     // Minuten Nahkampf unerträglich.
     gain: 0.7,
     spread: 0.8,
+    // Etwas spaeter als der Bogen: die Klinge braucht ein Stueck Weg, bis sie
+    // dort ist, wo sie zischt.
+    cue: 0.6,
   },
 };
 

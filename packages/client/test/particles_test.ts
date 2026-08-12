@@ -150,6 +150,63 @@ console.log('\nZuruecksetzen');
   check(field.liveCount === 5, 'und laesst sich danach weiterbenutzen');
 }
 
+// --- Pfeilschweif ----------------------------------------------------------
+//
+// Der Schweif setzt seine Punkte in festen Zeitabstaenden, nicht je Bild. Der
+// Unterschied faellt sonst erst auf einem schnellen Geraet auf, wo ein Pfeil
+// die doppelte Zahl Punkte hinter sich herzieht — und dort sucht man ihn
+// zuletzt.
+//
+// Getrieben wird die echte Ansicht. Die Figur ist ein Stummel: `step` fasst
+// nur an, was hier steht.
+console.log('\nPfeilschweif');
+{
+  const { WorldView } = await import('../src/render/worldView.ts');
+  const { ModelRegistry } = await import('../src/render/modelRegistry.ts');
+  const { TextureLoader } = await import('../src/render/textures.ts');
+  const THREE = await import('three');
+
+  const dichte = (fps: number): number => {
+    const view = new WorldView(
+      new ModelRegistry(),
+      new TextureLoader(async () => new ArrayBuffer(0)),
+      1,
+    );
+    view.entities.set(1, {
+      id: 1,
+      x: 0,
+      y: 0,
+      z: 0,
+      height: 1.8,
+      yaw: 0,
+      targetX: 0,
+      targetY: 0,
+      targetZ: 0,
+      targetYaw: 0,
+      attackTimer: -1,
+      speed: 0,
+      state: 0,
+      rig: { root: new THREE.Object3D(), update: () => {}, dispose: () => {} },
+    } as never);
+    view.spawnArrow(1, 10, 1, 0);
+
+    let hoechststand = 0;
+    for (let i = 0; i < Math.ceil(0.5 * fps); i++) {
+      view.step(1 / fps, 0);
+      hoechststand = Math.max(hoechststand, view.particles.liveCount);
+    }
+    return hoechststand;
+  };
+
+  const werte = [30, 60, 90, 144].map(dichte);
+  check(werte[0]! > 5, 'ein Pfeil zieht einen sichtbaren Schweif', `${werte[0]} Punkte`);
+  check(
+    new Set(werte).size === 1,
+    'und zwar unabhaengig von der Bildrate',
+    `30/60/90/144 Bilder → ${werte.join('/')} Punkte`,
+  );
+}
+
 console.log(
   `\n${failures === 0 ? 'Alle Pruefungen bestanden.' : `${failures} Pruefung(en) fehlgeschlagen.`}`,
 );
