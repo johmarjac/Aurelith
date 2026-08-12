@@ -560,17 +560,30 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
     disposables.push(geo);
   }
 
+  /*
+   * Der Fuss muss das Bein **umschliessen**, nicht bündig daran enden.
+   *
+   * Vorher lag die Rückfläche des Stiefels bei -0,100·w und die des Beins
+   * ebenfalls bei -0,100·w — zwei deckungsgleiche Flächen, gleich weit von
+   * der Kamera weg, und der Tiefenpuffer entschied von Bild zu Bild neu,
+   * welche vorn liegt. Sichtbar war das als Flimmern an den Fersen. Dieselbe
+   * Falle wie bei der Unterhose, nur eine Achse weiter: die Zehenkappe war
+   * zudem seitlich exakt so breit wie das Bein.
+   */
   const bootParts: Part[] = [
-    { geometry: box(0.2 * w, 0.1, 0.22 * w), color: stiefelFarbe, position: [0, 0, 0.01] },
+    { geometry: box(0.23 * w, 0.1, 0.27 * w), color: stiefelFarbe, position: [0, 0, 0.02] },
     // Die Spitze steht nach vorn über — ohne sie steht die Figur auf Stümpfen.
-    { geometry: box(0.18 * w, 0.07, 0.1 * w), color: stiefelFarbe, position: [0, -0.016, 0.14] },
+    { geometry: box(0.2 * w, 0.07, 0.1 * w), color: stiefelFarbe, position: [0, -0.016, 0.16] },
     // Schaft, nur mit echten Stiefeln. Barfuss endet das Bein am Knöchel.
     ...(schuhe
       ? [
           {
-            geometry: box(0.21 * w, 0.16, 0.23 * w),
+            // Grösser als das Bein, kleiner als die Sohle, und in der Tiefe
+            // gegen beide versetzt: sonst fällt eine seiner Flächen mit einer
+            // der beiden anderen zusammen und es flimmert wieder.
+            geometry: box(0.21 * w, 0.16, 0.24 * w),
             color: schuhe.trim,
-            position: [0, 0.11, 0] as [number, number, number],
+            position: [0, 0.11, 0.015] as [number, number, number],
           },
         ]
       : []),
