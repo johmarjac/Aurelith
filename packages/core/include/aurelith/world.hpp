@@ -115,7 +115,28 @@ class World {
   void respawnPlayer(uint32_t id, float x, float z);
   void setTarget(uint32_t id, uint32_t targetId);
   void setPlayerStats(uint32_t id, uint16_t level, float maxHp, float maxMp, float attackDamage,
-                      float defense);
+                      float defense, float moveSpeed);
+
+  /**
+   * Setzt Aussicht und Wucht kritischer Treffer.
+   *
+   * Getrennt von `setPlayerStats`, aus demselben Grund wie das Angriffsprofil:
+   * das hier hängt an der Ausrüstung und ändert sich beim Wechsel, nicht bei
+   * jedem Stufenaufstieg.
+   */
+  void setCritProfile(uint32_t id, float chance, float multiplier);
+
+  /**
+   * Stellt Leben und Mana wieder her. Gibt zurück, wie viel tatsächlich ankam.
+   *
+   * Der Rückgabewert ist der Punkt: der Server entscheidet daran, ob der Trank
+   * verbraucht wird. Ohne ihn müsste er den Füllstand selbst mitführen — eine
+   * zweite Wahrheit über etwas, das der Kern schon weiß.
+   *
+   * Auf einer toten Figur passiert nichts. Wiederbeleben ist etwas anderes als
+   * Heilen und hat mit `respawnPlayer` seinen eigenen Weg.
+   */
+  float heal(uint32_t id, float hp, float mp);
 
   /**
    * Setzt, wie eine Figur zuschlägt.

@@ -213,6 +213,25 @@ export function decodePickupLoot(r: ByteReader): { lootId: number } {
   return { lootId: r.u32() };
 }
 
+/**
+ * Einen Verbrauchsgegenstand benutzen.
+ *
+ * Der Platz im Beutel, nicht die Kennung — wie beim Anlegen: zwei Stapel
+ * derselben Sorte sind zwei Plätze, und welcher gemeint ist, soll nicht der
+ * Server raten.
+ *
+ * Ob dort ein Trank liegt, ob er wirkt und ob er verbraucht wird, entscheidet
+ * ausschliesslich der Server. Der Kern sagt ihm, wie viel tatsächlich ankam;
+ * kam nichts an, bleibt der Trank liegen.
+ */
+export function encodeUseItem(slot: number): Uint8Array {
+  return packet(ClientOp.UseItem, 16).u16(slot).finish();
+}
+
+export function decodeUseItem(r: ByteReader): { slot: number } {
+  return { slot: r.u16() };
+}
+
 // ---------------------------------------------------------------------------
 // Server → Client
 // ---------------------------------------------------------------------------
@@ -297,6 +316,18 @@ export interface SpawnRow {
    * Figur ohnehin als neu meldet, wenn sich etwas ändert.
    */
   weaponUpgrade: number;
+  /**
+   * Was die Figur anhat, als eine Zeichenkette — siehe `encodeOutfit`.
+   *
+   * Ein Feld für sechs Plätze und nicht sechs Felder: Ausrüstung wechselt
+   * selten, und wenn sie wechselt, schickt der Server die Figur ohnehin als
+   * neue Zeile. Sechs kurze Zeichenketten wären sechs Längenbytes für
+   * dieselbe Auskunft.
+   *
+   * Nur in der vollen Zeile, nicht in der Aktualisierung — aus demselben
+   * Grund wie bei der Waffe.
+   */
+  outfit: string;
 }
 
 /** Laufende Aktualisierung eines bereits bekannten Entities. */
@@ -386,7 +417,8 @@ export function encodeSnapshot(m: SnapshotMsg): Uint8Array {
       .u8(s.state)
       .u8(s.aggro ? 1 : 0)
       .str(s.weapon)
-      .u8(Math.max(0, Math.min(255, Math.round(s.weaponUpgrade))));
+      .u8(Math.max(0, Math.min(255, Math.round(s.weaponUpgrade))))
+      .str(s.outfit);
   }
 
   w.u16(m.updates.length);
@@ -443,6 +475,7 @@ export function decodeSnapshot(r: ByteReader): SnapshotMsg {
       aggro: r.u8() !== 0,
       weapon: r.str(),
       weaponUpgrade: r.u8(),
+      outfit: r.str(),
     };
   }
 

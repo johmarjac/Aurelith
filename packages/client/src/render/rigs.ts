@@ -13,6 +13,7 @@
  */
 
 import * as THREE from 'three';
+import { decodeOutfit, type Outfit } from '@aurelith/shared';
 import { assemble, box, cone, cylinder, paint, sphere, type Part } from './geometry.ts';
 
 export interface RigState {
@@ -124,6 +125,37 @@ function joint(
 // Humanoid
 // ---------------------------------------------------------------------------
 
+/**
+ * Farben je Rüstungsstil.
+ *
+ * Ein Stil und kein Modell je Gegenstand: ein Satz aus vier Teilen soll
+ * zusammenpassen, und das tut er am zuverlässigsten, wenn alle vier aus
+ * derselben Zeile kommen. `schlicht` ist der Rückfall — ein Teil ohne
+ * bekannten Stil bleibt sichtbar, statt still zu verschwinden.
+ */
+const ARMOR_STYLES: Record<string, { main: number; trim: number }> = {
+  leder: { main: 0x8a6a42, trim: 0x5b4526 },
+  stoff: { main: 0x6f7f5a, trim: 0x4d5a3e },
+  leinen: { main: 0x5a6b8a, trim: 0x3f4c63 },
+  messing: { main: 0xc9a44a, trim: 0x7d6520 },
+  eisen: { main: 0x9aa4b0, trim: 0x5c646e },
+  schlicht: { main: 0x8a8a8a, trim: 0x5a5a5a },
+};
+
+function styleColors(stil: string | undefined): { main: number; trim: number } | undefined {
+  if (!stil) return undefined;
+  return ARMOR_STYLES[stil] ?? ARMOR_STYLES.schlicht!;
+}
+
+/**
+ * Die Unterhose.
+ *
+ * Sie sitzt am Rumpf und nicht an den Beinen, und das ist keine Kleinigkeit:
+ * die Beine drehen sich beim Laufen um die Hüfte. Ein Hosenbund, der mitdreht,
+ * läuft in zwei Hälften auseinander, sobald die Figur einen Schritt macht.
+ */
+const UNDERWEAR = 0xf0e4d4;
+
 export interface HumanoidConfig {
   kind: 'humanoid';
   height: number;
@@ -135,6 +167,16 @@ export interface HumanoidConfig {
   hair: number;
   accent: number;
   weapon: 'sword' | 'club' | 'staff' | 'bow' | 'none';
+  /**
+   * Was die Figur anhat. Fehlt es, steht sie in Unterhose da.
+   *
+   * Für NPCs ist das der Normalfall *nicht* — sie tragen ihre Kleidung als
+   * Farben in der Beschreibung. Deshalb gibt es `dressed`: eine Figur ohne
+   * Ausrüstungssystem bleibt angezogen, ein Spieler ohne Rüstung nicht.
+   */
+  outfit?: Outfit;
+  /** Trägt diese Figur ihre Kleidung fest, ohne Ausrüstung? Gilt für NPCs. */
+  dressed?: boolean;
 }
 
 /**
@@ -326,9 +368,28 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
   // Der Kopf blickt nach +Z. Die Vorderfläche liegt bei z = 0,13; alles, was
   // im Gesicht sitzt, steht ein paar Millimeter davor.
   const brow = shade(cfg.hair, 0.9);
+
+  // Was an ist, und was daraus für Farben folgen.
+  //
+  // `dressed` gilt für alle, die kein Ausrüstungssystem haben — NPCs tragen
+  // ihre Kleidung als Farbe in der Beschreibung, und die soll bleiben. Ein
+  // Spieler ohne Rüstung dagegen steht in Unterhose da; genau das ist der
+  // Sinn der Sache, denn nur so sieht man, dass ein angelegtes Teil wirkt.
+  const angezogen = cfg.dressed !== false;
+  const brust = styleColors(cfg.outfit?.chest);
+  const hose = styleColors(cfg.outfit?.legs);
+  const schuhe = styleColors(cfg.outfit?.feet);
+  const helm = styleColors(cfg.outfit?.head);
+  const umhang = styleColors(cfg.outfit?.cloak);
+  const brille = styleColors(cfg.outfit?.glasses);
+
+  const rumpfFarbe = brust ? brust.main : angezogen ? cfg.shirt : cfg.skin;
+  const armFarbe = brust ? shade(brust.main, 0.92) : angezogen ? shade(cfg.shirt, 0.92) : cfg.skin;
+  const beinFarbe = hose ? hose.main : angezogen ? cfg.pants : cfg.skin;
+  const stiefelFarbe = schuhe ? schuhe.main : shade(beinFarbe, 0.62);
+
   const torsoParts: Part[] = [
-    { geometry: box(0.5 * w, 0.6, 0.3 * w), color: cfg.shirt, position: [0, 1.22, 0] },
-    { geometry: box(0.42 * w, 0.16, 0.28 * w), color: cfg.accent, position: [0, 0.96, 0] },
+    { geometry: box(0.5 * w, 0.6, 0.3 * w), color: rumpfFarbe, position: [0, 1.22, 0] },
 
     // Hals — vorher saß der Kopf ohne Übergang auf den Schultern.
     { geometry: box(0.14, 0.1, 0.14), color: shade(cfg.skin, 0.86), position: [0, 1.5, 0] },
@@ -367,6 +428,83 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
     // als die Augen, deckt sie zu — und sieht aus wie ein Fehler im Modell.
     { geometry: box(0.292, 0.05, 0.04), color: cfg.hair, position: [0, 1.772, 0.112] },
   ];
+
+  // --- Was die Ausrüstung obendrauf legt -----------------------------------
+  //
+  // Alles hier ist Zusatz zum nackten Körper. Der Körper steht schon, und
+  // jedes Teil legt sich darüber — deshalb liest sich der Unterschied zwischen
+  // an- und ausgezogen an genau dieser Liste ab und nicht an fünf verstreuten
+  // Bedingungen weiter oben.
+
+  if (brust) {
+    // Gürtel und Schulterstücke: erst dadurch ist ein Brustteil als Rüstung zu
+    // erkennen und nicht als andersfarbiges Hemd.
+    torsoParts.push(
+      { geometry: box(0.44 * w, 0.09, 0.32 * w), color: brust.trim, position: [0, 0.96, 0] },
+      { geometry: box(0.13 * w, 0.1, 0.32 * w), color: brust.trim, position: [0.3 * w, 1.44, 0] },
+      { geometry: box(0.13 * w, 0.1, 0.32 * w), color: brust.trim, position: [-0.3 * w, 1.44, 0] },
+      // Ein Kragen schliesst die Lücke zum Hals.
+      { geometry: box(0.3 * w, 0.07, 0.26 * w), color: brust.trim, position: [0, 1.5, 0] },
+    );
+  } else if (angezogen) {
+    // Die alte Gürtellinie bleibt, wo eine Figur ohne Ausrüstungssystem steht.
+    torsoParts.push({
+      geometry: box(0.42 * w, 0.16, 0.28 * w),
+      color: cfg.accent,
+      position: [0, 0.96, 0],
+    });
+  }
+
+  if (!hose && !angezogen) {
+    // Die Unterhose. Am Rumpf, nicht am Bein — siehe `UNDERWEAR`.
+    torsoParts.push(
+      { geometry: box(0.46 * w, 0.2, 0.3 * w), color: UNDERWEAR, position: [0, 0.9, 0] },
+      { geometry: box(0.47 * w, 0.045, 0.31 * w), color: shade(UNDERWEAR, 0.88), position: [0, 0.99, 0] },
+    );
+  } else if (hose) {
+    // Hosenbund, damit Hose und Rumpf nicht ohne Übergang aneinanderstossen.
+    torsoParts.push({
+      geometry: box(0.46 * w, 0.11, 0.3 * w),
+      color: hose.trim,
+      position: [0, 0.93, 0],
+    });
+  }
+
+  if (helm) {
+    // Eine Kappe über dem Haar, mit Schirm und Nackenschutz. Nicht *statt* des
+    // Haars: der Kopf ist ein Stück mit dem Rumpf, und ein Helm, der das Haar
+    // ersetzen soll, hiesse die ganze Geometrie zweimal zu bauen.
+    torsoParts.push(
+      { geometry: box(0.33, 0.13, 0.31), color: helm.main, position: [0, 1.83, 0] },
+      { geometry: box(0.33, 0.05, 0.09), color: helm.trim, position: [0, 1.78, 0.15] },
+      { geometry: box(0.31, 0.13, 0.06), color: helm.trim, position: [0, 1.73, -0.155] },
+    );
+  }
+
+  if (brille) {
+    // Zwei Gläser und ein Steg, knapp vor den Augen.
+    torsoParts.push(
+      { geometry: box(0.075, 0.05, 0.014), color: brille.main, position: [0.062, 1.699, 0.146] },
+      { geometry: box(0.075, 0.05, 0.014), color: brille.main, position: [-0.062, 1.699, 0.146] },
+      { geometry: box(0.05, 0.014, 0.012), color: brille.trim, position: [0, 1.699, 0.146] },
+      // Bügel zu den Ohren.
+      { geometry: box(0.014, 0.014, 0.16), color: brille.trim, position: [0.098, 1.699, 0.07] },
+      { geometry: box(0.014, 0.014, 0.16), color: brille.trim, position: [-0.098, 1.699, 0.07] },
+    );
+  }
+
+  if (umhang) {
+    // Ein Tuch am Rücken, unten etwas schmaler. Starr: ein wehender Umhang
+    // bräuchte Simulation, und ein schlecht wehender sieht schlimmer aus als
+    // ein ruhiger.
+    torsoParts.push(
+      { geometry: box(0.48 * w, 0.62, 0.05), color: umhang.main, position: [0, 1.2, -0.185] },
+      { geometry: box(0.4 * w, 0.3, 0.045), color: shade(umhang.main, 0.9), position: [0, 0.78, -0.19] },
+      // Schliesse vorn an der Schulter.
+      { geometry: box(0.36 * w, 0.07, 0.34 * w), color: umhang.trim, position: [0, 1.46, 0] },
+    );
+  }
+
   const torso = new THREE.Mesh(assemble(torsoParts), material);
   torso.scale.setScalar(s);
   body.add(torso);
@@ -377,11 +515,11 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
 
   // Ärmel in Hemdfarbe, Hosenbeine in Hosenfarbe — beides stand schon in der
   // Beschreibung, wurde aber nie gezeichnet.
-  const sleeve = shade(cfg.shirt, 0.92);
+  const sleeve = armFarbe;
   const armL = joint(armGeo(), material, sleeve, [-0.34 * w * s, shoulderY * s, 0], [0, -armLength / 2, 0], disposables);
   const armR = joint(armGeo(), material, sleeve, [0.34 * w * s, shoulderY * s, 0], [0, -armLength / 2, 0], disposables);
-  const legL = joint(legGeo(), material, cfg.pants, [-0.14 * w * s, hipY * s, 0], [0, -legLength / 2, 0], disposables);
-  const legR = joint(legGeo(), material, cfg.pants, [0.14 * w * s, hipY * s, 0], [0, -legLength / 2, 0], disposables);
+  const legL = joint(legGeo(), material, beinFarbe, [-0.14 * w * s, hipY * s, 0], [0, -legLength / 2, 0], disposables);
+  const legR = joint(legGeo(), material, beinFarbe, [0.14 * w * s, hipY * s, 0], [0, -legLength / 2, 0], disposables);
   for (const j of [armL, armR, legL, legR]) {
     j.scale.setScalar(s);
     body.add(j);
@@ -402,7 +540,7 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
     },
     // Bündchen: die Grenze zwischen Ärmel und Haut, sonst wächst die Hand
     // ohne Übergang aus dem Hemd.
-    { geometry: box(0.13 * w, 0.035, 0.14 * w), color: shade(cfg.shirt, 0.8), position: [0, 0.092, 0] },
+    { geometry: box(0.13 * w, 0.035, 0.14 * w), color: shade(armFarbe, 0.8), position: [0, 0.092, 0] },
   ];
 
   for (const [arm, thumbSide] of [
@@ -417,9 +555,19 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
   }
 
   const bootParts: Part[] = [
-    { geometry: box(0.2 * w, 0.1, 0.22 * w), color: shade(cfg.pants, 0.62), position: [0, 0, 0.01] },
+    { geometry: box(0.2 * w, 0.1, 0.22 * w), color: stiefelFarbe, position: [0, 0, 0.01] },
     // Die Spitze steht nach vorn über — ohne sie steht die Figur auf Stümpfen.
-    { geometry: box(0.18 * w, 0.07, 0.1 * w), color: shade(cfg.pants, 0.62), position: [0, -0.016, 0.14] },
+    { geometry: box(0.18 * w, 0.07, 0.1 * w), color: stiefelFarbe, position: [0, -0.016, 0.14] },
+    // Schaft, nur mit echten Stiefeln. Barfuss endet das Bein am Knöchel.
+    ...(schuhe
+      ? [
+          {
+            geometry: box(0.21 * w, 0.16, 0.23 * w),
+            color: schuhe.trim,
+            position: [0, 0.11, 0] as [number, number, number],
+          },
+        ]
+      : []),
   ];
   for (const leg of [legL, legR]) {
     const geo = assemble(bootParts);
@@ -752,6 +900,11 @@ export const CHARACTER_CONFIGS: Record<string, CharacterConfig> = {
     hair: 0x4a3527,
     accent: 0x8a5a3c,
     weapon: 'sword',
+    // Der einzige, der sich ausziehen kann. Was ein Spieler anhat, sagt seine
+    // Ausrüstung — `shirt` und `pants` sind hier nur noch der Rückfall für
+    // eine Figur, die aus irgendeinem Grund ohne Ausrüstungsangabe gebaut
+    // wird, und für die Farbe der nackten Haut spielen sie keine Rolle.
+    dressed: false,
   },
 
   npc_guide: {
@@ -866,14 +1019,23 @@ export function createRig(
   key: string,
   material: THREE.Material,
   weapon?: string,
+  outfit?: string,
 ): CharacterRig {
   const base = CHARACTER_CONFIGS[key] ?? CHARACTER_CONFIGS.player!;
-  const cfg =
+  let cfg: CharacterConfig =
     base.kind === 'humanoid' && weapon && isWeaponKey(weapon)
       ? { ...base, weapon }
       : base.kind === 'humanoid' && weapon === 'none'
         ? { ...base, weapon: 'none' as const }
         : base;
+
+  // Das Aussehen kommt als Zeichenkette aus dem Snapshot — für die eigene
+  // Figur genauso wie für fremde. Der Client rechnet es sich nicht selbst aus
+  // dem Beutel zusammen: dann gäbe es zwei Wahrheiten darüber, was jemand
+  // anhat, und die auseinanderlaufende wäre die eigene.
+  if (cfg.kind === 'humanoid' && outfit !== undefined && outfit !== '') {
+    cfg = { ...cfg, outfit: decodeOutfit(outfit) };
+  }
 
   if (cfg.kind === 'humanoid') return makeHumanoid(cfg, material);
   switch (cfg.variant) {

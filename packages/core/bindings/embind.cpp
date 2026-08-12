@@ -215,6 +215,8 @@ EMSCRIPTEN_BINDINGS(aurelith_core) {
       .function("respawnPlayer", &aur::World::respawnPlayer)
       .function("setTarget", &aur::World::setTarget)
       .function("setPlayerStats", &aur::World::setPlayerStats)
+      .function("setCritProfile", &aur::World::setCritProfile)
+      .function("heal", &aur::World::heal)
       .function("setAttackProfile", &aur::World::setAttackProfile)
 
       // Auslesen

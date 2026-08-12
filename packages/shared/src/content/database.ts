@@ -104,7 +104,25 @@ export function getNpc(id: string): NpcDef | undefined {
 }
 
 export type ItemKind = 'weapon' | 'armor' | 'consumable' | 'material' | 'quest';
-export type EquipSlot = 'mainhand' | 'offhand' | 'chest' | 'legs' | 'head' | 'none';
+/**
+ * Wo ein Gegenstand getragen wird.
+ *
+ * `ring` ist einer und nicht zwei: wie viele Ringe gleichzeitig sitzen dürfen,
+ * sagt `slotCapacity` in `equipment.ts`. Ein Ring, der sich für eine Hand
+ * entscheiden müsste, wäre eine Angabe, die niemand sinnvoll ausfüllen kann.
+ */
+export type EquipSlot =
+  | 'mainhand'
+  | 'offhand'
+  | 'head'
+  | 'chest'
+  | 'legs'
+  | 'feet'
+  | 'cloak'
+  | 'glasses'
+  | 'necklace'
+  | 'ring'
+  | 'none';
 
 /**
  * Wie eine Waffe zuschlägt.
@@ -123,6 +141,21 @@ export interface ItemDef {
   levelReq: number;
   attackDamage: number;
   defense: number;
+  /**
+   * Zuschlag auf Lebens- und Manapunkte.
+   *
+   * Erst damit haben Ringe und Halskette etwas zu geben. Sie sind an der
+   * Figur nicht zu sehen — ein Reif von zwei Zentimetern ist auf einem Modell
+   * aus Kästen nichts —, also muss sich das Anlegen in den Zahlen zeigen,
+   * sonst zeigt es sich nirgends.
+   *
+   * Beides wirkt über `setPlayerStats` und braucht keinen neuen wasm-Bau: der
+   * Kern nimmt Höchstwerte ohnehin von aussen entgegen.
+   */
+  maxHp: number;
+  maxMp: number;
+  /** Zuschlag auf die Aussicht auf kritische Treffer, als Anteil (0,03 = 3 %). */
+  critChance: number;
   /** Aktionswert für Verbrauchsgegenstände, z. B. geheilte Lebenspunkte. */
   effectValue: number;
   stackable: boolean;
@@ -138,6 +171,15 @@ export interface ItemDef {
   icon?: string;
   /** Farbe der Kachel, solange kein Bild da ist. 0xRRGGBB. */
   iconColor: number;
+  /**
+   * Wie das Stück an der Figur aussieht — ein Stilschlüssel, kein Modell.
+   *
+   * `leder`, `eisen`, … Der Renderer macht daraus Farben und Formen für den
+   * jeweiligen Platz: derselbe Stil sieht an der Brust anders aus als am
+   * Fuß. Nur so kommt ein Satz mit vier Teilen mit einem Wort aus, statt mit
+   * vier Modellen, die zueinander passen müssen.
+   */
+  armorStyle?: string;
   description: string;
 
   // --- Nur für Waffen ------------------------------------------------------

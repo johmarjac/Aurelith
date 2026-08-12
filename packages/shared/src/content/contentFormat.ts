@@ -147,7 +147,19 @@ function body(raw: unknown, key: string, source: string): { doc: Record<string, 
 // ---------------------------------------------------------------------------
 
 const ITEM_KINDS = ['weapon', 'armor', 'consumable', 'material', 'quest'] as const;
-const EQUIP_SLOTS = ['mainhand', 'offhand', 'chest', 'legs', 'head', 'none'] as const;
+const SLOT_NAMEN = [
+  'mainhand',
+  'offhand',
+  'head',
+  'chest',
+  'legs',
+  'feet',
+  'cloak',
+  'glasses',
+  'necklace',
+  'ring',
+  'none',
+] as const;
 const ATTACK_STYLES = ['melee', 'ranged'] as const;
 const WEAPON_RIGS = ['sword', 'club', 'staff', 'bow'] as const;
 
@@ -165,10 +177,13 @@ export function parseItems(raw: unknown, source = 'items.json'): {
       id: str(o, 'id', path),
       name: str(o, 'name', path),
       kind: oneOf<ItemKind>(o, 'kind', ITEM_KINDS, path),
-      slot: oneOf<EquipSlot>(o, 'slot', EQUIP_SLOTS, path),
+      slot: oneOf<EquipSlot>(o, 'slot', SLOT_NAMEN, path),
       levelReq: optNum(o, 'levelReq', 1, path),
       attackDamage: optNum(o, 'attackDamage', 0, path),
       defense: optNum(o, 'defense', 0, path),
+      critChance: optNum(o, 'critChance', 0, path),
+      maxHp: optNum(o, 'maxHp', 0, path),
+      maxMp: optNum(o, 'maxMp', 0, path),
       effectValue: optNum(o, 'effectValue', 0, path),
       stackable: optBool(o, 'stackable', false),
       maxStack: optNum(o, 'maxStack', 1, path),
@@ -187,6 +202,7 @@ export function parseItems(raw: unknown, source = 'items.json'): {
     if (o.attackArc !== undefined) def.attackArc = num(o, 'attackArc', path);
     if (o.attackCooldownSec !== undefined) def.attackCooldownSec = num(o, 'attackCooldownSec', path);
     if (o.attackWindupSec !== undefined) def.attackWindupSec = num(o, 'attackWindupSec', path);
+    if (o.armorStyle !== undefined) def.armorStyle = str(o, 'armorStyle', path);
     if (o.weaponRig !== undefined) {
       def.weaponRig = oneOf<'sword' | 'club' | 'staff' | 'bow'>(o, 'weaponRig', WEAPON_RIGS, path);
     }
@@ -423,6 +439,8 @@ export function parseTuning(raw: unknown, source = 'tuning.json'): Tuning {
       baseDefense: num(p, 'baseDefense', pPath),
       defensePerLevel: num(p, 'defensePerLevel', pPath),
       moveSpeed: num(p, 'moveSpeed', pPath),
+      critChance: num(p, 'critChance', pPath),
+      critMultiplier: num(p, 'critMultiplier', pPath),
       expMaxBonus: num(p, 'expMaxBonus', pPath),
       expBonusPerLevel: num(p, 'expBonusPerLevel', pPath),
       expMalusPerLevel: num(p, 'expMalusPerLevel', pPath),

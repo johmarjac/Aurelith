@@ -248,7 +248,7 @@ void World::setAttackProfile(uint32_t id, uint32_t style, float range, float arc
 }
 
 void World::setPlayerStats(uint32_t id, uint16_t level, float maxHp, float maxMp,
-                           float attackDamage, float defense) {
+                           float attackDamage, float defense, float moveSpeed) {
   Entity* e = find(id);
   if (e == nullptr) return;
   const float hpRatio = e->maxHp > 0.0f ? e->hp / e->maxHp : 1.0f;
@@ -260,6 +260,29 @@ void World::setPlayerStats(uint32_t id, uint16_t level, float maxHp, float maxMp
   e->mp = std::min(maxMp, e->mp);
   e->attackDamage = attackDamage;
   e->defense = defense;
+  // Tempo kam bisher nicht durch die Brücke. Es stand auf der TypeScript-Seite
+  // in den abgeleiteten Werten, wurde gerechnet und dann weggeworfen — Stiefel
+  // konnten niemanden schneller machen, weil die Zahl nie ankam.
+  if (moveSpeed > 0.0f) e->moveSpeed = moveSpeed;
+}
+
+void World::setCritProfile(uint32_t id, float chance, float multiplier) {
+  Entity* e = find(id);
+  if (e == nullptr) return;
+  e->critChance = std::clamp(chance, 0.0f, 1.0f);
+  // Unter eins wäre ein „kritischer" Treffer schwächer als ein gewöhnlicher.
+  e->critMultiplier = std::max(1.0f, multiplier);
+}
+
+float World::heal(uint32_t id, float hp, float mp) {
+  Entity* e = find(id);
+  if (e == nullptr || !isAlive(*e)) return 0.0f;
+
+  const float vorherHp = e->hp;
+  const float vorherMp = e->mp;
+  if (hp > 0.0f) e->hp = std::min(e->maxHp, e->hp + hp);
+  if (mp > 0.0f) e->mp = std::min(e->maxMp, e->mp + mp);
+  return (e->hp - vorherHp) + (e->mp - vorherMp);
 }
 
 // ---------------------------------------------------------------------------

@@ -34,6 +34,18 @@
           "item": "training_vest"
         },
         {
+          "item": "leather_cap"
+        },
+        {
+          "item": "leather_tunic"
+        },
+        {
+          "item": "leather_pants"
+        },
+        {
+          "item": "leather_boots"
+        },
+        {
           "item": "wooden_sword",
           "upgrade": 10,
           "price": 1
@@ -59,6 +71,18 @@
         },
         {
           "item": "wooden_sword"
+        },
+        {
+          "item": "wanderer_cloak"
+        },
+        {
+          "item": "reading_glasses"
+        },
+        {
+          "item": "copper_ring"
+        },
+        {
+          "item": "moor_pendant"
         }
       ]
     },

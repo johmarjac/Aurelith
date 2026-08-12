@@ -39,6 +39,7 @@ import {
   decodeSetTarget,
   decodeShopTrade,
   decodeUpgradeItem,
+  decodeUseItem,
   decodeUsePortal,
   encodeCombatEvent,
   encodeInventory,
@@ -59,6 +60,11 @@ import {
   getQuest,
   isUpgradable,
   type ItemDef,
+  slotCapacity,
+  styleOf,
+  encodeOutfit,
+  isVisibleSlot,
+  type Outfit,
   type LootRow,
   readPacket,
   upgradeBonus,
@@ -250,6 +256,12 @@ export class GameServer {
           if (session.state !== 'playing') break;
           const { mode, itemId, count, slot } = decodeShopTrade(reader);
           this.shopTrade(session, mode, itemId, count, slot);
+          break;
+        }
+        case ClientOp.UseItem: {
+          if (session.state !== 'playing') break;
+          const { slot } = decodeUseItem(reader);
+          this.useItem(session, slot);
           break;
         }
         case ClientOp.PickupLoot: {
@@ -643,6 +655,7 @@ export class GameServer {
         aggro: row.targetId !== 0,
         weapon: meta?.weapon ?? '',
         weaponUpgrade: meta?.weaponUpgrade ?? 0,
+        outfit: meta?.outfit ?? '',
       });
       session.known.add(row.id);
     }
@@ -845,6 +858,16 @@ export class GameServer {
    * Ein zweiter Gegenstand im selben Platz verdrängt den ersten. Das ist das
    * ganze Ausrüstungssystem: eine Hand, eine Waffe.
    */
+  /**
+   * Anlegen und Ablegen — dasselbe Paket, je nachdem was gerade der Fall ist.
+   *
+   * Früher war ein zweiter Klick auf ein angelegtes Stück absichtlich wirkungslos:
+   * ohne Waffe dazustehen war selten das, was jemand wollte. Seit es Rüstung gibt,
+   * ist das falsch herum — man muss sich ausziehen können, und zwar an der Stelle,
+   * an der man sich anzieht. Der versehentliche Doppelklick fällt trotzdem nicht
+   * zurück: die Kachel im Beutel hört nur auf Doppelklick, **solange nichts
+   * angelegt ist**, und das Ablegen geht über den Platz an der Figur.
+   */
   private equipItem(session: Session, slot: number): void {
     const entry = session.items.find((i) => i.slot === slot);
     if (!entry) return;
@@ -852,21 +875,40 @@ export class GameServer {
     const def = getItem(entry.itemId);
     if (!def || def.slot === 'none') return;
 
+    if (entry.equipped) {
+      entry.equipped = false;
+      session.itemsDirty = true;
+      this.applyLoadout(session);
+      this.sendInventory(session);
+      this.sendStats(session);
+      this.systemMessage(session, `${upgradeName(def, entry.upgrade)} abgelegt.`);
+      return;
+    }
+
     const level = session.character?.level ?? 1;
     if (level < def.levelReq) {
       this.systemMessage(session, `${def.name} braucht Stufe ${def.levelReq}.`);
       return;
     }
 
-    // Schon angelegt: nichts zu tun. Ein Doppelklick soll nichts ablegen —
-    // ohne Waffe dazustehen ist selten das, was jemand wollte.
-    if (entry.equipped) return;
-
-    for (const other of session.items) {
-      if (other === entry) continue;
-      if (!other.equipped) continue;
-      if (getItem(other.itemId)?.slot === def.slot) other.equipped = false;
+    /**
+     * Platz machen — aber nur so viel wie nötig.
+     *
+     * Ein Brustpanzer verdrängt den vorigen. Ein Ring nicht: davon passen
+     * zwei, und erst der dritte schiebt den ältesten heraus. Welcher der
+     * älteste ist, sagt die Reihenfolge im Beutel; eine eigene Zeitangabe je
+     * Stück wäre ein Feld mehr für eine Frage, die sich einmal im Monat
+     * stellt.
+     */
+    const getragen = session.items.filter(
+      (other) => other !== entry && other.equipped && getItem(other.itemId)?.slot === def.slot,
+    );
+    const platz = slotCapacity(def.slot);
+    for (let i = 0; i <= getragen.length - platz; i++) {
+      const weichen = getragen[i];
+      if (weichen) weichen.equipped = false;
     }
+
     entry.equipped = true;
     session.itemsDirty = true;
 
@@ -874,6 +916,39 @@ export class GameServer {
     this.sendInventory(session);
     this.sendStats(session);
     this.systemMessage(session, `${upgradeName(def, entry.upgrade)} angelegt.`);
+  }
+
+  /**
+   * Benutzt einen Verbrauchsgegenstand.
+   *
+   * Der Kern heilt und meldet zurück, wie viel angekommen ist. Genau daran
+   * hängt, ob der Trank verbraucht wird: auf voller Gesundheit kommt null
+   * zurück, und dann bleibt er im Beutel. Ohne diese Rückmeldung müsste der
+   * Server den Füllstand selbst mitführen — eine zweite Wahrheit über etwas,
+   * das der Kern schon weiß.
+   */
+  private useItem(session: Session, slot: number): void {
+    const instance = this.instances.get(session.mapId);
+    const entry = session.items.find((i) => i.slot === slot);
+    if (!instance || !entry) return;
+
+    const def = getItem(entry.itemId);
+    if (!def || def.kind !== 'consumable') {
+      this.systemMessage(session, 'Das lässt sich nicht benutzen.');
+      return;
+    }
+
+    const angekommen = instance.world.heal(session.entityId, def.effectValue, 0);
+    if (angekommen <= 0) {
+      this.systemMessage(session, `${def.name} würde jetzt nichts bewirken.`);
+      return;
+    }
+
+    removeSlot(session.items, slot, 1);
+    session.itemsDirty = true;
+    this.systemMessage(session, `${def.name} benutzt — ${Math.round(angekommen)} Leben zurück.`);
+    this.sendInventory(session);
+    this.sendStats(session);
   }
 
   /**
@@ -958,6 +1033,24 @@ export class GameServer {
    * ausserdem in die Entity-Meta, damit sie im nächsten Snapshot bei allen
    * ankommt — Ausrüstung ist sichtbar.
    */
+  /**
+   * Was man an dieser Figur sieht.
+   *
+   * Nur die sichtbaren Plätze — Ringe und Kette ändern die Werte und nicht das
+   * Bild. Sie mitzuschicken hiesse, den Snapshot für eine Auskunft zu
+   * verbreitern, die niemand ablesen kann.
+   */
+  private outfitOf(session: Session): Outfit {
+    const outfit: Outfit = {};
+    for (const entry of session.items) {
+      if (!entry.equipped) continue;
+      const def = getItem(entry.itemId);
+      if (!def || !isVisibleSlot(def.slot)) continue;
+      outfit[def.slot] = styleOf(def);
+    }
+    return outfit;
+  }
+
   private applyLoadout(session: Session): void {
     const instance = this.instances.get(session.mapId);
     const character = session.character;
@@ -973,6 +1066,7 @@ export class GameServer {
       stats.maxMp,
       stats.attackDamage,
       stats.defense,
+      stats.moveSpeed,
     );
     instance.world.setAttackProfile(
       session.entityId,
@@ -982,11 +1076,13 @@ export class GameServer {
       profile.cooldownSec,
       profile.windupSec,
     );
+    instance.world.setCritProfile(session.entityId, stats.critChance, stats.critMultiplier);
 
     const meta = instance.metaFor(session.entityId);
     if (meta) {
       meta.weapon = profile.rig;
       meta.weaponUpgrade = this.mainhandEntry(session)?.upgrade ?? 0;
+      meta.outfit = encodeOutfit(this.outfitOf(session));
     }
 
     // Der Snapshot schickt eine volle Zeile nur für Unbekanntes. Damit die
@@ -1428,6 +1524,7 @@ export class GameServer {
       stats.maxMp,
       stats.attackDamage,
       stats.defense,
+      stats.moveSpeed,
     );
     this.systemMessage(session, `Stufe ${character.level} erreicht.`);
   }
@@ -1495,6 +1592,9 @@ export class GameServer {
       if (!def) continue;
       stats.attackDamage += def.attackDamage;
       stats.defense += def.defense;
+      stats.maxHp += def.maxHp;
+      stats.maxMp += def.maxMp;
+      stats.critChance += def.critChance;
 
       // Die Aufwertung kommt obendrauf und wird nicht eingerechnet: `+7` ist
       // ein Zuschlag auf das Stück, keine andere Waffe.

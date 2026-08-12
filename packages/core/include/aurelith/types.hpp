@@ -192,6 +192,12 @@ struct Entity {
   float attackDamage = 1.0f;
   float defense = 0.0f;
   float moveSpeed = 5.0f;
+  // Kritische Treffer als Eigenschaft der Figur und nicht als Konstante im
+  // Kampfcode. Solange sie fest verdrahtet waren, konnte keine Ausrüstung und
+  // kein Monster daran etwas ändern — und die Werte standen an einer Stelle,
+  // die von aussen nicht einmal ablesbar war.
+  float critChance = 0.12f;
+  float critMultiplier = 1.75f;
   float attackRange = 2.0f;
   float attackArc = 2.2f;
   float attackCooldownSec = 0.9f;

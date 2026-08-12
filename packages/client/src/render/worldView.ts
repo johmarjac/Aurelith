@@ -107,6 +107,8 @@ export interface EntityVisual {
   weapon: string;
   /** Aufwertungsstufe der Waffe. Ab +4 hängt eine Aura daran. */
   weaponUpgrade: number;
+  /** Was die Figur anhat — kodiert wie in `encodeOutfit`. */
+  outfit: string;
   /** Der Funkenschleier um die Waffe, sofern es einen gibt. */
   aura?: WeaponAura;
   /** Höhe über dem Boden für Nameplate und Schadenszahlen. */
@@ -357,7 +359,9 @@ export class WorldView {
       // Schon da — aber der Server schickt eine volle Zeile auch dann neu,
       // wenn sich die Ausrüstung geändert hat. Dann wird das Rig getauscht,
       // sonst hielte die Figur weiter ihre alte Waffe.
-      if (existing.weapon !== row.weapon) this.replaceRig(existing, row);
+      if (existing.weapon !== row.weapon || existing.outfit !== row.outfit) {
+        this.replaceRig(existing, row);
+      }
       // Die Aufwertung kommt nur in der vollen Zeile — genau deshalb meldet
       // der Server die Figur nach einem Schmiedegang als neu.
       if (existing.weaponUpgrade !== row.weaponUpgrade) {
@@ -370,7 +374,7 @@ export class WorldView {
     const key = modelKeyFor(row.type, row.defId);
     // Die Waffe kommt aus dem Snapshot: ohne sie stünde jede fremde Figur mit
     // dem Schwert da, das im Modell voreingestellt ist — auch die mit Bogen.
-    const rig = this.registry.createRig(key, row.weapon);
+    const rig = this.registry.createRig(key, row.weapon, row.outfit);
     rig.root.position.set(row.x, row.y, row.z);
     rig.root.rotation.y = row.yaw;
     this.root.add(rig.root);
@@ -397,6 +401,7 @@ export class WorldView {
       rig,
       weapon: row.weapon,
       weaponUpgrade: row.weaponUpgrade,
+      outfit: row.outfit,
       aggro: row.aggro,
       height: heightFor(row.type, row.defId),
     };
@@ -456,7 +461,7 @@ export class WorldView {
     visual.aura = undefined;
     visual.rig.dispose();
 
-    const rig = this.registry.createRig(modelKeyFor(row.type, row.defId), row.weapon);
+    const rig = this.registry.createRig(modelKeyFor(row.type, row.defId), row.weapon, row.outfit);
     rig.root.position.set(visual.x, visual.y, visual.z);
     rig.root.rotation.y = visual.yaw;
     this.root.add(rig.root);
@@ -464,6 +469,7 @@ export class WorldView {
     visual.rig = rig;
     visual.weapon = row.weapon;
     visual.weaponUpgrade = row.weaponUpgrade;
+    visual.outfit = row.outfit;
     this.attachAura(visual);
   }
 

@@ -32,13 +32,6 @@
 #include "aurelith/world.hpp"
 
 namespace aur {
-namespace {
-
-constexpr float kCritChance = 0.12f;
-constexpr float kCritMultiplier = 1.75f;
-
-}  // namespace
-
 bool World::tryStartSwing(Entity& e) {
   if (!isAlive(e) || e.attackCooldown > 0.0f || e.swingTimer >= 0.0f) return false;
   e.swingTimer = e.attackWindupSec;
@@ -121,8 +114,10 @@ void World::applyDamage(Entity& attacker, Entity& target, uint8_t extraFlags) {
   float damage = computeDamage(attacker.attackDamage, target.defense, rng_.next());
 
   uint8_t flags = extraFlags;
-  if (rng_.next() < kCritChance) {
-    damage = std::floor(damage * kCritMultiplier + 0.5f);
+  // Die Aussicht gehört dem Angreifer, nicht dem Kampfcode. Die Vorgabewerte
+  // stehen in `Entity` — wer nichts setzt, bekommt weiterhin 12 % und 1,75.
+  if (rng_.next() < attacker.critChance) {
+    damage = std::floor(damage * attacker.critMultiplier + 0.5f);
     flags |= kCombatCritical;
   }
 

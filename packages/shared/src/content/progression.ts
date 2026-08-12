@@ -34,6 +34,10 @@ export interface DerivedStats {
   defense: number;
   /** Weltnenheiten pro Sekunde. */
   moveSpeed: number;
+  /** Aussicht auf einen kritischen Treffer, als Anteil. */
+  critChance: number;
+  /** Womit der Schaden dabei malgenommen wird. */
+  critMultiplier: number;
 }
 
 /** Grundwerte allein aus der Stufe, ohne Ausrüstung. */
@@ -46,6 +50,8 @@ export function baseStatsForLevel(level: number): DerivedStats {
     attackDamage: p.baseAttack + stufen * p.attackPerLevel,
     defense: p.baseDefense + stufen * p.defensePerLevel,
     moveSpeed: p.moveSpeed,
+    critChance: p.critChance,
+    critMultiplier: p.critMultiplier,
   };
 }
 

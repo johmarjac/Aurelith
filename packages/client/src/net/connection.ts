@@ -37,6 +37,7 @@ import {
   encodeEquipItem,
   encodeInteract,
   encodePickupLoot,
+  encodeUseItem,
   encodeUpgradeItem,
   encodeQuestAction,
   encodeSetTarget,
@@ -291,6 +292,12 @@ export class Connection {
   /** Einen Beutehaufen aufheben. Der Server prüft Nähe und Anspruch. */
   sendPickupLoot(lootId: number): void {
     this.send(encodePickupLoot(lootId));
+    this.flush();
+  }
+
+  /** Einen Verbrauchsgegenstand benutzen. Über den Platz, wie beim Anlegen. */
+  sendUseItem(slot: number): void {
+    this.send(encodeUseItem(slot));
     this.flush();
   }
 

@@ -33,6 +33,14 @@ export interface EntityMeta {
    * und die gehört zu dem, was andere von dieser Figur sehen.
    */
   weaponUpgrade?: number;
+  /**
+   * Was die Figur trägt, als Zeichenkette — siehe `encodeOutfit`.
+   *
+   * Aus demselben Grund hier wie die Waffe: der Snapshot beschreibt fremde
+   * Figuren, und wer eine sieht, will sie angezogen sehen und nicht in
+   * Unterhose.
+   */
+  outfit?: string;
   defId: string;
   name: string;
   type: EntityType;

@@ -124,6 +124,8 @@ export class UI {
    * Klingen mit verschiedener Aufwertung sind nicht mehr dasselbe Stück.
    */
   onEquipItem?: (slot: number) => void;
+  /** Einen Verbrauchsgegenstand benutzen. */
+  onUseItem?: (slot: number) => void;
   /** Aufwerten beim Schmied. Ebenfalls über den Platz. */
   onUpgradeItem?: (slot: number) => void;
   /** Auftrag annehmen, abgeben oder aufgeben. */
@@ -911,6 +913,10 @@ export class UI {
         bonus.defense > 0 ? `Verteidigung ${def.defense} (+${bonus.defense})` : `Verteidigung ${def.defense}`,
       );
     }
+    // Lebens- und Manazuschlag: der einzige Grund, einen Ring anzulegen. Er
+    // ist an der Figur nicht zu sehen, also muss er hier stehen.
+    if (def.maxHp > 0) werte.push(`Leben +${def.maxHp}`);
+    if (def.maxMp > 0) werte.push(`Mana +${def.maxMp}`);
     if (def.effectValue > 0) werte.push(`Wirkung ${def.effectValue}`);
     if (def.levelReq > 1) werte.push(`ab Stufe ${def.levelReq}`);
     werte.push(`Wert ${def.value} G`);
@@ -918,8 +924,18 @@ export class UI {
 
     teile.push(el('p', 'detail-text', def.description));
 
-    if (entry.equipped) {
-      teile.push(el('div', 'detail-worn', 'Angelegt'));
+    if (def.kind === 'consumable') {
+      const benutzen = el('button', 'btn', 'Benutzen');
+      benutzen.type = 'button';
+      benutzen.addEventListener('click', () => this.onUseItem?.(entry.slot));
+      teile.push(benutzen);
+    } else if (entry.equipped) {
+      // Ablegen steht dort, wo vorher nur „Angelegt" stand. Ein Zustand ohne
+      // Ausweg ist keine Auskunft, sondern eine Sackgasse.
+      const ablegen = el('button', 'btn', 'Ablegen');
+      ablegen.type = 'button';
+      ablegen.addEventListener('click', () => this.onEquipItem?.(entry.slot));
+      teile.push(ablegen);
     } else if (def.slot !== 'none') {
       const anlegen = el('button', 'btn', 'Anlegen');
       anlegen.type = 'button';

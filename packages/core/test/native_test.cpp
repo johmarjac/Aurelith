@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <utility>
 
 #include "aurelith/world.hpp"
 
@@ -390,6 +391,111 @@ void testRangedAttack() {
       "Nahkampf trifft weiterhin alles im Kegel");
 }
 
+/**
+ * Heilen, Tempo und kritische Treffer — die drei Werte, die bis eben von
+ * aussen nicht erreichbar waren.
+ */
+void testHeal() {
+  std::printf("Heilen\n");
+  aur::MobRegistry mobs;
+  aur::World world(3u, flatTerrain(), &mobs);
+  world.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+  world.setPlayerStats(1, 1, 100.0f, 50.0f, 10.0f, 0.0f, 6.0f);
+
+  aur::Entity* p = world.find(1);
+  p->hp = 40.0f;
+  p->mp = 10.0f;
+
+  const float ersteHeilung = world.heal(1, 25.0f, 0.0f);
+  check(ersteHeilung == 25.0f, "Heilung meldet, was ankam");
+  check(p->hp == 65.0f, "Leben ist gestiegen");
+
+  // Über das Maximum hinaus wird nur der Rest gutgeschrieben. Genau daran
+  // entscheidet der Server, ob ein Trank verbraucht wird.
+  const float rest = world.heal(1, 100.0f, 0.0f);
+  check(rest == 35.0f, "über das Maximum hinaus zählt nur der Rest");
+  check(p->hp == 100.0f, "und das Maximum wird nicht überschritten");
+  check(world.heal(1, 50.0f, 0.0f) == 0.0f, "auf voller Gesundheit kommt nichts an");
+
+  check(world.heal(1, 0.0f, 20.0f) == 20.0f, "Mana wird genauso aufgefüllt");
+
+  // Eine tote Figur heilt niemand. Wiederbeleben ist ein anderer Weg.
+  p->hp = 0.0f;
+  p->state = aur::kStateDead;
+  check(world.heal(1, 50.0f, 0.0f) == 0.0f, "eine tote Figur wird nicht geheilt");
+  check(p->hp == 0.0f, "und bleibt bei null");
+
+  check(world.heal(999, 10.0f, 0.0f) == 0.0f, "eine erfundene Kennung heilt nichts");
+}
+
+void testMoveSpeedFromStats() {
+  std::printf("Tempo aus den Werten\n");
+  aur::MobRegistry mobs;
+  aur::World world(4u, flatTerrain(), &mobs);
+  world.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+
+  // Langsam laufen, Strecke messen; schnell laufen, Strecke messen.
+  world.setPlayerStats(1, 1, 100.0f, 0.0f, 10.0f, 0.0f, 2.0f);
+  for (int i = 0; i < 20; ++i) {
+    world.applyInput(1, 0.0f, 1.0f, 0.0f, 0u, aur::kTickSeconds);
+    world.step(aur::kTickSeconds);
+  }
+  const float langsam = world.find(1)->z;
+
+  world.teleport(1, 0.0f, 0.0f, 0.0f);
+  world.setPlayerStats(1, 1, 100.0f, 0.0f, 10.0f, 0.0f, 8.0f);
+  for (int i = 0; i < 20; ++i) {
+    world.applyInput(1, 0.0f, 1.0f, 0.0f, 0u, aur::kTickSeconds);
+    world.step(aur::kTickSeconds);
+  }
+  const float schnell = world.find(1)->z;
+
+  check(schnell > langsam * 2.0f, "höheres Tempo bringt die Figur deutlich weiter");
+}
+
+void testCritProfile() {
+  std::printf("Kritische Treffer\n");
+  aur::MobRegistry mobs;
+  const uint32_t mobIndex = registerTestMob(mobs, false);
+
+  // Zweimal derselbe Ablauf, nur die Kritwerte unterscheiden sich. Ohne Krit
+  // darf kein Treffer als kritisch gemeldet werden, mit sicherem Krit jeder.
+  auto zaehleKrits = [&](float chance, float mult) {
+    aur::World world(9u, flatTerrain(), &mobs);
+    world.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+    world.setCritProfile(1, chance, mult);
+    world.spawnMob(10, mobIndex, 0.0f, 2.0f, -1, aur::kNoSpawner);
+
+    int krits = 0;
+    int treffer = 0;
+    for (int runde = 0; runde < 40; ++runde) {
+      world.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonAttack, aur::kTickSeconds);
+      world.step(aur::kTickSeconds);
+      for (size_t e = 0; e < world.eventCount(); ++e) {
+        const aur::EventView& ev = world.events()[e];
+        // Nur die eigenen Schläge zählen. Das Monster schlägt zurück, und
+        // seine Treffer tragen die Vorgabe-Kritchance — sie mitzuzählen hat
+        // diese Prüfung beim ersten Lauf zu Recht scheitern lassen.
+        if (ev.type != aur::kEventHit || ev.a != 1) continue;
+        ++treffer;
+        if ((ev.flags & aur::kCombatCritical) != 0) ++krits;
+      }
+      world.clearEvents();
+      // Das Monster am Leben halten, damit weiter zugeschlagen wird.
+      aur::Entity* ziel = world.find(10);
+      if (ziel != nullptr) ziel->hp = ziel->maxHp;
+    }
+    return std::pair<int, int>{treffer, krits};
+  };
+
+  const auto ohne = zaehleKrits(0.0f, 2.0f);
+  const auto mit = zaehleKrits(1.0f, 2.0f);
+
+  check(ohne.first > 0, "es wurde überhaupt getroffen");
+  check(ohne.second == 0, "ohne Aussicht gibt es keinen kritischen Treffer");
+  check(mit.second == mit.first, "mit voller Aussicht ist jeder Treffer kritisch");
+}
+
 }  // namespace
 
 int main() {
@@ -405,6 +511,9 @@ int main() {
   testEntityViewLayout();
   testSculpt();
   testRangedAttack();
+  testHeal();
+  testMoveSpeedFromStats();
+  testCritProfile();
 
   std::printf("\n%d Prüfungen, %d fehlgeschlagen\n", g_checks, g_failures);
   return g_failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;

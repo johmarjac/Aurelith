@@ -169,7 +169,10 @@ interface RawWorld {
     maxMp: number,
     attackDamage: number,
     defense: number,
+    moveSpeed: number,
   ): void;
+  setCritProfile(id: number, chance: number, multiplier: number): void;
+  heal(id: number, hp: number, mp: number): number;
   setAttackProfile(
     id: number,
     style: number,
@@ -349,8 +352,30 @@ export class CoreWorld {
     maxMp: number,
     attackDamage: number,
     defense: number,
+    moveSpeed: number,
   ): void {
-    this.raw.setPlayerStats(id, level, maxHp, maxMp, attackDamage, defense);
+    this.raw.setPlayerStats(id, level, maxHp, maxMp, attackDamage, defense, moveSpeed);
+  }
+
+  /**
+   * Aussicht und Wucht kritischer Treffer.
+   *
+   * Getrennt von den Grundwerten, wie das Angriffsprofil: das hängt an der
+   * Ausrüstung, nicht an der Stufe.
+   */
+  setCritProfile(id: number, chance: number, multiplier: number): void {
+    this.raw.setCritProfile(id, chance, multiplier);
+  }
+
+  /**
+   * Heilt und gibt zurück, wie viel tatsächlich ankam.
+   *
+   * Der Rückgabewert entscheidet beim Server, ob der Trank verbraucht wird.
+   * Auf voller Gesundheit kommt null zurück — und dann bleibt der Trank im
+   * Beutel, statt sich in nichts aufzulösen.
+   */
+  heal(id: number, hp: number, mp: number): number {
+    return this.raw.heal(id, hp, mp);
   }
 
   /**

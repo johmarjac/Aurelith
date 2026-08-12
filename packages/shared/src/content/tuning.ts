@@ -12,11 +12,16 @@
  * Tippfehler macht. Wer vor dem Laden liest, bekommt deshalb eine Ausnahme mit
  * klarer Ansage statt einer stillen anderen Zahl.
  *
- * **Was hier nicht steht: die Kampfformel.** Schadensberechnung, kritische
- * Treffer und Trefferfenster rechnet der C++-Kern (`packages/core/src/
- * world.cpp`, `combat.cpp`). Die Zahlen dort in eine JSON-Datei zu schreiben
- * wäre eine Lüge: der Kern ist übersetzt, er würde sie nie lesen. Was den
- * Schaden angeht, ist `world.cpp` die Quelle — und zwar die einzige.
+ * **Was hier nicht steht: die Schadensformel.** `computeDamage` und das
+ * Trefferfenster rechnet der C++-Kern (`packages/core/src/world.cpp`,
+ * `combat.cpp`). Diese Zahlen in eine JSON-Datei zu schreiben wäre eine Lüge:
+ * der Kern ist übersetzt, er würde sie nie lesen.
+ *
+ * Kritische Treffer waren bis vor kurzem dasselbe — feste Konstanten im
+ * Kampfcode. Sie stehen jetzt hier, und das ist kein Widerspruch, sondern die
+ * Folge einer Änderung am Kern: Aussicht und Wucht sind Eigenschaften der
+ * Figur geworden, die er über `setCritProfile` von aussen entgegennimmt. Was
+ * er selbst rechnet, gehört ihm; was er entgegennimmt, gehört hierher.
  */
 
 export interface ProgressionTuning {
@@ -35,6 +40,16 @@ export interface ProgressionTuning {
   baseDefense: number;
   defensePerLevel: number;
   moveSpeed: number;
+
+  /**
+   * Kritische Treffer: Grundaussicht und Wucht.
+   *
+   * Stand bis eben als Konstante in `combat.cpp` — unerreichbar für
+   * Balancing und für jede Ausrüstung. Der Kern nimmt beides jetzt von
+   * aussen entgegen, also gehört es hierher.
+   */
+  critChance: number;
+  critMultiplier: number;
 
   /** Höchster Bonus für Gegner über der eigenen Stufe. */
   expMaxBonus: number;

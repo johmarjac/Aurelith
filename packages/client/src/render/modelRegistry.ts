@@ -110,8 +110,8 @@ export class ModelRegistry {
   }
 
   /** Frisches Rig für eine Figur. Jedes Entity bekommt sein eigenes. */
-  createRig(key: string, weapon?: string): CharacterRig {
-    const rig = createRig(key, this.material, weapon);
+  createRig(key: string, weapon?: string, outfit?: string): CharacterRig {
+    const rig = createRig(key, this.material, weapon, outfit);
 
     // Ist das Modell schon da, bekommt die frische Figur es sofort; sonst
     // merken wir sie uns für später. Beides ohne Warten — sie steht in jedem
