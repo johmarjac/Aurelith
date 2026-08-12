@@ -148,7 +148,17 @@ export class Mixer {
 
   /** Dekodierte Puffer, nach Pfad. */
   private readonly buffers = new Map<string, AudioBuffer>();
-  /** Laufende Dekodierungen, damit derselbe Ton nicht zweimal geladen wird. */
+  /**
+   * Geholte, aber noch nicht dekodierte Daten.
+   *
+   * Das Vorladen läuft beim Start — und da gibt es noch keinen Tonkontext,
+   * weil der eine Nutzergeste braucht. Ohne diese Zwischenablage war die
+   * ganze Arbeit umsonst: die Bytes kamen an, fanden keinen Kontext vor und
+   * wurden verworfen. Der erste Schlag blieb dadurch immer stumm, und erst
+   * der zweite holte den Ton ein zweites Mal.
+   */
+  private readonly raw = new Map<string, ArrayBuffer>();
+  /** Laufende Ladevorgänge, damit derselbe Ton nicht zweimal geholt wird. */
   private readonly pending = new Map<string, Promise<AudioBuffer | undefined>>();
 
   private levels: MixerLevels;
@@ -221,6 +231,9 @@ export class Mixer {
       stille.buffer = this.context.createBuffer(1, 1, this.context.sampleRate);
       stille.connect(this.context.destination);
       stille.start();
+
+      // Alles nachholen, was vor der ersten Geste schon geladen wurde.
+      for (const path of this.raw.keys()) void this.decode(path);
     }
 
     if (this.context.state === 'suspended') void this.context.resume();
@@ -307,12 +320,10 @@ export class Mixer {
     const task = (async (): Promise<AudioBuffer | undefined> => {
       try {
         const bytes = await fetchBytes(path);
-        if (!this.context) return undefined;
-        // `slice()`, weil decodeAudioData den Puffer übernimmt und danach
-        // leert. Der Streamer hält ihn aber weiter in seinem Zwischenspeicher.
-        const decoded = await this.context.decodeAudioData(bytes.slice(0));
-        this.buffers.set(path, decoded);
-        return decoded;
+        // Erst aufheben, dann dekodieren. Gibt es noch keinen Kontext, holt
+        // `resume()` das Dekodieren nach — die Daten sind dann schon da.
+        this.raw.set(path, bytes);
+        return this.decode(path);
       } catch (err) {
         console.warn(`[ton] ${path} nicht ladbar:`, err);
         return undefined;
@@ -323,6 +334,27 @@ export class Mixer {
 
     this.pending.set(path, task);
     return task;
+  }
+
+  /** Macht aus aufgehobenen Rohdaten einen abspielbaren Puffer. */
+  private async decode(path: string): Promise<AudioBuffer | undefined> {
+    const done = this.buffers.get(path);
+    if (done) return done;
+
+    const bytes = this.raw.get(path);
+    if (!bytes || !this.context) return undefined;
+
+    try {
+      // `slice()`, weil decodeAudioData den Puffer übernimmt und danach
+      // leert. Die Rohdaten bleiben hier liegen, falls später ein zweiter
+      // Kontext entsteht.
+      const decoded = await this.context.decodeAudioData(bytes.slice(0));
+      this.buffers.set(path, decoded);
+      return decoded;
+    } catch (err) {
+      console.warn(`[ton] ${path} nicht dekodierbar:`, err);
+      return undefined;
+    }
   }
 
   /**
@@ -391,6 +423,33 @@ export class Mixer {
     source.onended = () => {
       source.disconnect();
       voice.disconnect();
+    };
+  }
+
+  /**
+   * Was das Mischpult über sich weiß.
+   *
+   * Hängt an `window.aurelith`. „Es kommt kein Ton" hat zu viele mögliche
+   * Ursachen, um sie einzeln durchzuprobieren — hier steht in einer Zeile, wie
+   * weit es gekommen ist: keine Daten, Daten aber nicht dekodiert, dekodiert
+   * aber Kontext schläft, oder alles bereit und trotzdem still (dann liegt es
+   * am Gerät).
+   */
+  diagnostics(): {
+    state: string;
+    contextState: string;
+    sampleRate: number;
+    geladen: string[];
+    dekodiert: string[];
+    levels: MixerLevels;
+  } {
+    return {
+      state: this.state,
+      contextState: this.context?.state ?? 'kein Kontext',
+      sampleRate: this.context?.sampleRate ?? 0,
+      geladen: [...this.raw.keys()],
+      dekodiert: [...this.buffers.keys()],
+      levels: this.settings,
     };
   }
 

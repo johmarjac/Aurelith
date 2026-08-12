@@ -143,6 +143,19 @@ export interface Diagnostics {
    */
   weaponModels: string[];
   /**
+   * Zustand der Tonwiedergabe.
+   *
+   * „Es kommt kein Ton" hat zu viele moegliche Ursachen, um sie einzeln
+   * durchzuprobieren. Hier steht, wie weit es gekommen ist.
+   */
+  audio: {
+    state: string;
+    contextState: string;
+    sampleRate: number;
+    geladen: string[];
+    dekodiert: string[];
+  };
+  /**
    * Wie oft die Vorhersage hart zurechtgerückt werden musste.
    *
    * Sichtbar als Zurückspringen der eigenen Figur. Im Idealfall null: Client
@@ -269,6 +282,7 @@ export class Game {
     input: { moveX: 0, moveZ: 0, yaw: 0, attack: false },
     ticks: 0,
     weaponModels: [],
+    audio: { state: 'wartet', contextState: 'kein Kontext', sampleRate: 0, geladen: [], dekodiert: [] },
     reconciles: 0,
     maxReconcileError: 0,
     serverDistance: 0,
@@ -1168,6 +1182,13 @@ export class Game {
         : 0;
 
     d.weaponModels = this.registry.loadedWeaponModels();
+
+    const ton = this.mixer.diagnostics();
+    d.audio.state = ton.state;
+    d.audio.contextState = ton.contextState;
+    d.audio.sampleRate = ton.sampleRate;
+    d.audio.geladen = ton.geladen;
+    d.audio.dekodiert = ton.dekodiert;
     d.hasPrediction = this.prediction !== undefined;
     d.predictionReady = this.poseValid;
     d.hasConnection = this.connection !== undefined;
