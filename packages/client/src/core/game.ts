@@ -212,6 +212,8 @@ export interface Diagnostics {
    * ist. Genau daran hing der Fehler, dass nachts das Umgebungslicht die
    * Farbe der Kuppel bekam und damit schwarz war.
    */
+  /** Zustand der Figur im Inventar — zeichnet sie überhaupt? */
+  doll: { bilder: number; rig: boolean; breite: number; hoehe: number };
   sky: {
     uhr: string;
     dunkelheit: number;
@@ -339,6 +341,7 @@ export class Game {
     localId: 0,
     entityCount: 0,
     lootCount: 0,
+    doll: { bilder: 0, rig: false, breite: 0, hoehe: 0 },
     sky: { uhr: '', dunkelheit: 0, sonne: 0, umgebung: 0, lichtfarbe: '', kuppelfarbe: '' },
     targetId: 0,
     connection: 'getrennt',
@@ -941,6 +944,10 @@ export class Game {
 
     const self = this.view.entities.get(this.localId);
     if (self) {
+      // Die Puppe im Inventar trägt, was der Server meldet — dieselbe Quelle
+      // wie die Figur in der Welt.
+      this.ui.setDollAppearance(self.weapon, self.outfit);
+
       const nowDead = self.state === EntityState.Dead;
       if (nowDead !== this.dead) {
         this.dead = nowDead;
@@ -1468,6 +1475,7 @@ export class Game {
     // Die Wolken ziehen je Bild. Die Farben rechnet der Zyklus nur alle paar
     // Zehntel — ein Wolkenzug in Rucken wäre daran sofort zu sehen.
     this.scene.stepSky(dt);
+    this.ui.stepDoll(dt);
     this.ui.updateOverlay(
       this.scene.camera,
       this.view.entities.values(),
@@ -1526,6 +1534,7 @@ export class Game {
     d.localId = this.localId;
     d.entityCount = this.view.entities.size;
     d.lootCount = this.view.loot.piles.size;
+    d.doll = this.ui.dollState;
 
     const himmel = this.dayCycle.state;
     if (himmel) {

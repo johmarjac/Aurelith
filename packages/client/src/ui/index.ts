@@ -19,6 +19,9 @@ import {
   getItem,
   tuning,
   tuningLoaded,
+  slotCapacity,
+  SLOT_NAMES,
+  type EquipSlot,
   type LootRow,
   type NpcDialogMsg,
   type QuestLogRow,
@@ -30,6 +33,7 @@ import type { EntityVisual } from '../render/worldView.ts';
 import { GameWindow } from './windows.ts';
 import { DialogWindow, QuestLogWindow, ShopWindow, UpgradeWindow } from './npcWindows.ts';
 import { Overlay } from './overlay.ts';
+import { DollView } from './dollView.ts';
 import { DEFAULT_LEVELS, type MixerLevels } from '../audio/mixer.ts';
 import { assetUrl } from '../config.ts';
 import './style.css';
@@ -50,6 +54,41 @@ const KIND_LABEL: Record<string, string> = {
   consumable: 'Verbrauchsgegenstand',
   material: 'Material',
   quest: 'Auftragsgegenstand',
+};
+
+/**
+ * Welche Plätze links und rechts der Figur stehen — und der wievielte.
+ *
+ * Der Index unterscheidet die beiden Ringe. Er ist kein eigener Platz im
+ * Sinne der Inhaltsdatei, sondern nur die Stelle im Kästchen: der erste
+ * angelegte Ring sitzt oben, der zweite darunter.
+ */
+const LINKE_PLAETZE: ReadonlyArray<[EquipSlot, number]> = [
+  ['head', 0],
+  ['chest', 0],
+  ['legs', 0],
+  ['feet', 0],
+];
+const RECHTE_PLAETZE: ReadonlyArray<[EquipSlot, number]> = [
+  ['mainhand', 0],
+  ['cloak', 0],
+  ['glasses', 0],
+  ['necklace', 0],
+  ['ring', 0],
+  ['ring', 1],
+];
+
+/** Ein Zeichen je Platz, solange nichts darin liegt. */
+const SLOT_GLYPHS: Partial<Record<EquipSlot, string>> = {
+  head: '🪖',
+  chest: '🎽',
+  legs: '👖',
+  feet: '🥾',
+  mainhand: '⚔️',
+  cloak: '🧣',
+  glasses: '👓',
+  necklace: '📿',
+  ring: '💍',
 };
 
 export type ConnectionState = 'verbindet' | 'verbunden' | 'getrennt';
@@ -162,6 +201,10 @@ export class UI {
 
   private readonly inventoryWindow: GameWindow;
   private readonly inventoryGrid: HTMLElement;
+  /** Die gedrehte Figur oben im Inventar. */
+  private readonly doll: DollView;
+  /** Die Kästchen um die Figur, in der Reihenfolge von `LINKE_/RECHTE_PLAETZE`. */
+  private readonly equipCells = new Map<string, HTMLElement>();
   private readonly characterWindow: GameWindow;
   private readonly characterStats: HTMLElement;
   private readonly settingsWindow: GameWindow;
@@ -173,6 +216,15 @@ export class UI {
   /** Die Beschreibung unter dem Inventarraster, samt gezeigtem Platz. */
   private readonly itemDetail: HTMLElement;
   private detailSlot?: number;
+  /**
+   * Woher die Sprechblase kam: aus dem Beutel oder von der Figur.
+   *
+   * Als Angabe und nicht als Knoten. Ein gemerktes Element überlebt den
+   * Neuaufbau des Rasters nicht — `replaceChildren` löst es heraus, sein
+   * Rechteck wird null, und die Blase springt in die linke obere Ecke. Genau
+   * das stand hier, und im Bild sah es aus wie ein Positionierungsfehler.
+   */
+  private detailFromDoll = false;
   /** Die Uhr oben links. Zeigt die Weltzeit, nicht die des Geräts. */
   private readonly clockLabel: HTMLElement;
   /** Zuletzt gesehenes Inventar — der Laden verkauft daraus. */
@@ -295,15 +347,47 @@ export class UI {
       host,
       'inventory',
       'Inventar',
-      { left: window.innerWidth - 300, top: 120 },
+      { left: window.innerWidth - 340, top: 100 },
       true,
     );
+    /*
+     * Der Aufbau wie bei Flyff: oben die Figur mit ihren Plätzen ringsum,
+     * darunter der Beutel, darunter die Beschreibung.
+     *
+     * Die Plätze stehen links und rechts neben der Figur und nicht in einer
+     * Reihe darüber. Das ist nicht bloss Nachbau: ein Platz neben der Figur
+     * zeigt, *wo* das Teil hingehört, und genau das muss man beim Anlegen
+     * wissen. Eine Reihe gleicher Kästchen könnte alles bedeuten.
+     */
+    this.doll = new DollView();
+    const puppe = el('div', 'doll');
+    const linkeSpalte = el('div', 'doll-slots links');
+    const rechteSpalte = el('div', 'doll-slots rechts');
+
+    for (const [slot, index] of LINKE_PLAETZE) {
+      linkeSpalte.appendChild(this.equipSlot(slot, index));
+    }
+    for (const [slot, index] of RECHTE_PLAETZE) {
+      rechteSpalte.appendChild(this.equipSlot(slot, index));
+    }
+    puppe.append(linkeSpalte, this.doll.canvas, rechteSpalte);
+
     this.inventoryGrid = el('div', 'inventory-grid');
     // Die Beschreibung sitzt unter dem Raster und ist leer, solange nichts
     // ausgewählt ist.
     this.itemDetail = el('div', 'item-detail');
     this.itemDetail.hidden = true;
-    this.inventoryWindow.body.append(this.inventoryGrid, this.itemDetail);
+    this.inventoryWindow.body.append(puppe, this.inventoryGrid);
+    /*
+     * Die Beschreibung schwebt und sitzt nicht mehr unter dem Raster.
+     *
+     * Am Wirt und nicht im Fenster: als Kind des Fensters wäre sie von dessen
+     * Rand beschnitten, und genau darum geht es bei einer Sprechblase — sie
+     * darf hinausragen. Ihre Stelle bekommt sie beim Klick, aus der Lage der
+     * angeklickten Kachel.
+     */
+    this.itemDetail.classList.add('item-tooltip');
+    host.appendChild(this.itemDetail);
     this.setInventory([]);
 
     this.characterWindow = new GameWindow(
@@ -797,6 +881,102 @@ export class UI {
       .map((e) => ({ itemId: e.itemId, count: e.count, slot: e.slot, upgrade: e.upgrade }));
   }
 
+  /**
+   * Ein Kästchen neben der Figur.
+   *
+   * Es ist Anzeige und Knopf zugleich: liegt etwas darin, legt ein Klick es
+   * ab. Genau hier gehört das Ablegen hin — man zieht dort aus, wo man
+   * anzieht, und die Kachel im Beutel bleibt vom versehentlichen Doppelklick
+   * verschont.
+   */
+  private equipSlot(slot: EquipSlot, index: number): HTMLElement {
+    const zelle = el('div', 'equip-slot');
+    zelle.dataset.slot = slot;
+    zelle.title = SLOT_NAMES[slot];
+    zelle.appendChild(el('span', 'equip-glyph', SLOT_GLYPHS[slot] ?? '•'));
+    this.equipCells.set(`${slot}:${index}`, zelle);
+    return zelle;
+  }
+
+  /**
+   * Füllt die Kästchen um die Figur.
+   *
+   * Was auf welchem Kästchen landet, folgt der Reihenfolge im Beutel — bei
+   * zwei Ringen sitzt der erste angelegte oben. Eine eigene Ordnung dafür
+   * wäre ein Feld mehr für eine Frage, die sich einmal im Monat stellt.
+   */
+  private fillEquipSlots(entries: InventoryEntry[]): void {
+    const jePlatz = new Map<EquipSlot, InventoryEntry[]>();
+    for (const entry of entries) {
+      if (!entry.equipped) continue;
+      const def = getItem(entry.itemId);
+      if (!def || def.slot === 'none') continue;
+      const liste = jePlatz.get(def.slot) ?? [];
+      if (liste.length < slotCapacity(def.slot)) liste.push(entry);
+      jePlatz.set(def.slot, liste);
+    }
+
+    for (const [key, zelle] of this.equipCells) {
+      const [slotName, indexText] = key.split(':');
+      const slot = slotName as EquipSlot;
+      const entry = jePlatz.get(slot)?.[Number(indexText)];
+
+      zelle.replaceChildren();
+      zelle.dataset.filled = String(entry !== undefined);
+      if (entry) zelle.dataset.bagSlot = String(entry.slot);
+      else delete zelle.dataset.bagSlot;
+
+      if (!entry) {
+        zelle.appendChild(el('span', 'equip-glyph', SLOT_GLYPHS[slot] ?? '•'));
+        zelle.title = SLOT_NAMES[slot];
+        zelle.onclick = null;
+        continue;
+      }
+
+      const def = getItem(entry.itemId);
+      zelle.appendChild(itemIcon(def));
+      if (entry.upgrade > 0) {
+        zelle.appendChild(el('span', 'item-upgrade', `+${entry.upgrade}`));
+      }
+      zelle.title = def
+        ? `${upgradeName(def, entry.upgrade)} — klicken zum Ablegen`
+        : entry.itemId;
+      // Klick legt ab. Dasselbe Paket wie das Anlegen: der Server entscheidet
+      // anhand des Zustands, was gemeint ist.
+      // Klick legt ab. Wer nur nachsehen will, was daran hängt, bekommt die
+      // Beschreibung über die rechte Maustaste — dasselbe Fenster, an
+      // derselben Stelle.
+      zelle.onclick = () => this.onEquipItem?.(entry.slot);
+      zelle.oncontextmenu = (ev) => {
+        ev.preventDefault();
+        this.showItemDetail(entry.slot, false, true);
+      };
+    }
+  }
+
+  /**
+   * Wie die Figur im Inventar aussieht.
+   *
+   * Kommt aus dem Snapshot und wird **nicht** aus dem Beutel gerechnet. Der
+   * Server baut das Aussehen ohnehin, um es an alle zu schicken; es hier ein
+   * zweites Mal herzuleiten hiesse, zwei Wahrheiten darüber zu haben, was man
+   * anhat — und die im eigenen Inventar wäre die falsche, sobald eine der
+   * beiden Regeln sich ändert.
+   */
+  setDollAppearance(weapon: string, outfit: string): void {
+    this.doll.setAppearance(weapon, outfit);
+  }
+
+  /** Ein Bild der Figur im Inventar. Zeichnet nur bei offenem Fenster. */
+  stepDoll(dt: number): void {
+    this.doll.step(dt);
+  }
+
+  /** Zustand der Puppe — nur zum Nachsehen. */
+  get dollState(): { bilder: number; rig: boolean; breite: number; hoehe: number } {
+    return this.doll.zustand;
+  }
+
   setInventory(entries: InventoryEntry[]): void {
     this.inventory = entries;
     this.shopWindow.setInventory(this.sellableItems(), this.lastStats?.gold ?? 0);
@@ -811,6 +991,8 @@ export class UI {
       return;
     }
 
+    this.fillEquipSlots(entries);
+
     const bySlot = new Map(entries.map((e) => [e.slot, e]));
     const slots: HTMLElement[] = [];
     const plaetze = tuning().economy.inventorySlots;
@@ -818,6 +1000,7 @@ export class UI {
       const entry = bySlot.get(i);
       const slot = el('div', 'item-slot');
       slot.dataset.equipped = String(entry?.equipped ?? false);
+      if (entry) slot.dataset.bagSlot = String(entry.slot);
 
       if (!entry) {
         slot.classList.add('item-empty');
@@ -859,7 +1042,9 @@ export class UI {
     this.inventoryGrid.replaceChildren(...slots);
     // Die offene Beschreibung neu zeichnen: Anlegen und Aufwerten ändern
     // genau das, was darin steht.
-    if (this.detailSlot !== undefined) this.showItemDetail(this.detailSlot, true);
+    if (this.detailSlot !== undefined) {
+      this.showItemDetail(this.detailSlot, true, this.detailFromDoll);
+    }
   }
 
   /**
@@ -870,12 +1055,13 @@ export class UI {
    * halbe Inventar zu. Ein fester Platz ist langweiliger und funktioniert
    * überall gleich.
    */
-  private showItemDetail(slot: number, behalten = false): void {
+  private showItemDetail(slot: number, behalten = false, ausDerFigur = false): void {
     const entry = this.inventory.find((e) => e.slot === slot);
     // Nochmal auf dieselbe Kachel: zuklappen. Auf dem Telefon ist das der
     // einzige naheliegende Weg, die Beschreibung wieder loszuwerden.
     if (!entry || (!behalten && this.detailSlot === slot)) {
       this.detailSlot = undefined;
+      this.detailFromDoll = false;
       this.itemDetail.replaceChildren();
       this.itemDetail.hidden = true;
       return;
@@ -885,6 +1071,7 @@ export class UI {
     if (!def) return;
 
     this.detailSlot = slot;
+    this.detailFromDoll = ausDerFigur;
     this.itemDetail.hidden = false;
 
     const kopf = el('div', 'detail-head');
@@ -944,10 +1131,41 @@ export class UI {
     }
 
     this.itemDetail.replaceChildren(...teile);
-    // Bei dreissig Plätzen steht die Beschreibung auf einem Telefon unter dem
-    // sichtbaren Bereich — man tippt und sieht nichts. `nearest` scrollt nur,
-    // wenn es nötig ist, und lässt den Rest in Ruhe.
-    if (!behalten) this.itemDetail.scrollIntoView({ block: 'nearest' });
+    this.placeTooltip(slot);
+  }
+
+  /**
+   * Stellt die Sprechblase neben die angeklickte Kachel.
+   *
+   * Bevorzugt rechts daneben, sonst links; senkrecht so weit verschoben, dass
+   * sie ganz im Bild bleibt. Ohne dieses Zurechtrücken hängt sie bei einer
+   * Kachel am rechten Rand zur Hälfte draussen — und das Inventar steht dort
+   * fast immer.
+   */
+  private placeTooltip(slot: number): void {
+    // Das Element frisch suchen statt einen Verweis aufzuheben: nach jedem
+    // Inventarwechsel ist das Raster neu gebaut, und der alte Knoten hängt
+    // nirgends mehr.
+    const wo = this.detailFromDoll ? '.equip-slot' : '.item-slot';
+    const anker = this.host.querySelector<HTMLElement>(`${wo}[data-bag-slot="${slot}"]`);
+    if (!anker) return;
+
+    const kachel = anker.getBoundingClientRect();
+    if (kachel.width === 0) return;
+    const blase = this.itemDetail.getBoundingClientRect();
+    const rand = 8;
+
+    let links = kachel.right + 10;
+    if (links + blase.width > window.innerWidth - rand) {
+      links = kachel.left - blase.width - 10;
+    }
+    links = Math.max(rand, Math.min(links, window.innerWidth - blase.width - rand));
+
+    let oben = kachel.top;
+    oben = Math.max(rand, Math.min(oben, window.innerHeight - blase.height - rand));
+
+    this.itemDetail.style.left = `${Math.round(links)}px`;
+    this.itemDetail.style.top = `${Math.round(oben)}px`;
   }
 
   /** Namensschilder, Beuteschilder und Zahlen weiterschieben. */

@@ -381,6 +381,65 @@ body {
   display: flex;
 }
 
+/*
+ * Das Inventar ist breiter als die übrigen Fenster: es trägt die Figur und
+ * zwei Reihen Plätze nebeneinander. Bei vierzehn Rem quetschte sich die
+ * Leinwand auf Daumenbreite.
+ */
+.window[data-window='inventory'] {
+  min-width: 20rem;
+}
+
+/*
+ * Im Inventar scrollt der **Beutel**, nicht das ganze Fenster.
+ *
+ * Vorher scrollte der Körper als Ganzes, und die Figur wanderte beim ersten
+ * Klick auf einen Gegenstand aus dem Bild: die Beschreibung scrollt sich
+ * selbst sichtbar, und über ihr lag alles andere. Gemessen war das nicht zu
+ * sehen — Grösse und waagerechte Lage stimmten die ganze Zeit. Der Fehler war
+ * eine Achse weiter.
+ */
+.window[data-window='inventory'] .window-body {
+  overflow-y: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * Die Gegenstandsbeschreibung als Sprechblase.
+ *
+ * Sie hängt am Wirt und nicht im Fenster — sonst schnitte dessen Rand sie ab.
+ * Ihre Stelle bekommt sie beim Klick aus der Lage der Kachel; hier steht nur,
+ * wie sie aussieht.
+ */
+.item-tooltip {
+  position: fixed;
+  z-index: 4000;
+  width: 15rem;
+  max-height: 60vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  pointer-events: none;
+  border-radius: 0.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(12, 16, 26, 0.96);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55);
+  padding: 0.5rem 0.6rem;
+}
+
+/* Die Knöpfe darin müssen anklickbar bleiben. */
+.item-tooltip .btn {
+  pointer-events: auto;
+}
+
+.window[data-window='inventory'] .inventory-grid {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Mindestens zwei Reihen, damit der Beutel nicht auf eine Zeile zerfällt. */
+  min-height: 6.6rem;
+  flex: 1 1 auto;
+}
+
 .window-title {
   display: flex;
   align-items: center;
@@ -445,6 +504,98 @@ body {
 }
 
 /* --- Inventar ------------------------------------------------------------- */
+
+/*
+ * Der Kopf des Inventars: Figur in der Mitte, Plätze links und rechts.
+ *
+ * Ein Raster aus drei Spalten und keine absolute Anordnung — die Fenster sind
+ * verschiebbar und auf dem Telefon schmaler, und absolute Kästchen wandern
+ * dabei aus dem Rahmen.
+ */
+.doll {
+  /*
+   * Nicht schrumpfen.
+   *
+   * Im Flex-Körper ist `flex-shrink: 1` die Vorgabe. Ein geschrumpfter
+   * Puppenbereich meldet weiterhin ein sauberes Rechteck — nur ist es kleiner
+   * als sein Inhalt, und der Rest wird abgeschnitten. Eine Messung gegen das
+   * Fensterrechteck sieht davon nichts; sie war zweimal grün, während der Kopf
+   * der Figur fehlte.
+   */
+  flex: 0 0 auto;
+  display: grid;
+  /*
+   * `minmax(0, 1fr)` und nicht `1fr`.
+   *
+   * Ein Canvas hat eine Eigenbreite von 300 Bildpunkten, und eine `1fr`-Spalte
+   * schrumpft nicht unter den Inhalt. Das Raster wurde dadurch breiter als das
+   * Fenster, und die rechte Reihe Plätze stand ausserhalb — sichtbar war davon
+   * nur ein Rand. Dieselbe Falle wie bei der Werteleiste, nur auf der anderen
+   * Achse: was schrumpfen soll, muss es auch dürfen.
+   */
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.35rem;
+  align-items: start;
+  margin-bottom: 0.5rem;
+}
+
+.doll-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+}
+
+.doll-canvas {
+  width: 100%;
+  min-width: 0;
+  height: 190px;
+  display: block;
+  border-radius: 0.4rem;
+  /* Ein Hauch Hintergrund, damit die Figur nicht im Nichts steht. */
+  background: radial-gradient(ellipse at 50% 62%, rgba(90, 110, 150, 0.28), rgba(10, 14, 22, 0) 68%);
+  cursor: grab;
+  touch-action: none;
+}
+
+.doll-canvas:active {
+  cursor: grabbing;
+}
+
+.equip-slot {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 0.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(14, 18, 28, 0.68);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+/* Belegte Plätze sind anklickbar — dort legt man ab. */
+.equip-slot[data-filled='true'] {
+  border-color: rgba(180, 200, 240, 0.5);
+  background: rgba(40, 52, 74, 0.75);
+  cursor: pointer;
+}
+
+.equip-slot[data-filled='true']:hover {
+  border-color: var(--accent);
+}
+
+.equip-glyph {
+  font-size: 1rem;
+  opacity: 0.4;
+  /* Nicht anklickbar: der Klick gehört dem Kästchen. */
+  pointer-events: none;
+}
+
+.equip-slot .item-icon {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
 
 .inventory-grid {
   display: grid;

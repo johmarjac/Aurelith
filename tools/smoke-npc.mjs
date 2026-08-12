@@ -226,12 +226,139 @@ check(
   bilder.find((b) => b.breite === 0)?.src ?? 'alle',
 );
 
+// --- Die Figur im Inventar -------------------------------------------------
+//
+// Gemessen statt angesehen. Der erste Aufbau bestand jede Prüfung und war im
+// Bild trotzdem kaputt: das Raster war breiter als das Fenster, und die rechte
+// Reihe Plätze stand ausserhalb. Ein Rauchtest, der nur „geht auf" prüft,
+// findet so etwas nie.
+
+const puppe = await page.evaluate(() => {
+  const fenster = document.querySelector('[data-window="inventory"]');
+  const leinwand = document.querySelector('.doll-canvas');
+  const raster = document.querySelector('.doll');
+  if (!fenster || !leinwand || !raster) return undefined;
+  const f = fenster.getBoundingClientRect();
+  const l = leinwand.getBoundingClientRect();
+  const r = raster.getBoundingClientRect();
+  return {
+    leinwand: { breite: Math.round(l.width), hoehe: Math.round(l.height) },
+    // Wie weit das Raster über den Fensterrand hinausragt — **beide** Achsen.
+    // Beim ersten Anlauf stand hier nur links/rechts, und genau deshalb ging
+    // die Prüfung durch, während die Figur senkrecht aus dem Bild gescrollt
+    // war. Eine halbe Messung ist keine.
+    ueberstand: Math.round(
+      Math.max(0, r.right - f.right) +
+        Math.max(0, f.left - r.left) +
+        Math.max(0, r.bottom - f.bottom) +
+        Math.max(0, f.top - r.top),
+    ),
+    plaetze: document.querySelectorAll('.equip-slot').length,
+    // Höhe des Puppenbereichs gegen die Höhe seines Inhalts. Ein
+    // geschrumpftes Flex-Element meldet ein sauberes, aber zu kleines
+    // Rechteck — der Inhalt läuft darüber hinaus und wird abgeschnitten,
+    // ohne dass irgendein Rand überschritten wäre.
+    gequetscht: (() => {
+      const d = document.querySelector('.doll');
+      const c = document.querySelector('.doll-canvas');
+      const l = document.querySelector('.doll-slots.links');
+      if (!d || !c || !l) return -1;
+      const noetig = Math.max(c.getBoundingClientRect().height, l.scrollHeight);
+      return Math.round(noetig - d.getBoundingClientRect().height);
+    })(),
+    // Scrollt der Körper? Ein gescrollter Körper schiebt die Figur aus dem
+    // Bild, ohne dass irgendeine Breite oder Höhe falsch wäre.
+    scroll: (() => {
+      const b = document.querySelector('[data-window="inventory"] .window-body');
+      return b ? `${b.scrollTop}/${b.scrollHeight}@${b.clientHeight}` : '—';
+    })(),
+    sichtbar: [...document.querySelectorAll('.equip-slot')].filter((n) => {
+      const b = n.getBoundingClientRect();
+      return (
+        b.width > 0 &&
+        b.height > 0 &&
+        b.right <= f.right + 1 &&
+        b.left >= f.left - 1 &&
+        b.bottom <= f.bottom + 1 &&
+        b.top >= f.top - 1
+      );
+    }).length,
+  };
+});
+
+// Die gemessene Geometrie steht im Protokoll. Zwei Anläufe lang habe ich aus
+// dem Bildschirmfoto auf die Ursache geschlossen und zweimal daneben gelegen;
+// die Zahlen daneben hätten beide Male sofort gezeigt, was los ist.
+console.log(`  · Puppe: ${JSON.stringify(puppe)}`);
+
+check(puppe !== undefined, 'die Figur samt Plätzen steht im Inventar');
+check(
+  (puppe?.leinwand.breite ?? 0) > 40 && (puppe?.leinwand.hoehe ?? 0) > 80,
+  'die Leinwand hat eine brauchbare Größe',
+  puppe ? `${puppe.leinwand.breite}×${puppe.leinwand.hoehe} px` : '—',
+);
+check(puppe?.plaetze === 10, 'zehn Ausrüstungsplätze', String(puppe?.plaetze));
+check(
+  puppe?.sichtbar === puppe?.plaetze,
+  'und alle liegen im Fenster',
+  `${puppe?.sichtbar} von ${puppe?.plaetze}`,
+);
+check((puppe?.ueberstand ?? 99) === 0, 'nichts ragt über den Rand', `${puppe?.ueberstand} px`);
+check(
+  (puppe?.gequetscht ?? 99) <= 0,
+  'der Puppenbereich ist nicht zusammengequetscht',
+  `${puppe?.gequetscht} px zu wenig`,
+);
+
+// Und zuletzt: zeichnet die Figur überhaupt?
+//
+// Über den lesenden Blick und nicht über die Bildpunkte der Leinwand. Ein
+// Versuch mit `readPixels` stand hier und wurde wieder entfernt: three.js
+// erhält den Zeichenpuffer nicht (`preserveDrawingBuffer` ist aus), also kam
+// dort verlässlich eine leere Fläche zurück — der Test hätte behauptet, die
+// Figur fehle, während sie danebenstand. Eine Prüfung, die nicht misst, was
+// sie behauptet, ist schlimmer als keine.
+const puppenzustand = await page.evaluate(() => window.aurelith.doll);
+console.log(`  · Puppenzustand: ${JSON.stringify(puppenzustand)}`);
+
+check(puppenzustand.rig, 'die Figur hat ein Modell');
+check(
+  puppenzustand.bilder > 0,
+  'und zeichnet tatsächlich',
+  `${puppenzustand.bilder} Bilder`,
+);
+check(
+  puppenzustand.breite === 256 && puppenzustand.hoehe === 340,
+  'auf einem Puffer fester Größe',
+  `${puppenzustand.breite}×${puppenzustand.hoehe}`,
+);
+
 const detail = page.locator('.item-detail');
 await belegte.first().click();
 check(
   await waitUntil(async () => await detail.isVisible(), 3000),
   'ein Klick zeigt die Beschreibung',
 );
+// Die Sprechblase muss neben der angeklickten Kachel stehen und ganz im Bild
+// liegen — sonst nützt sie am rechten Rand nichts, und genau dort steht das
+// Inventar.
+const blase = await page.evaluate(() => {
+  const t = document.querySelector('.item-detail');
+  const k = document.querySelector('.item-slot:not(.item-empty)');
+  if (!t || !k) return undefined;
+  const a = t.getBoundingClientRect();
+  const b = k.getBoundingClientRect();
+  return {
+    abstand: Math.round(Math.min(Math.abs(a.left - b.right), Math.abs(b.left - a.right))),
+    imBild:
+      a.left >= 0 && a.top >= 0 && a.right <= window.innerWidth && a.bottom <= window.innerHeight,
+    breite: Math.round(a.width),
+  };
+});
+console.log(`  · Sprechblase: ${JSON.stringify(blase)}`);
+check(blase?.imBild === true, 'die Sprechblase liegt ganz im Bild');
+check((blase?.abstand ?? 999) < 40, 'und klebt an der angeklickten Kachel', `${blase?.abstand} px`);
+
 const detailText = (await detail.textContent()) ?? '';
 check(detailText.includes('Holzschwert'), 'mit dem Namen des Gegenstands', detailText.slice(0, 40));
 check(detailText.includes('Waffe'), 'und seiner Art');
