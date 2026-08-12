@@ -928,14 +928,27 @@ export class Game {
      * würde nur den Bildschirm füllen.
      */
     const impact = (): void => {
+      const critical = (msg.flags & CombatFlag.Critical) !== 0;
+      const killing = (msg.flags & CombatFlag.Killing) !== 0;
+
       burstHit(this.view.particles, msg.x, msg.y, msg.z, {
-        critical: (msg.flags & CombatFlag.Critical) !== 0,
-        killing: (msg.flags & CombatFlag.Killing) !== 0,
+        critical,
+        killing,
         budget: this.quality.particleBudget,
       });
 
+      // Der Einschlag klingt dort, wo er stattfindet — nicht beim Spieler.
+      // Die Stelle kommt vom Server und ist dieselbe, aus der die Funken
+      // sprühen; Bild und Ton beschreiben denselben Punkt im Raum.
+      const ton = SOUNDS[killing ? 'treffer_toedlich' : critical ? 'treffer_kritisch' : 'treffer'];
+      this.mixer.play(ton.path, ton.category, (path) => this.streamer.request(path), {
+        at: { x: msg.x, y: msg.y, z: msg.z },
+        gain: ton.gain,
+        spread: ton.spread,
+      });
+
       if (!mine && !onMe) return;
-      const kind = onMe ? 'taken' : (msg.flags & CombatFlag.Critical) !== 0 ? 'crit' : 'dealt';
+      const kind = onMe ? 'taken' : critical ? 'crit' : 'dealt';
       this.ui.overlay.addNumber(msg.x, msg.y, msg.z, String(msg.damage), kind);
     };
 
@@ -1202,7 +1215,7 @@ export class Game {
       // Der Zuhörer steht bei der Figur, hört aber in Blickrichtung der
       // Kamera. Nähme man die Blickrichtung der Figur, wanderten die Töne bei
       // jeder Drehung durch den Kopf, obwohl das Bild stehen bleibt.
-      this.mixer.setListener(x, z, this.scene.yaw);
+      this.mixer.setListener(x, y, z, this.scene.yaw);
       this.scene.follow(x, y, z, this.prediction, dt);
       this.streamer.setViewer(x, z);
       this.updateNearbyPortal(x, z);

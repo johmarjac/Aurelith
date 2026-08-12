@@ -72,32 +72,43 @@ function clamp01(v: number): number {
 export interface Spatial {
   /** Faktor aus der Entfernung, 0 bis 1. */
   gain: number;
-  /** −1 ganz links, +1 ganz rechts. */
-  pan: number;
+  /**
+   * Richtung im Gehör des Zuhörers, als Einheitsvektor.
+   *
+   * In den Achsen, die WebAudio für seinen Zuhörer vorsieht: +X rechts,
+   * +Y oben, **−Z vorn**. Das Minus ist keine Laune, sondern die Vorgabe der
+   * Norm — ein Zuhörer blickt entlang (0, 0, −1).
+   */
+  dir: { x: number; y: number; z: number };
 }
 
 /**
- * Wie laut und von welcher Seite ein Ton an einer Stelle klingt.
+ * Wie laut und aus welcher Richtung ein Ton an einer Stelle klingt.
  *
  * Ausgelagert, weil hier die einzige Rechnung im ganzen Tonsystem steht, bei
  * der man sich vertun kann — und ich mich prompt vertan habe.
  *
- * Die Seite hängt an der Blickrichtung der Kamera. Sie blickt entlang
+ * Alles hängt an der Blickrichtung der Kamera. Sie blickt entlang
  * `(sin yaw, cos yaw)`; bildschirmrechts ist damit `(-cos yaw, sin yaw)` —
  * dieselbe Herleitung, an der schon die Belegung von A und D hing. Der erste
  * Anlauf hier nahm `sin(atan2(dx, dz) - yaw)`, und das ist **genau das
  * Negative** davon: jeder Ton wäre auf der falschen Seite gekommen. Im Spiel
  * fällt so etwas kaum auf, weil man nicht weiß, wo der andere Spieler steht.
+ *
+ * Die Höhe geht unverändert mit ein. Sie zählt nicht in die Entfernung — ein
+ * Treffer zwei Meter über dem Boden ist nicht weiter weg als einer am Boden —,
+ * wohl aber in die Richtung.
  */
 export function spatial(
   dx: number,
+  dy: number,
   dz: number,
   listenerYaw: number,
   maxDistance = MAX_DISTANCE,
   fullDistance = FULL_DISTANCE,
 ): Spatial {
   const distance = Math.hypot(dx, dz);
-  if (distance >= maxDistance) return { gain: 0, pan: 0 };
+  if (distance >= maxDistance) return { gain: 0, dir: { x: 0, y: 0, z: -1 } };
 
   let gain = 1;
   if (distance > fullDistance) {
@@ -108,17 +119,18 @@ export function spatial(
     gain = (1 - t) ** 2;
   }
 
-  if (distance < 1e-4) return { gain, pan: 0 };
+  // Rechts und vorn im Gehör des Zuhörers.
+  const rechts = dx * -Math.cos(listenerYaw) + dz * Math.sin(listenerYaw);
+  const vorn = dx * Math.sin(listenerYaw) + dz * Math.cos(listenerYaw);
 
-  const rightX = -Math.cos(listenerYaw);
-  const rightZ = Math.sin(listenerYaw);
-  const side = (dx * rightX + dz * rightZ) / distance;
+  const laenge = Math.hypot(rechts, dy, vorn);
+  if (laenge < 1e-4) return { gain, dir: { x: 0, y: 0, z: -1 } };
 
-  // Nah dran wird nicht voll aufgezogen: ein Ton direkt neben dem Ohr, der
-  // ganz rechts liegt, klingt körperlos. Und der eigene Schlag — Entfernung
-  // null — bleibt in der Mitte.
-  const near = Math.min(1, distance / fullDistance);
-  return { gain, pan: Math.max(-1, Math.min(1, side * near * 0.8)) };
+  return {
+    gain,
+    // `-vorn` auf Z, weil der Zuhörer nach −Z blickt.
+    dir: { x: rechts / laenge, y: dy / laenge, z: -vorn / laenge },
+  };
 }
 
 /** Liest die gespeicherten Einstellungen, ohne bei Unsinn umzufallen. */
@@ -167,6 +179,7 @@ export class Mixer {
 
   /** Wo der Zuhörer steht. Bestimmt Lautstärke und Seite eines Tons. */
   private listenerX = 0;
+  private listenerY = 0;
   private listenerZ = 0;
   private listenerYaw = 0;
 
@@ -320,8 +333,10 @@ export class Mixer {
     }
   }
 
-  setListener(x: number, z: number, yaw: number): void {
+  setListener(x: number, y: number, z: number, yaw: number): void {
     this.listenerX = x;
+    // Auf Ohrhöhe, nicht auf Fußhöhe: sonst käme jeder Treffer von oben.
+    this.listenerY = y + 1.5;
     this.listenerZ = z;
     this.listenerYaw = yaw;
   }
@@ -413,16 +428,17 @@ export class Mixer {
     if (!target) return;
 
     let gain = options.gain ?? 1;
-    let pan = 0;
+    let richtung: Spatial['dir'] | undefined;
 
     if (options.at) {
       const placed = spatial(
         options.at.x - this.listenerX,
+        options.at.y - this.listenerY,
         options.at.z - this.listenerZ,
         this.listenerYaw,
       );
       gain *= placed.gain;
-      pan = placed.pan;
+      richtung = placed.dir;
     }
 
     if (gain <= 0.001) return;
@@ -438,9 +454,27 @@ export class Mixer {
     const voice = this.context.createGain();
     voice.gain.value = gain;
 
-    if (pan !== 0 && this.context.createStereoPanner) {
-      const panner = this.context.createStereoPanner();
-      panner.pan.value = Math.max(-1, Math.min(1, pan));
+    if (richtung) {
+      // Echte Raumklang-Verortung statt bloßem Links/Rechts.
+      //
+      // `HRTF` rechnet mit einem gemessenen Kopfmodell: der Ton erreicht das
+      // abgewandte Ohr später und dumpfer, und daran hört man auch vorn von
+      // hinten und oben von unten. Mit einem Stereoregler klingt beides
+      // gleich mittig — ein Treffer hinter dem Rücken wäre nicht von einem
+      // vor der Nase zu unterscheiden.
+      //
+      // Die Entfernung rechnet **nicht** der Knoten: `rolloffFactor = 0`
+      // schaltet seine Dämpfung ab, und die Verortung bekommt einen
+      // Einheitsvektor. Der Abstand steckt in `voice`, wo er zu einer
+      // geprüften Kurve gehört statt zu einem der drei Modelle der Norm.
+      const panner = this.context.createPanner();
+      panner.panningModel = 'HRTF';
+      panner.distanceModel = 'inverse';
+      panner.refDistance = 1;
+      panner.rolloffFactor = 0;
+      panner.positionX.value = richtung.x;
+      panner.positionY.value = richtung.y;
+      panner.positionZ.value = richtung.z;
       source.connect(voice).connect(panner).connect(target);
     } else {
       source.connect(voice).connect(target);

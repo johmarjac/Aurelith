@@ -45,7 +45,12 @@ export interface SoundDef {
   viaProjectile?: boolean;
 }
 
-export type SoundId = 'bogen_schuss' | 'schwert_schwung';
+export type SoundId =
+  | 'bogen_schuss'
+  | 'schwert_schwung'
+  | 'treffer'
+  | 'treffer_kritisch'
+  | 'treffer_toedlich';
 
 export const SOUNDS: Record<SoundId, SoundDef> = {
   bogen_schuss: {
@@ -70,6 +75,37 @@ export const SOUNDS: Record<SoundId, SoundDef> = {
     // dort ist, wo sie zischt.
     cue: 0.6,
   },
+
+  // --- Einschläge ---------------------------------------------------------
+  //
+  // Kategorie `effects`, nicht `weapons`: ein Treffer gehört zum Ziel, nicht
+  // zur Waffe. Wer die Waffen leiser dreht, weil ihm das eigene Schwert auf
+  // die Nerven geht, will trotzdem hören, ob er trifft.
+  //
+  // Deutlich leiser als die Schwünge angesetzt: ein Treffer fällt bei jedem
+  // Schlag an, und im Gefecht mit mehreren Monstern sind das schnell fünf je
+  // Sekunde.
+  treffer: {
+    path: 'audio/treffer.mp3',
+    category: 'effects',
+    gain: 0.55,
+    spread: 1.2,
+    cue: 0,
+  },
+  treffer_kritisch: {
+    path: 'audio/treffer_kritisch.mp3',
+    category: 'effects',
+    gain: 0.7,
+    spread: 0.8,
+    cue: 0,
+  },
+  treffer_toedlich: {
+    path: 'audio/treffer_toedlich.mp3',
+    category: 'effects',
+    gain: 0.8,
+    spread: 0.5,
+    cue: 0,
+  },
 };
 
 /**
@@ -90,4 +126,10 @@ export const WEAPON_SWING: Partial<Record<string, SoundId>> = {
  * bei diesem ersten Schlag. Zusammen sind es zwölf Kilobyte — das lohnt die
  * Diskussion nicht, das lädt man einfach.
  */
-export const PRELOAD: SoundId[] = ['bogen_schuss', 'schwert_schwung'];
+export const PRELOAD: SoundId[] = [
+  'bogen_schuss',
+  'schwert_schwung',
+  'treffer',
+  'treffer_kritisch',
+  'treffer_toedlich',
+];
