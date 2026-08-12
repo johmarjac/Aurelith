@@ -1,0 +1,495 @@
+/**
+ * Einlesen der Inhaltstabellen aus JSON.
+ *
+ * Gegenstände, Monster, NPCs und Aufträge stehen als Daten unter
+ * `assets/content/` und nicht mehr im Quelltext. Server und Client laden
+ * dieselben Dateien beim Hochfahren; wer etwas ändern will, ändert eine
+ * JSON-Datei und startet neu — kein Bauen, kein Veröffentlichen.
+ *
+ * **Der Preis dafür ist die Typprüfung.** Solange die Tabellen TypeScript
+ * waren, hat der Übersetzer jeden Tippfehler gefunden: ein falsches Feld, eine
+ * fehlende Zahl, eine Kennung, die es nicht gibt. Von JSON weiss er nichts.
+ * Genau deshalb steht hier ein Parser, der jedes Feld einzeln prüft und im
+ * Fehlerfall sagt, *wo* — und deshalb prüft `checkReferences` zusätzlich, ob
+ * alle Verweise auflösbar sind. Was der Übersetzer nicht mehr tut, muss das
+ * Laden tun.
+ *
+ * Die Formen sind bewusst genau die der Schnittstellen: was hier
+ * herauskommt, ist ein `ItemDef` und keine lose Abbildung davon.
+ */
+
+import {
+  setItems,
+  setMobs,
+  setNpcs,
+  setStarter,
+  type ItemDef,
+  type ItemKind,
+  type EquipSlot,
+  type AttackStyle,
+  type MobDef,
+  type NpcDef,
+  type NpcRole,
+  type ShopOffer,
+  type StarterEntry,
+} from './database.ts';
+import { setQuests, type ObjectiveKind, type QuestDef } from './quests.ts';
+
+export class ContentFormatError extends Error {
+  constructor(
+    message: string,
+    readonly path: string,
+  ) {
+    super(`${message} (bei ${path})`);
+    this.name = 'ContentFormatError';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Kleine Leser
+// ---------------------------------------------------------------------------
+
+function obj(value: unknown, path: string): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new ContentFormatError('Objekt erwartet', path);
+  }
+  return value as Record<string, unknown>;
+}
+
+function str(o: Record<string, unknown>, key: string, path: string): string {
+  const v = o[key];
+  if (typeof v !== 'string' || v === '') {
+    throw new ContentFormatError(`Feld "${key}" muss ein nichtleerer Text sein`, path);
+  }
+  return v;
+}
+
+function optStr(o: Record<string, unknown>, key: string, fallback: string): string {
+  const v = o[key];
+  return typeof v === 'string' ? v : fallback;
+}
+
+function num(o: Record<string, unknown>, key: string, path: string): number {
+  const v = o[key];
+  if (typeof v !== 'number' || !Number.isFinite(v)) {
+    throw new ContentFormatError(`Feld "${key}" muss eine Zahl sein`, path);
+  }
+  return v;
+}
+
+function optNum(o: Record<string, unknown>, key: string, fallback: number, path: string): number {
+  if (o[key] === undefined) return fallback;
+  return num(o, key, path);
+}
+
+function optBool(o: Record<string, unknown>, key: string, fallback: boolean): boolean {
+  const v = o[key];
+  return typeof v === 'boolean' ? v : fallback;
+}
+
+/**
+ * Farbe als Zahl — geschrieben als `"#a9743f"`, `"0xa9743f"` oder als Zahl.
+ *
+ * JSON kennt keine Hexadezimalliterale, und `11105343` liest niemand. Beide
+ * Formen sind erlaubt, damit von Hand gepflegte Dateien lesbar bleiben und
+ * maschinell erzeugte nicht umgerechnet werden müssen.
+ */
+function color(o: Record<string, unknown>, key: string, fallback: number, path: string): number {
+  const v = o[key];
+  if (v === undefined) return fallback;
+  if (typeof v === 'number' && Number.isFinite(v)) return Math.round(v);
+  if (typeof v === 'string') {
+    const text = v.trim().replace(/^#/, '').replace(/^0x/i, '');
+    if (/^[0-9a-f]{6}$/i.test(text)) return Number.parseInt(text, 16);
+  }
+  throw new ContentFormatError(`Feld "${key}" ist keine Farbe (#rrggbb oder Zahl)`, path);
+}
+
+function list(o: Record<string, unknown>, key: string, path: string): unknown[] {
+  const v = o[key];
+  if (!Array.isArray(v)) throw new ContentFormatError(`Feld "${key}" muss eine Liste sein`, path);
+  return v;
+}
+
+/** Wert aus einer festen Auswahl. Alles andere ist ein Fehler, kein Standard. */
+function oneOf<T extends string>(
+  o: Record<string, unknown>,
+  key: string,
+  erlaubt: readonly T[],
+  path: string,
+): T {
+  const v = o[key];
+  if (typeof v === 'string' && (erlaubt as readonly string[]).includes(v)) return v as T;
+  throw new ContentFormatError(
+    `Feld "${key}" muss eines von: ${erlaubt.join(', ')} sein`,
+    path,
+  );
+}
+
+/**
+ * Kopf einer Inhaltsdatei prüfen und die Liste darin herausgeben.
+ *
+ * Der Kopf existiert aus demselben Grund wie beim Kartenformat: eine Datei,
+ * die sich selbst benennt, lässt sich nicht mit einer anderen verwechseln.
+ */
+function body(raw: unknown, key: string, source: string): { doc: Record<string, unknown>; rows: unknown[] } {
+  const doc = obj(raw, source);
+  const format = optStr(doc, 'format', '');
+  if (format !== 'aurelith.content') {
+    throw new ContentFormatError(`Format "${format}" ist keine Inhaltsdatei`, source);
+  }
+  return { doc, rows: list(doc, key, source) };
+}
+
+// ---------------------------------------------------------------------------
+// Gegenstände
+// ---------------------------------------------------------------------------
+
+const ITEM_KINDS = ['weapon', 'armor', 'consumable', 'material', 'quest'] as const;
+const EQUIP_SLOTS = ['mainhand', 'offhand', 'chest', 'legs', 'head', 'none'] as const;
+const ATTACK_STYLES = ['melee', 'ranged'] as const;
+const WEAPON_RIGS = ['sword', 'club', 'staff', 'bow'] as const;
+
+export function parseItems(raw: unknown, source = 'items.json'): {
+  items: ItemDef[];
+  starter: StarterEntry[];
+} {
+  const { doc, rows } = body(raw, 'items', source);
+
+  const items = rows.map((row, i) => {
+    const path = `${source}.items[${i}]`;
+    const o = obj(row, path);
+
+    const def: ItemDef = {
+      id: str(o, 'id', path),
+      name: str(o, 'name', path),
+      kind: oneOf<ItemKind>(o, 'kind', ITEM_KINDS, path),
+      slot: oneOf<EquipSlot>(o, 'slot', EQUIP_SLOTS, path),
+      levelReq: optNum(o, 'levelReq', 1, path),
+      attackDamage: optNum(o, 'attackDamage', 0, path),
+      defense: optNum(o, 'defense', 0, path),
+      effectValue: optNum(o, 'effectValue', 0, path),
+      stackable: optBool(o, 'stackable', false),
+      maxStack: optNum(o, 'maxStack', 1, path),
+      value: optNum(o, 'value', 1, path),
+      model: optStr(o, 'model', ''),
+      iconColor: color(o, 'iconColor', 0x888888, path),
+      icon: optStr(o, 'icon', ''),
+      description: optStr(o, 'description', ''),
+    };
+
+    // Waffenfelder nur setzen, wenn sie dastehen: `undefined` heisst an jeder
+    // dieser Stellen „nimm das Grundprofil", und ein eingesetzter Standardwert
+    // wäre etwas anderes.
+    if (o.attackStyle !== undefined) def.attackStyle = oneOf<AttackStyle>(o, 'attackStyle', ATTACK_STYLES, path);
+    if (o.attackRange !== undefined) def.attackRange = num(o, 'attackRange', path);
+    if (o.attackArc !== undefined) def.attackArc = num(o, 'attackArc', path);
+    if (o.attackCooldownSec !== undefined) def.attackCooldownSec = num(o, 'attackCooldownSec', path);
+    if (o.attackWindupSec !== undefined) def.attackWindupSec = num(o, 'attackWindupSec', path);
+    if (o.weaponRig !== undefined) {
+      def.weaponRig = oneOf<'sword' | 'club' | 'staff' | 'bow'>(o, 'weaponRig', WEAPON_RIGS, path);
+    }
+
+    if (def.stackable && def.maxStack < 2) {
+      throw new ContentFormatError('stapelbar, aber maxStack unter 2', path);
+    }
+    return def;
+  });
+
+  const starter = (doc.starter === undefined ? [] : list(doc, 'starter', source)).map((row, i) => {
+    const path = `${source}.starter[${i}]`;
+    const o = obj(row, path);
+    return {
+      item: str(o, 'item', path),
+      count: optNum(o, 'count', 1, path),
+      equipped: optBool(o, 'equipped', false),
+    };
+  });
+
+  return { items, starter };
+}
+
+// ---------------------------------------------------------------------------
+// Monster
+// ---------------------------------------------------------------------------
+
+export function parseMobs(raw: unknown, source = 'mobs.json'): MobDef[] {
+  const { rows } = body(raw, 'mobs', source);
+
+  return rows.map((row, i) => {
+    const path = `${source}.mobs[${i}]`;
+    const o = obj(row, path);
+
+    const def: MobDef = {
+      id: str(o, 'id', path),
+      name: str(o, 'name', path),
+      level: optNum(o, 'level', 1, path),
+      maxHp: num(o, 'maxHp', path),
+      attackDamage: optNum(o, 'attackDamage', 1, path),
+      defense: optNum(o, 'defense', 0, path),
+      moveSpeed: optNum(o, 'moveSpeed', 3.5, path),
+      aggressive: optBool(o, 'aggressive', false),
+      aggroRange: optNum(o, 'aggroRange', 10, path),
+      leashRange: optNum(o, 'leashRange', 40, path),
+      attackRange: optNum(o, 'attackRange', 2, path),
+      attackArc: optNum(o, 'attackArc', Math.PI * 0.7, path),
+      attackCooldownMs: optNum(o, 'attackCooldownMs', 1500, path),
+      attackWindupMs: optNum(o, 'attackWindupMs', 300, path),
+      expReward: optNum(o, 'expReward', 1, path),
+      goldReward: optNum(o, 'goldReward', 0, path),
+      model: optStr(o, 'model', 'mob_mote'),
+      scale: optNum(o, 'scale', 1, path),
+      radius: optNum(o, 'radius', 0.6, path),
+      height: optNum(o, 'height', 1.6, path),
+    };
+
+    if (o.drops !== undefined) {
+      def.drops = list(o, 'drops', path).map((d, j) => {
+        const dPath = `${path}.drops[${j}]`;
+        const drop = obj(d, dPath);
+        const min = optNum(drop, 'min', 1, dPath);
+        const max = optNum(drop, 'max', min, dPath);
+        if (max < min) throw new ContentFormatError('max kleiner als min', dPath);
+        const chance = num(drop, 'chance', dPath);
+        if (chance <= 0 || chance > 1) {
+          throw new ContentFormatError('chance muss zwischen 0 und 1 liegen', dPath);
+        }
+        return { item: str(drop, 'item', dPath), chance, min, max };
+      });
+    }
+
+    return def;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// NPCs
+// ---------------------------------------------------------------------------
+
+const NPC_ROLES = ['guide', 'smith', 'merchant', 'gatekeeper', 'healer'] as const;
+
+export function parseNpcs(raw: unknown, source = 'npcs.json'): NpcDef[] {
+  const { rows } = body(raw, 'npcs', source);
+
+  return rows.map((row, i) => {
+    const path = `${source}.npcs[${i}]`;
+    const o = obj(row, path);
+
+    const def: NpcDef = {
+      id: str(o, 'id', path),
+      name: str(o, 'name', path),
+      title: optStr(o, 'title', ''),
+      role: oneOf<NpcRole>(o, 'role', NPC_ROLES, path),
+      model: optStr(o, 'model', 'npc_guide'),
+      scale: optNum(o, 'scale', 1, path),
+      radius: optNum(o, 'radius', 0.5, path),
+      height: optNum(o, 'height', 1.8, path),
+      greeting: optStr(o, 'greeting', ''),
+    };
+
+    if (o.shop !== undefined) {
+      def.shop = list(o, 'shop', path).map((s, j) => {
+        const sPath = `${path}.shop[${j}]`;
+        const angebot = obj(s, sPath);
+        const out: ShopOffer = { item: str(angebot, 'item', sPath) };
+        if (angebot.upgrade !== undefined) out.upgrade = num(angebot, 'upgrade', sPath);
+        if (angebot.price !== undefined) out.price = num(angebot, 'price', sPath);
+        return out;
+      });
+    }
+
+    return def;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Aufträge
+// ---------------------------------------------------------------------------
+
+const OBJECTIVE_KINDS = ['kill', 'collect', 'talk'] as const;
+
+export function parseQuests(raw: unknown, source = 'quests.json'): QuestDef[] {
+  const { rows } = body(raw, 'quests', source);
+
+  return rows.map((row, i) => {
+    const path = `${source}.quests[${i}]`;
+    const o = obj(row, path);
+
+    const objectives = list(o, 'objectives', path).map((z, j) => {
+      const zPath = `${path}.objectives[${j}]`;
+      const ziel = obj(z, zPath);
+      const count = optNum(ziel, 'count', 1, zPath);
+      if (count < 1) throw new ContentFormatError('count muss mindestens 1 sein', zPath);
+      return {
+        kind: oneOf<ObjectiveKind>(ziel, 'kind', OBJECTIVE_KINDS, zPath),
+        target: str(ziel, 'target', zPath),
+        count,
+        text: optStr(ziel, 'text', ''),
+      };
+    });
+
+    if (objectives.length === 0) {
+      throw new ContentFormatError('Auftrag ohne Ziel', path);
+    }
+
+    const rewardRaw = o.reward === undefined ? {} : obj(o.reward, `${path}.reward`);
+    const reward = {
+      exp: optNum(rewardRaw, 'exp', 0, `${path}.reward`),
+      gold: optNum(rewardRaw, 'gold', 0, `${path}.reward`),
+      items: (rewardRaw.items === undefined
+        ? []
+        : list(rewardRaw, 'items', `${path}.reward`)
+      ).map((g, j) => {
+        const gPath = `${path}.reward.items[${j}]`;
+        const gabe = obj(g, gPath);
+        return { item: str(gabe, 'item', gPath), count: optNum(gabe, 'count', 1, gPath) };
+      }),
+    };
+
+    const def: QuestDef = {
+      id: str(o, 'id', path),
+      name: str(o, 'name', path),
+      levelReq: optNum(o, 'levelReq', 1, path),
+      giver: str(o, 'giver', path),
+      objectives,
+      reward,
+      summary: optStr(o, 'summary', ''),
+      textOffer: optStr(o, 'textOffer', ''),
+      textProgress: optStr(o, 'textProgress', ''),
+      textDone: optStr(o, 'textDone', ''),
+    };
+    if (typeof o.turnIn === 'string') def.turnIn = o.turnIn;
+    if (typeof o.requires === 'string') def.requires = o.requires;
+
+    return def;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Laden
+// ---------------------------------------------------------------------------
+
+/** Die vier Dateien, roh wie sie vom Datenträger oder aus dem Netz kommen. */
+export interface RawContent {
+  items: unknown;
+  mobs: unknown;
+  npcs: unknown;
+  quests: unknown;
+}
+
+/** Was `loadContent` eingelesen hat — nur zur Auskunft. */
+export interface ContentSummary {
+  items: number;
+  mobs: number;
+  npcs: number;
+  quests: number;
+}
+
+/**
+ * Liest alles ein und trägt es in die Tabellen ein.
+ *
+ * Muss **vor** allem anderen laufen: der Kern bekommt seine Monsterprofile
+ * daraus, der Server seine Startausrüstung, der Client seine Modelle. Wer zu
+ * früh in eine leere Tabelle greift, bekommt von `getItem` schlicht nichts —
+ * deshalb prüft `contentLoaded()` einmal am Anfang statt später an fünfzig
+ * Stellen.
+ */
+export function loadContent(raw: RawContent): ContentSummary {
+  const { items, starter } = parseItems(raw.items);
+  const mobs = parseMobs(raw.mobs);
+  const npcs = parseNpcs(raw.npcs);
+  const quests = parseQuests(raw.quests);
+
+  const probleme = checkReferences({ items, mobs, npcs, quests, starter });
+  if (probleme.length > 0) {
+    throw new ContentFormatError(`Verweise gehen ins Leere:\n  - ${probleme.join('\n  - ')}`, 'content');
+  }
+
+  setItems(items);
+  setMobs(mobs);
+  setNpcs(npcs);
+  setQuests(quests);
+  setStarter(starter);
+
+  return { items: items.length, mobs: mobs.length, npcs: npcs.length, quests: quests.length };
+}
+
+/**
+ * Prüft, ob jede Kennung, die irgendwo steht, auch irgendwo definiert ist.
+ *
+ * Das ist der Ersatz für den Übersetzer. Solange die Tabellen Quelltext waren,
+ * fiel ein Tippfehler in `'potion_hp_smal'` beim Bauen auf; in JSON fällt er
+ * sonst erst auf, wenn jemand den Auftrag abgibt und keine Belohnung bekommt.
+ *
+ * Gibt die Probleme als Liste zurück und nicht als Ausnahme: wer eine Datei
+ * pflegt, will alle Fehler auf einmal sehen und nicht einen nach dem anderen.
+ */
+export function checkReferences(content: {
+  items: readonly ItemDef[];
+  mobs: readonly MobDef[];
+  npcs: readonly NpcDef[];
+  quests: readonly QuestDef[];
+  starter: readonly StarterEntry[];
+}): string[] {
+  const probleme: string[] = [];
+  const itemIds = new Set(content.items.map((i) => i.id));
+  const mobIds = new Set(content.mobs.map((m) => m.id));
+  const npcIds = new Set(content.npcs.map((n) => n.id));
+  const questIds = new Set(content.quests.map((q) => q.id));
+
+  const doppelt = (was: string, ids: string[], menge: Set<string>): void => {
+    if (ids.length !== menge.size) probleme.push(`${was}: doppelte Kennungen`);
+  };
+  doppelt('Gegenstände', content.items.map((i) => i.id), itemIds);
+  doppelt('Monster', content.mobs.map((m) => m.id), mobIds);
+  doppelt('NPCs', content.npcs.map((n) => n.id), npcIds);
+  doppelt('Aufträge', content.quests.map((q) => q.id), questIds);
+
+  for (const s of content.starter) {
+    if (!itemIds.has(s.item)) probleme.push(`Startausrüstung nennt unbekannten Gegenstand "${s.item}"`);
+  }
+
+  for (const mob of content.mobs) {
+    for (const drop of mob.drops ?? []) {
+      if (!itemIds.has(drop.item)) {
+        probleme.push(`Monster "${mob.id}" lässt unbekannten Gegenstand "${drop.item}" fallen`);
+      }
+    }
+  }
+
+  for (const npc of content.npcs) {
+    for (const angebot of npc.shop ?? []) {
+      if (!itemIds.has(angebot.item)) {
+        probleme.push(`NPC "${npc.id}" verkauft unbekannten Gegenstand "${angebot.item}"`);
+      }
+    }
+  }
+
+  for (const quest of content.quests) {
+    if (!npcIds.has(quest.giver)) {
+      probleme.push(`Auftrag "${quest.id}" wird von unbekanntem NPC "${quest.giver}" vergeben`);
+    }
+    if (quest.turnIn && !npcIds.has(quest.turnIn)) {
+      probleme.push(`Auftrag "${quest.id}" wird bei unbekanntem NPC "${quest.turnIn}" abgegeben`);
+    }
+    if (quest.requires && !questIds.has(quest.requires)) {
+      probleme.push(`Auftrag "${quest.id}" verlangt unbekannten Auftrag "${quest.requires}"`);
+    }
+    for (const ziel of quest.objectives) {
+      const bekannt =
+        ziel.kind === 'kill' ? mobIds.has(ziel.target)
+        : ziel.kind === 'collect' ? itemIds.has(ziel.target)
+        : npcIds.has(ziel.target);
+      if (!bekannt) {
+        probleme.push(`Auftrag "${quest.id}": Ziel "${ziel.kind}" nennt unbekanntes "${ziel.target}"`);
+      }
+    }
+    for (const gabe of quest.reward.items) {
+      if (!itemIds.has(gabe.item)) {
+        probleme.push(`Auftrag "${quest.id}" belohnt mit unbekanntem Gegenstand "${gabe.item}"`);
+      }
+    }
+  }
+
+  return probleme;
+}

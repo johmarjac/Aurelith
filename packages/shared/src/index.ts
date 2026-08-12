@@ -25,6 +25,7 @@ export * from './content/terrainWorld.ts';
 export * from './content/database.ts';
 export * from './content/progression.ts';
 export * from './content/quests.ts';
+export * from './content/contentFormat.ts';
 export * from './content/upgrades.ts';
 export * from './content/daycycle.ts';
 

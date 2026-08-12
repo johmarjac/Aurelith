@@ -15,8 +15,16 @@
 
 import { QuestStatus, getQuest } from '@aurelith/shared';
 import { addItem, countItem, removeItem, sellPrice } from '../src/inventory.ts';
+import { loadContentFromDisk } from '../src/content.ts';
 import { QuestBook } from '../src/quests.ts';
 import type { ItemRecord } from '../src/db/index.ts';
+
+// Die Tabellen stehen als JSON neben dem Spiel und nicht mehr im Quelltext.
+// Ohne diesen Aufruf sind sie leer, und jede Prüfung hier prüfte das Nichts.
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+await loadContentFromDisk(join(repo, 'assets', 'content'));
 
 let failures = 0;
 function check(ok: boolean, what: string, detail = ''): void {

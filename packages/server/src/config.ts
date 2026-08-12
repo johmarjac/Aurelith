@@ -33,6 +33,14 @@ export const config = {
   /** Wo die Map-Dokumente liegen. Im Betrieb dieselben Dateien wie im CDN. */
   mapsDir: env('AURELITH_MAPS_DIR', join(repoRoot, 'assets', 'maps')),
 
+  /**
+   * Wo die Inhaltstabellen liegen — Gegenstände, Monster, NPCs, Aufträge.
+   *
+   * Ebenfalls dieselben Dateien wie im CDN. Wer Inhalte ändern will, ändert
+   * sie dort und startet den Server neu; gebaut werden muss nichts.
+   */
+  contentDir: env('AURELITH_CONTENT_DIR', join(repoRoot, 'assets', 'content')),
+
   /** Map, auf der ein neuer Charakter startet. */
   startMap: env('AURELITH_START_MAP', 'lichtmoor'),
 

@@ -1,0 +1,77 @@
+{
+  "format": "aurelith.content",
+  "version": 1,
+  "npcs": [
+    {
+      "id": "npc_guide",
+      "name": "Aurel",
+      "title": "Wegweiser",
+      "role": "guide",
+      "model": "npc_guide",
+      "scale": 1,
+      "radius": 0.5,
+      "height": 1.85,
+      "greeting": "Willkommen in Lichtmoor. Nimm das Holzschwert und übe an den Irrlichtern auf der Wiese."
+    },
+    {
+      "id": "npc_smith",
+      "name": "Bregan",
+      "title": "Waffenschmied",
+      "role": "smith",
+      "model": "npc_smith",
+      "scale": 1.05,
+      "radius": 0.55,
+      "height": 1.9,
+      "greeting": "Holzschwerter halten nicht ewig. Bring mir Erz, dann reden wir über Stahl.",
+      "shop": [
+        {
+          "item": "rusty_dagger"
+        },
+        {
+          "item": "iron_blade"
+        },
+        {
+          "item": "training_vest"
+        },
+        {
+          "item": "wooden_sword",
+          "upgrade": 10,
+          "price": 1
+        }
+      ]
+    },
+    {
+      "id": "npc_merchant",
+      "name": "Iselda",
+      "title": "Händlerin",
+      "role": "merchant",
+      "model": "npc_merchant",
+      "scale": 0.95,
+      "radius": 0.5,
+      "height": 1.72,
+      "greeting": "Tränke, Bandagen, Reiseproviant. Alles ehrlich gehandelt.",
+      "shop": [
+        {
+          "item": "potion_hp_small"
+        },
+        {
+          "item": "wooden_bow"
+        },
+        {
+          "item": "wooden_sword"
+        }
+      ]
+    },
+    {
+      "id": "npc_gatekeeper",
+      "name": "Torwart Halvar",
+      "title": "Torwächter",
+      "role": "gatekeeper",
+      "model": "npc_gatekeeper",
+      "scale": 1.1,
+      "radius": 0.6,
+      "height": 2,
+      "greeting": "Hinter dem Tor wird es ernst. Komm nicht unvorbereitet zurück."
+    }
+  ]
+}

@@ -33,6 +33,7 @@ import {
   TICK_SECONDS,
   attackProfileFor,
   getItem,
+  loadContent,
   parseMapDocument,
   type MapDocument,
   type StatsMsg,
@@ -428,19 +429,29 @@ export class Game {
     this.lastFrameAt = performance.now();
     requestAnimationFrame(this.frame);
 
-    try {
-      this.core = await loadClientCore();
-    } catch (err) {
-      this.ui.addChat(0, '', `Kern konnte nicht geladen werden: ${String(err)}`);
-      throw err;
-    }
-
     // Das Manifest darf fehlschlagen — ohne es lädt der Streamer direkt, nur
     // ohne Größen und damit ohne echte Priorisierung.
     try {
       await this.streamer.loadManifest();
     } catch (err) {
       console.warn('[assets] Manifest nicht verfügbar, lade ohne Priorisierung:', err);
+    }
+
+    // Die Inhaltstabellen **vor** dem Kern: der bekommt seine Monsterprofile
+    // daraus. Vier kleine Dateien, gleichzeitig geholt — und dieselben, die
+    // auch der Server liest.
+    try {
+      await this.loadContentTables();
+    } catch (err) {
+      this.ui.addChat(0, '', `Inhalte konnten nicht geladen werden: ${String(err)}`);
+      throw err;
+    }
+
+    try {
+      this.core = await loadClientCore();
+    } catch (err) {
+      this.ui.addChat(0, '', `Kern konnte nicht geladen werden: ${String(err)}`);
+      throw err;
     }
 
     // Gelieferte Waffenmodelle nachholen — bewusst ohne `await`. Bis sie da
@@ -457,6 +468,28 @@ export class Game {
 
     await this.ensureMap(BOOTSTRAP_MAP);
     this.connect(accountName);
+  }
+
+  /**
+   * Holt Gegenstände, Monster, NPCs und Aufträge vom CDN.
+   *
+   * Über den Streamer und nicht über ein eingebackenes Modul: Inhalte sollen
+   * sich ändern lassen, ohne den Client neu zu bauen. Der Preis ist dieser
+   * eine Wartepunkt beim Start — vier Dateien unter zwanzig Kilobyte, parallel
+   * geholt.
+   */
+  private async loadContentTables(): Promise<void> {
+    const [items, mobs, npcs, quests] = await Promise.all([
+      this.streamer.requestJson<unknown>('content/items.json'),
+      this.streamer.requestJson<unknown>('content/mobs.json'),
+      this.streamer.requestJson<unknown>('content/npcs.json'),
+      this.streamer.requestJson<unknown>('content/quests.json'),
+    ]);
+    const summe = loadContent({ items, mobs, npcs, quests });
+    console.log(
+      `[inhalt] ${summe.items} Gegenstände, ${summe.mobs} Monster, ` +
+        `${summe.npcs} NPCs, ${summe.quests} Aufträge`,
+    );
   }
 
   /**

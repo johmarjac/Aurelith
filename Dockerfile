@@ -90,9 +90,10 @@ COPY packages/server/migrations packages/server/migrations
 # Der übersetzte Kern. Dieselbe Binärdatei, die auch der Browser lädt.
 COPY --from=core /src/packages/core/dist packages/core/dist
 
-# Die Maps liest der Server von der Platte. Assets liefert er keine aus —
-# die kommen vom CDN, das ist im Blueprint der einzige Weg.
+# Maps und Inhaltstabellen liest der Server von der Platte. Assets liefert er
+# keine aus — die kommen vom CDN, das ist im Blueprint der einzige Weg.
 COPY assets/maps assets/maps
+COPY assets/content assets/content
 
 COPY docker/entrypoint.sh /usr/local/bin/aurelith-entrypoint
 RUN chmod +x /usr/local/bin/aurelith-entrypoint

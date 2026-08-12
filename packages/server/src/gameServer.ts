@@ -1009,8 +1009,7 @@ export class GameServer {
       return;
     }
 
-    const def = getNpc(meta.defId);
-    if (!def) return;
+    if (!getNpc(meta.defId)) return;
 
     // Ansprechen ist selbst ein Auftragsziel — die halbe Wegbeschreibung im
     // Spiel besteht daraus, jemanden aufzusuchen.
@@ -1019,14 +1018,7 @@ export class GameServer {
       this.sendQuestLog(session);
     }
 
-    session.send(
-      encodeNpcDialog({
-        entityId,
-        npcDefId: meta.defId,
-        shop: (def.shop?.length ?? 0) > 0,
-        quests: session.quests.dialogFor(meta.defId, session.character?.level ?? 1),
-      }),
-    );
+    this.sendDialog(session, entityId, meta.defId);
     session.flush();
   }
 
@@ -1042,9 +1034,16 @@ export class GameServer {
     const character = session.character;
     if (!def || !character) return;
 
+    // Wer gerade angesprochen ist. Nach der Handlung geht das Gespräch mit
+    // neuem Inhalt an denselben NPC zurück.
+    let gespraechspartner: number | undefined;
+    let gespraechsDef = '';
+
     switch (action) {
       case QuestAction.Annehmen: {
-        if (!this.nearNpc(session, def.giver)) return;
+        gespraechspartner = this.nearNpcId(session, def.giver);
+        gespraechsDef = def.giver;
+        if (gespraechspartner === undefined) return;
         if (!session.quests.accept(def, character.level, session.items)) {
           this.systemMessage(session, `„${def.name}" ist gerade nicht verfügbar.`);
           return;
@@ -1054,7 +1053,9 @@ export class GameServer {
       }
 
       case QuestAction.Abgeben: {
-        if (!this.nearNpc(session, turnInOf(def))) return;
+        gespraechsDef = turnInOf(def);
+        gespraechspartner = this.nearNpcId(session, gespraechsDef);
+        if (gespraechspartner === undefined) return;
         if (!session.quests.canComplete(def)) {
           this.systemMessage(session, `„${def.name}" ist noch nicht erledigt.`);
           return;
@@ -1096,6 +1097,11 @@ export class GameServer {
       case QuestAction.Aufgeben: {
         if (!session.quests.abandon(questId)) return;
         this.systemMessage(session, `Auftrag aufgegeben: ${def.name}.`);
+        // Aufgegeben wird meist aus dem Questlog heraus, also irgendwo auf der
+        // Karte. Steht man zufällig beim Auftraggeber, wird das Gespräch
+        // trotzdem erneuert.
+        gespraechsDef = def.giver;
+        gespraechspartner = this.nearNpcId(session, gespraechsDef);
         break;
       }
 
@@ -1108,6 +1114,13 @@ export class GameServer {
     this.sendQuestLog(session);
     this.sendInventory(session);
     this.sendStats(session);
+    // Und zum Schluss das Gespräch selbst. Ohne das steht im offenen Fenster
+    // weiter der Knopf, den man gerade gedrückt hat — es sah aus, als sei
+    // nichts passiert, und erst Schliessen und neu Ansprechen zeigte den
+    // neuen Stand.
+    if (gespraechspartner !== undefined) {
+      this.sendDialog(session, gespraechspartner, gespraechsDef);
+    }
     session.flush();
   }
 
@@ -1185,20 +1198,46 @@ export class GameServer {
     session.flush();
   }
 
-  /** Steht die Figur bei einem NPC dieser Art? */
-  private nearNpc(session: Session, npcDefId: string): boolean {
+  /**
+   * Der NPC dieser Art in Reichweite — als Kennung, nicht als Ja/Nein.
+   *
+   * Die Kennung wird gebraucht, um das Gespräch nach einer Handlung neu zu
+   * schicken: der Auftrag, den man eben angenommen hat, steht sonst weiter als
+   * „annehmen" im offenen Fenster.
+   */
+  private nearNpcId(session: Session, npcDefId: string): number | undefined {
     const instance = this.instances.get(session.mapId);
     const self = instance?.entity(session.entityId);
-    if (!instance || !self) return false;
+    if (!instance || !self) return undefined;
 
     for (const row of instance.entities) {
       const meta = instance.metaFor(row.id);
       if (!meta || meta.type !== EntityType.Npc || meta.defId !== npcDefId) continue;
       const dx = row.x - self.x;
       const dz = row.z - self.z;
-      if (dx * dx + dz * dz <= INTERACT_RANGE * INTERACT_RANGE) return true;
+      if (dx * dx + dz * dz <= INTERACT_RANGE * INTERACT_RANGE) return row.id;
     }
-    return false;
+    return undefined;
+  }
+
+  /**
+   * Schickt den Gesprächsstand eines NPCs erneut.
+   *
+   * Nach jeder Handlung, die etwas daran ändert. Der Client zeigt daraufhin
+   * dasselbe Fenster mit neuem Inhalt — angenommen statt annehmbar, der
+   * Folgeauftrag statt des abgegebenen.
+   */
+  private sendDialog(session: Session, entityId: number, npcDefId: string): void {
+    const def = getNpc(npcDefId);
+    if (!def) return;
+    session.send(
+      encodeNpcDialog({
+        entityId,
+        npcDefId,
+        shop: (def.shop?.length ?? 0) > 0,
+        quests: session.quests.dialogFor(npcDefId, session.character?.level ?? 1),
+      }),
+    );
   }
 
   /** Der nächstgelegene NPC mit Laden, oder nichts. */

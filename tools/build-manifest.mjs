@@ -29,6 +29,8 @@ const build =
 function kindOf(relPath) {
   if (relPath.startsWith('maps/')) return 'map';
   if (relPath.startsWith('core/')) return 'data';
+  if (relPath.startsWith('content/')) return 'data';
+  if (relPath.startsWith('content/')) return 'data';
   if (/\.(glb|gltf)$/i.test(relPath)) return 'model';
   if (/\.(png|jpg|jpeg|webp|ktx2|basis)$/i.test(relPath)) return 'texture';
   if (/\.(ogg|mp3|wav|m4a)$/i.test(relPath)) return 'audio';
@@ -48,7 +50,10 @@ function zoneOf(relPath) {
 
 /** 0 = sofort nötig, höher = kann warten. */
 function priorityOf(relPath, kind) {
+  // Kern und Inhalte zuerst: ohne beides startet das Spiel nicht, alles
+  // andere ist Nachschub.
   if (relPath.startsWith('core/')) return 0;
+  if (relPath.startsWith('content/')) return 0;
   if (kind === 'map') return 1;
   if (kind === 'model') return 3;
   if (kind === 'texture') return 4;

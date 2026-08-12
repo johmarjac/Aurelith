@@ -10,6 +10,7 @@ import { createServer as createHttpServer, type Server } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
 import { readFileSync } from 'node:fs';
 import { config } from './config.ts';
+import { loadContentFromDisk } from './content.ts';
 import { loadServerCore } from './core.ts';
 import { MapStore } from './maps.ts';
 import { GameServer } from './gameServer.ts';
@@ -24,6 +25,20 @@ function buildHttpServer(): { server: Server; scheme: 'ws' | 'wss' } {
     return { server: createHttpsServer(options) as unknown as Server, scheme: 'wss' };
   }
   return { server: createHttpServer(), scheme: 'ws' };
+}
+
+// Zuerst die Inhalte: der Kern bekommt seine Monsterprofile daraus, und ein
+// Kern ohne Monster ist eine leere Welt. Schlägt das fehl, ist der Start
+// vorbei — mit halben Tabellen zu spielen waere schlimmer als gar nicht.
+try {
+  const inhalt = await loadContentFromDisk(config.contentDir);
+  console.log(
+    `[inhalt] ${inhalt.items} Gegenstände, ${inhalt.mobs} Monster, ` +
+      `${inhalt.npcs} NPCs, ${inhalt.quests} Aufträge aus ${config.contentDir}`,
+  );
+} catch (err) {
+  console.error(String(err instanceof Error ? err.message : err));
+  process.exit(1);
 }
 
 const core = await loadServerCore();

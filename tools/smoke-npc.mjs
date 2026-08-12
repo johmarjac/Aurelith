@@ -163,6 +163,22 @@ check(
   (await questlog.textContent())?.match(/\d+ \/ \d+/)?.[0] ?? 'nichts gefunden',
 );
 
+// Das Fenster selbst muss sich sofort ändern. Vorher stand der Knopf, den man
+// eben gedrückt hatte, unverändert weiter da — es sah aus, als sei nichts
+// passiert, und erst Schliessen und neu Ansprechen zeigte den neuen Stand.
+check(
+  await waitUntil(
+    async () => ((await dialog.textContent()) ?? '').includes('Die Wiese ist gleich'),
+    5000,
+  ),
+  'das Gespräch zeigt danach den Fortschrittstext',
+);
+check(
+  (await dialog.getByRole('button', { name: 'Annehmen' }).count()) === 0,
+  'und den Annehmen-Knopf nicht mehr',
+);
+check((await dialog.getAttribute('data-open')) === 'true', 'das Fenster bleibt dabei offen');
+
 // Das Zeichen über Aurel wechselt von „hier gibt es etwas" zu „läuft noch".
 check(
   await waitUntil(async () => (await aurel.locator('.np-mark').textContent()) === '?', 5000),
