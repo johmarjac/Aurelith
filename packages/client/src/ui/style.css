@@ -419,12 +419,24 @@ body {
   max-height: 60vh;
   overflow-y: auto;
   overscroll-behavior: contain;
-  pointer-events: none;
   border-radius: 0.4rem;
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: rgba(12, 16, 26, 0.96);
   box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55);
   padding: 0.5rem 0.6rem;
+}
+
+/*
+ * Die Blase schluckt keine Zeiger — auch ihre Kinder nicht.
+ *
+ * `pointer-events` vererbt sich zwar, aber gemessen stand am Kind trotzdem
+ * `auto`, und damit lag die Blase wie eine Glasscheibe über dem Beutel: die
+ * Kacheln darunter waren nicht mehr anklickbar. Statt weiter nach der Regel
+ * zu suchen, die dazwischenfunkt, steht es hier für den ganzen Teilbaum.
+ */
+.item-tooltip,
+.item-tooltip * {
+  pointer-events: none;
 }
 
 /* Die Knöpfe darin müssen anklickbar bleiben. */
@@ -549,6 +561,14 @@ body {
   width: 100%;
   min-width: 0;
   height: 190px;
+  /*
+   * Der Zeichenpuffer hat ein festes Verhältnis (256×340), der Kasten nicht.
+   * Ohne `contain` zieht CSS das Bild auf die Kastenform — auf einem Telefon
+   * wird das Fenster fast bildschirmbreit, und aus der Figur wurde ein
+   * gestreckter Schatten ihrer selbst. `contain` lässt das Verhältnis stehen
+   * und legt oben und unten Luft dazu.
+   */
+  object-fit: contain;
   display: block;
   border-radius: 0.4rem;
   /* Ein Hauch Hintergrund, damit die Figur nicht im Nichts steht. */

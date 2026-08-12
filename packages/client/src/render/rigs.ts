@@ -457,9 +457,15 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
 
   if (!hose && !angezogen) {
     // Die Unterhose. Am Rumpf, nicht am Bein — siehe `UNDERWEAR`.
+    //
+    // Sie muss die Beine **umschliessen**, nicht bündig auf ihnen sitzen. Ein
+    // Bein reicht bis 0,23·w nach aussen; genau dort lag vorher auch der Rand
+    // der Hose, und zwei deckungsgleiche Flächen flimmern, weil die Tiefe
+    // beider gleich weit weg ist und der Puffer zwischen ihnen hin- und
+    // herspringt. Ein Fingerbreit mehr, und das Problem verschwindet.
     torsoParts.push(
-      { geometry: box(0.46 * w, 0.2, 0.3 * w), color: UNDERWEAR, position: [0, 0.9, 0] },
-      { geometry: box(0.47 * w, 0.045, 0.31 * w), color: shade(UNDERWEAR, 0.88), position: [0, 0.99, 0] },
+      { geometry: box(0.54 * w, 0.21, 0.36 * w), color: UNDERWEAR, position: [0, 0.9, 0] },
+      { geometry: box(0.55 * w, 0.05, 0.37 * w), color: shade(UNDERWEAR, 0.88), position: [0, 0.995, 0] },
     );
   } else if (hose) {
     // Hosenbund, damit Hose und Rumpf nicht ohne Übergang aneinanderstossen.

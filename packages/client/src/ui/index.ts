@@ -388,6 +388,29 @@ export class UI {
      */
     this.itemDetail.classList.add('item-tooltip');
     host.appendChild(this.itemDetail);
+
+    /*
+     * Ein Klick daneben schliesst sie.
+     *
+     * „Daneben" heisst: nicht in der Blase und nicht auf einem *belegten*
+     * Platz. Ein leeres Kästchen zählt damit als daneben — das ist der Fall,
+     * den man beim Aufräumen im Beutel dauernd trifft, und eine Blase, die
+     * dabei stehenbleibt, zeigt die Beschreibung von etwas, das man gar nicht
+     * mehr ansieht.
+     *
+     * In der Erfassungsphase, damit sie auch dann schliesst, wenn das
+     * angeklickte Element den Druck für sich behält.
+     */
+    document.addEventListener(
+      'pointerdown',
+      (ev) => {
+        if (this.detailSlot === undefined) return;
+        const ziel = ev.target as HTMLElement | null;
+        if (ziel?.closest('.item-tooltip, [data-bag-slot]')) return;
+        this.hideItemDetail();
+      },
+      true,
+    );
     this.setInventory([]);
 
     this.characterWindow = new GameWindow(
@@ -1055,15 +1078,20 @@ export class UI {
    * halbe Inventar zu. Ein fester Platz ist langweiliger und funktioniert
    * überall gleich.
    */
+  /** Schliesst die Sprechblase. */
+  private hideItemDetail(): void {
+    this.detailSlot = undefined;
+    this.detailFromDoll = false;
+    this.itemDetail.replaceChildren();
+    this.itemDetail.hidden = true;
+  }
+
   private showItemDetail(slot: number, behalten = false, ausDerFigur = false): void {
     const entry = this.inventory.find((e) => e.slot === slot);
     // Nochmal auf dieselbe Kachel: zuklappen. Auf dem Telefon ist das der
     // einzige naheliegende Weg, die Beschreibung wieder loszuwerden.
     if (!entry || (!behalten && this.detailSlot === slot)) {
-      this.detailSlot = undefined;
-      this.detailFromDoll = false;
-      this.itemDetail.replaceChildren();
-      this.itemDetail.hidden = true;
+      this.hideItemDetail();
       return;
     }
 

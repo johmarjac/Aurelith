@@ -332,6 +332,17 @@ check(
   'auf einem Puffer fester Größe',
   `${puppenzustand.breite}×${puppenzustand.hoehe}`,
 );
+// Fester Puffer und freier Kasten heissen zusammen: das Bild muss sein
+// Verhältnis behalten dürfen. Ohne `contain` zieht CSS es auf die Kastenform,
+// und auf dem Telefon — wo das Fenster fast bildschirmbreit wird — stand die
+// Figur als gestreckter Schatten da.
+check(
+  (await page.evaluate(
+    () => getComputedStyle(document.querySelector('.doll-canvas')).objectFit,
+  )) === 'contain',
+  'und wird nicht auf die Kastenform gezogen',
+);
+
 
 const detail = page.locator('.item-detail');
 await belegte.first().click();
@@ -368,6 +379,33 @@ check(/Angriff \d/.test(detailText), 'samt Werten', detailText.match(/Angriff \d
 // Telefon nicht heraus.
 await belegte.first().click();
 check(!(await detail.isVisible()), 'ein zweiter Klick klappt sie zu');
+
+// Für die nächsten beiden Prüfungen muss sie wieder offen sein.
+await belegte.first().click();
+await waitUntil(async () => await detail.isVisible(), 3000);
+
+// Und ein Klick daneben schliesst sie wieder. Ein leeres Kästchen ist
+// „daneben" — das ist der Fall, den man beim Aufräumen dauernd trifft.
+//
+// Der Druck wird von Hand ausgelöst und nicht über `click()`: Playwright
+// verweigert einen Klick, sobald irgendetwas ihn abfangen könnte, und die
+// Blase liegt nun einmal über dem Beutel. Ob sie *tatsächlich* abfängt, sagt
+// die berechnete Eigenschaft daneben — und die ist die eigentliche Auskunft:
+// eine Blase, die Zeiger schluckt, blockiert die Kacheln darunter.
+const durchlaessig = await page.evaluate(
+  () => getComputedStyle(document.querySelector('.detail-head')).pointerEvents,
+);
+check(durchlaessig === 'none', 'die Sprechblase lässt Zeiger durch', durchlaessig);
+
+await page.evaluate(() => {
+  const leer = document.querySelector('.item-slot.item-empty');
+  leer?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+});
+check(
+  await waitUntil(async () => !(await page.locator('.item-detail').isVisible()), 3000),
+  'ein Druck ins Leere schliesst die Sprechblase',
+);
+
 
 // Anlegen über den Knopf: der Doppelklick ist auf Touch unzuverlässig, und
 // vorher war er der einzige Weg.
