@@ -35,26 +35,13 @@
 
 import * as THREE from 'three';
 import { glowStrength } from '@aurelith/shared';
+import { auraZeit as zeit } from './auraClock.ts';
 
 /** So viele Funken hat der Schleier auf voller Stufe. */
 const MAX_FUNKEN = 40;
 
 /** Ab dieser Stufe wandern zusätzlich Ringe an der Waffe entlang. */
 const RINGE_AB = 8;
-
-/**
- * Die Zeit, die alle Auren teilen.
- *
- * Ein einziges Uniform-Objekt, das an jedem Aura-Material hängt: wer es
- * fortschreibt, schreibt alle fort. Sonst müsste je Bild über sämtliche Auren
- * gelaufen werden, nur um überall dieselbe Zahl einzutragen.
- */
-const zeit = { value: 0 };
-
-/** Schreibt die gemeinsame Uhr fort. Einmal je Bild, nicht je Aura. */
-export function stepAuras(dt: number): void {
-  zeit.value += dt;
-}
 
 export interface WeaponSpan {
   length: number;

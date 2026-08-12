@@ -28,7 +28,9 @@ import type { QualitySettings } from '../config.ts';
 import type { ModelRegistry } from './modelRegistry.ts';
 import { Lanterns, type LanternPlacement } from './lanterns.ts';
 import { LootView } from './lootView.ts';
-import { WeaponAura, stepAuras } from './weaponAura.ts';
+import { WeaponAura } from './weaponAura.ts';
+import { SetAura } from './setAura.ts';
+import { stepAuras } from './auraClock.ts';
 import { ParticleField } from './particles.ts';
 import { buildTerrain, type TerrainMesh } from './terrain.ts';
 import type { TextureLoader } from './textures.ts';
@@ -111,6 +113,10 @@ export interface EntityVisual {
   outfit: string;
   /** Der Funkenschleier um die Waffe, sofern es einen gibt. */
   aura?: WeaponAura;
+  /** Stufe des leuchtenden Rüstungssatzes. 0 heisst: kein Satz, kein Schein. */
+  setGlow: number;
+  /** Der warme Schein um die Figur, sofern ein Satz leuchtet. */
+  satzAura?: SetAura;
   /** Höhe über dem Boden für Nameplate und Schadenszahlen. */
   height: number;
 }
@@ -368,6 +374,12 @@ export class WorldView {
         existing.weaponUpgrade = row.weaponUpgrade;
         existing.aura?.setUpgrade(row.weaponUpgrade);
       }
+      // Dasselbe für den Satz: ein aufgewertetes Teil ändert die Stufe, ohne
+      // dass sich am Aussehen der Figur etwas ändert — das Rig bleibt.
+      if (existing.setGlow !== row.setGlow) {
+        existing.setGlow = row.setGlow;
+        existing.satzAura?.setLevel(row.setGlow);
+      }
       return existing;
     }
 
@@ -402,10 +414,12 @@ export class WorldView {
       weapon: row.weapon,
       weaponUpgrade: row.weaponUpgrade,
       outfit: row.outfit,
+      setGlow: row.setGlow,
       aggro: row.aggro,
       height: heightFor(row.type, row.defId),
     };
     this.attachAura(visual);
+    this.attachSetAura(visual);
     this.entities.set(row.id, visual);
     return visual;
   }
@@ -459,6 +473,8 @@ export class WorldView {
     this.registry.releaseRig(visual.rig);
     visual.aura?.dispose();
     visual.aura = undefined;
+    visual.satzAura?.dispose();
+    visual.satzAura = undefined;
     visual.rig.dispose();
 
     const rig = this.registry.createRig(modelKeyFor(row.type, row.defId), row.weapon, row.outfit);
@@ -470,7 +486,9 @@ export class WorldView {
     visual.weapon = row.weapon;
     visual.weaponUpgrade = row.weaponUpgrade;
     visual.outfit = row.outfit;
+    visual.setGlow = row.setGlow;
     this.attachAura(visual);
+    this.attachSetAura(visual);
   }
 
   /**
@@ -495,12 +513,37 @@ export class WorldView {
     visual.aura = aura;
   }
 
+  /**
+   * Hängt den Schein eines vollständigen Rüstungssatzes an die Figur.
+   *
+   * An die Wurzel des Rigs und nicht an einen einzelnen Körperteil: leuchten
+   * soll die ganze Rüstung, und ein Schein am Oberkörper liefe beim Laufen mit
+   * dem Rumpf mit, statt still um die Figur zu stehen.
+   *
+   * Die Aura wird auch bei Stufe null gebaut. Sie kostet dann nichts — alles
+   * ist unsichtbar und die Funken haben keine Zeichenspanne —, und dafür
+   * braucht der Fall „Ausrüstung wurde gerade aufgewertet" keinen zweiten Weg.
+   *
+   * **Nur für Spieler.** Monster und NPCs tragen keine Rüstungssätze, und drei
+   * Geometrien je Irrlicht sind ein Preis für etwas, das nie zu sehen ist. Bei
+   * dreissig sichtbaren Wesen ist das der Unterschied zwischen „kostet nichts"
+   * und „kostet nichts, aber neunzigmal".
+   */
+  private attachSetAura(visual: EntityVisual): void {
+    if (visual.type !== EntityType.Player) return;
+    const aura = new SetAura(visual.height);
+    aura.setLevel(visual.setGlow);
+    visual.rig.root.add(aura.object);
+    visual.satzAura = aura;
+  }
+
   despawn(id: number): void {
     const e = this.entities.get(id);
     if (!e) return;
     this.root.remove(e.rig.root);
     this.registry.releaseRig(e.rig);
     e.aura?.dispose();
+    e.satzAura?.dispose();
     e.rig.dispose();
     this.entities.delete(id);
   }

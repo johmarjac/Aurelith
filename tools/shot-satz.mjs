@@ -1,15 +1,19 @@
 #!/usr/bin/env node
 /**
- * Bild der Waffenaura auf mehreren Aufwertungsstufen.
+ * Bild des Satzscheins auf mehreren Aufwertungsstufen.
  *
- * Der Software-Rasterer aus `render-rig.mjs` kann das nicht: die Aura entsteht
- * vollständig in einem Shader, und ein Rasterer ohne GPU sieht davon nichts.
- * Also derselbe Weg wie bei den Rauchtests — echter Browser, echtes WebGL, und
- * am Ende ein Bildschirmfoto.
+ * Derselbe Weg wie bei `shot-aura.mjs` und aus demselben Grund: der Schein
+ * entsteht vollständig in einem Shader, und der Software-Rasterer aus
+ * `render-rig.mjs` sieht davon nichts. Also echter Browser, echtes WebGL, am
+ * Ende ein Bildschirmfoto.
  *
- *   node tools/shot-aura.mjs
+ * Links steht eine Figur ohne Satz — ohne die Gegenprobe im selben Bild wäre
+ * nicht zu unterscheiden, ob der Schein zur Stufe passt oder einfach immer da
+ * ist.
  *
- * Ergebnis: artefakte/aura.png
+ *   node tools/shot-satz.mjs
+ *
+ * Ergebnis: artefakte/satz.png
  */
 
 import { spawn } from 'node:child_process';
@@ -51,11 +55,11 @@ const waitUntil = async (fn, ms) => {
   return false;
 };
 
-launch('cd packages/client && npx vite --port 5197 --strictPort --host 127.0.0.1');
+launch('cd packages/client && npx vite --port 5198 --strictPort --host 127.0.0.1');
 if (
   !(await waitUntil(async () => {
     try {
-      return (await fetch('http://127.0.0.1:5197/')).ok;
+      return (await fetch('http://127.0.0.1:5198/')).ok;
     } catch {
       return false;
     }
@@ -75,21 +79,17 @@ const browser = await chromium.launch({
   args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-sandbox'],
 });
 
-const page = await browser.newPage({ viewport: { width: 1200, height: 520 } });
-// Die Seite nur als Hülle: sie bringt Vite mit, und über Vite lassen sich die
-// TypeScript-Module des Clients direkt laden.
-await page.goto('http://127.0.0.1:5197/?name=Aura', { waitUntil: 'domcontentloaded' });
+const page = await browser.newPage({ viewport: { width: 1200, height: 560 } });
+await page.goto('http://127.0.0.1:5198/?name=Satz', { waitUntil: 'domcontentloaded' });
 await page.waitForTimeout(1500);
 
-const STUFEN = [3, 4, 6, 8, 10];
+// Null ist die Gegenprobe: vollständiger Ledersatz, aber nicht aufgewertet.
+const STUFEN = [0, 4, 6, 8, 10];
 
 await page.evaluate(async (stufen) => {
-  // Über den Bare-Specifier, den Vite selbst auflöst — ein Pfad in
-  // `node_modules` hängt an der Ablage im Dateisystem und stimmt bei einer
-  // anderen npm-Fassung nicht mehr.
   const THREE = await import('/src/render/three-bridge.ts');
   const { createRig } = await import('/src/render/rigs.ts');
-  const { WeaponAura } = await import('/src/render/weaponAura.ts');
+  const { SetAura } = await import('/src/render/setAura.ts');
   const { stepAuras } = await import('/src/render/auraClock.ts');
 
   // Das Spiel selbst anhalten, damit es nicht gegen die eigene Leinwand malt.
@@ -111,34 +111,31 @@ await page.evaluate(async (stufen) => {
   scene.add(sonne);
 
   const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 100);
-  camera.position.set(0, 1.5, 7.5);
-  camera.lookAt(0, 1.1, 0);
+  camera.position.set(0, 1.4, 8);
+  camera.lookAt(0, 1.0, 0);
 
-  const auren = [];
+  // Der volle Ledersatz in der Reihenfolge aus VISIBLE_SLOTS:
+  // Kopf, Brust, Hose, Schuhe, Umhang, Brille.
+  const OUTFIT = 'leder|leder|leder|leder||';
+
   stufen.forEach((stufe, i) => {
-    // `createRig` aus dem Rig-Modul nimmt das Material entgegen; die
-    // ModelRegistry im Spiel setzt es selbst. Ohne dieses Argument steht die
-    // Figur zwar da, ist aber unsichtbar.
     const rig = createRig(
       'player',
       new THREE.MeshLambertMaterial({ vertexColors: true }),
       'sword',
+      OUTFIT,
     );
-    rig.root.position.set((i - (stufen.length - 1) / 2) * 1.7, 0, 0);
-    // Halb zur Seite gedreht: von vorn verdeckt der Arm die Klinge.
-    rig.root.rotation.y = 0.6;
+    rig.root.position.set((i - (stufen.length - 1) / 2) * 1.8, 0, 0);
+    rig.root.rotation.y = 0.5;
     rig.update({ speed: 0, attackPhase: -1, dead: false, time: 0, dt: 1 / 60 });
     scene.add(rig.root);
 
-    if (rig.weaponMount) {
-      const aura = new WeaponAura(rig.weaponSpan ?? { length: 1.1, bottom: -0.2, axis: 'y' });
-      aura.setUpgrade(stufe);
-      rig.weaponMount.add(aura.object);
-      auren.push(aura);
-    }
+    const aura = new SetAura(1.8);
+    aura.setLevel(stufe);
+    rig.root.add(aura.object);
 
     const marke = document.createElement('div');
-    marke.textContent = `+${stufe}`;
+    marke.textContent = stufe === 0 ? 'ohne' : `+${stufe}`;
     marke.style.cssText =
       'position:fixed;z-index:10000;color:#d8b84a;font:700 20px monospace;bottom:24px;' +
       `left:${((i + 0.5) / stufen.length) * 100}%;transform:translateX(-50%)`;
@@ -152,12 +149,12 @@ await page.evaluate(async (stufen) => {
     renderer.render(scene, camera);
     await new Promise((r) => requestAnimationFrame(r));
   }
-  window.auraFertig = true;
+  window.satzFertig = true;
 }, STUFEN);
 
-await page.waitForFunction(() => window.auraFertig === true, { timeout: 20000 });
-await page.screenshot({ path: join(root, 'artefakte', 'aura.png') });
-console.log('→ artefakte/aura.png');
+await page.waitForFunction(() => window.satzFertig === true, { timeout: 20000 });
+await page.screenshot({ path: join(root, 'artefakte', 'satz.png') });
+console.log('→ artefakte/satz.png');
 
 await browser.close();
 shutdown();

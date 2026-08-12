@@ -24,6 +24,9 @@ bewussten Abweichung, die weiter unten begründet ist.
   Angriffsknopf am Telefon.
 - **UI im Flyff-Zuschnitt**: Werteleisten, Zielfenster, Chat, Inventar,
   Charakterblatt, ziehbare Fenster, Namensschilder, Schadenszahlen.
+- **Ausrüstung mit Rüstungssätzen**: zehn Plätze, sichtbare Teile an der Figur,
+  Satzbonus für den vollständigen Satz und ein Schein um die Rüstung, sobald
+  jedes Teil davon mindestens +4 trägt.
 - **Drei Karten** mit Gates und einem Dungeon, dazu ein **Map-Editor**, der
   dasselbe Dateiformat liest und schreibt.
 
@@ -183,6 +186,8 @@ npm run test:tag         # Tag- und Nachtwechsel: Licht, Farben, Uhr
 npm run test:quests      # das Auftragsbuch — ohne Server
 npm run test:content     # die Inhaltsdateien: Format und Verweise
 npm run test:loot        # wer welche Beute vom Boden aufheben darf
+npm run test:sets        # Rüstungssätze: wann sie gelten, wann sie leuchten
+npm run test:setglow     # derselbe Satz über das Netz, vom Schmied bis zum Schein
 npm run test:npcflow     # ansprechen, annehmen, erlegen, aufheben, abgeben
 npm run test:npc         # NPC-Fenster und Inventar im Browser
 npm run test:loot-ui     # Beute im Bild: Schild, Antippen, Aufheben

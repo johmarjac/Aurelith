@@ -14,7 +14,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
@@ -423,12 +423,201 @@ if (await anlegen.count()) {
   );
 }
 
+// --- Der Rüstungssatz ------------------------------------------------------
+//
+// Vier Teile anlegen und nachrechnen, was unten in der Werteliste steht. Das
+// ist der Punkt, an dem sich ein Satz von vier einzelnen Stücken unterscheidet:
+// die Summe allein ergäbe eine andere Zahl als die Summe plus Satzbonus.
+//
+// Die Erwartung kommt aus derselben Inhaltsdatei, die der Server liest — eine
+// im Test eingetippte Zahl wäre beim nächsten Feilen an der Ausrüstung falsch,
+// ohne dass jemand es merkt.
+
+const inhalt = JSON.parse(readFileSync(join(root, 'assets', 'content', 'items.json'), 'utf8'));
+const satzDef = (inhalt.sets ?? []).find((s) => s.id === 'leder');
+const itemDef = (id) => inhalt.items.find((i) => i.id === id);
+
+/** Liest einen Wert aus der Werteliste im Charakterfenster. */
+async function wert(name) {
+  return await page.evaluate((gesucht) => {
+    const liste = document.querySelector('.stat-list');
+    if (!liste) return undefined;
+    const kinder = [...liste.children];
+    const i = kinder.findIndex((n) => n.tagName === 'DT' && n.textContent === gesucht);
+    return i >= 0 ? Number(kinder[i + 1]?.textContent) : undefined;
+  }, name);
+}
+
+if (satzDef) {
+  await page.keyboard.press('KeyC');
+  const vorher = await wert('Verteidigung');
+
+  // Jede Kachel einmal antippen und am Namen erkennen, was darin liegt. Die
+  // Reihenfolge im Beutel ist keine Zusage, an die sich ein Test hängen sollte.
+  const namen = satzDef.pieces.map((id) => itemDef(id)?.name);
+  let angelegt = 0;
+  /** Eine Kachel, in der ein Teil des Satzes liegt — für die Sprechblase danach. */
+  let satzKachel;
+
+  // Die Kacheln werden von Hand angetippt und nicht über `click()`: sobald eine
+  // Sprechblase offen ist, liegt sie über dem Beutel, und Playwright verweigert
+  // jeden Klick, den irgendetwas abfangen könnte. Dass sie *tatsächlich* nichts
+  // abfängt, steht ein paar Zeilen weiter oben — hier geht es um den Ablauf.
+  //
+  // `.item-slot` und nicht nur `[data-bag-slot]`: die Kästchen um die Figur
+  // tragen dieselbe Angabe, und ein Klick auf eines davon legt ab. Ohne den
+  // Zusatz griff dieser Test der Figur beim Ausziehen unter die Arme und
+  // wunderte sich anschliessend über die Werte.
+  const kacheln = await page.evaluate(() =>
+    [...document.querySelectorAll('.item-slot[data-bag-slot]')]
+      .filter((n) => !n.classList.contains('item-empty'))
+      .map((n) => Number(n.getAttribute('data-bag-slot'))),
+  );
+
+  for (const nummer of kacheln) {
+    if (angelegt >= namen.length) break;
+    await page.evaluate((n) => {
+      document
+        .querySelector(`.item-slot[data-bag-slot="${n}"]`)
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    }, nummer);
+    await waitUntil(async () => await detail.isVisible(), 3000);
+    const name = ((await page.locator('.detail-name').textContent()) ?? '').trim();
+    if (!namen.includes(name)) continue;
+    satzKachel = nummer;
+    const knopf = detail.getByRole('button', { name: 'Anlegen' });
+    if (!(await knopf.count())) continue;
+    await knopf.click();
+    await waitUntil(
+      async () => ((await page.locator('.chat-log').textContent()) ?? '').includes(name),
+      5000,
+    );
+    angelegt++;
+  }
+  check(angelegt === namen.length, 'alle vier Teile des Ledersatzes liegen an', `${angelegt}/${namen.length}`);
+
+  // Die Weste am Oberkörper weicht dem Lederwams: ein Platz, ein Stück. Was
+  // sie vorher gab, fällt deshalb wieder weg.
+  const weste = inhalt.starter.find((s) => s.equipped && itemDef(s.item)?.slot === 'chest');
+  const stuecke = satzDef.pieces.reduce((n, id) => n + (itemDef(id)?.defense ?? 0), 0);
+  const erwartet = vorher - (itemDef(weste?.item)?.defense ?? 0) + stuecke + satzDef.bonus.defense;
+
+  // Warten, statt sofort abzulesen: die Werte kommen über das Netz, und der
+  // vierte Klick ist schneller als die vierte Antwort.
+  await waitUntil(async () => (await wert('Verteidigung')) === erwartet, 5000);
+  const nachher = await wert('Verteidigung');
+  check(
+    nachher === erwartet,
+    'die Verteidigung enthält Teile *und* Satzbonus',
+    `${vorher} → ${nachher}, erwartet ${erwartet}`,
+  );
+  // Die Gegenprobe zur Rechnung darüber: ohne Satzbonus käme genau dieser Wert
+  // heraus. Stimmten beide überein, prüfte die Zeile oben nichts.
+  check(
+    erwartet !== vorher - (itemDef(weste?.item)?.defense ?? 0) + stuecke,
+    'und ohne ihn wäre es eine andere Zahl',
+    `Satzbonus ${satzDef.bonus.defense}`,
+  );
+
+  // Und die Sprechblase sagt es auch: vier von vier, hervorgehoben.
+  //
+  // Erst zumachen, dann aufmachen. Ein Klick auf dieselbe Kachel klappt die
+  // Blase zu, und welche Kachel zuletzt angetippt wurde, hängt daran, in
+  // welcher Reihenfolge die Teile im Beutel liegen — das ist keine Zusage,
+  // auf die sich ein Test stützen sollte.
+  await page.evaluate(() => {
+    document
+      .querySelector('.item-slot.item-empty')
+      ?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+  });
+  await waitUntil(async () => !(await detail.isVisible()), 3000);
+
+  await page.evaluate((n) => {
+    document
+      .querySelector(`.item-slot[data-bag-slot="${n}"]`)
+      ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  }, satzKachel ?? kacheln[0]);
+  await waitUntil(async () => (await page.locator('.detail-set').count()) > 0, 3000);
+  const satzText = await page.evaluate(() => {
+    const block = document.querySelector('.detail-set');
+    return block ? { text: block.textContent ?? '', aktiv: block.classList.contains('aktiv') } : undefined;
+  });
+  check(
+    (satzText?.text ?? '').includes(`(${satzDef.pieces.length}/${satzDef.pieces.length})`),
+    'die Sprechblase meldet den vollständigen Satz',
+    satzText?.text?.slice(0, 60) ?? '(kein Satzblock)',
+  );
+  check(satzText?.aktiv === true, 'und hebt ihn hervor');
+
+  // Zum Schluss noch einmal derselbe Wert. Die Prüfung oben liest ab, sobald
+  // die erwartete Zahl das erste Mal dasteht — käme danach noch eine Antwort
+  // hinterher, die etwas ablegt, sähe sie es nicht, und das Bild daneben zeigte
+  // etwas anderes als der Test behauptet.
+  const zumSchluss = await wert('Verteidigung');
+  check(zumSchluss === erwartet, 'und sie steht am Ende immer noch da', `${zumSchluss}`);
+}
+
 await page.screenshot({ path: join(root, 'artefakte', 'inventar.png') });
 
 // --- Die Uhr ---------------------------------------------------------------
 
 const uhr = await page.locator('.vitals-clock').textContent();
 check(/^[☀🌙] \d{2}:\d{2}$/u.test(uhr ?? ''), 'die Weltuhr läuft', uhr ?? '(leer)');
+
+// --- Quer gehaltenes Telefon -----------------------------------------------
+//
+// Achthundertzwanzig breit, knapp vierhundert hoch — die Maße eines Telefons
+// im Querformat. Für die Blattregel ist das zu breit, also bleibt das Inventar
+// ein schwebendes Fenster; und genau dort hing es unten heraus: die
+// Anfangslage ist eine feste Zahl, und Figur samt Kästchen füllten die Höhe
+// allein. Sichtbar war der Beutel nicht, scrollen ging auch nicht.
+//
+// Gemessen werden beide Hälften der Beschwerde getrennt: *steht es im Bild*
+// und *lässt sich der Beutel bewegen*.
+
+await page.setViewportSize({ width: 852, height: 393 });
+await page.waitForTimeout(500);
+
+const quer = await page.evaluate(() => {
+  const fenster = document.querySelector('[data-window="inventory"]');
+  const beutel = fenster?.querySelector('.inventory-grid');
+  if (!fenster || !beutel) return undefined;
+
+  const f = fenster.getBoundingClientRect();
+  const b = beutel.getBoundingClientRect();
+  beutel.scrollTop = 9999;
+  const gescrollt = beutel.scrollTop;
+  beutel.scrollTop = 0;
+
+  return {
+    bild: window.innerHeight,
+    oben: Math.round(f.top),
+    unten: Math.round(f.bottom),
+    beutelHoehe: Math.round(b.height),
+    beutelUnten: Math.round(b.bottom),
+    ueberlauf: beutel.scrollHeight - beutel.clientHeight,
+    gescrollt,
+  };
+});
+console.log('  · Querformat:', JSON.stringify(quer));
+
+check(
+  quer !== undefined && quer.oben >= 0 && quer.unten <= quer.bild,
+  'quer steht das Inventar ganz im Bild',
+  `${quer?.oben}…${quer?.unten} von ${quer?.bild}`,
+);
+check(
+  (quer?.beutelHoehe ?? 0) >= 40 && (quer?.beutelUnten ?? 0) <= (quer?.bild ?? 0),
+  'der Beutel ist dabei zu sehen',
+  `${quer?.beutelHoehe} px, Unterkante ${quer?.beutelUnten}`,
+);
+check(
+  (quer?.ueberlauf ?? 0) > 0 && (quer?.gescrollt ?? 0) > 0,
+  'und lässt sich scrollen',
+  `Überlauf ${quer?.ueberlauf} px, gescrollt ${quer?.gescrollt} px`,
+);
+
+await page.screenshot({ path: join(root, 'artefakte', 'inventar-quer.png') });
 
 check(fehler.length === 0, 'keine unbehandelten Ausnahmen', String(fehler.length));
 if (fehler.length > 0) console.error(fehler.join('\n'));

@@ -946,7 +946,7 @@ export class Game {
     if (self) {
       // Die Puppe im Inventar trägt, was der Server meldet — dieselbe Quelle
       // wie die Figur in der Welt.
-      this.ui.setDollAppearance(self.weapon, self.outfit);
+      this.ui.setDollAppearance(self.weapon, self.outfit, self.setGlow);
 
       const nowDead = self.state === EntityState.Dead;
       if (nowDead !== this.dead) {

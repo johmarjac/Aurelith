@@ -64,6 +64,9 @@ import {
   styleOf,
   encodeOutfit,
   isVisibleSlot,
+  activeArmorSet,
+  setGlowLevel,
+  type WornPiece,
   type Outfit,
   type LootRow,
   readPacket,
@@ -656,6 +659,7 @@ export class GameServer {
         weapon: meta?.weapon ?? '',
         weaponUpgrade: meta?.weaponUpgrade ?? 0,
         outfit: meta?.outfit ?? '',
+        setGlow: meta?.setGlow ?? 0,
       });
       session.known.add(row.id);
     }
@@ -1083,6 +1087,7 @@ export class GameServer {
       meta.weapon = profile.rig;
       meta.weaponUpgrade = this.mainhandEntry(session)?.upgrade ?? 0;
       meta.outfit = encodeOutfit(this.outfitOf(session));
+      meta.setGlow = setGlowLevel(this.activeSetOf(session));
     }
 
     // Der Snapshot schickt eine volle Zeile nur für Unbekanntes. Damit die
@@ -1602,7 +1607,32 @@ export class GameServer {
       stats.attackDamage += bonus.attackDamage;
       stats.defense += bonus.defense;
     }
+
+    // Und ganz zum Schluss der Satz. Er wird auf die Summe der Teile addiert
+    // und nicht in sie hinein: der Satzbonus ist die Belohnung dafür, dass
+    // alle vier zusammen getragen werden, kein vierteltes Extra je Stück.
+    const satz = this.activeSetOf(session);
+    if (satz) {
+      const b = satz.set.bonus;
+      stats.attackDamage += b.attackDamage;
+      stats.defense += b.defense;
+      stats.maxHp += b.maxHp;
+      stats.maxMp += b.maxMp;
+      stats.critChance += b.critChance;
+    }
     return stats;
+  }
+
+  /** Die angelegten Stücke, so wie die Satzrechnung sie sehen will. */
+  private wornPieces(session: Session): WornPiece[] {
+    return session.items
+      .filter((e) => e.equipped)
+      .map((e) => ({ itemId: e.itemId, upgrade: e.upgrade }));
+  }
+
+  /** Welcher Rüstungssatz ist vollständig angelegt? Höchstens einer. */
+  private activeSetOf(session: Session): ReturnType<typeof activeArmorSet> {
+    return activeArmorSet(this.wornPieces(session));
   }
 
   private sendStats(session: Session): void {

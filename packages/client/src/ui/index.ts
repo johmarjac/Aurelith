@@ -21,6 +21,9 @@ import {
   tuningLoaded,
   slotCapacity,
   SLOT_NAMES,
+  setOfItem,
+  setProgress,
+  glowFrom,
   type EquipSlot,
   type LootRow,
   type NpcDialogMsg,
@@ -986,8 +989,8 @@ export class UI {
    * anhat — und die im eigenen Inventar wäre die falsche, sobald eine der
    * beiden Regeln sich ändert.
    */
-  setDollAppearance(weapon: string, outfit: string): void {
-    this.doll.setAppearance(weapon, outfit);
+  setDollAppearance(weapon: string, outfit: string, setGlow = 0): void {
+    this.doll.setAppearance(weapon, outfit, setGlow);
   }
 
   /** Ein Bild der Figur im Inventar. Zeichnet nur bei offenem Fenster. */
@@ -1132,10 +1135,14 @@ export class UI {
     // ist an der Figur nicht zu sehen, also muss er hier stehen.
     if (def.maxHp > 0) werte.push(`Leben +${def.maxHp}`);
     if (def.maxMp > 0) werte.push(`Mana +${def.maxMp}`);
+    if (def.critChance > 0) werte.push(`Kritisch +${Math.round(def.critChance * 100)} %`);
     if (def.effectValue > 0) werte.push(`Wirkung ${def.effectValue}`);
     if (def.levelReq > 1) werte.push(`ab Stufe ${def.levelReq}`);
     werte.push(`Wert ${def.value} G`);
     if (werte.length > 0) teile.push(el('div', 'detail-stats', werte.join(' · ')));
+
+    const satz = this.setLines(def.id);
+    if (satz) teile.push(satz);
 
     teile.push(el('p', 'detail-text', def.description));
 
@@ -1163,6 +1170,64 @@ export class UI {
   }
 
   /**
+   * Der Satzblock in der Sprechblase — oder nichts, wenn das Stück zu keinem
+   * Satz gehört.
+   *
+   * Zeigt an, wie viele Teile sitzen, was der Satz gibt, und ab wann er
+   * leuchtet. Gerechnet wird aus dem Beutel, weil nur er weiss, was angelegt
+   * ist; **gelten** tut, was der Server rechnet. Das ist keine zweite Wahrheit,
+   * sondern eine Vorschau derselben Regel aus `activeArmorSet` — dieselbe
+   * Funktion, dieselbe Inhaltsdatei.
+   */
+  private setLines(itemId: string): HTMLElement | undefined {
+    const satz = setOfItem(itemId);
+    if (!satz) return undefined;
+
+    const getragen = this.inventory
+      .filter((e) => e.equipped)
+      .map((e) => ({ itemId: e.itemId, upgrade: e.upgrade }));
+    const wieViele = setProgress(satz, getragen);
+    const voll = wieViele === satz.pieces.length;
+
+    const block = el('div', 'detail-set');
+    if (voll) block.classList.add('aktiv');
+    block.append(el('div', 'detail-set-name', `${satz.name} (${wieViele}/${satz.pieces.length})`));
+
+    const b = satz.bonus;
+    const werte: string[] = [];
+    if (b.attackDamage > 0) werte.push(`Angriff +${b.attackDamage}`);
+    if (b.defense > 0) werte.push(`Verteidigung +${b.defense}`);
+    if (b.maxHp > 0) werte.push(`Leben +${b.maxHp}`);
+    if (b.maxMp > 0) werte.push(`Mana +${b.maxMp}`);
+    if (b.critChance > 0) werte.push(`Kritisch +${Math.round(b.critChance * 100)} %`);
+    if (werte.length > 0) block.append(el('div', 'detail-set-bonus', `Satzbonus: ${werte.join(' · ')}`));
+
+    // Das Leuchten hängt am schwächsten Teil — deshalb steht hier dessen Stufe
+    // und nicht die des Stücks, auf das gerade geklickt wurde.
+    const schwelle = glowFrom();
+    if (voll) {
+      let min = Infinity;
+      for (const teil of satz.pieces) {
+        for (const stueck of getragen) {
+          if (stueck.itemId === teil) min = Math.min(min, stueck.upgrade);
+        }
+      }
+      const stufe = Math.max(0, min);
+      block.append(
+        el(
+          'div',
+          'detail-set-glow',
+          stufe >= schwelle
+            ? `Leuchtet — schwächstes Teil +${stufe}`
+            : `Leuchtet, sobald jedes Teil +${schwelle} trägt (jetzt +${stufe})`,
+        ),
+      );
+    }
+
+    return block;
+  }
+
+  /**
    * Stellt die Sprechblase neben die angeklickte Kachel.
    *
    * Bevorzugt rechts daneben, sonst links; senkrecht so weit verschoben, dass
@@ -1183,14 +1248,23 @@ export class UI {
     const blase = this.itemDetail.getBoundingClientRect();
     const rand = 8;
 
+    // Gegen das **sichtbare** Fenster rechnen. `innerHeight` zählt auf dem
+    // Telefon die Fläche unter der Adressleiste mit; quer gehalten sind das
+    // gut fünfzig Bildpunkte, und genau dort landete der untere Rand der
+    // Blase — festgehalten von einer Prüfung, die „liegt im Bild" gegen
+    // dieselbe zu grosse Zahl gemessen hat.
+    const sicht = window.visualViewport;
+    const bildBreite = sicht?.width ?? window.innerWidth;
+    const bildHoehe = sicht?.height ?? window.innerHeight;
+
     let links = kachel.right + 10;
-    if (links + blase.width > window.innerWidth - rand) {
+    if (links + blase.width > bildBreite - rand) {
       links = kachel.left - blase.width - 10;
     }
-    links = Math.max(rand, Math.min(links, window.innerWidth - blase.width - rand));
+    links = Math.max(rand, Math.min(links, bildBreite - blase.width - rand));
 
     let oben = kachel.top;
-    oben = Math.max(rand, Math.min(oben, window.innerHeight - blase.height - rand));
+    oben = Math.max(rand, Math.min(oben, bildHoehe - blase.height - rand));
 
     this.itemDetail.style.left = `${Math.round(links)}px`;
     this.itemDetail.style.top = `${Math.round(oben)}px`;

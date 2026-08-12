@@ -56,7 +56,32 @@ export class GameWindow {
     this.element.append(bar, this.body);
     host.appendChild(this.element);
 
+    GameWindow.alle.push(this);
+    GameWindow.beobachteBildgroesse();
+
     if (draggable) this.bindDrag(bar);
+  }
+
+  /**
+   * Alle Fenster zurechtrücken, wenn sich das Bild ändert.
+   *
+   * Das Drehen des Telefons ist der Fall, um den es geht: hochkant passt ein
+   * Fenster, quer ist derselbe Platz plötzlich vierhundert Bildpunkte hoch.
+   * Ein Fenster, das dabei aus dem Bild rutscht, lässt sich nicht mehr
+   * zurückholen — auf dem Telefon gibt es keine Titelleiste zum Ziehen.
+   *
+   * Einmal für alle und nicht je Fenster: fünf Fenster wären fünf Zuhörer für
+   * dasselbe Ereignis.
+   */
+  private static beobachteBildgroesse(): void {
+    if (GameWindow.beobachtet) return;
+    GameWindow.beobachtet = true;
+    const rueck = (): void => {
+      for (const fenster of GameWindow.alle) fenster.clampIntoView();
+    };
+    window.addEventListener('resize', rueck);
+    window.addEventListener('orientationchange', rueck);
+    window.visualViewport?.addEventListener('resize', rueck);
   }
 
   private bindDrag(handle: HTMLElement): void {
@@ -101,8 +126,44 @@ export class GameWindow {
     if (this.open === open) return;
     this.open = open;
     this.element.dataset.open = String(open);
-    if (open) this.bringToFront();
+    if (open) {
+      this.bringToFront();
+      this.clampIntoView();
+    }
     this.onToggle?.(open);
+  }
+
+  /**
+   * Schiebt das Fenster so weit zurück, dass es ganz im Bild steht.
+   *
+   * Die Anfangslage ist eine feste Zahl — hundert Bildpunkte von oben —, und
+   * die passt zu einem Bildschirm und nicht zu einem quer gehaltenen Telefon:
+   * dort sind knapp vierhundert Bildpunkte Höhe da, und ein Fenster, das bei
+   * hundert anfängt, hängt mit dem Beutel unten heraus. Sichtbar war davon
+   * nichts, was man hätte scrollen können — es stand schlicht ausserhalb.
+   *
+   * Gerechnet wird gegen das **sichtbare** Fenster (`visualViewport`), nicht
+   * gegen `innerHeight`: auf dem Telefon zählt letzteres die Fläche unter der
+   * Adressleiste mit, und genau dort landete der untere Rand.
+   *
+   * Bei einem Blattfenster am unteren Rand — schmale Geräte — hat das
+   * Stylesheet das letzte Wort; dort wird nichts verschoben.
+   */
+  clampIntoView(): void {
+    if (!this.open) return;
+    if (window.matchMedia('(max-width: 700px)').matches) return;
+
+    const sicht = window.visualViewport;
+    const breite = sicht?.width ?? window.innerWidth;
+    const hoehe = sicht?.height ?? window.innerHeight;
+    const rect = this.element.getBoundingClientRect();
+    if (rect.height === 0) return;
+
+    const rand = 8;
+    const links = Math.max(rand, Math.min(breite - rect.width - rand, rect.left));
+    const oben = Math.max(rand, Math.min(hoehe - rect.height - rand, rect.top));
+    this.element.style.left = `${Math.round(links)}px`;
+    this.element.style.top = `${Math.round(oben)}px`;
   }
 
   toggle(): void {
@@ -114,4 +175,6 @@ export class GameWindow {
   }
 
   private static topZ = 20;
+  private static readonly alle: GameWindow[] = [];
+  private static beobachtet = false;
 }

@@ -211,6 +211,48 @@ export function getItem(id: string): ItemDef | undefined {
   return items.get(id);
 }
 
+/**
+ * Ein Rüstungssatz: Teile, die zusammengehören.
+ *
+ * **Die Zugehörigkeit steht nur hier.** Ein Feld `setId` am Gegenstand wäre
+ * dieselbe Auskunft ein zweites Mal — und zwei Wahrheiten über eine Sache
+ * laufen auseinander, sobald jemand eine davon pflegt. Wer wissen will, zu
+ * welchem Satz ein Stück gehört, fragt `setOfItem`; die Umkehrtabelle dafür
+ * baut `setArmorSets` aus `pieces`.
+ *
+ * `bonus` ist in derselben Sprache geschrieben wie ein Gegenstand selbst, weil
+ * der Server ihn an derselben Stelle aufsummiert: `statsFor` addiert erst die
+ * Teile und dann den Satz, ohne einen zweiten Rechenweg.
+ */
+export interface ArmorSetDef {
+  id: string;
+  name: string;
+  /** Die Kennungen der Stücke. Vollständig getragen gilt der Satz als aktiv. */
+  pieces: readonly string[];
+  bonus: {
+    attackDamage: number;
+    defense: number;
+    maxHp: number;
+    maxMp: number;
+    critChance: number;
+  };
+}
+
+const armorSets = new Map<string, ArmorSetDef>();
+const setOfItemId = new Map<string, ArmorSetDef>();
+
+/** Alle Rüstungssätze. Gefüllt vom Inhaltslader. */
+export const ARMOR_SETS: ReadonlyMap<string, ArmorSetDef> = armorSets;
+
+export function getArmorSet(id: string): ArmorSetDef | undefined {
+  return armorSets.get(id);
+}
+
+/** Zu welchem Satz gehört dieses Stück? Nichts, wenn es zu keinem gehört. */
+export function setOfItem(itemId: string): ArmorSetDef | undefined {
+  return setOfItemId.get(itemId);
+}
+
 export interface StarterEntry {
   item: string;
   count: number;
@@ -245,6 +287,14 @@ export function setMobs(rows: readonly MobDef[]): void {
 
 export function setNpcs(rows: readonly NpcDef[]): void {
   fill(npcs, rows);
+}
+
+export function setArmorSets(rows: readonly ArmorSetDef[]): void {
+  fill(armorSets, rows);
+  setOfItemId.clear();
+  for (const satz of rows) {
+    for (const teil of satz.pieces) setOfItemId.set(teil, satz);
+  }
 }
 
 export function setStarter(rows: readonly StarterEntry[]): void {

@@ -328,6 +328,17 @@ export interface SpawnRow {
    * Grund wie bei der Waffe.
    */
   outfit: string;
+  /**
+   * Die Stufe, mit der ein vollständiger Rüstungssatz leuchtet. 0 heisst: gar
+   * nicht.
+   *
+   * Die Zahl und nicht die Zutaten. Der Client könnte sie sich aus `outfit`
+   * nicht ausrechnen — dort stehen Stile, keine Kennungen und erst recht keine
+   * Aufwertungsstufen —, und das ist gut so: welcher Satz zählt und ab wann,
+   * entscheidet der Server. Wer die Regel dem Client überliesse, hätte zwei
+   * Wahrheiten über dieselbe Sache.
+   */
+  setGlow: number;
 }
 
 /** Laufende Aktualisierung eines bereits bekannten Entities. */
@@ -418,7 +429,8 @@ export function encodeSnapshot(m: SnapshotMsg): Uint8Array {
       .u8(s.aggro ? 1 : 0)
       .str(s.weapon)
       .u8(Math.max(0, Math.min(255, Math.round(s.weaponUpgrade))))
-      .str(s.outfit);
+      .str(s.outfit)
+      .u8(Math.max(0, Math.min(255, Math.round(s.setGlow))));
   }
 
   w.u16(m.updates.length);
@@ -476,6 +488,7 @@ export function decodeSnapshot(r: ByteReader): SnapshotMsg {
       weapon: r.str(),
       weaponUpgrade: r.u8(),
       outfit: r.str(),
+      setGlow: r.u8(),
     };
   }
 

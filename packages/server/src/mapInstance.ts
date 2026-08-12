@@ -41,6 +41,14 @@ export interface EntityMeta {
    * Unterhose.
    */
   outfit?: string;
+  /**
+   * Stufe des leuchtenden Rüstungssatzes, 0 wenn keiner leuchtet.
+   *
+   * Ausgerechnet wird sie in `applyLoadout` und nicht beim Verschicken: der
+   * Snapshot geht zehnmal je Sekunde an jeden in Sichtweite, die Ausrüstung
+   * ändert sich alle paar Minuten.
+   */
+  setGlow?: number;
   defId: string;
   name: string;
   type: EntityType;

@@ -19,10 +19,12 @@
  */
 
 import {
+  setArmorSets,
   setItems,
   setMobs,
   setNpcs,
   setStarter,
+  type ArmorSetDef,
   type ItemDef,
   type ItemKind,
   type EquipSlot,
@@ -166,6 +168,7 @@ const WEAPON_RIGS = ['sword', 'club', 'staff', 'bow'] as const;
 export function parseItems(raw: unknown, source = 'items.json'): {
   items: ItemDef[];
   starter: StarterEntry[];
+  sets: ArmorSetDef[];
 } {
   const { doc, rows } = body(raw, 'items', source);
 
@@ -223,7 +226,41 @@ export function parseItems(raw: unknown, source = 'items.json'): {
     };
   });
 
-  return { items, starter };
+  // Sätze stehen in derselben Datei wie die Gegenstände, weil sie nichts
+  // anderes sind als eine Aussage über sie. Eine eigene Datei hätte drei
+  // Ladewege mehr bedeutet — Server, Client, Manifest — für eine Handvoll
+  // Zeilen.
+  const sets = (doc.sets === undefined ? [] : list(doc, 'sets', source)).map((row, i) => {
+    const path = `${source}.sets[${i}]`;
+    const o = obj(row, path);
+    const bonus = o.bonus === undefined ? {} : obj(o.bonus, `${path}.bonus`);
+
+    const teile = list(o, 'pieces', path).map((teil, j) => {
+      if (typeof teil !== 'string') {
+        throw new ContentFormatError('pieces enthält etwas, das keine Kennung ist', `${path}.pieces[${j}]`);
+      }
+      return teil;
+    });
+    if (teile.length < 2) {
+      throw new ContentFormatError('ein Satz aus weniger als zwei Teilen ist kein Satz', path);
+    }
+
+    const def: ArmorSetDef = {
+      id: str(o, 'id', path),
+      name: str(o, 'name', path),
+      pieces: teile,
+      bonus: {
+        attackDamage: optNum(bonus, 'attackDamage', 0, `${path}.bonus`),
+        defense: optNum(bonus, 'defense', 0, `${path}.bonus`),
+        maxHp: optNum(bonus, 'maxHp', 0, `${path}.bonus`),
+        maxMp: optNum(bonus, 'maxMp', 0, `${path}.bonus`),
+        critChance: optNum(bonus, 'critChance', 0, `${path}.bonus`),
+      },
+    };
+    return def;
+  });
+
+  return { items, starter, sets };
 }
 
 // ---------------------------------------------------------------------------
@@ -528,18 +565,19 @@ export interface ContentSummary {
  * Stellen.
  */
 export function loadContent(raw: RawContent): ContentSummary {
-  const { items, starter } = parseItems(raw.items);
+  const { items, starter, sets } = parseItems(raw.items);
   const mobs = parseMobs(raw.mobs);
   const npcs = parseNpcs(raw.npcs);
   const quests = parseQuests(raw.quests);
   const werte = parseTuning(raw.tuning);
 
-  const probleme = checkReferences({ items, mobs, npcs, quests, starter });
+  const probleme = checkReferences({ items, mobs, npcs, quests, starter, sets });
   if (probleme.length > 0) {
     throw new ContentFormatError(`Verweise gehen ins Leere:\n  - ${probleme.join('\n  - ')}`, 'content');
   }
 
   setItems(items);
+  setArmorSets(sets);
   setMobs(mobs);
   setNpcs(npcs);
   setQuests(quests);
@@ -565,6 +603,7 @@ export function checkReferences(content: {
   npcs: readonly NpcDef[];
   quests: readonly QuestDef[];
   starter: readonly StarterEntry[];
+  sets?: readonly ArmorSetDef[];
 }): string[] {
   const probleme: string[] = [];
   const itemIds = new Set(content.items.map((i) => i.id));
@@ -582,6 +621,25 @@ export function checkReferences(content: {
 
   for (const s of content.starter) {
     if (!itemIds.has(s.item)) probleme.push(`Startausrüstung nennt unbekannten Gegenstand "${s.item}"`);
+  }
+
+  // Ein Satz ist eine Aussage über Gegenstände: jedes Teil muss es geben, und
+  // keines darf in zwei Sätzen stehen — sonst hinge an einem Stück, welcher
+  // von beiden gilt, und `setOfItem` müsste raten.
+  const teilGehoertZu = new Map<string, string>();
+  for (const satz of content.sets ?? []) {
+    for (const teil of satz.pieces) {
+      if (!itemIds.has(teil)) {
+        probleme.push(`Satz "${satz.id}" nennt unbekannten Gegenstand "${teil}"`);
+      }
+      const anderer = teilGehoertZu.get(teil);
+      if (anderer === satz.id) {
+        probleme.push(`Satz "${satz.id}" nennt "${teil}" doppelt`);
+      } else if (anderer !== undefined) {
+        probleme.push(`Gegenstand "${teil}" steht in zwei Sätzen: "${anderer}" und "${satz.id}"`);
+      }
+      teilGehoertZu.set(teil, satz.id);
+    }
   }
 
   for (const mob of content.mobs) {

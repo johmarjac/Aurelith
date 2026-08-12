@@ -375,6 +375,16 @@ body {
   display: none;
   flex-direction: column;
   max-height: min(70vh, 34rem);
+  /*
+   * `dvh` und nicht nur `vh`.
+   *
+   * Auf dem Telefon zählt `vh` die Fläche unter der Adressleiste mit — es ist
+   * die Höhe, die der Bildschirm *hätte*, wenn die Leiste wegführe. Quer
+   * gehalten sind das gut fünfzig Bildpunkte Unterschied, und die fehlten
+   * unten am Beutel. `dvh` misst, was gerade wirklich da ist. Die Zeile
+   * darüber bleibt als Rückfall für Browser ohne `dvh` stehen.
+   */
+  max-height: min(70dvh, 34rem);
 }
 
 .window[data-open='true'] {
@@ -417,6 +427,7 @@ body {
   z-index: 4000;
   width: 15rem;
   max-height: 60vh;
+  max-height: 60dvh;
   overflow-y: auto;
   overscroll-behavior: contain;
   border-radius: 0.4rem;
@@ -557,10 +568,41 @@ body {
   gap: 0.28rem;
 }
 
+/*
+ * Quer gehaltenes Telefon: die Kästchen stellen sich zu zweit nebeneinander.
+ *
+ * Sechs Kästchen übereinander sind zweihundert Bildpunkte, und die bestimmen
+ * die Höhe des ganzen Puppenbereichs — nicht die Figur daneben. Bei knapp
+ * vierhundert Bildpunkten Bildhöhe blieb für den Beutel nichts übrig; er stand
+ * unterhalb der Fensterkante und war weder zu sehen noch zu erreichen.
+ * Kleiner rechnen half nicht, die Reihe musste umbrechen: zwei Spalten machen
+ * aus sechs Reihen drei.
+ *
+ * An der Höhe und nicht an der Breite festgemacht — quer ist ein Telefon
+ * breit genug für jede Blattregel, eng ist es nur nach oben.
+ */
+@media (max-height: 520px) {
+  .doll-slots {
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+    gap: 0.25rem;
+  }
+}
+
 .doll-canvas {
   width: 100%;
   min-width: 0;
+  /*
+   * Die Figur wächst und schrumpft mit dem Bild.
+   *
+   * Feste 190 Bildpunkte passen an den Schreibtisch und nicht an ein quer
+   * gehaltenes Telefon: dort sind knapp vierhundert Bildpunkte Höhe da, und
+   * Titelzeile, Figur und Kästchen füllten sie allein — für den Beutel blieb
+   * nichts, und das Fenster hing unten heraus. Mit `clamp` ist es dieselbe
+   * Regel für beide Fälle statt zweier Layouts, die auseinanderlaufen können.
+   */
   height: 190px;
+  height: clamp(96px, 26dvh, 190px);
   /*
    * Der Zeichenpuffer hat ein festes Verhältnis (256×340), der Kasten nicht.
    * Ohne `contain` zieht CSS das Bild auf die Kastenform — auf einem Telefon
@@ -583,8 +625,16 @@ body {
 
 .equip-slot {
   position: relative;
+  /*
+   * Die Kästchen schrumpfen mit. Rechts stehen sechs übereinander — bei festen
+   * vierzig Bildpunkten sind das mit den Abständen über zweihundertsechzig,
+   * und die bestimmen die Höhe des Puppenbereichs, nicht die Leinwand daneben.
+   * Eine kleinere Figur allein hätte deshalb gar nichts gebracht.
+   */
   width: 40px;
   height: 40px;
+  width: clamp(30px, 8.5dvh, 40px);
+  height: clamp(30px, 8.5dvh, 40px);
   border-radius: 0.35rem;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(14, 18, 28, 0.68);
@@ -1450,6 +1500,42 @@ body {
 .detail-worn {
   font-size: 0.75rem;
   color: var(--ink-faint);
+}
+
+/* Der Satzblock. Abgesetzt, weil er nicht von diesem Stück handelt, sondern
+   von allen vieren — ohne Rahmen läse er sich als weitere Zeile Werte. */
+.detail-set {
+  border-left: 2px solid var(--ink-faint);
+  padding-left: 0.45rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+}
+
+/* Vollständig getragen: der Rand nimmt Gold an. Ein Satz, der zählt, soll auf
+   einen Blick von einem zu erkennen sein, dem noch Teile fehlen. */
+.detail-set.aktiv {
+  border-left-color: var(--gold);
+  color: var(--ink-dim);
+}
+
+.detail-set-name {
+  font-weight: 600;
+  color: var(--ink-dim);
+}
+
+.detail-set.aktiv .detail-set-name {
+  color: var(--gold);
+}
+
+.detail-set-bonus {
+  font-family: var(--font-mono);
+}
+
+.detail-set.aktiv .detail-set-bonus {
+  color: var(--accent);
 }
 
 .item-detail .btn {

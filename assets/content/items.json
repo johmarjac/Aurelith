@@ -314,6 +314,20 @@
       "icon": "icons/moor_pendant.webp"
     }
   ],
+  "sets": [
+    {
+      "id": "leder",
+      "name": "Ledersatz des Wanderers",
+      "pieces": ["leather_cap", "leather_tunic", "leather_pants", "leather_boots"],
+      "bonus": {
+        "attackDamage": 2,
+        "defense": 4,
+        "maxHp": 30,
+        "maxMp": 10,
+        "critChance": 0.02
+      }
+    }
+  ],
   "starter": [
     {
       "item": "wooden_sword",
