@@ -397,6 +397,25 @@ muss ein CNAME im DNS stehen, sonst bekommt SWAG kein Zertifikat dafür.
 Danach ist der Server unter `aurelith-server:8787` erreichbar, und ein nach
 außen veröffentlichter Port wird gar nicht mehr gebraucht.
 
+### Aktualisieren
+
+```
+./update.sh                 Quellstand holen, neues Bild ziehen, neu starten
+./update.sh --aufraeumen    danach alte Bilder löschen
+./update.sh --ohne-git      nur die Container, Repository unverändert
+```
+
+Das Skript prüft vorher, was schiefgehen kann — fehlende `.env`, fehlendes
+Passwort, stehender Docker-Dienst, nicht vorhandenes Proxy-Netz — und bricht
+mit einem Satz ab, statt mitten im Neustart auszusteigen.
+
+Gezogen wird **vor** dem Herunterfahren. `docker compose pull` fasst laufende
+Container nicht an; zöge man erst danach und das Ziehen schlüge fehl, bliebe
+der Server unten. So läuft er im Fehlerfall unverändert weiter.
+
+Der Netzname des Proxys ist auf `swag_default` voreingestellt und lässt sich
+über `SWAG_NETWORK` überschreiben.
+
 Zwei Kleinigkeiten noch: die Zeitüberschreitung des Proxys großzügig setzen
 (eine Spielverbindung steht stundenlang; nginx' Standard von 60 Sekunden
 trennt sie mitten im Spiel), und `/health` gibt einen JSON-Puls zurück, falls
