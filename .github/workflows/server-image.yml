@@ -152,10 +152,12 @@ jobs:
       # `secrets`-Kontext nicht lesen kann. So bleibt der Workflow grün, wenn
       # jemand ihn ohne eingerichteten Pi laufen lässt.
       PI_HOST: ${{ secrets.PI_HOST }}
-      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-      TELEGRAM_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
 
     steps:
+      # Nur wegen der Telegram-Aktion: die liegt im Repository, und ohne
+      # Auschecken findet `uses: ./…` sie nicht.
+      - uses: actions/checkout@v4
+
       - name: Auf dem Raspberry Pi aktualisieren
         if: env.PI_HOST != ''
         uses: appleboy/ssh-action@v1
@@ -198,28 +200,11 @@ jobs:
         # `always()`, damit auch ein Fehlschlag ankommt. Eine Nachricht, die
         # nur bei Erfolg kommt, ist keine Überwachung — dann weiß man beim
         # Ausbleiben nie, ob es schiefging oder ob niemand etwas geschoben hat.
-        if: always() && env.TELEGRAM_TOKEN != ''
-        env:
-          STATUS: ${{ job.status }}
-        run: |
-          if [ "$STATUS" = 'success' ]; then
-            zeichen='✅'
-            was='ausgerollt'
-          else
-            zeichen='❌'
-            was="fehlgeschlagen ($STATUS)"
-          fi
-
-          text="$zeichen Aurelith $was
-          Bild: ghcr.io/johmarjac/aurelith-server:latest
-          Stand: ${GITHUB_SHA:0:7} auf ${GITHUB_REF_NAME}
-          Lauf: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-
-          # --data-urlencode statt einer zusammengebauten Adresse: der Text
-          # enthält Zeilenumbrüche und Doppelpunkte.
-          curl -sS --fail-with-body \
-            "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
-            --data-urlencode "chat_id=${TELEGRAM_CHAT}" \
-            --data-urlencode "text=${text}" \
-            --data-urlencode 'disable_web_page_preview=true' \
-            >/dev/null
+        if: always()
+        uses: ./.github/actions/telegram
+        with:
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          chat: ${{ secrets.TELEGRAM_CHAT_ID }}
+          bereich: Serverbild
+          status: ${{ job.status }}
+          erfolg: auf den Pi ausgerollt

@@ -15,6 +15,10 @@
 #   Settings → Secrets and variables → Actions → Variables:
 #     AURELITH_SERVER_URL = wss://…   (optional; ohne das läuft der Client
 #                                      sichtbar, aber ohne Verbindung)
+#   Settings → Secrets and variables → Actions → Secrets:
+#     TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID  (optional; ohne sie bleibt die
+#                                            Benachrichtigung still und der
+#                                            Lauf trotzdem grün)
 
 name: Pages
 
@@ -126,3 +130,31 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  # Meldet den Ausgang nach Telegram — bei Erfolg wie bei Fehlschlag.
+  #
+  # Ein eigener Job statt eines Schritts am Ende von `deploy`: sonst bliebe
+  # ein Fehlschlag im Bau stumm, denn dann läuft `deploy` gar nicht erst an.
+  #
+  # `needs.*.result` fasst beide Jobs zusammen. Die Reihenfolge der Prüfung
+  # ist Absicht: ein Fehlschlag wiegt schwerer als ein Abbruch, und
+  # „erfolgreich" gilt erst, wenn weder das eine noch das andere vorliegt.
+  notify:
+    needs: [build, deploy]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      # Nur wegen der Telegram-Aktion: die liegt im Repository, und ohne
+      # Auschecken findet `uses: ./…` sie nicht.
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/telegram
+        with:
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          chat: ${{ secrets.TELEGRAM_CHAT_ID }}
+          bereich: Pages
+          status: >-
+            ${{ contains(needs.*.result, 'failure') && 'failure'
+            || contains(needs.*.result, 'cancelled') && 'cancelled'
+            || 'success' }}
+          erfolg: veröffentlicht

@@ -1,0 +1,86 @@
+# Kurze Meldung über den Ausgang eines Laufs.
+#
+# Als eigene Aktion, weil inzwischen zwei Workflows benachrichtigen und ein
+# drittes Mal dieselben fünfzehn Zeilen zu kopieren die sichere Art wäre, sie
+# irgendwann auseinanderlaufen zu lassen.
+#
+# Ohne Token passiert nichts, und der Schritt bleibt trotzdem grün: wer das
+# Repository ohne eingerichtetes Telegram baut, soll deswegen keinen roten
+# Lauf bekommen.
+
+name: Telegram-Nachricht
+description: Meldet den Ausgang eines Laufs nach Telegram.
+
+inputs:
+  token:
+    description: 'Bot-Token. Leer bedeutet: nichts schicken.'
+    required: false
+    default: ''
+  chat:
+    description: Kennung des Chats.
+    required: false
+    default: ''
+  bereich:
+    description: Um welchen Lauf es geht — steht in der ersten Zeile.
+    required: true
+  status:
+    description: Ausgang, also `job.status` oder `needs.<job>.result`.
+    required: true
+  erfolg:
+    description: Was bei Erfolg dasteht.
+    required: false
+    default: 'fertig'
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        TOKEN: ${{ inputs.token }}
+        CHAT: ${{ inputs.chat }}
+        BEREICH: ${{ inputs.bereich }}
+        STATUS: ${{ inputs.status }}
+        ERFOLG: ${{ inputs.erfolg }}
+        # Über die Umgebung statt direkt in den Text: eine Commit-Botschaft
+        # darf Anführungszeichen, Backticks und Zeilenumbrüche enthalten, und
+        # eingesetzt in ein Shell-Skript wäre das eine Einladung.
+        BOTSCHAFT: ${{ github.event.head_commit.message }}
+      run: |
+        if [ -z "$TOKEN" ] || [ -z "$CHAT" ]; then
+          echo "Kein Telegram-Token hinterlegt — keine Nachricht."
+          exit 0
+        fi
+
+        case "$STATUS" in
+          success)   zeichen='✅'; was="$ERFOLG" ;;
+          cancelled) zeichen='⏹'; was='abgebrochen' ;;
+          skipped)   zeichen='⏭'; was='übersprungen' ;;
+          *)         zeichen='❌'; was="fehlgeschlagen ($STATUS)" ;;
+        esac
+
+        # Nur die erste Zeile der Commit-Botschaft. Der Rest ist Begründung
+        # und gehört nicht in eine Benachrichtigung.
+        titel=$(printf '%s' "$BOTSCHAFT" | head -n 1)
+
+        text="$zeichen Aurelith · $BEREICH — $was"
+        # Als `if`, nicht als `[ ... ] && ...`: GitHub startet dieses Skript
+        # mit `-e`, und dort ist eine fehlschlagende Prüfung am Zeilenanfang
+        # eine Stolperfalle, die man erst im roten Lauf bemerkt.
+        if [ -n "$titel" ]; then
+          text="$text
+        $titel"
+        fi
+        text="$text
+        Stand: ${GITHUB_SHA:0:7} auf ${GITHUB_REF_NAME}
+        Lauf: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+        # --data-urlencode statt einer zusammengebauten Adresse: der Text
+        # enthält Zeilenumbrüche und Doppelpunkte.
+        curl -sS --fail-with-body \
+          "https://api.telegram.org/bot${TOKEN}/sendMessage" \
+          --data-urlencode "chat_id=${CHAT}" \
+          --data-urlencode "text=${text}" \
+          --data-urlencode 'disable_web_page_preview=true' \
+          >/dev/null
+
+        echo "Gemeldet: $BEREICH — $was"
