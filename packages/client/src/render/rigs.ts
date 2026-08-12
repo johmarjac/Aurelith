@@ -215,6 +215,17 @@ export function weaponModelSpecs(): Array<{
   return out;
 }
 
+/**
+ * Die Geometrie einer Waffe allein, ohne Figur drumherum.
+ *
+ * Gebraucht für die Inventarbilder: dort steht das Schwert für sich. Es ist
+ * bewusst dieselbe Quelle wie in der Hand der Figur — ein zweites Modell fürs
+ * Symbol wäre eine zweite Wahrheit über dasselbe Ding.
+ */
+export function buildWeaponGeometry(key: WeaponKey): THREE.BufferGeometry {
+  return WEAPON_SPECS[key].build();
+}
+
 const WEAPON_SPECS: Record<WeaponKey, WeaponSpec> = {
   sword: {
     build: () =>

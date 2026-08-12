@@ -24,6 +24,18 @@ export const ASSET_BASE =
   (import.meta.env?.VITE_ASSET_BASE as string | undefined) ??
   (import.meta.env?.BASE_URL ?? '/').replace(/\/$/, '');
 
+/**
+ * Adresse eines Assets — mit Version, damit unveränderlich gecacht werden darf.
+ *
+ * Der Streamer benutzt dieselbe Funktion. Sie steht hier und nicht dort, weil
+ * auch die Oberfläche Adressen bildet: die Inventarbilder hängen als `<img>`
+ * im DOM und gehen nicht durch die Warteschlange des Streamers — ein Symbol
+ * von zwölfhundert Byte braucht keine Priorisierung.
+ */
+export function assetUrl(path: string): string {
+  return `${ASSET_BASE}/${path}?v=${encodeURIComponent(BUILD)}`;
+}
+
 /** Schlüssel, unter dem eine im Spiel gesetzte Serveradresse liegt. */
 const SERVER_STORAGE_KEY = 'aurelith.server';
 

@@ -210,6 +210,22 @@ check(
 const belegte = inventar.locator('.item-slot:not(.item-empty)');
 check((await belegte.count()) >= 3, 'es liegen Gegenstände darin', String(await belegte.count()));
 
+// Die Kacheln zeigen gerenderte Symbole, keine Farbflächen mehr. Geprüft wird
+// nicht nur, dass ein `<img>` dasteht, sondern dass auch etwas darin ankam —
+// ein falscher Pfad ergäbe sonst ein leeres, aber vorhandenes Element.
+const bilder = await page.evaluate(() =>
+  [...document.querySelectorAll('.item-icon-bild')].map((n) => ({
+    src: n.getAttribute('src') ?? '',
+    breite: n.naturalWidth,
+  })),
+);
+check(bilder.length >= 3, 'die Kacheln tragen Symbolbilder', `${bilder.length} Bilder`);
+check(
+  bilder.every((b) => b.breite > 0),
+  'und alle sind geladen',
+  bilder.find((b) => b.breite === 0)?.src ?? 'alle',
+);
+
 const detail = page.locator('.item-detail');
 await belegte.first().click();
 check(
@@ -241,6 +257,8 @@ if (await anlegen.count()) {
     'der Knopf legt den Gegenstand an',
   );
 }
+
+await page.screenshot({ path: join(root, 'artefakte', 'inventar.png') });
 
 // --- Die Uhr ---------------------------------------------------------------
 

@@ -39,6 +39,7 @@
     "test:quests": "tsx packages/server/test/quests_test.ts",
     "test:content": "tsx packages/server/test/content_test.ts",
     "content": "tsx tools/export-content.mjs",
+    "icons": "node tools/render-icons.mjs",
     "test:npcflow": "tsx packages/server/test/npcflow_test.ts",
     "test:npc": "node tools/smoke-npc.mjs",
     "audio": "node tools/pack-audio.mjs",

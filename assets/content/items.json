@@ -17,7 +17,8 @@
       "model": "weapon_wooden_sword",
       "iconColor": "#a9743f",
       "description": "Abgegriffenes Übungsschwert. Jeder fängt damit an.",
-      "weaponRig": "sword"
+      "weaponRig": "sword",
+      "icon": "icons/wooden_sword.webp"
     },
     {
       "id": "wooden_bow",
@@ -39,7 +40,8 @@
       "attackArc": 6.283185307179586,
       "attackCooldownSec": 0.95,
       "attackWindupSec": 0.3,
-      "weaponRig": "bow"
+      "weaponRig": "bow",
+      "icon": "icons/wooden_bow.webp"
     },
     {
       "id": "rusty_dagger",
@@ -55,7 +57,8 @@
       "value": 45,
       "model": "weapon_dagger",
       "iconColor": "#8c7a5e",
-      "description": "Schnell, kurz, und schon bessere Tage gesehen."
+      "description": "Schnell, kurz, und schon bessere Tage gesehen.",
+      "icon": "icons/rusty_dagger.webp"
     },
     {
       "id": "iron_blade",
@@ -71,7 +74,8 @@
       "value": 320,
       "model": "weapon_iron_blade",
       "iconColor": "#b8c0c8",
-      "description": "Ordentlich geschmiedet, ordentlich schwer."
+      "description": "Ordentlich geschmiedet, ordentlich schwer.",
+      "icon": "icons/iron_blade.webp"
     },
     {
       "id": "training_vest",
@@ -87,7 +91,8 @@
       "value": 15,
       "model": "armor_vest",
       "iconColor": "#6f7f5a",
-      "description": "Gesteppter Stoff. Hält Kratzer ab, mehr nicht."
+      "description": "Gesteppter Stoff. Hält Kratzer ab, mehr nicht.",
+      "icon": "icons/training_vest.webp"
     },
     {
       "id": "potion_hp_small",
@@ -103,7 +108,8 @@
       "value": 25,
       "model": "item_potion",
       "iconColor": "#c4433f",
-      "description": "Stellt 60 Lebenspunkte wieder her."
+      "description": "Stellt 60 Lebenspunkte wieder her.",
+      "icon": "icons/potion_hp_small.webp"
     },
     {
       "id": "mote_essence",
@@ -119,7 +125,8 @@
       "value": 6,
       "model": "item_essence",
       "iconColor": "#7fd8e8",
-      "description": "Kühles Leuchten, das nach dem Verlöschen zurückbleibt."
+      "description": "Kühles Leuchten, das nach dem Verlöschen zurückbleibt.",
+      "icon": "icons/mote_essence.webp"
     },
     {
       "id": "boar_hide",
@@ -135,7 +142,8 @@
       "value": 22,
       "model": "item_hide",
       "iconColor": "#8a6a42",
-      "description": "Zäh, borstig, und bei jedem Sattler gefragt."
+      "description": "Zäh, borstig, und bei jedem Sattler gefragt.",
+      "icon": "icons/boar_hide.webp"
     },
     {
       "id": "crawler_chitin",
@@ -151,7 +159,8 @@
       "value": 64,
       "model": "item_chitin",
       "iconColor": "#6f7f8a",
-      "description": "Eine Schale, die schon einmal etwas ausgehalten hat."
+      "description": "Eine Schale, die schon einmal etwas ausgehalten hat.",
+      "icon": "icons/crawler_chitin.webp"
     }
   ],
   "starter": [

@@ -1270,3 +1270,37 @@ body {
 .upgrade-row[data-leistbar='false'] .upgrade-odds {
   color: var(--ink-faint);
 }
+
+/* --- Gegenstandsbilder ---------------------------------------------------- */
+
+/*
+ * Die Bilder werden mit `npm run icons` gerendert und liegen als webp mit
+ * Alphakanal im Asset-Baum. `pixelated` bleibt aus: sie sind bereits von
+ * vierfacher Auflösung heruntergerechnet, und eine zweite harte Skalierung
+ * im Browser macht daraus wieder Treppen.
+ */
+.item-icon-bild {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: none;
+  /* Der Klick gehört der Kachel darunter — sonst öffnet ein Tippen auf das
+     Bild nichts, weil das Bild das Ereignis abfängt. */
+  pointer-events: none;
+  user-select: none;
+}
+
+.detail-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.detail-icon {
+  width: 2.6rem;
+  height: 2.6rem;
+  flex: 0 0 auto;
+  border: 1px solid var(--panel-edge);
+  border-radius: 2px;
+  background: #0d1318;
+}

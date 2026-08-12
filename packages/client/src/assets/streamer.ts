@@ -18,7 +18,7 @@
  */
 
 import { parseManifest, type AssetEntry, type AssetManifest } from '@aurelith/shared';
-import { ASSET_BASE, BUILD } from '../config.ts';
+import { assetUrl } from '../config.ts';
 
 interface PendingRequest {
   path: string;
@@ -56,7 +56,7 @@ export class AssetStreamer {
 
   /** URL eines Assets — mit Version, damit unveränderlich gecacht werden darf. */
   url(path: string): string {
-    return `${ASSET_BASE}/${path}?v=${encodeURIComponent(BUILD)}`;
+    return assetUrl(path);
   }
 
   async loadManifest(): Promise<AssetManifest> {

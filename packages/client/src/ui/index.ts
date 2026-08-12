@@ -28,6 +28,7 @@ import { GameWindow } from './windows.ts';
 import { DialogWindow, QuestLogWindow, ShopWindow, UpgradeWindow } from './npcWindows.ts';
 import { Overlay } from './overlay.ts';
 import { DEFAULT_LEVELS, type MixerLevels } from '../audio/mixer.ts';
+import { assetUrl } from '../config.ts';
 import './style.css';
 
 export interface InventoryEntry {
@@ -66,6 +67,38 @@ function el<K extends keyof HTMLElementTagNameMap>(
   if (className) node.className = className;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+/**
+ * Die Kachel eines Gegenstands.
+ *
+ * Mit Bild, wenn die Tabelle eines nennt — erzeugt mit `npm run icons` aus
+ * denselben Modellen, die auch in der Welt stehen. Ohne Bild bleibt die alte
+ * Farbfläche: sie ist als Rückfall besser als ein leeres Kästchen, und ein
+ * neuer Gegenstand ohne Symbol soll nicht unsichtbar sein.
+ */
+function itemIcon(def: { icon?: string; iconColor: number } | undefined): HTMLElement {
+  const farbe = `#${(def?.iconColor ?? 0x888888).toString(16).padStart(6, '0')}`;
+
+  if (!def?.icon) {
+    const flaeche = el('div', 'item-icon');
+    flaeche.style.background = farbe;
+    return flaeche;
+  }
+
+  const bild = el('img', 'item-icon item-icon-bild');
+  bild.src = assetUrl(def.icon);
+  bild.alt = '';
+  // Nicht ziehbar und nicht anklickbar: der Klick gehört der Kachel darunter,
+  // sonst zieht man auf dem Telefon das Bild statt die Beschreibung zu öffnen.
+  bild.draggable = false;
+  // Kommt das Bild nicht an, bleibt die Farbe. Ein Symbol, das fehlt, darf
+  // keine leere Kachel hinterlassen.
+  bild.addEventListener('error', () => {
+    bild.removeAttribute('src');
+    bild.style.background = farbe;
+  });
+  return bild;
 }
 
 function bar(kind: 'hp' | 'mp' | 'exp'): { root: HTMLDivElement; fill: HTMLDivElement; label: HTMLDivElement } {
@@ -780,12 +813,7 @@ export class UI {
       }
 
       const def = getItem(entry.itemId);
-      const icon = el('div', 'item-icon');
-      // Bis es Symbolgrafiken gibt, steht die Farbe aus der Content-Tabelle
-      // für den Gegenstand. Ein Platzhalter, der sich unterscheidet, ist
-      // brauchbarer als ein Platzhalter, der überall gleich aussieht.
-      icon.style.background = `#${(def?.iconColor ?? 0x888888).toString(16).padStart(6, '0')}`;
-      slot.appendChild(icon);
+      slot.appendChild(itemIcon(def));
 
       if (entry.count > 1) slot.appendChild(el('span', 'item-count', String(entry.count)));
       // Die Aufwertung steht auf der Kachel. Ohne sie sähen eine +0 und eine
@@ -846,10 +874,17 @@ export class UI {
     this.detailSlot = slot;
     this.itemDetail.hidden = false;
 
-    const teile: HTMLElement[] = [
+    const kopf = el('div', 'detail-head');
+    const bild = itemIcon(def);
+    bild.classList.add('detail-icon');
+    const beschriftung = el('div');
+    beschriftung.append(
       el('div', 'detail-name', upgradeName(def, entry.upgrade)),
       el('div', 'detail-kind', KIND_LABEL[def.kind] ?? def.kind),
-    ];
+    );
+    kopf.append(bild, beschriftung);
+
+    const teile: HTMLElement[] = [kopf];
 
     const werte: string[] = [];
     const bonus = upgradeBonus(def, entry.upgrade);
