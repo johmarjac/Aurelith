@@ -38,6 +38,12 @@ import { GameWindow } from './windows.ts';
 import { DialogWindow, QuestLogWindow, ShopWindow, UpgradeWindow } from './npcWindows.ts';
 import { Overlay } from './overlay.ts';
 import { DollView } from './dollView.ts';
+import {
+  ladeUiScale,
+  setzeUiScale,
+  UI_SCALE_MAX,
+  UI_SCALE_MIN,
+} from './uiScale.ts';
 import { DEFAULT_LEVELS, type MixerLevels } from '../audio/mixer.ts';
 import { assetUrl } from '../config.ts';
 import './style.css';
@@ -67,19 +73,34 @@ const KIND_LABEL: Record<string, string> = {
  * Sinne der Inhaltsdatei, sondern nur die Stelle im Kästchen: der erste
  * angelegte Ring sitzt oben, der zweite darunter.
  */
+/*
+ * Die Anordnung der Kästchen um die Figur — dieselbe wie bei Flyff.
+ *
+ * Links, was man in der Hand hält und umhängt; rechts die Rüstung von oben
+ * nach unten, wie sie am Körper sitzt; über dem Kopf das Zubehör, das man
+ * nicht sieht. Dass die Rüstungsteile in der Reihenfolge Kopf–Brust–Hose–Schuh
+ * untereinander stehen, ist der halbe Sinn der Sache: man liest sie ab, ohne
+ * die Symbole anzusehen.
+ *
+ * Die Reihe oben hat keine sechs Plätze wie das Vorbild — Ohrringe und ein
+ * zweites Halsband gibt es hier nicht, und leere Kästchen für Dinge, die es
+ * nicht gibt, sind ein Versprechen, das niemand einlöst.
+ */
+const OBERE_PLAETZE: ReadonlyArray<[EquipSlot, number]> = [
+  ['ring', 0],
+  ['necklace', 0],
+  ['ring', 1],
+];
 const LINKE_PLAETZE: ReadonlyArray<[EquipSlot, number]> = [
+  ['mainhand', 0],
+  ['cloak', 0],
+  ['glasses', 0],
+];
+const RECHTE_PLAETZE: ReadonlyArray<[EquipSlot, number]> = [
   ['head', 0],
   ['chest', 0],
   ['legs', 0],
   ['feet', 0],
-];
-const RECHTE_PLAETZE: ReadonlyArray<[EquipSlot, number]> = [
-  ['mainhand', 0],
-  ['cloak', 0],
-  ['glasses', 0],
-  ['necklace', 0],
-  ['ring', 0],
-  ['ring', 1],
 ];
 
 /** Ein Zeichen je Platz, solange nichts darin liegt. */
@@ -261,6 +282,9 @@ export class UI {
     registry: ModelRegistry,
   ) {
     this.host = host;
+    // Die zuletzt eingestellte Größe gilt ab dem ersten Bild, nicht erst,
+    // wenn jemand die Einstellungen aufmacht.
+    setzeUiScale(ladeUiScale());
     // Die Anordnung hängt an der Bedienart, nicht an der Fensterbreite. Ein
     // Tablet quer ist zweitausend Pixel breit und wird trotzdem mit dem
     // Daumen bedient — eine Breitenabfrage hätte es als Schreibtisch
@@ -372,13 +396,17 @@ export class UI {
     const linkeSpalte = el('div', 'doll-slots links');
     const rechteSpalte = el('div', 'doll-slots rechts');
 
+    const obereReihe = el('div', 'doll-oben');
+    for (const [slot, index] of OBERE_PLAETZE) {
+      obereReihe.appendChild(this.equipSlot(slot, index));
+    }
     for (const [slot, index] of LINKE_PLAETZE) {
       linkeSpalte.appendChild(this.equipSlot(slot, index));
     }
     for (const [slot, index] of RECHTE_PLAETZE) {
       rechteSpalte.appendChild(this.equipSlot(slot, index));
     }
-    puppe.append(linkeSpalte, this.doll.canvas, rechteSpalte);
+    puppe.append(linkeSpalte, obereReihe, this.doll.canvas, rechteSpalte);
 
     this.inventoryGrid = el('div', 'inventory-grid');
     // Die Beschreibung sitzt unter dem Raster und ist leer, solange nichts
@@ -597,6 +625,36 @@ export class UI {
 
     probe.append(this.audioState, testButton);
     body.append(probe);
+
+    // --- Darstellung -------------------------------------------------------
+    //
+    // Ein Regler für die ganze Oberfläche. Auf einem Telefon ist die
+    // Voreinstellung für manche zu klein und für andere zu gross, und beides
+    // ist eine Frage der Augen und nicht der Bildschirmgröße — also gehört es
+    // in die Einstellungen und nicht in eine Medienabfrage.
+    const bild = el('section', 'settings-group');
+    bild.append(el('h3', 'settings-head', 'Darstellung'));
+
+    const groesseRow = el('div', 'settings-slider');
+    const groesseWert = el('span', 'settings-value', '100 %');
+    const groesse = el('input');
+    groesse.type = 'range';
+    groesse.min = String(Math.round(UI_SCALE_MIN * 100));
+    groesse.max = String(Math.round(UI_SCALE_MAX * 100));
+    groesse.step = '5';
+    groesse.setAttribute('aria-label', 'Größe der Oberfläche');
+    groesse.value = String(Math.round(ladeUiScale() * 100));
+    groesseWert.textContent = `${groesse.value} %`;
+    groesse.addEventListener('input', () => {
+      const gilt = setzeUiScale(Number(groesse.value) / 100);
+      groesseWert.textContent = `${Math.round(gilt * 100)} %`;
+    });
+
+    const groesseKopf = el('div', 'settings-slider-head');
+    groesseKopf.append(el('label', undefined, 'Größe der Oberfläche'), groesseWert);
+    groesseRow.append(groesseKopf, groesse);
+    bild.append(groesseRow);
+    body.append(bild);
 
     const hinweis = el('p', 'settings-note', '');
     hinweis.append(

@@ -23,7 +23,9 @@ bewussten Abweichung, die weiter unten begründet ist.
 - **Desktop und Mobil**: WASD und Maus am Rechner, virtueller Joystick und
   Angriffsknopf am Telefon.
 - **UI im Flyff-Zuschnitt**: Werteleisten, Zielfenster, Chat, Inventar,
-  Charakterblatt, ziehbare Fenster, Namensschilder, Schadenszahlen.
+  Charakterblatt, ziehbare Fenster, Namensschilder, Schadenszahlen — in einem
+  eigenen Theme aus Pergament, Holz und Messing, und mit einem Regler für die
+  Größe der ganzen Oberfläche.
 - **Ausrüstung mit Rüstungssätzen**: zehn Plätze, sichtbare Teile an der Figur,
   Satzbonus für den vollständigen Satz und ein Schein um die Rüstung, sobald
   jedes Teil davon mindestens +4 trägt.

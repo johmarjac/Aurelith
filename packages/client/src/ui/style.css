@@ -12,29 +12,66 @@
  * Aktionsleiste auf iPhones unter der Home-Anzeige.
  */
 
+/*
+ * Das Theme: Pergament, Holz, Messing.
+ *
+ * Angelehnt an Flyff und bewusst nicht abgemalt — dieselbe Haltung, eigene
+ * Farben. Was den Eindruck macht, sind drei Dinge und nicht die Farbtöne
+ * allein:
+ *
+ *   **Helle Flächen, dunkle Schrift.** Fenster sind Pergament, nicht Glas.
+ *   Ein dunkles UI verschwindet in der Nacht der Welt; ein helles steht
+ *   davor, und man weiss immer, was Oberfläche ist und was Spiel.
+ *
+ *   **Doppelter Rahmen.** Aussen Holz, innen eine Messinglinie. Ein einzelner
+ *   Strich sieht nach Web aus, zwei nach Beschlag.
+ *
+ *   **Dunkle Kacheln in hellen Fenstern.** Gegenstände liegen in
+ *   ausgesparten Fächern. Das ist der Grund, warum Symbole überhaupt lesbar
+ *   sind — auf Pergament säuft ein Bild mit hellem Rand ab.
+ *
+ * Was über der Welt schwebt und nicht „Fenster" ist — Chat, Namensschilder,
+ * Beuteschilder —, bleibt dunkel und durchscheinend. Pergament über dem
+ * halben Bild wäre eine Wand.
+ */
 :root {
-  --ink: #e8eef2;
-  --ink-dim: #9fb0bc;
-  --ink-faint: #6b7d8a;
+  --ink: #3b2412;
+  --ink-dim: #6d4a2a;
+  --ink-faint: #937352;
+  /* Schrift auf dunklem Grund: Titelleisten, Kacheln, Chat. */
+  --ink-hell: #f7e9cb;
 
-  --panel: rgba(16, 22, 28, 0.92);
-  --panel-solid: #12181e;
-  --panel-edge: #2c3a45;
-  --panel-edge-bright: #46606f;
+  --panel: rgba(247, 233, 202, 0.96);
+  --panel-solid: #f7e9ca;
+  --panel-edge: #9c6631;
+  --panel-edge-bright: #e6c079;
+  /* Für alles, was über der Welt schwebt und nicht zumachen darf. */
+  --panel-dunkel: rgba(34, 23, 15, 0.82);
+  --panel-dunkel-rand: rgba(230, 192, 121, 0.35);
 
-  --accent: #4cc9bf;
-  --accent-dim: #2c7d78;
-  --gold: #d8b84a;
+  --titel: linear-gradient(180deg, #a4442099, #74280f);
+  --holz: linear-gradient(180deg, #b8874a, #8a5a29);
+
+  /* Ausgesparte Fächer für Gegenstände. */
+  --kachel: rgba(58, 40, 25, 0.88);
+  --kachel-rand: #b98a4e;
+  --kachel-hell: rgba(96, 68, 40, 0.9);
+
+  --accent: #c9631c;
+  --accent-dim: #94430f;
+  --gold: #a9761f;
+  /* Gold auf dunklem Grund braucht mehr Licht als auf Pergament. */
+  --gold-hell: #f0cf72;
 
   --hp: #c4433f;
   --hp-dim: #7a2523;
   --mp: #3f7ac4;
   --exp: #86c44a;
 
-  --danger: #e05a4a;
+  --danger: #b52d1c;
 
   --gap: 0.5rem;
-  --radius: 4px;
+  --radius: 6px;
   --font: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', sans-serif;
   --font-mono: 'Cascadia Mono', Consolas, ui-monospace, monospace;
 
@@ -48,6 +85,18 @@
   box-sizing: border-box;
 }
 
+/*
+ * Der Hebel für die Größe der ganzen Oberfläche.
+ *
+ * Alle Maße im Stylesheet stehen in `rem`, und `rem` misst an genau dieser
+ * Zahl. Der Regler in den Einstellungen setzt `--ui-scale`, und damit wächst
+ * und schrumpft alles zugleich — ohne zweite Größentabelle und ohne
+ * Skalierungsmatrix, die Koordinaten verschiebt.
+ */
+html {
+  font-size: calc(14px * var(--ui-scale, 1));
+}
+
 html,
 body {
   margin: 0;
@@ -57,7 +106,6 @@ body {
   background: #0b1014;
   color: var(--ink);
   font-family: var(--font);
-  font-size: 14px;
   /* Kein Textmarkieren beim Wischen, keine blaue Tipp-Hervorhebung. */
   user-select: none;
   -webkit-user-select: none;
@@ -105,32 +153,39 @@ body {
 
 .panel {
   background: var(--panel);
-  border: 1px solid var(--panel-edge);
+  border: 2px solid var(--panel-edge);
   border-radius: var(--radius);
   backdrop-filter: blur(6px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+  /* Innen die Messinglinie, aussen der Schatten. Beides in einem Schlag,
+     damit kein zusätzlicher Knoten für einen Rahmen nötig ist. */
+  box-shadow:
+    inset 0 0 0 1px var(--panel-edge-bright),
+    0 6px 22px rgba(0, 0, 0, 0.5);
 }
 
 .btn {
   font: inherit;
-  color: var(--ink);
-  background: linear-gradient(180deg, #22303a, #17212a);
-  border: 1px solid var(--panel-edge);
+  font-weight: 600;
+  color: var(--ink-hell);
+  background: linear-gradient(180deg, #d9973c, #a95f18);
+  border: 1px solid #7a4514;
   border-radius: var(--radius);
   padding: 0.4rem 0.7rem;
   cursor: pointer;
-  transition: border-color 0.12s, background 0.12s;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 1px 0 rgba(255, 232, 180, 0.45);
+  transition: filter 0.12s, background 0.12s;
 }
 
 .btn:hover,
 .btn:focus-visible {
-  border-color: var(--panel-edge-bright);
+  filter: brightness(1.1);
 }
 
 .btn:active,
 .btn[aria-pressed='true'] {
-  background: linear-gradient(180deg, #17212a, #22303a);
-  border-color: var(--accent-dim);
+  background: linear-gradient(180deg, #a95f18, #d9973c);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35);
 }
 
 .btn:focus-visible {
@@ -200,7 +255,7 @@ body {
 .bar {
   position: relative;
   height: 0.85rem;
-  background: #0a0f13;
+  background: #3a2716;
   border: 1px solid var(--panel-edge);
   border-radius: 2px;
   overflow: hidden;
@@ -221,7 +276,7 @@ body {
   font-family: var(--font-mono);
   font-size: 0.66rem;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
-  color: var(--ink);
+  color: var(--ink-hell);
 }
 
 .bar.hp .bar-fill {
@@ -332,7 +387,7 @@ body {
 }
 
 .attack-button:active {
-  background: radial-gradient(circle at 35% 30%, #4cc9bf, #1f5c58);
+  background: radial-gradient(circle at 35% 30%, #f0b45a, #94430f);
   transform: scale(0.96);
 }
 
@@ -356,15 +411,15 @@ body {
 .joystick-base {
   width: 124px;
   height: 124px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 2px solid rgba(255, 255, 255, 0.18);
+  background: rgba(247, 233, 202, 0.1);
+  border: 2px solid rgba(230, 192, 121, 0.35);
 }
 
 .joystick-knob {
   width: 52px;
   height: 52px;
-  background: rgba(76, 201, 191, 0.35);
-  border: 2px solid rgba(160, 230, 225, 0.6);
+  background: rgba(217, 151, 60, 0.45);
+  border: 2px solid rgba(247, 220, 160, 0.7);
 }
 
 /* --- Fenster -------------------------------------------------------------- */
@@ -396,8 +451,13 @@ body {
  * zwei Reihen Plätze nebeneinander. Bei vierzehn Rem quetschte sich die
  * Leinwand auf Daumenbreite.
  */
+/*
+ * Breiter als die übrigen Fenster: links und rechts stehen Kästchen, in der
+ * Mitte die Figur. Bei zwanzig Rem blieben für die Figur knapp
+ * hundertsiebzig Bildpunkte — sie stand da wie in einem Schacht.
+ */
 .window[data-window='inventory'] {
-  min-width: 20rem;
+  min-width: 26rem;
 }
 
 /*
@@ -431,9 +491,11 @@ body {
   overflow-y: auto;
   overscroll-behavior: contain;
   border-radius: 0.4rem;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(12, 16, 26, 0.96);
-  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.55);
+  border: 2px solid var(--panel-edge);
+  background: var(--panel-solid);
+  box-shadow:
+    inset 0 0 0 1px var(--panel-edge-bright),
+    0 6px 22px rgba(0, 0, 0, 0.55);
   padding: 0.5rem 0.6rem;
 }
 
@@ -469,8 +531,12 @@ body {
   justify-content: space-between;
   gap: 0.5rem;
   padding: 0.4rem 0.5rem 0.4rem 0.65rem;
-  background: linear-gradient(180deg, #1e2a33, #16202700);
-  border-bottom: 1px solid var(--panel-edge);
+  /* Holzbalken mit Messingkante — der Griff, an dem man das Fenster zieht. */
+  background: var(--titel);
+  color: var(--ink-hell);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
+  border-bottom: 1px solid var(--panel-edge-bright);
+  border-radius: calc(var(--radius) - 2px) calc(var(--radius) - 2px) 0 0;
   font-weight: 600;
   font-size: 0.85rem;
   letter-spacing: 0.02em;
@@ -526,6 +592,53 @@ body {
   }
 }
 
+/*
+ * Auf engen Geräten nimmt das Inventar den ganzen Bildschirm ein.
+ *
+ * Es ist das einzige Fenster, in dem gleichzeitig eine Figur, zehn Kästchen
+ * und ein Beutel unterkommen müssen. Auf einem Telefon geht das nicht neben
+ * der Welt her — und es muss auch nicht: wer im Inventar ist, spielt gerade
+ * nicht. Ein halb sichtbares Fenster war der schlechtere Kompromiss.
+ *
+ * An Breite **oder** Höhe festgemacht: hochkant ist ein Telefon schmal, quer
+ * ist es niedrig, und in beiden Fällen ist der Platz derselbe Engpass.
+ */
+@media (max-width: 700px), (max-height: 560px) {
+  .window[data-window='inventory'] {
+    position: fixed;
+    left: 0 !important;
+    top: 0 !important;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: none;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    padding-bottom: var(--safe-b);
+  }
+
+  /* Bildschirmfüllend darf die Figur wieder gross sein. */
+  .window[data-window='inventory'] .doll-canvas {
+    height: clamp(8rem, 32dvh, 21rem);
+  }
+
+  /*
+   * Die Kästchen bleiben bei der Figur.
+   *
+   * Auf einem quer gehaltenen Telefon ist das Fenster achthundert Bildpunkte
+   * breit; ohne Begrenzung klebte die eine Spalte am linken Bildrand, die
+   * andere am rechten, und die Figur schwebte allein in der Mitte. Sie gehören
+   * zusammen — also stehen sie zusammen.
+   */
+  .window[data-window='inventory'] .doll {
+    max-width: 34rem;
+    margin-inline: auto;
+  }
+}
+
 /* --- Inventar ------------------------------------------------------------- */
 
 /*
@@ -557,9 +670,33 @@ body {
    * Achse: was schrumpfen soll, muss es auch dürfen.
    */
   grid-template-columns: auto minmax(0, 1fr) auto;
+  /*
+   * Zwei Zeilen: oben das Zubehör über dem Kopf, darunter die Figur. Die
+   * beiden Spalten daneben laufen über beide Zeilen — so stehen Waffe und
+   * Helm auf derselben Höhe wie die Ringe, genau wie im Vorbild.
+   */
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 0.35rem;
   align-items: start;
   margin-bottom: 0.5rem;
+}
+
+.doll-slots.links {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+}
+
+.doll-slots.rechts {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+}
+
+.doll-oben {
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  justify-content: center;
+  gap: 0.28rem;
 }
 
 .doll-slots {
@@ -568,28 +705,11 @@ body {
   gap: 0.28rem;
 }
 
-/*
- * Quer gehaltenes Telefon: die Kästchen stellen sich zu zweit nebeneinander.
- *
- * Sechs Kästchen übereinander sind zweihundert Bildpunkte, und die bestimmen
- * die Höhe des ganzen Puppenbereichs — nicht die Figur daneben. Bei knapp
- * vierhundert Bildpunkten Bildhöhe blieb für den Beutel nichts übrig; er stand
- * unterhalb der Fensterkante und war weder zu sehen noch zu erreichen.
- * Kleiner rechnen half nicht, die Reihe musste umbrechen: zwei Spalten machen
- * aus sechs Reihen drei.
- *
- * An der Höhe und nicht an der Breite festgemacht — quer ist ein Telefon
- * breit genug für jede Blattregel, eng ist es nur nach oben.
- */
-@media (max-height: 520px) {
-  .doll-slots {
-    display: grid;
-    grid-template-columns: repeat(2, auto);
-    gap: 0.25rem;
-  }
-}
+
 
 .doll-canvas {
+  grid-column: 2;
+  grid-row: 2;
   width: 100%;
   min-width: 0;
   /*
@@ -601,8 +721,8 @@ body {
    * nichts, und das Fenster hing unten heraus. Mit `clamp` ist es dieselbe
    * Regel für beide Fälle statt zweier Layouts, die auseinanderlaufen können.
    */
-  height: 190px;
-  height: clamp(96px, 26dvh, 190px);
+  height: 13.5rem;
+  height: clamp(6.5rem, 26dvh, 13.5rem);
   /*
    * Der Zeichenpuffer hat ein festes Verhältnis (256×340), der Kasten nicht.
    * Ohne `contain` zieht CSS das Bild auf die Kastenform — auf einem Telefon
@@ -631,13 +751,14 @@ body {
    * und die bestimmen die Höhe des Puppenbereichs, nicht die Leinwand daneben.
    * Eine kleinere Figur allein hätte deshalb gar nichts gebracht.
    */
-  width: 40px;
-  height: 40px;
-  width: clamp(30px, 8.5dvh, 40px);
-  height: clamp(30px, 8.5dvh, 40px);
+  width: 2.85rem;
+  height: 2.85rem;
+  width: clamp(2rem, 8.5dvh, 2.85rem);
+  height: clamp(2rem, 8.5dvh, 2.85rem);
   border-radius: 0.35rem;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(14, 18, 28, 0.68);
+  border: 1px solid var(--kachel-rand);
+  background: var(--kachel);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45);
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -645,8 +766,8 @@ body {
 
 /* Belegte Plätze sind anklickbar — dort legt man ab. */
 .equip-slot[data-filled='true'] {
-  border-color: rgba(180, 200, 240, 0.5);
-  background: rgba(40, 52, 74, 0.75);
+  border-color: var(--gold-hell);
+  background: var(--kachel-hell);
   cursor: pointer;
 }
 
@@ -673,11 +794,15 @@ body {
   gap: 0.3rem;
 }
 
+/* Ein ausgespartes Fach im Pergament — deshalb dunkel und nach innen
+   schattiert. Ein helles Kästchen auf hellem Grund wäre kein Fach, sondern
+   ein Umriss, und die Symbole darin verlören ihren Rand. */
 .item-slot {
   aspect-ratio: 1;
-  background: #0d1318;
-  border: 1px solid var(--panel-edge);
-  border-radius: 2px;
+  background: var(--kachel);
+  border: 1px solid var(--kachel-rand);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45);
+  border-radius: 3px;
   position: relative;
   display: grid;
   place-items: center;
@@ -685,8 +810,10 @@ body {
 }
 
 .item-slot[data-equipped='true'] {
-  border-color: var(--gold);
-  box-shadow: inset 0 0 0 1px rgba(216, 184, 74, 0.25);
+  border-color: var(--gold-hell);
+  box-shadow:
+    inset 0 0 0 1px rgba(240, 207, 114, 0.4),
+    inset 0 2px 5px rgba(0, 0, 0, 0.45);
 }
 
 .item-icon {
@@ -704,8 +831,17 @@ body {
   text-shadow: 0 1px 2px #000;
 }
 
+/*
+ * Leere Fächer sind matter, nicht durchsichtiger.
+ *
+ * `opacity` hat auf dunklem Grund funktioniert und kippt auf hellem ins
+ * Gegenteil: ein dunkles Fach wird durchscheinend und damit *heller* als ein
+ * volles — im Bild sah der leere Beutel aus wie beleuchtet.
+ */
 .item-empty {
-  opacity: 0.35;
+  background: rgba(58, 40, 25, 0.35);
+  border-color: rgba(185, 138, 78, 0.45);
+  box-shadow: none;
 }
 
 /* --- Charakterblatt ------------------------------------------------------- */
@@ -823,6 +959,20 @@ body {
   gap: 0.3rem;
 }
 
+/*
+ * Der Chat bleibt dunkel.
+ *
+ * Er steht über der Welt und nicht in einem Fenster; Pergament über dem
+ * unteren Bilddrittel wäre eine Wand. Dunkel und durchscheinend liest er sich
+ * über Gras genauso wie über Nachthimmel.
+ */
+.chat-log {
+  background: var(--panel-dunkel);
+  border-color: var(--panel-dunkel-rand);
+  color: var(--ink-hell);
+  box-shadow: none;
+}
+
 .chat-log {
   max-height: 11rem;
   overflow-y: auto;
@@ -860,9 +1010,9 @@ body {
 .chat-input {
   font: inherit;
   font-size: 0.82rem;
-  color: var(--ink);
-  background: var(--panel);
-  border: 1px solid var(--panel-edge);
+  color: var(--ink-hell);
+  background: var(--panel-dunkel);
+  border: 1px solid var(--panel-dunkel-rand);
   border-radius: var(--radius);
   padding: 0.35rem 0.5rem;
   width: 100%;
@@ -961,8 +1111,8 @@ body {
   font-weight: 600;
   padding: 0.28rem 0.55rem;
   border-radius: 0.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(12, 16, 26, 0.72);
+  border: 1px solid var(--panel-dunkel-rand);
+  background: var(--panel-dunkel);
   text-shadow: 0 1px 3px #000;
   will-change: transform;
   /* Ohne das wählt ein langer Druck auf dem Telefon den Text aus, statt die
@@ -981,7 +1131,7 @@ body {
 }
 
 .loot-label:active {
-  background: rgba(40, 52, 76, 0.9);
+  background: rgba(90, 62, 36, 0.92);
 }
 
 .nameplate {
@@ -1153,19 +1303,19 @@ body {
   transform: translateX(-50%);
   padding: 0.55rem 1.1rem;
   border-radius: 6px;
-  border: 1px solid #4cc9bf;
-  background: rgba(14, 32, 36, 0.92);
-  color: #d8f6f2;
+  border: 1px solid var(--panel-edge-bright);
+  background: var(--titel);
+  color: var(--ink-hell);
   font: inherit;
   font-size: 0.95rem;
   letter-spacing: 0.02em;
   cursor: pointer;
   pointer-events: auto;
-  box-shadow: 0 0 18px rgba(76, 201, 191, 0.25);
+  box-shadow: 0 0 18px rgba(201, 99, 28, 0.35);
 }
 
 .portal-prompt:hover {
-  background: rgba(20, 46, 52, 0.96);
+  filter: brightness(1.12);
 }
 
 .portal-prompt[hidden] {
@@ -1178,7 +1328,7 @@ body {
 }
 
 .item-slot.item-equippable:hover {
-  border-color: #4cc9bf;
+  border-color: var(--gold-hell);
 }
 
 /* ==========================================================================
@@ -1598,7 +1748,7 @@ body {
   width: 2.6rem;
   height: 2.6rem;
   flex: 0 0 auto;
-  border: 1px solid var(--panel-edge);
-  border-radius: 2px;
-  background: #0d1318;
+  border: 1px solid var(--kachel-rand);
+  border-radius: 3px;
+  background: var(--kachel);
 }

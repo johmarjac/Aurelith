@@ -583,6 +583,53 @@ await page.screenshot({ path: join(root, 'artefakte', 'inventar.png') });
 const uhr = await page.locator('.vitals-clock').textContent();
 check(/^[☀🌙] \d{2}:\d{2}$/u.test(uhr ?? ''), 'die Weltuhr läuft', uhr ?? '(leer)');
 
+// --- Der Regler für die Größe der Oberfläche --------------------------------
+//
+// Gemessen wird die Wurzelschriftgröße, denn daran hängt alles andere: das
+// ganze Stylesheet rechnet in `rem`. Ein Test, der nur prüft, ob der Regler
+// dasteht, prüfte die Existenz eines Schiebers.
+
+await page.keyboard.press('KeyO');
+const einstellungen = page.locator('[data-window="settings"]');
+check(
+  await waitUntil(async () => (await einstellungen.getAttribute('data-open')) === 'true', 5000),
+  'die Einstellungen gehen auf',
+);
+
+const regler = einstellungen.locator('input[aria-label="Größe der Oberfläche"]');
+check((await regler.count()) === 1, 'es gibt einen Regler für die Größe der Oberfläche');
+
+const wurzelgroesse = async () =>
+  await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize));
+
+const groesseVorher = await wurzelgroesse();
+await page.evaluate(() => {
+  const r = document.querySelector('input[aria-label="Größe der Oberfläche"]');
+  r.value = '140';
+  r.dispatchEvent(new Event('input', { bubbles: true }));
+});
+const groesseNachher = await wurzelgroesse();
+check(
+  groesseNachher > groesseVorher * 1.2,
+  'der Regler vergrössert die ganze Oberfläche',
+  `${groesseVorher} px → ${groesseNachher} px`,
+);
+check(
+  (await page.evaluate(() => localStorage.getItem('aurelith.uiscale'))) === '1.4',
+  'und merkt sich die Einstellung',
+);
+
+// Zurück auf hundert Prozent: alles danach misst Layout, und ein Test, der
+// seine eigenen Vorbedingungen verschiebt, misst am Ende sich selbst.
+await page.evaluate(() => {
+  const r = document.querySelector('input[aria-label="Größe der Oberfläche"]');
+  r.value = '100';
+  r.dispatchEvent(new Event('input', { bubbles: true }));
+});
+check((await wurzelgroesse()) === groesseVorher, 'und lässt sich zurückstellen');
+await page.screenshot({ path: join(root, 'artefakte', 'einstellungen.png') });
+await page.keyboard.press('KeyO');
+
 // --- Quer gehaltenes Telefon -----------------------------------------------
 //
 // Achthundertzwanzig breit, knapp vierhundert hoch — die Maße eines Telefons
@@ -608,6 +655,15 @@ const quer = await page.evaluate(() => {
   const gescrollt = beutel.scrollTop;
   beutel.scrollTop = 0;
 
+  // Wie viele belegte Kacheln tatsächlich im Bild stehen. Das ist die Frage
+  // hinter der Beschwerde — „ich sehe das Inventar nicht" heisst: die Sachen
+  // darin sind nicht zu erreichen.
+  const belegteKacheln = [...document.querySelectorAll('.item-slot[data-bag-slot]')];
+  const imBild = belegteKacheln.filter((n) => {
+    const r = n.getBoundingClientRect();
+    return r.width > 0 && r.top >= 0 && r.bottom <= window.innerHeight;
+  }).length;
+
   return {
     bild: window.innerHeight,
     oben: Math.round(f.top),
@@ -616,6 +672,8 @@ const quer = await page.evaluate(() => {
     beutelUnten: Math.round(b.bottom),
     ueberlauf: beutel.scrollHeight - beutel.clientHeight,
     gescrollt,
+    belegt: belegteKacheln.length,
+    imBild,
   };
 });
 console.log('  · Querformat:', JSON.stringify(quer));
@@ -630,10 +688,14 @@ check(
   'der Beutel ist dabei zu sehen',
   `${quer?.beutelHoehe} px, Unterkante ${quer?.beutelUnten}`,
 );
+// Erreichbar heisst: entweder steht alles im Bild, oder was fehlt, lässt sich
+// heranscrollen. Die frühere Fassung verlangte einen Überlauf — seit das
+// Fenster den ganzen Bildschirm einnimmt, hat der Beutel Platz für alles, und
+// eine Prüfung, die auf Überlauf besteht, verlangte einen Missstand.
 check(
-  (quer?.ueberlauf ?? 0) > 0 && (quer?.gescrollt ?? 0) > 0,
-  'und lässt sich scrollen',
-  `Überlauf ${quer?.ueberlauf} px, gescrollt ${quer?.gescrollt} px`,
+  quer !== undefined && (quer.imBild === quer.belegt || quer.gescrollt > 0),
+  'jede belegte Kachel ist erreichbar',
+  `${quer?.imBild} von ${quer?.belegt} im Bild, Überlauf ${quer?.ueberlauf} px`,
 );
 
 await page.screenshot({ path: join(root, 'artefakte', 'inventar-quer.png') });

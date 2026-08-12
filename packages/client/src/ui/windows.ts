@@ -151,7 +151,10 @@ export class GameWindow {
    */
   clampIntoView(): void {
     if (!this.open) return;
-    if (window.matchMedia('(max-width: 700px)').matches) return;
+    // Wer nicht schwebt, wird nicht geschoben: Blattfenster und das
+    // bildschirmfüllende Inventar stehen im Stylesheet fest, und eine
+    // eingetragene Lage in Bildpunkten wäre eine zweite Meinung dazu.
+    if (getComputedStyle(this.element).position !== 'absolute') return;
 
     const sicht = window.visualViewport;
     const breite = sicht?.width ?? window.innerWidth;
