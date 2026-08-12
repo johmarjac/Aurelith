@@ -332,6 +332,25 @@ check(
   'auf einem Puffer fester Größe',
   `${puppenzustand.breite}×${puppenzustand.hoehe}`,
 );
+
+// Dieselbe Waffe wie draussen, und zwar dasselbe *Modell*.
+//
+// Die Puppe baute ihr Rig lange selbst und umging damit die Modellablage —
+// die tauscht den prozeduralen Platzhalter gegen das gelieferte Modell aus,
+// sobald es aus dem Streamer kommt. Im Inventar hing deshalb ein anderes
+// Schwert in der Hand als in der Welt, und keine Prüfung sah es: „hat ein
+// Modell" war die ganze Zeit wahr.
+const geladeneWaffen = await page.evaluate(() => window.aurelith.weaponModels ?? []);
+check(
+  geladeneWaffen.includes(puppenzustand.waffe),
+  'für die Waffe der Figur gibt es ein geliefertes Modell',
+  `${puppenzustand.waffe} in [${geladeneWaffen.join(', ')}]`,
+);
+check(
+  puppenzustand.waffeGeliefert,
+  'und die Puppe trägt es, nicht den Platzhalter',
+  puppenzustand.waffeGeliefert ? 'geliefert' : 'Platzhalter',
+);
 // Fester Puffer und freier Kasten heissen zusammen: das Bild muss sein
 // Verhältnis behalten dürfen. Ohne `contain` zieht CSS es auf die Kastenform,
 // und auf dem Telefon — wo das Fenster fast bildschirmbreit wird — stand die

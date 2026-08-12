@@ -33,6 +33,7 @@ import {
   upgradeName,
 } from '@aurelith/shared';
 import type { EntityVisual } from '../render/worldView.ts';
+import type { ModelRegistry } from '../render/modelRegistry.ts';
 import { GameWindow } from './windows.ts';
 import { DialogWindow, QuestLogWindow, ShopWindow, UpgradeWindow } from './npcWindows.ts';
 import { Overlay } from './overlay.ts';
@@ -254,7 +255,11 @@ export class UI {
 
   private lastStats?: StatsMsg;
 
-  constructor(host: HTMLElement, private readonly touch: boolean) {
+  constructor(
+    host: HTMLElement,
+    private readonly touch: boolean,
+    registry: ModelRegistry,
+  ) {
     this.host = host;
     // Die Anordnung hängt an der Bedienart, nicht an der Fensterbreite. Ein
     // Tablet quer ist zweitausend Pixel breit und wird trotzdem mit dem
@@ -362,7 +367,7 @@ export class UI {
      * zeigt, *wo* das Teil hingehört, und genau das muss man beim Anlegen
      * wissen. Eine Reihe gleicher Kästchen könnte alles bedeuten.
      */
-    this.doll = new DollView();
+    this.doll = new DollView(registry);
     const puppe = el('div', 'doll');
     const linkeSpalte = el('div', 'doll-slots links');
     const rechteSpalte = el('div', 'doll-slots rechts');
@@ -999,7 +1004,14 @@ export class UI {
   }
 
   /** Zustand der Puppe — nur zum Nachsehen. */
-  get dollState(): { bilder: number; rig: boolean; breite: number; hoehe: number } {
+  get dollState(): {
+    bilder: number;
+    rig: boolean;
+    breite: number;
+    hoehe: number;
+    waffe: string | undefined;
+    waffeGeliefert: boolean;
+  } {
     return this.doll.zustand;
   }
 

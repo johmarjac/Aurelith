@@ -366,7 +366,9 @@ export class Game {
     );
     this.scene.scene.add(this.view.root);
 
-    this.ui = new UI(uiHost, touch);
+    // Dieselbe Modellablage wie die Welt: die Figur im Inventar soll die Waffe
+    // tragen, die sie draussen trägt, und nicht deren Platzhalter.
+    this.ui = new UI(uiHost, touch, this.registry);
     this.input = new InputManager(canvas, this.scene, touch, uiHost);
 
     this.ui.onChatSubmit = (text) => this.onChatInput(text);
