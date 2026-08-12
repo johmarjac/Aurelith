@@ -121,6 +121,7 @@ jobs:
   #     PI_USER              Benutzer dort
   #     PI_SSH_KEY           privater Schlüssel (der ganze Block)
   #     PI_SSH_PASSPHRASE    falls der Schlüssel eine hat, sonst weglassen
+  #     PI_PASSWORD          Alternative zum Schlüssel, falls per Passwort
   #     PI_PATH              Pfad zum Repository, sonst /home/johmarjac/aurelith
   #     TELEGRAM_BOT_TOKEN   optional, für die Benachrichtigung
   #     TELEGRAM_CHAT_ID     optional, dieselbe
@@ -161,8 +162,20 @@ jobs:
         with:
           host: ${{ secrets.PI_HOST }}
           username: ${{ secrets.PI_USER }}
+          # Schlüssel *oder* Passwort — je nachdem, was hinterlegt ist. Leere
+          # Felder ignoriert die Aktion, also darf hier beides stehen.
+          #
+          # Der Schlüssel ist die haltbarere Wahl. Nicht weil ein Passwort
+          # unsicherer gespeichert wäre — beides liegt gleich geschützt als
+          # Secret —, sondern weil ein Passwort **alles** aufschliesst, was
+          # dieser Benutzer darf, sudo eingeschlossen. Ein Schlüssel lässt
+          # sich in authorized_keys auf genau einen Befehl festnageln.
+          #
+          # Und: PasswordAuthentication muss in der sshd_config erlaubt sein.
+          # Auf vielen Systemen ist sie inzwischen ab Werk aus.
           key: ${{ secrets.PI_SSH_KEY }}
           passphrase: ${{ secrets.PI_SSH_PASSPHRASE }}
+          password: ${{ secrets.PI_PASSWORD }}
           # Ohne das läuft das Skript weiter, wenn ein Befehl scheitert, und
           # der Schritt meldet trotzdem Erfolg.
           script_stop: true

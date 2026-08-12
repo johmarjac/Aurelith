@@ -428,9 +428,28 @@ Settings → Secrets and variables → Actions:
 | `PI_USER` | Benutzer dort |
 | `PI_SSH_KEY` | privater Schlüssel, der ganze Block |
 | `PI_SSH_PASSPHRASE` | nur falls der Schlüssel eine hat |
+| `PI_PASSWORD` | statt des Schlüssels, falls per Passwort angemeldet wird |
 | `PI_PATH` | Pfad zum Repository, sonst `/home/johmarjac/aurelith` |
 | `TELEGRAM_BOT_TOKEN` | optional, für die Benachrichtigung |
 | `TELEGRAM_CHAT_ID` | optional, dieselbe |
+
+Schlüssel **oder** Passwort, je nachdem was hinterlegt ist — leere Felder
+ignoriert die Aktion. Der Schlüssel ist die haltbarere Wahl: nicht weil ein
+Passwort schlechter gespeichert wäre, beides liegt gleich geschützt als
+Secret, sondern weil ein Passwort alles aufschließt, was dieser Benutzer darf,
+sudo eingeschlossen. Ein Schlüssel lässt sich in `authorized_keys` auf genau
+einen Befehl festnageln:
+
+```
+command="cd /home/johmarjac/aurelith && ./update.sh",no-port-forwarding,no-pty ssh-ed25519 AAAA...
+```
+
+Ein solcher Schlüssel *zusätzlich* ändert nichts daran, wie man sich selbst
+anmeldet — Passwort und Schlüssel gelten nebeneinander.
+
+Bei Passwort muss `PasswordAuthentication yes` in der `sshd_config` stehen. Auf
+vielen Systemen ist sie ab Werk aus, und dann scheitert der Schritt mit
+*permission denied*, obwohl das Passwort stimmt.
 
 Fehlt `PI_HOST`, wird der Schritt übersprungen und der Workflow bleibt grün —
 so lässt sich das Repository auch ohne Pi bauen.
