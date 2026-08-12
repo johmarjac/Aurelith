@@ -1133,21 +1133,28 @@ export class GameServer {
     if (mode === 0) {
       // Nur was der Händler auch führt. Sonst kaufte man sich per Paket die
       // Eisenklinge bei der Kräuterfrau.
-      if (!npc.shop?.includes(itemId)) return;
+      const angebot = npc.shop?.find((o) => o.item === itemId);
+      if (!angebot) return;
 
-      const preis = def.value * menge;
+      // Der Posten bestimmt Preis und Aufwertung, nicht der Grundwert allein:
+      // Bregan führt ein Holzschwert +10 für ein Goldstück.
+      const stueckpreis = angebot.price ?? def.value;
+      const preis = stueckpreis * menge;
       if (character.gold < preis) {
         this.systemMessage(session, `Dafür fehlen ${preis - character.gold} Gold.`);
         return;
       }
 
-      const angekommen = addItem(session.items, itemId, menge);
+      const angekommen = addItem(session.items, itemId, menge, angebot.upgrade ?? 0);
       if (angekommen === 0) {
         this.systemMessage(session, 'Der Beutel ist voll.');
         return;
       }
-      character.gold -= def.value * angekommen;
-      this.systemMessage(session, `${def.name} ×${angekommen} gekauft.`);
+      character.gold -= stueckpreis * angekommen;
+      this.systemMessage(
+        session,
+        `${upgradeName(def, angebot.upgrade ?? 0)} ×${angekommen} gekauft.`,
+      );
     } else {
       // Verkauft wird ein Platz, keine Sorte: sonst wandert die +7 über den
       // Tresen, weil sie dieselbe Kennung trägt wie die +0 daneben.

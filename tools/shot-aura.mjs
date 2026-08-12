@@ -81,7 +81,7 @@ const page = await browser.newPage({ viewport: { width: 1200, height: 520 } });
 await page.goto('http://127.0.0.1:5197/?name=Aura', { waitUntil: 'domcontentloaded' });
 await page.waitForTimeout(1500);
 
-const STUFEN = [0, 4, 7, 10];
+const STUFEN = [3, 4, 6, 8, 10];
 
 await page.evaluate(async (stufen) => {
   // Über den Bare-Specifier, den Vite selbst auflöst — ein Pfad in
@@ -123,7 +123,7 @@ await page.evaluate(async (stufen) => {
       new THREE.MeshLambertMaterial({ vertexColors: true }),
       'sword',
     );
-    rig.root.position.set((i - (stufen.length - 1) / 2) * 1.9, 0, 0);
+    rig.root.position.set((i - (stufen.length - 1) / 2) * 1.7, 0, 0);
     // Halb zur Seite gedreht: von vorn verdeckt der Arm die Klinge.
     rig.root.rotation.y = 0.6;
     rig.update({ speed: 0, attackPhase: -1, dead: false, time: 0, dt: 1 / 60 });

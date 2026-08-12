@@ -301,15 +301,18 @@ export class ShopWindow {
 
     const kaufen = el('section', 'shop-side');
     kaufen.append(el('h3', 'shop-head', 'Waren'));
-    for (const itemId of def?.shop ?? []) {
-      const item = getItem(itemId);
+    for (const angebot of def?.shop ?? []) {
+      const item = getItem(angebot.item);
       if (!item) continue;
+      // Preis und Aufwertung stehen am Posten, nicht am Gegenstand: derselbe
+      // Gegenstand kann bei zwei Händlern verschieden über den Tresen gehen.
+      const preis = angebot.price ?? item.value;
       const zeile = el('div', 'shop-row');
-      zeile.dataset.leistbar = String(this.gold >= item.value);
+      zeile.dataset.leistbar = String(this.gold >= preis);
       zeile.append(
-        el('span', 'shop-name', item.name),
-        el('span', 'shop-price', `${item.value} G`),
-        button('Kaufen', () => this.onBuy?.(itemId, 1), 'btn shop-action'),
+        el('span', 'shop-name', upgradeName(item, angebot.upgrade ?? 0)),
+        el('span', 'shop-price', `${preis} G`),
+        button('Kaufen', () => this.onBuy?.(angebot.item, 1), 'btn shop-action'),
       );
       zeile.title = item.description;
       kaufen.append(zeile);

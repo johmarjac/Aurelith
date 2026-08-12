@@ -83,11 +83,16 @@ export function upgradeName(def: ItemDef, level: number): string {
 /**
  * Wie stark die Aura leuchtet, 0 bis 1.
  *
- * Unter `GLOW_FROM` gar nicht, darüber linear bis +10. Eine Zahl statt einer
- * Fallunterscheidung, damit Renderer und Oberfläche dieselbe Kurve benutzen.
+ * Unter `GLOW_FROM` gar nicht, ab dort auf einen Schlag deutlich sichtbar und
+ * von da an linear bis +10. Der Sockel ist der Punkt: die erste Fassung fing
+ * bei einem Siebtel an, und ein Leuchten, das man suchen muss, ist keine
+ * Belohnung. Wer +4 erreicht, soll es von weitem sehen.
+ *
+ * Eine Zahl statt einer Fallunterscheidung, damit Renderer und Oberfläche
+ * dieselbe Kurve benutzen.
  */
 export function glowStrength(level: number): number {
   if (level < GLOW_FROM) return 0;
-  const t = (level - GLOW_FROM + 1) / (MAX_UPGRADE - GLOW_FROM + 1);
-  return Math.max(0, Math.min(1, t));
+  const t = (level - GLOW_FROM) / (MAX_UPGRADE - GLOW_FROM);
+  return Math.max(0, Math.min(1, 0.42 + 0.58 * t));
 }

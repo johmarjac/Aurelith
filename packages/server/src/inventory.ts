@@ -35,13 +35,20 @@ function freeSlot(items: ItemRecord[]): number {
  * weniger als verlangt und womöglich null. Wer das ignoriert, verschenkt
  * Gegenstände ins Nichts, und genau das soll die Rückgabe verhindern.
  */
-export function addItem(items: ItemRecord[], itemId: string, count: number): number {
+export function addItem(
+  items: ItemRecord[],
+  itemId: string,
+  count: number,
+  upgrade = 0,
+): number {
   const def: ItemDef | undefined = getItem(itemId);
   if (!def || count <= 0) return 0;
 
   let rest = count;
 
-  if (def.stackable) {
+  // Aufgewertetes stapelt nicht: zwei +10-Klingen wären ein Stapel, dem man
+  // nachher nicht mehr ansieht, dass beide aufgewertet sind.
+  if (def.stackable && upgrade === 0) {
     for (const row of items) {
       if (row.itemId !== itemId || row.upgrade !== 0) continue;
       const platz = def.maxStack - row.count;
@@ -56,8 +63,8 @@ export function addItem(items: ItemRecord[], itemId: string, count: number): num
   while (rest > 0) {
     const slot = freeSlot(items);
     if (slot < 0) break;
-    const nimm = def.stackable ? Math.min(def.maxStack, rest) : 1;
-    items.push({ itemId, count: nimm, slot, equipped: false, upgrade: 0 });
+    const nimm = def.stackable && upgrade === 0 ? Math.min(def.maxStack, rest) : 1;
+    items.push({ itemId, count: nimm, slot, equipped: false, upgrade });
     rest -= nimm;
   }
 

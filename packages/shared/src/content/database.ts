@@ -219,13 +219,26 @@ export interface NpcDef {
   /** Erste Zeile im Dialogfenster. */
   greeting: string;
   /**
-   * Was dieser NPC verkauft — Gegenstandskennungen.
+   * Was dieser NPC verkauft.
    *
    * Fehlt die Liste, hat er keinen Laden. Der Bestand ist unbegrenzt: ein
    * Händler, dem die Tränke ausgehen, ist eine Verwaltungsaufgabe ohne
    * Spielwert, solange es nur einen Server und eine Handvoll Spieler gibt.
    */
-  shop?: ReadonlyArray<string>;
+  shop?: ReadonlyArray<ShopOffer>;
+}
+
+/**
+ * Ein Posten im Laden.
+ *
+ * Mehr als eine Kennung, weil dasselbe Stück in verschiedenen Zuständen über
+ * den Tresen gehen kann: `upgrade` legt fest, wie aufgewertet die Ware ist,
+ * `price` übersteuert den Grundwert. Beides fehlt im Normalfall.
+ */
+export interface ShopOffer {
+  item: string;
+  upgrade?: number;
+  price?: number;
 }
 
 const npcList: NpcDef[] = [
@@ -251,7 +264,16 @@ const npcList: NpcDef[] = [
     radius: 0.55,
     height: 1.9,
     greeting: 'Holzschwerter halten nicht ewig. Bring mir Erz, dann reden wir über Stahl.',
-    shop: ['rusty_dagger', 'iron_blade', 'training_vest'],
+    shop: [
+      { item: 'rusty_dagger' },
+      { item: 'iron_blade' },
+      { item: 'training_vest' },
+      // Zum Ausprobieren: ein voll aufgewertetes Holzschwert für einen
+      // Goldstück. Steht bewusst als eigener Posten da und nicht als
+      // Sonderfall im Code — wer es später herausnehmen will, streicht eine
+      // Zeile.
+      { item: 'wooden_sword', upgrade: 10, price: 1 },
+    ],
   },
   {
     id: 'npc_merchant',
@@ -263,7 +285,7 @@ const npcList: NpcDef[] = [
     radius: 0.5,
     height: 1.72,
     greeting: 'Tränke, Bandagen, Reiseproviant. Alles ehrlich gehandelt.',
-    shop: ['potion_hp_small', 'wooden_bow', 'wooden_sword'],
+    shop: [{ item: 'potion_hp_small' }, { item: 'wooden_bow' }, { item: 'wooden_sword' }],
   },
   {
     id: 'npc_gatekeeper',

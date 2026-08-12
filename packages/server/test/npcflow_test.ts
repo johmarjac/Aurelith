@@ -433,6 +433,22 @@ check((stats?.gold ?? 0) < goldBeimSchmied, 'und kostet Gold', `${goldBeimSchmie
 const angriffMitPlus = stats?.attackDamage ?? 0;
 check(angriffMitPlus > 0, 'der Angriffswert steht', String(angriffMitPlus));
 
+// Bregans Ausstellungsstück: ein Holzschwert +10 für ein Goldstück. Es geht
+// mit seiner Aufwertung in den Beutel — nicht als +0, das ein Sonderfall im
+// Code wäre.
+const goldVorKauf = stats?.gold ?? 0;
+send(encodeShopTrade(0, 'wooden_sword', 1));
+const bisGekauft = Date.now() + 5000;
+while (Date.now() < bisGekauft && !inventory.some((i) => i.upgrade === 10)) await sleep(50);
+
+const prunkstueck = inventory.find((i) => i.itemId === 'wooden_sword' && i.upgrade === 10);
+check(prunkstueck !== undefined, 'das Holzschwert +10 liegt im Beutel');
+check((stats?.gold ?? 0) === goldVorKauf - 1, 'und hat genau ein Gold gekostet', `${goldVorKauf} → ${stats?.gold}`);
+check(
+  inventory.filter((i) => i.itemId === 'wooden_sword').length >= 2,
+  'es stapelt nicht mit dem gewöhnlichen Holzschwert',
+);
+
 // Etwas, das sich nicht aufwerten lässt, wird abgelehnt — und kostet nichts.
 const trank = inventory.find((i) => i.itemId === 'potion_hp_small');
 const goldVorTrank = stats?.gold ?? 0;
