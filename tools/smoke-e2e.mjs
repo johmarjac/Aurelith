@@ -553,7 +553,11 @@ mobilePage.on('console', (m) => mobileConsole.push(`[${m.type()}] ${m.text()}`))
 // Hintergrund, und darauf laeuft die Spielschleife. Ohne das laeuft die
 // Simulation waehrend der Messung kaum weiter, und der Test kippt sporadisch.
 await mobilePage.bringToFront();
-await mobilePage.goto('http://127.0.0.1:5199/?name=Mobil', { waitUntil: 'domcontentloaded' });
+// Ein Name in üblicher Länge, nicht der kürzestmögliche: die Kopfzeile oben
+// links ist genau dann eng, wenn jemand nicht „Ada" heisst.
+await mobilePage.goto('http://127.0.0.1:5199/?name=Mobilheld123', {
+  waitUntil: 'domcontentloaded',
+});
 // Auf „verbunden" zu warten reicht nicht: die Figur entsteht erst, wenn der
 // erste Snapshot sie meldet. Wer vorher misst, misst eine Figur, die es noch
 // nicht gibt — und bekommt einen Test, der mal durchgeht und mal nicht.
@@ -674,6 +678,44 @@ if (mobileMode.hasJoystick && mobileReady) {
   check(
     Math.abs(pinch.after - pinch.before) > 0.3,
     `Mobil: Zwei-Finger-Geste zoomt (${pinch.before.toFixed(1)} → ${pinch.after.toFixed(1)})`,
+  );
+}
+
+// --- Mobil: passt die Kopfzeile in ihren Kasten? ---------------------------
+//
+// Hochkant ist der Platz oben links am knappsten: Name, Uhr und Stufe stehen
+// in einer Zeile, und ein langer Name schob die Stufe frueher aus dem Kasten
+// heraus. Geprueft wird deshalb in Bildpunkten und nicht mit dem Auge — ob
+// etwas ueber eine Kante haengt, ist eine Zahl.
+const kopfzeile = await mobilePage.evaluate(() => {
+  const kasten = document.querySelector('.vitals')?.getBoundingClientRect();
+  const name = document.querySelector('.vitals-name')?.getBoundingClientRect();
+  const uhr = document.querySelector('.vitals-clock')?.getBoundingClientRect();
+  const stufe = document.querySelector('.vitals-level')?.getBoundingClientRect();
+  if (!kasten || !name || !uhr || !stufe) return undefined;
+  return {
+    kasten: { left: kasten.left, right: kasten.right, width: kasten.width },
+    ueberstand: Math.max(name.right, uhr.right, stufe.right) - kasten.right,
+    // Ganz eingeklappte Elemente sind genauso falsch wie ueberstehende: dann
+    // steht die Stufe zwar im Kasten, aber als Strich.
+    schmalstes: Math.min(name.width, uhr.width, stufe.width),
+    fensterbreite: window.innerWidth,
+  };
+});
+
+check(kopfzeile !== undefined, 'Mobil: Kopfzeile ist da');
+if (kopfzeile) {
+  check(
+    kopfzeile.ueberstand <= 1,
+    `Mobil: Name, Uhr und Stufe bleiben im Kasten (Ueberstand ${kopfzeile.ueberstand.toFixed(1)} px)`,
+  );
+  check(
+    kopfzeile.schmalstes > 24,
+    `Mobil: nichts davon ist zusammengequetscht (schmalstes ${kopfzeile.schmalstes.toFixed(0)} px)`,
+  );
+  check(
+    kopfzeile.kasten.right <= kopfzeile.fensterbreite,
+    `Mobil: der Kasten selbst passt aufs Bild (${kopfzeile.kasten.width.toFixed(0)} von ${kopfzeile.fensterbreite} px)`,
   );
 }
 

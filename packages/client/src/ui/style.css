@@ -140,6 +140,15 @@ body {
 
 /* --- Statusleisten -------------------------------------------------------- */
 
+/*
+ * Der Kasten oben links.
+ *
+ * Die Breite ist hochkant der Engpass: 46vw sind auf einem Telefon knapp
+ * hundertachtzig Bildpunkte, und darin standen Name, Uhr und Stufe nebeneinander
+ * — die Stufe hing vierzig Bildpunkte über den Rand hinaus. Am Schreibtisch
+ * bleibt es bei 46vw, dort ist der Kasten sonst unnötig breit; auf schmalen
+ * Geräten gilt die Regel weiter unten.
+ */
 .vitals {
   position: absolute;
   top: calc(var(--safe-t) + var(--gap));
@@ -163,6 +172,22 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /*
+   * `min-width: 0` ist die eigentliche Zeile.
+   *
+   * Ein Flex-Element schrumpft von sich aus nicht unter seinen Inhalt, und
+   * damit läuft `text-overflow: ellipsis` ins Leere: statt zu kürzen, schiebt
+   * der Name alles rechts daneben aus dem Kasten. Erst damit greift die
+   * Kürzung — und der Name ist das Einzige, das sich kürzen lässt, ohne dass
+   * etwas fehlt.
+   */
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.vitals-clock,
+.vitals-level {
+  flex: 0 0 auto;
 }
 
 .vitals-level {
@@ -393,6 +418,15 @@ body {
 
 /* Auf schmalen Geräten werden Fenster zu Blättern am unteren Rand. */
 @media (max-width: 700px) {
+  /*
+   * Hochkant darf der Werte-Kasten breiter sein. Er verdeckt dort nichts, was
+   * man zum Spielen braucht — die Figur steht in der Mitte —, und drei Angaben
+   * in einer Zeile brauchen den Platz.
+   */
+  .vitals {
+    width: min(17rem, 72vw);
+  }
+
   .window {
     left: 0 !important;
     right: 0;
