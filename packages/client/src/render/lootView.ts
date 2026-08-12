@@ -19,12 +19,14 @@ import { buildItemGeometry } from './itemModels.ts';
 /**
  * Wie gross die Haufen im Bild sind.
  *
- * Deutlich grösser als der Gegenstand in Wirklichkeit wäre. Ein Münzstapel
- * mit realistischem Durchmesser ist aus zehn Metern ein paar Bildpunkte —
- * man findet ihn dann nur über sein Schild, und das Modell wird zur
- * Behauptung. Beute soll man sehen, bevor man den Text liest.
+ * Ein Viertel dessen, was hier zwischenzeitlich stand. Der Weg dahin ging
+ * zweimal daneben, und beide Male in dieselbe Richtung: erst lag die Beute in
+ * Originalgrösse da und war aus zehn Metern kaum zu finden, dann auf mehr als
+ * dem Doppelten und wirkte wie Requisiten neben der Figur. Ein Gegenstand am
+ * Boden soll klein sein — gefunden wird er über sein Schild, das Modell sagt
+ * nur, *was* dort liegt.
  */
-const SCALE = 2.2;
+const SCALE = 0.55;
 
 /** Wie hoch die Beute über dem Boden schwebt, und wie weit sie dabei wippt. */
 const HOVER = 0.45;
