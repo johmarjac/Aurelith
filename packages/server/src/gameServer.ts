@@ -37,6 +37,7 @@ import {
   decodeQuestAction,
   decodeSetTarget,
   decodeShopTrade,
+  decodeUpgradeItem,
   decodeUsePortal,
   encodeCombatEvent,
   encodeInventory,
@@ -51,11 +52,17 @@ import {
   encodeWelcome,
   expForLevel,
   expGain,
+  MAX_UPGRADE,
   getItem,
   getNpc,
   getQuest,
+  isUpgradable,
   type ItemDef,
   readPacket,
+  upgradeBonus,
+  upgradeChance,
+  upgradeCost,
+  upgradeName,
   type SpawnRow,
   turnInOf,
   type UpdateRow,
@@ -66,7 +73,7 @@ import type { CoreBundle } from './core.ts';
 import type { MapStore } from './maps.ts';
 import { MapInstance } from './mapInstance.ts';
 import { INPUT_QUEUE_DRAIN_AT, INPUT_QUEUE_DRAIN_MAX, Session } from './session.ts';
-import { addItem, removeItem, sellPrice } from './inventory.ts';
+import { addItem, removeItem, removeSlot, sellPrice } from './inventory.ts';
 import type { GameStore } from './db/index.ts';
 
 /** Wie nah man an einem NPC stehen muss, um ihn anzusprechen. */
@@ -204,8 +211,14 @@ export class GameServer {
         }
         case ClientOp.EquipItem: {
           if (session.state !== 'playing') break;
-          const { itemId } = decodeEquipItem(reader);
-          this.equipItem(session, itemId);
+          const { slot } = decodeEquipItem(reader);
+          this.equipItem(session, slot);
+          break;
+        }
+        case ClientOp.UpgradeItem: {
+          if (session.state !== 'playing') break;
+          const { slot } = decodeUpgradeItem(reader);
+          this.upgradeItem(session, slot);
           break;
         }
         case ClientOp.Interact: {
@@ -222,8 +235,8 @@ export class GameServer {
         }
         case ClientOp.ShopTrade: {
           if (session.state !== 'playing') break;
-          const { mode, itemId, count } = decodeShopTrade(reader);
-          this.shopTrade(session, mode, itemId, count);
+          const { mode, itemId, count, slot } = decodeShopTrade(reader);
+          this.shopTrade(session, mode, itemId, count, slot);
           break;
         }
         case ClientOp.Respawn:
@@ -333,6 +346,7 @@ export class GameServer {
       name: accountName,
       type: EntityType.Player,
       weapon: profile.rig,
+      weaponUpgrade: this.mainhandEntry(session)?.upgrade ?? 0,
     });
     instance.playerIds.add(session.entityId);
     this.sessionByEntity.set(session.entityId, session);
@@ -609,6 +623,7 @@ export class GameServer {
         state: row.state as EntityState,
         aggro: row.targetId !== 0,
         weapon: meta?.weapon ?? '',
+        weaponUpgrade: meta?.weaponUpgrade ?? 0,
       });
       session.known.add(row.id);
     }
@@ -749,6 +764,7 @@ export class GameServer {
       name: session.accountName,
       type: EntityType.Player,
       weapon: profile.rig,
+      weaponUpgrade: this.mainhandEntry(session)?.upgrade ?? 0,
     });
     to.playerIds.add(session.entityId);
     this.sessionByEntity.set(session.entityId, session);
@@ -786,18 +802,18 @@ export class GameServer {
   /**
    * Legt einen Gegenstand an.
    *
-   * Der Client sagt nur, *welchen*. Ob er ihn besitzt und ob die Stufe reicht,
-   * entscheidet ausschliesslich diese Stelle — sonst legte sich jeder per Paket
-   * an, was er nicht hat.
+   * Der Client sagt nur, *welchen Platz*. Ob dort etwas liegt und ob die Stufe
+   * reicht, entscheidet ausschliesslich diese Stelle — sonst legte sich jeder
+   * per Paket an, was er nicht hat.
    *
    * Ein zweiter Gegenstand im selben Platz verdrängt den ersten. Das ist das
    * ganze Ausrüstungssystem: eine Hand, eine Waffe.
    */
-  private equipItem(session: Session, itemId: string): void {
-    const entry = session.items.find((i) => i.itemId === itemId);
+  private equipItem(session: Session, slot: number): void {
+    const entry = session.items.find((i) => i.slot === slot);
     if (!entry) return;
 
-    const def = getItem(itemId);
+    const def = getItem(entry.itemId);
     if (!def || def.slot === 'none') return;
 
     const level = session.character?.level ?? 1;
@@ -821,7 +837,81 @@ export class GameServer {
     this.applyLoadout(session);
     this.sendInventory(session);
     this.sendStats(session);
-    this.systemMessage(session, `${def.name} angelegt.`);
+    this.systemMessage(session, `${upgradeName(def, entry.upgrade)} angelegt.`);
+  }
+
+  /**
+   * Wertet einen Gegenstand auf, +0 bis +10.
+   *
+   * Der Wurf passiert hier und nirgends sonst. Ein Fehlschlag kostet das Gold
+   * und lässt die Stufe stehen — die Waffe zu zerstören wäre die Vorlage aus
+   * den Neunzigern, und sie hat damals schon mehr Leute vertrieben als
+   * gebunden.
+   */
+  private upgradeItem(session: Session, slot: number): void {
+    const character = session.character;
+    const entry = session.items.find((i) => i.slot === slot);
+    if (!character || !entry) return;
+
+    const def = getItem(entry.itemId);
+    if (!def || !isUpgradable(def)) {
+      this.systemMessage(session, 'Das lässt sich nicht aufwerten.');
+      return;
+    }
+
+    // Nur beim Schmied. Wie beim Handel ist der Client hier nur der Antrag.
+    if (!this.nearSmith(session)) {
+      this.systemMessage(session, 'Dafür brauchst du einen Schmied.');
+      return;
+    }
+
+    if (entry.upgrade >= MAX_UPGRADE) {
+      this.systemMessage(session, `${upgradeName(def, entry.upgrade)} ist am Anschlag.`);
+      return;
+    }
+
+    const kosten = upgradeCost(def, entry.upgrade);
+    if (character.gold < kosten) {
+      this.systemMessage(session, `Dafür fehlen ${kosten - character.gold} Gold.`);
+      return;
+    }
+
+    character.gold -= kosten;
+    session.itemsDirty = true;
+
+    if (Math.random() <= upgradeChance(entry.upgrade)) {
+      entry.upgrade++;
+      this.systemMessage(session, `Aufwertung gelungen: ${upgradeName(def, entry.upgrade)}.`);
+    } else {
+      this.systemMessage(
+        session,
+        `Aufwertung misslungen. ${upgradeName(def, entry.upgrade)} bleibt, das Gold ist weg.`,
+      );
+    }
+
+    // Auch der Fehlschlag geht durch `applyLoadout`: das Gold hat sich
+    // geändert, und wer die Waffe trägt, soll den neuen Stand sehen.
+    if (entry.equipped) this.applyLoadout(session);
+    this.sendInventory(session);
+    this.sendStats(session);
+    session.flush();
+  }
+
+  /** Steht ein Schmied in Reichweite? */
+  private nearSmith(session: Session): boolean {
+    const instance = this.instances.get(session.mapId);
+    const self = instance?.entity(session.entityId);
+    if (!instance || !self) return false;
+
+    for (const row of instance.entities) {
+      const meta = instance.metaFor(row.id);
+      if (!meta || meta.type !== EntityType.Npc) continue;
+      if (getNpc(meta.defId)?.role !== 'smith') continue;
+      const dx = row.x - self.x;
+      const dz = row.z - self.z;
+      if (dx * dx + dz * dz <= INTERACT_RANGE * INTERACT_RANGE) return true;
+    }
+    return false;
   }
 
   /**
@@ -858,7 +948,10 @@ export class GameServer {
     );
 
     const meta = instance.metaFor(session.entityId);
-    if (meta) meta.weapon = profile.rig;
+    if (meta) {
+      meta.weapon = profile.rig;
+      meta.weaponUpgrade = this.mainhandEntry(session)?.upgrade ?? 0;
+    }
 
     // Der Snapshot schickt eine volle Zeile nur für Unbekanntes. Damit die
     // neue Waffe bei allen ankommt, muss die Figur einmal als neu gelten.
@@ -873,6 +966,7 @@ export class GameServer {
           count: i.count,
           slot: i.slot,
           equipped: i.equipped,
+          upgrade: i.upgrade,
         })),
       ),
     );
@@ -1018,7 +1112,13 @@ export class GameServer {
   }
 
   /** Kaufen und verkaufen. `mode` ist 0 für kaufen, 1 für verkaufen. */
-  private shopTrade(session: Session, mode: number, itemId: string, count: number): void {
+  private shopTrade(
+    session: Session,
+    mode: number,
+    itemId: string,
+    count: number,
+    slot: number,
+  ): void {
     const character = session.character;
     const def = getItem(itemId);
     if (!character || !def) return;
@@ -1049,13 +1149,21 @@ export class GameServer {
       character.gold -= def.value * angekommen;
       this.systemMessage(session, `${def.name} ×${angekommen} gekauft.`);
     } else {
-      if (!removeItem(session.items, itemId, menge)) {
+      // Verkauft wird ein Platz, keine Sorte: sonst wandert die +7 über den
+      // Tresen, weil sie dieselbe Kennung trägt wie die +0 daneben.
+      const genommen = removeSlot(session.items, slot, menge);
+      if (!genommen || genommen.itemId !== itemId) {
         this.systemMessage(session, 'So viel ist nicht da.');
         return;
       }
-      const erloes = sellPrice(def) * menge;
+      // Aufgewertetes bringt mehr — was hineingesteckt wurde, ist nicht weg.
+      const zuschlag = 1 + genommen.upgrade * 0.35;
+      const erloes = Math.round(sellPrice(def) * menge * zuschlag);
       character.gold += erloes;
-      this.systemMessage(session, `${def.name} ×${menge} verkauft (+${erloes} Gold).`);
+      this.systemMessage(
+        session,
+        `${upgradeName(def, genommen.upgrade)} ×${menge} verkauft (+${erloes} Gold).`,
+      );
     }
 
     session.itemsDirty = true;
@@ -1198,14 +1306,19 @@ export class GameServer {
   }
 
   /** Grundwerte der Stufe plus Boni der angelegten Ausrüstung. */
-  /** Die angelegte Hauptwaffe, oder nichts. */
-  private mainhandOf(session: Session): ItemDef | undefined {
+  /** Der angelegte Hauptwaffen-Eintrag mitsamt Aufwertung, oder nichts. */
+  private mainhandEntry(session: Session): (typeof session.items)[number] | undefined {
     for (const entry of session.items) {
       if (!entry.equipped) continue;
-      const def = getItem(entry.itemId);
-      if (def?.slot === 'mainhand') return def;
+      if (getItem(entry.itemId)?.slot === 'mainhand') return entry;
     }
     return undefined;
+  }
+
+  /** Die angelegte Hauptwaffe, oder nichts. */
+  private mainhandOf(session: Session): ItemDef | undefined {
+    const entry = this.mainhandEntry(session);
+    return entry ? getItem(entry.itemId) : undefined;
   }
 
   /** Angriffsprofil aus der angelegten Waffe. Eine Stelle, drei Nutzer. */
@@ -1222,6 +1335,12 @@ export class GameServer {
       if (!def) continue;
       stats.attackDamage += def.attackDamage;
       stats.defense += def.defense;
+
+      // Die Aufwertung kommt obendrauf und wird nicht eingerechnet: `+7` ist
+      // ein Zuschlag auf das Stück, keine andere Waffe.
+      const bonus = upgradeBonus(def, entry.upgrade);
+      stats.attackDamage += bonus.attackDamage;
+      stats.defense += bonus.defense;
     }
     return stats;
   }

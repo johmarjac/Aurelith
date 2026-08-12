@@ -343,12 +343,14 @@ export class Game {
 
     this.ui.onChatSubmit = (text) => this.onChatInput(text);
     this.ui.onRespawn = () => this.connection?.sendRespawn();
-    this.ui.onEquipItem = (itemId) => this.connection?.sendEquipItem(itemId);
+    this.ui.onEquipItem = (slot) => this.connection?.sendEquipItem(slot);
+    this.ui.onUpgradeItem = (slot) => this.connection?.sendUpgradeItem(slot);
     this.ui.onUsePortal = () => this.usePortal();
     this.ui.onQuestAction = (questId, action) =>
       this.connection?.sendQuestAction(questId, action);
     this.ui.onBuy = (itemId, count) => this.connection?.sendShopTrade(0, itemId, count);
-    this.ui.onSell = (itemId, count) => this.connection?.sendShopTrade(1, itemId, count);
+    this.ui.onSell = (itemId, count, slot) =>
+      this.connection?.sendShopTrade(1, itemId, count, slot);
     this.ui.onAttackHold = (held) => this.input.setAttackButton(held);
     this.input.onPick = (x, y) => this.pickTarget(x, y);
     this.input.onAttackPressed = () => this.view.triggerAttack(this.localId);

@@ -178,6 +178,54 @@ check(
   'Aurel bietet keinen Laden an',
 );
 
+// --- Gegenstände: Name und Beschreibung auf Tippen -------------------------
+//
+// Das ist der Teil, der auf dem Telefon fehlte: die Beschreibung hing am
+// `title`-Attribut, und das zeigt ohne Maus niemand an. Geprüft wird deshalb
+// mit einem einfachen Klick — genau das, was ein Finger auslöst.
+
+await page.keyboard.press('KeyI');
+const inventar = page.locator('[data-window="inventory"]');
+check(
+  await waitUntil(async () => (await inventar.getAttribute('data-open')) === 'true', 5000),
+  'das Inventar geht auf',
+);
+
+const belegte = inventar.locator('.item-slot:not(.item-empty)');
+check((await belegte.count()) >= 3, 'es liegen Gegenstände darin', String(await belegte.count()));
+
+const detail = page.locator('.item-detail');
+await belegte.first().click();
+check(
+  await waitUntil(async () => await detail.isVisible(), 3000),
+  'ein Klick zeigt die Beschreibung',
+);
+const detailText = (await detail.textContent()) ?? '';
+check(detailText.includes('Holzschwert'), 'mit dem Namen des Gegenstands', detailText.slice(0, 40));
+check(detailText.includes('Waffe'), 'und seiner Art');
+check(/Angriff \d/.test(detailText), 'samt Werten', detailText.match(/Angriff \d+/)?.[0] ?? '—');
+
+// Nochmal auf dieselbe Kachel klappt wieder zu — anders käme man auf einem
+// Telefon nicht heraus.
+await belegte.first().click();
+check(!(await detail.isVisible()), 'ein zweiter Klick klappt sie zu');
+
+// Anlegen über den Knopf: der Doppelklick ist auf Touch unzuverlässig, und
+// vorher war er der einzige Weg.
+const bogen = inventar.locator('.item-slot', { hasText: '' }).nth(1);
+await bogen.click();
+const anlegen = detail.getByRole('button', { name: 'Anlegen' });
+if (await anlegen.count()) {
+  await anlegen.click();
+  check(
+    await waitUntil(
+      async () => ((await page.locator('.chat-log').textContent()) ?? '').includes('angelegt'),
+      5000,
+    ),
+    'der Knopf legt den Gegenstand an',
+  );
+}
+
 // --- Die Uhr ---------------------------------------------------------------
 
 const uhr = await page.locator('.vitals-clock').textContent();

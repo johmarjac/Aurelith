@@ -1126,3 +1126,113 @@ body {
   font-size: 0.72rem;
   padding: 0.15rem 0.5rem;
 }
+
+/* ==========================================================================
+ * Gegenstandsbeschreibung und Aufwertung
+ * ==========================================================================
+ */
+
+/*
+ * Die Aufwertung auf der Kachel.
+ *
+ * Oben links, weil unten rechts schon die Stückzahl steht. Beide gleichzeitig
+ * gibt es zwar nie — Aufgewertetes stapelt nicht —, aber zwei Zahlen an
+ * derselben Ecke wären eine Falle für den Tag, an dem sich das ändert.
+ */
+.item-upgrade {
+  position: absolute;
+  top: 1px;
+  left: 2px;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--gold);
+  text-shadow: 0 0 3px #000, 0 1px 2px #000;
+  pointer-events: none;
+}
+
+/*
+ * Die Beschreibung unter dem Raster.
+ *
+ * Sie ersetzt das `title`-Attribut, das auf einem Telefon nichts anzeigt: dort
+ * gibt es kein Überfahren mit der Maus, und damit war der Name eines
+ * Gegenstands schlicht nicht herauszufinden.
+ */
+/*
+ * `display: flex` überstimmt das `hidden`-Attribut — dessen Wirkung ist nur
+ * ein `display: none` aus dem Standard-Stylesheet des Browsers, und jede
+ * eigene Angabe schlägt es. Ohne diese Zeile bliebe der Kasten dauerhaft
+ * stehen, leer und einen Strich hoch.
+ */
+.item-detail[hidden] {
+  display: none;
+}
+
+.item-detail {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--panel-edge);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.detail-name {
+  font-weight: 600;
+  color: var(--gold);
+}
+
+.detail-kind {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+}
+
+.detail-stats {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--accent);
+}
+
+.detail-text {
+  margin: 0;
+  line-height: 1.4;
+  color: var(--ink-dim);
+}
+
+.detail-worn {
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+}
+
+.item-detail .btn {
+  align-self: flex-start;
+}
+
+/* --- Schmiedetisch -------------------------------------------------------- */
+
+.window[data-window='upgrade'] {
+  width: min(24rem, calc(100vw - 2rem));
+  max-height: 62vh;
+}
+
+.upgrade-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid rgba(44, 58, 69, 0.5);
+}
+
+.upgrade-odds {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--gold);
+}
+
+/* Was gerade nicht zu bezahlen ist, bleibt lesbar, aber leise. */
+.upgrade-row[data-leistbar='false'] .upgrade-odds {
+  color: var(--ink-faint);
+}

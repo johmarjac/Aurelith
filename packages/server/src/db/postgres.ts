@@ -89,7 +89,7 @@ export class PostgresStore implements GameStore {
       }
 
       const items = await client.query(
-        `SELECT item_id, count, slot, equipped
+        `SELECT item_id, count, slot, equipped, upgrade
            FROM character_items
           WHERE character_id = $1
           ORDER BY slot`,
@@ -113,6 +113,7 @@ export class PostgresStore implements GameStore {
           count: Number(r.count),
           slot: Number(r.slot),
           equipped: Boolean(r.equipped),
+          upgrade: Number(r.upgrade ?? 0),
         })),
         quests: quests.rows.map((r) => ({
           questId: String(r.quest_id),
@@ -150,9 +151,9 @@ export class PostgresStore implements GameStore {
       await client.query('DELETE FROM character_items WHERE character_id = $1', [characterId]);
       for (const item of items) {
         await client.query(
-          `INSERT INTO character_items (character_id, item_id, count, slot, equipped)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [characterId, item.itemId, item.count, item.slot, item.equipped],
+          `INSERT INTO character_items (character_id, item_id, count, slot, equipped, upgrade)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [characterId, item.itemId, item.count, item.slot, item.equipped, item.upgrade],
         );
       }
       await client.query('COMMIT');

@@ -9,20 +9,36 @@
  */
 
 import {
+  MAX_UPGRADE,
   QuestAction,
   QuestStatus,
   getItem,
   getNpc,
   getQuest,
+  isUpgradable,
   type NpcDialogMsg,
   type QuestDef,
   type QuestLogRow,
+  upgradeChance,
+  upgradeCost,
+  upgradeName,
 } from '@aurelith/shared';
 import { GameWindow } from './windows.ts';
 
 export interface ShopItemView {
   itemId: string;
   count: number;
+  /** Der Platz im Beutel — verkauft wird ein Stück, keine Sorte. */
+  slot: number;
+  upgrade: number;
+}
+
+/** Was das Aufwertungsfenster von einem Beutelplatz braucht. */
+export interface UpgradeItemView {
+  itemId: string;
+  slot: number;
+  upgrade: number;
+  equipped: boolean;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -78,6 +94,8 @@ export class DialogWindow {
 
   onQuestAction?: (questId: string, action: number) => void;
   onOpenShop?: (npcDefId: string) => void;
+  /** Der Schmied kann aufwerten — der Wegweiser nicht. */
+  onOpenUpgrade?: (npcDefId: string) => void;
 
   constructor(host: HTMLElement) {
     this.win = new GameWindow(
@@ -146,6 +164,14 @@ export class DialogWindow {
     if (msg.shop) {
       teile.push(
         button('Waren ansehen', () => this.onOpenShop?.(msg.npcDefId), 'btn dialog-shop'),
+      );
+    }
+
+    // Aufwerten kann nur der Schmied. Die Rolle steht in der Content-Tabelle,
+    // also weiss der Client das ohne ein weiteres Feld im Paket.
+    if (def?.role === 'smith') {
+      teile.push(
+        button('Waffe verstärken', () => this.onOpenUpgrade?.(msg.npcDefId), 'btn dialog-shop'),
       );
     }
 
@@ -238,7 +264,7 @@ export class ShopWindow {
   private gold = 0;
 
   onBuy?: (itemId: string, count: number) => void;
-  onSell?: (itemId: string, count: number) => void;
+  onSell?: (itemId: string, count: number, slot: number) => void;
 
   constructor(host: HTMLElement) {
     this.win = new GameWindow(
@@ -300,16 +326,115 @@ export class ShopWindow {
       // Derselbe Anteil wie auf dem Server. Steht er hier falsch, verkauft man
       // trotzdem richtig — der Server rechnet nach —, aber die Anzeige lügt.
       const preis = Math.max(1, Math.floor(item.value * 0.4));
+      // Aufgewertetes bringt mehr — derselbe Zuschlag wie auf dem Server.
+      const erloes = Math.round(preis * (1 + row.upgrade * 0.35));
+      const name = upgradeName(item, row.upgrade);
       const zeile = el('div', 'shop-row');
       zeile.append(
-        el('span', 'shop-name', row.count > 1 ? `${item.name} ×${row.count}` : item.name),
-        el('span', 'shop-price', `${preis} G`),
-        button('Verkaufen', () => this.onSell?.(row.itemId, 1), 'btn shop-action'),
+        el('span', 'shop-name', row.count > 1 ? `${name} ×${row.count}` : name),
+        el('span', 'shop-price', `${erloes} G`),
+        button('Verkaufen', () => this.onSell?.(row.itemId, 1, row.slot), 'btn shop-action'),
       );
       verkaufen.append(zeile);
     }
     if (!etwas) verkaufen.append(el('p', 'quest-empty', 'Nichts, was sich verkaufen liesse.'));
     teile.push(verkaufen);
+
+    this.win.body.replaceChildren(...teile);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Aufwerten
+// ---------------------------------------------------------------------------
+
+/**
+ * Der Schmiedetisch.
+ *
+ * Zeigt jedes aufwertbare Stück im Beutel mit seiner Stufe, was der nächste
+ * Versuch kostet und wie wahrscheinlich er gelingt. Die Aussicht steht dabei,
+ * bevor man drückt — ein Glücksspiel, dessen Quote man erst hinterher erfährt,
+ * ist keins, sondern eine Falle.
+ *
+ * Gewürfelt wird ausschliesslich auf dem Server. Was hier steht, ist dieselbe
+ * Tabelle, aus der er liest.
+ */
+export class UpgradeWindow {
+  private readonly win: GameWindow;
+  private items: UpgradeItemView[] = [];
+  private gold = 0;
+
+  onUpgrade?: (slot: number) => void;
+
+  constructor(host: HTMLElement) {
+    this.win = new GameWindow(
+      host,
+      'upgrade',
+      'Verstärken',
+      { left: Math.max(20, window.innerWidth / 2 - 200), top: 150 },
+      true,
+    );
+    this.render();
+  }
+
+  open(): void {
+    this.render();
+    this.win.setOpen(true);
+  }
+
+  close(): void {
+    this.win.setOpen(false);
+  }
+
+  setInventory(items: UpgradeItemView[], gold: number): void {
+    this.items = items;
+    this.gold = gold;
+    if (this.win.isOpen) this.render();
+  }
+
+  private render(): void {
+    const teile: HTMLElement[] = [
+      el('p', 'shop-gold', `Dein Gold: ${this.gold.toLocaleString('de-DE')}`),
+    ];
+
+    let etwas = false;
+    for (const row of this.items) {
+      const def = getItem(row.itemId);
+      if (!def || !isUpgradable(def)) continue;
+      etwas = true;
+
+      const zeile = el('div', 'upgrade-row');
+      const kosten = upgradeCost(def, row.upgrade);
+      const aussicht = Math.round(upgradeChance(row.upgrade) * 100);
+      const amAnschlag = row.upgrade >= MAX_UPGRADE;
+
+      zeile.dataset.leistbar = String(!amAnschlag && this.gold >= kosten);
+      zeile.append(
+        el('span', 'shop-name', upgradeName(def, row.upgrade) + (row.equipped ? ' (angelegt)' : '')),
+        el(
+          'span',
+          'upgrade-odds',
+          amAnschlag ? 'Anschlag' : `${aussicht} % · ${kosten} G`,
+        ),
+      );
+
+      if (!amAnschlag) {
+        zeile.append(button('Verstärken', () => this.onUpgrade?.(row.slot), 'btn shop-action'));
+      }
+      teile.push(zeile);
+    }
+
+    if (!etwas) {
+      teile.push(el('p', 'quest-empty', 'Nichts im Beutel, was sich verstärken liesse.'));
+    } else {
+      teile.push(
+        el(
+          'p',
+          'settings-note',
+          'Ein Fehlschlag kostet das Gold, die Stufe bleibt. Ab +4 leuchtet die Waffe.',
+        ),
+      );
+    }
 
     this.win.body.replaceChildren(...teile);
   }

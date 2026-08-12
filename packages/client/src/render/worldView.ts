@@ -27,6 +27,7 @@ import {
 import type { QualitySettings } from '../config.ts';
 import type { ModelRegistry } from './modelRegistry.ts';
 import { Lanterns, type LanternPlacement } from './lanterns.ts';
+import { WeaponAura, stepAuras } from './weaponAura.ts';
 import { ParticleField } from './particles.ts';
 import { buildTerrain, type TerrainMesh } from './terrain.ts';
 import type { TextureLoader } from './textures.ts';
@@ -103,6 +104,10 @@ export interface EntityVisual {
   rig: CharacterRig;
   /** Was die Figur in der Hand hält. Ändert sich beim Anlegen einer Waffe. */
   weapon: string;
+  /** Aufwertungsstufe der Waffe. Ab +4 hängt eine Aura daran. */
+  weaponUpgrade: number;
+  /** Der Funkenschleier um die Waffe, sofern es einen gibt. */
+  aura?: WeaponAura;
   /** Höhe über dem Boden für Nameplate und Schadenszahlen. */
   height: number;
 }
@@ -345,6 +350,12 @@ export class WorldView {
       // wenn sich die Ausrüstung geändert hat. Dann wird das Rig getauscht,
       // sonst hielte die Figur weiter ihre alte Waffe.
       if (existing.weapon !== row.weapon) this.replaceRig(existing, row);
+      // Die Aufwertung kommt nur in der vollen Zeile — genau deshalb meldet
+      // der Server die Figur nach einem Schmiedegang als neu.
+      if (existing.weaponUpgrade !== row.weaponUpgrade) {
+        existing.weaponUpgrade = row.weaponUpgrade;
+        existing.aura?.setUpgrade(row.weaponUpgrade);
+      }
       return existing;
     }
 
@@ -377,9 +388,11 @@ export class WorldView {
       speed: 0,
       rig,
       weapon: row.weapon,
+      weaponUpgrade: row.weaponUpgrade,
       aggro: row.aggro,
       height: heightFor(row.type, row.defId),
     };
+    this.attachAura(visual);
     this.entities.set(row.id, visual);
     return visual;
   }
@@ -431,6 +444,8 @@ export class WorldView {
   private replaceRig(visual: EntityVisual, row: SpawnRow): void {
     this.root.remove(visual.rig.root);
     this.registry.releaseRig(visual.rig);
+    visual.aura?.dispose();
+    visual.aura = undefined;
     visual.rig.dispose();
 
     const rig = this.registry.createRig(modelKeyFor(row.type, row.defId), row.weapon);
@@ -440,6 +455,30 @@ export class WorldView {
 
     visual.rig = rig;
     visual.weapon = row.weapon;
+    visual.weaponUpgrade = row.weaponUpgrade;
+    this.attachAura(visual);
+  }
+
+  /**
+   * Hängt den Funkenschleier an den Waffenhalter.
+   *
+   * An den Halter und nicht an die Waffe: die wird ausgetauscht, sobald ein
+   * geliefertes Modell nachkommt, der Halter bleibt. Wer keine Waffe trägt,
+   * bekommt auch keine Aura — es gäbe nichts, woran sie hinge.
+   */
+  private attachAura(visual: EntityVisual): void {
+    const mount = visual.rig.weaponMount;
+    if (!mount) return;
+
+    // Die Ausdehnung kommt aus dem Rig, nicht aus einer Vermutung über den
+    // Waffennamen: dort steht sie ohnehin, weil auch gelieferte Modelle darauf
+    // eingepasst werden.
+    const aura = new WeaponAura(
+      visual.rig.weaponSpan ?? { length: 1.1, bottom: -0.2, axis: 'y' },
+    );
+    aura.setUpgrade(visual.weaponUpgrade);
+    mount.add(aura.object);
+    visual.aura = aura;
   }
 
   despawn(id: number): void {
@@ -447,6 +486,7 @@ export class WorldView {
     if (!e) return;
     this.root.remove(e.rig.root);
     this.registry.releaseRig(e.rig);
+    e.aura?.dispose();
     e.rig.dispose();
     this.entities.delete(id);
   }
@@ -573,6 +613,9 @@ export class WorldView {
     this.elapsed += dt;
     this.stepArrows(dt);
     this.particles.step(dt);
+    // Eine Uhr für alle Auren: sie pulsieren im Shader, und der braucht nur
+    // die Zeit. Je Aura eine Schleife wäre dieselbe Zahl fünfzigmal.
+    stepAuras(dt);
     // Bildratenunabhängige Glättung: bei 60 Hz landet man knapp unter einem
     // Snapshot-Intervall, bei 30 Hz genauso weit.
     const blend = 1 - Math.pow(0.0000001, dt);
@@ -629,6 +672,7 @@ export class WorldView {
     for (const e of this.entities.values()) {
       this.root.remove(e.rig.root);
       this.registry.releaseRig(e.rig);
+      e.aura?.dispose();
       e.rig.dispose();
     }
     this.entities.clear();

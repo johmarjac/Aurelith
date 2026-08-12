@@ -98,16 +98,20 @@ export function decodeClientChat(r: ByteReader): { channel: number; text: string
 /**
  * Bitte, einen Gegenstand anzulegen.
  *
- * Der Client sagt *welchen*; ob es geht, entscheidet der Server. Er prüft, ob
- * der Gegenstand überhaupt im Beutel liegt und ob die Stufe reicht — sonst
- * legte man sich per Paket an, was man nicht besitzt.
+ * Angegeben wird der **Platz**, nicht die Gegenstandskennung. Seit es
+ * Aufwertungen gibt, sind zwei Eisenklingen nicht mehr dasselbe: eine +7 und
+ * eine +0 tragen dieselbe Kennung, und wer nur die schickt, überlässt dem
+ * Server die Wahl. Der Platz ist eindeutig.
+ *
+ * Ob dort etwas liegt und ob die Stufe reicht, prüft der Server — sonst legte
+ * man sich per Paket an, was man nicht besitzt.
  */
-export function encodeEquipItem(itemId: string): Uint8Array {
-  return packet(ClientOp.EquipItem, 64).str(itemId).finish();
+export function encodeEquipItem(slot: number): Uint8Array {
+  return packet(ClientOp.EquipItem, 16).u16(slot).finish();
 }
 
-export function decodeEquipItem(r: ByteReader): { itemId: string } {
-  return { itemId: r.str() };
+export function decodeEquipItem(r: ByteReader): { slot: number } {
+  return { slot: r.u16() };
 }
 
 export function encodeUsePortal(portalId: string): Uint8Array {
@@ -154,13 +158,45 @@ export function decodeQuestAction(r: ByteReader): { questId: string; action: num
   return { questId: r.str(), action: r.u8() };
 }
 
-/** Handel. `mode` ist 0 für kaufen und 1 für verkaufen. */
-export function encodeShopTrade(mode: number, itemId: string, count: number): Uint8Array {
-  return packet(ClientOp.ShopTrade, 64).u8(mode).str(itemId).u16(count).finish();
+/**
+ * Einen Gegenstand aufwerten.
+ *
+ * Nur die Kennung: welche Stufe er hat, was der Versuch kostet und ob er
+ * gelingt, entscheidet der Server. Ein Client, der die Stufe mitschickte,
+ * dürfte sie sich aussuchen.
+ */
+export function encodeUpgradeItem(slot: number): Uint8Array {
+  return packet(ClientOp.UpgradeItem, 16).u16(slot).finish();
 }
 
-export function decodeShopTrade(r: ByteReader): { mode: number; itemId: string; count: number } {
-  return { mode: r.u8(), itemId: r.str(), count: r.u16() };
+export function decodeUpgradeItem(r: ByteReader): { slot: number } {
+  return { slot: r.u16() };
+}
+
+/**
+ * Handel. `mode` ist 0 für kaufen und 1 für verkaufen.
+ *
+ * Zwei Felder, weil die beiden Richtungen verschiedene Dinge benennen: gekauft
+ * wird ein **Katalogeintrag** (`itemId`), verkauft ein **bestimmtes Stück aus
+ * dem Beutel** (`slot`). Seit es Aufwertungen gibt, ist der Unterschied nicht
+ * mehr theoretisch — sonst verkauft man die +7 statt der +0 daneben.
+ */
+export function encodeShopTrade(
+  mode: number,
+  itemId: string,
+  count: number,
+  slot = 0,
+): Uint8Array {
+  return packet(ClientOp.ShopTrade, 64).u8(mode).str(itemId).u16(count).u16(slot).finish();
+}
+
+export function decodeShopTrade(r: ByteReader): {
+  mode: number;
+  itemId: string;
+  count: number;
+  slot: number;
+} {
+  return { mode: r.u8(), itemId: r.str(), count: r.u16(), slot: r.u16() };
 }
 
 // ---------------------------------------------------------------------------
@@ -238,6 +274,15 @@ export interface SpawnRow {
    * Snapshot.
    */
   weapon: string;
+  /**
+   * Aufwertungsstufe der getragenen Waffe, 0 bis 10.
+   *
+   * Aus demselben Grund wie die Waffe selbst: ab +4 hat sie eine Aura, und
+   * die sollen alle sehen und nicht nur ihr Träger. Ein Byte, und nur in der
+   * vollen Zeile — eine Waffe wechselt selten genug, dass der Server die
+   * Figur ohnehin als neu meldet, wenn sich etwas ändert.
+   */
+  weaponUpgrade: number;
 }
 
 /** Laufende Aktualisierung eines bereits bekannten Entities. */
@@ -291,7 +336,8 @@ export function encodeSnapshot(m: SnapshotMsg): Uint8Array {
       .u32(Math.max(0, Math.round(s.maxHp)))
       .u8(s.state)
       .u8(s.aggro ? 1 : 0)
-      .str(s.weapon);
+      .str(s.weapon)
+      .u8(Math.max(0, Math.min(255, Math.round(s.weaponUpgrade))));
   }
 
   w.u16(m.updates.length);
@@ -335,6 +381,7 @@ export function decodeSnapshot(r: ByteReader): SnapshotMsg {
       state: r.u8() as EntityState,
       aggro: r.u8() !== 0,
       weapon: r.str(),
+      weaponUpgrade: r.u8(),
     };
   }
 
@@ -473,6 +520,8 @@ export interface InventoryRow {
   count: number;
   slot: number;
   equipped: boolean;
+  /** Aufwertungsstufe, 0 bis 10. Stapelbare Sachen haben immer 0. */
+  upgrade: number;
 }
 
 /**
@@ -484,7 +533,7 @@ export function encodeInventory(rows: InventoryRow[]): Uint8Array {
   const w = packet(ServerOp.Inventory, 256);
   w.u16(rows.length);
   for (const row of rows) {
-    w.str(row.itemId).u16(row.count).u16(row.slot).bool(row.equipped);
+    w.str(row.itemId).u16(row.count).u16(row.slot).bool(row.equipped).u8(row.upgrade);
   }
   return w.finish();
 }
@@ -493,7 +542,13 @@ export function decodeInventory(r: ByteReader): InventoryRow[] {
   const count = r.u16();
   const rows: InventoryRow[] = new Array(count);
   for (let i = 0; i < count; i++) {
-    rows[i] = { itemId: r.str(), count: r.u16(), slot: r.u16(), equipped: r.bool() };
+    rows[i] = {
+      itemId: r.str(),
+      count: r.u16(),
+      slot: r.u16(),
+      equipped: r.bool(),
+      upgrade: r.u8(),
+    };
   }
   return rows;
 }

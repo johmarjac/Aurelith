@@ -20,10 +20,12 @@ import {
   type NpcDialogMsg,
   type QuestLogRow,
   type StatsMsg,
+  upgradeBonus,
+  upgradeName,
 } from '@aurelith/shared';
 import type { EntityVisual } from '../render/worldView.ts';
 import { GameWindow } from './windows.ts';
-import { DialogWindow, QuestLogWindow, ShopWindow } from './npcWindows.ts';
+import { DialogWindow, QuestLogWindow, ShopWindow, UpgradeWindow } from './npcWindows.ts';
 import { Overlay } from './overlay.ts';
 import { DEFAULT_LEVELS, type MixerLevels } from '../audio/mixer.ts';
 import './style.css';
@@ -33,7 +35,18 @@ export interface InventoryEntry {
   count: number;
   slot: number;
   equipped: boolean;
+  /** Aufwertungsstufe, 0 bis 10. */
+  upgrade: number;
 }
+
+/** Wie eine Gegenstandsart in der Beschreibung heisst. */
+const KIND_LABEL: Record<string, string> = {
+  weapon: 'Waffe',
+  armor: 'Rüstung',
+  consumable: 'Verbrauchsgegenstand',
+  material: 'Material',
+  quest: 'Auftragsgegenstand',
+};
 
 export type ConnectionState = 'verbindet' | 'verbunden' | 'getrennt';
 
@@ -71,13 +84,18 @@ export class UI {
   onAttackHold?: (held: boolean) => void;
   /** Der Spieler will das Tor benutzen, in dem er steht. */
   onUsePortal?: () => void;
-  /** Doppelklick auf einen Gegenstand — anlegen. */
-  onEquipItem?: (itemId: string) => void;
+  /**
+   * Anlegen. Angegeben wird der **Platz**, nicht die Kennung — zwei gleiche
+   * Klingen mit verschiedener Aufwertung sind nicht mehr dasselbe Stück.
+   */
+  onEquipItem?: (slot: number) => void;
+  /** Aufwerten beim Schmied. Ebenfalls über den Platz. */
+  onUpgradeItem?: (slot: number) => void;
   /** Auftrag annehmen, abgeben oder aufgeben. */
   onQuestAction?: (questId: string, action: number) => void;
   /** Kaufen und verkaufen. */
   onBuy?: (itemId: string, count: number) => void;
-  onSell?: (itemId: string, count: number) => void;
+  onSell?: (itemId: string, count: number, slot: number) => void;
 
   private readonly host: HTMLElement;
 
@@ -114,6 +132,10 @@ export class UI {
   private readonly dialogWindow: DialogWindow;
   private readonly questWindow: QuestLogWindow;
   private readonly shopWindow: ShopWindow;
+  private readonly upgradeWindow: UpgradeWindow;
+  /** Die Beschreibung unter dem Inventarraster, samt gezeigtem Platz. */
+  private readonly itemDetail: HTMLElement;
+  private detailSlot?: number;
   /** Die Uhr oben links. Zeigt die Weltzeit, nicht die des Geräts. */
   private readonly clockLabel: HTMLElement;
   /** Zuletzt gesehenes Inventar — der Laden verkauft daraus. */
@@ -215,6 +237,12 @@ export class UI {
     this.dialogWindow = new DialogWindow(host);
     this.questWindow = new QuestLogWindow(host);
     this.shopWindow = new ShopWindow(host);
+    this.upgradeWindow = new UpgradeWindow(host);
+    this.upgradeWindow.onUpgrade = (slot) => this.onUpgradeItem?.(slot);
+    this.dialogWindow.onOpenUpgrade = () => {
+      this.upgradeWindow.setInventory(this.inventory, this.lastStats?.gold ?? 0);
+      this.upgradeWindow.open();
+    };
 
     this.dialogWindow.onQuestAction = (id, action) => this.onQuestAction?.(id, action);
     this.questWindow.onQuestAction = (id, action) => this.onQuestAction?.(id, action);
@@ -223,7 +251,7 @@ export class UI {
       this.shopWindow.open(npcDefId);
     };
     this.shopWindow.onBuy = (itemId, count) => this.onBuy?.(itemId, count);
-    this.shopWindow.onSell = (itemId, count) => this.onSell?.(itemId, count);
+    this.shopWindow.onSell = (itemId, count, slot) => this.onSell?.(itemId, count, slot);
 
     // --- Fenster ----------------------------------------------------------
     this.inventoryWindow = new GameWindow(
@@ -234,7 +262,11 @@ export class UI {
       true,
     );
     this.inventoryGrid = el('div', 'inventory-grid');
-    this.inventoryWindow.body.appendChild(this.inventoryGrid);
+    // Die Beschreibung sitzt unter dem Raster und ist leer, solange nichts
+    // ausgewählt ist.
+    this.itemDetail = el('div', 'item-detail');
+    this.itemDetail.hidden = true;
+    this.inventoryWindow.body.append(this.inventoryGrid, this.itemDetail);
     this.setInventory([]);
 
     this.characterWindow = new GameWindow(
@@ -514,6 +546,7 @@ export class UI {
     // Das Gold steht im Laden — wer eben etwas verkauft hat, soll den neuen
     // Stand sehen, ohne das Fenster zu schliessen.
     this.shopWindow.setInventory(this.sellableItems(), stats.gold);
+    this.upgradeWindow.setInventory(this.inventory, stats.gold);
 
     this.levelLabel.textContent = `Stufe ${stats.level}`;
     // Eine neue Stufe kann Aufträge freischalten — die Zeichen über den NPCs
@@ -677,6 +710,7 @@ export class UI {
   closeDialog(): void {
     this.dialogWindow.close();
     this.shopWindow.close();
+    this.upgradeWindow.close();
   }
 
   setQuests(rows: QuestLogRow[]): void {
@@ -720,15 +754,16 @@ export class UI {
   }
 
   /** Was sich verkaufen lässt: alles im Beutel, was nicht angelegt ist. */
-  private sellableItems(): Array<{ itemId: string; count: number }> {
+  private sellableItems(): Array<{ itemId: string; count: number; slot: number; upgrade: number }> {
     return this.inventory
       .filter((e) => !e.equipped)
-      .map((e) => ({ itemId: e.itemId, count: e.count }));
+      .map((e) => ({ itemId: e.itemId, count: e.count, slot: e.slot, upgrade: e.upgrade }));
   }
 
   setInventory(entries: InventoryEntry[]): void {
     this.inventory = entries;
     this.shopWindow.setInventory(this.sellableItems(), this.lastStats?.gold ?? 0);
+    this.upgradeWindow.setInventory(entries, this.lastStats?.gold ?? 0);
 
     const bySlot = new Map(entries.map((e) => [e.slot, e]));
     const slots: HTMLElement[] = [];
@@ -753,25 +788,104 @@ export class UI {
       slot.appendChild(icon);
 
       if (entry.count > 1) slot.appendChild(el('span', 'item-count', String(entry.count)));
+      // Die Aufwertung steht auf der Kachel. Ohne sie sähen eine +0 und eine
+      // +7 im Beutel gleich aus, und das ist der eine Unterschied, den man
+      // dort auf jeden Fall sehen will.
+      if (entry.upgrade > 0) {
+        slot.appendChild(el('span', 'item-upgrade', `+${entry.upgrade}`));
+      }
 
       const equippable = def !== undefined && def.slot !== 'none';
       slot.title = def
-        ? `${def.name}${entry.equipped ? ' (angelegt)' : ''}\n${def.description}` +
-          (equippable && !entry.equipped ? '\n\nDoppelklick legt an.' : '')
+        ? `${upgradeName(def, entry.upgrade)}${entry.equipped ? ' (angelegt)' : ''}\n${def.description}`
         : entry.itemId;
 
+      if (equippable && !entry.equipped) slot.classList.add('item-equippable');
+
+      // Ein **einfacher** Klick zeigt die Beschreibung. Vorher hing sie am
+      // `title`-Attribut, und das gibt es auf einem Telefon nicht: dort liess
+      // sich der Name eines Gegenstands schlicht nicht herausfinden.
+      slot.addEventListener('click', () => this.showItemDetail(entry.slot));
+      // Der Doppelklick bleibt als Abkürzung am Schreibtisch. Auf Touch ist er
+      // unzuverlässig — dort führt der Weg über den Knopf in der Beschreibung.
       if (equippable && !entry.equipped) {
-        slot.classList.add('item-equippable');
-        // Doppelklick und nicht einfacher Klick: ein Einzelklick wird spaeter
-        // fuers Auswaehlen und Verschieben gebraucht, und versehentlich die
-        // Waffe zu wechseln waere die unangenehmere Ueberraschung.
-        slot.addEventListener('dblclick', () => this.onEquipItem?.(entry.itemId));
+        slot.addEventListener('dblclick', () => this.onEquipItem?.(entry.slot));
       }
 
       slots.push(slot);
     }
 
     this.inventoryGrid.replaceChildren(...slots);
+    // Die offene Beschreibung neu zeichnen: Anlegen und Aufwerten ändern
+    // genau das, was darin steht.
+    if (this.detailSlot !== undefined) this.showItemDetail(this.detailSlot, true);
+  }
+
+  /**
+   * Zeigt die Beschreibung eines Gegenstands unter dem Raster.
+   *
+   * Unter dem Raster und nicht als schwebende Sprechblase: eine Blase müsste
+   * sich um Bildschirmränder kümmern, und auf einem Telefon deckt sie das
+   * halbe Inventar zu. Ein fester Platz ist langweiliger und funktioniert
+   * überall gleich.
+   */
+  private showItemDetail(slot: number, behalten = false): void {
+    const entry = this.inventory.find((e) => e.slot === slot);
+    // Nochmal auf dieselbe Kachel: zuklappen. Auf dem Telefon ist das der
+    // einzige naheliegende Weg, die Beschreibung wieder loszuwerden.
+    if (!entry || (!behalten && this.detailSlot === slot)) {
+      this.detailSlot = undefined;
+      this.itemDetail.replaceChildren();
+      this.itemDetail.hidden = true;
+      return;
+    }
+
+    const def = getItem(entry.itemId);
+    if (!def) return;
+
+    this.detailSlot = slot;
+    this.itemDetail.hidden = false;
+
+    const teile: HTMLElement[] = [
+      el('div', 'detail-name', upgradeName(def, entry.upgrade)),
+      el('div', 'detail-kind', KIND_LABEL[def.kind] ?? def.kind),
+    ];
+
+    const werte: string[] = [];
+    const bonus = upgradeBonus(def, entry.upgrade);
+    if (def.attackDamage > 0) {
+      werte.push(
+        bonus.attackDamage > 0
+          ? `Angriff ${def.attackDamage} (+${bonus.attackDamage})`
+          : `Angriff ${def.attackDamage}`,
+      );
+    }
+    if (def.defense > 0) {
+      werte.push(
+        bonus.defense > 0 ? `Verteidigung ${def.defense} (+${bonus.defense})` : `Verteidigung ${def.defense}`,
+      );
+    }
+    if (def.effectValue > 0) werte.push(`Wirkung ${def.effectValue}`);
+    if (def.levelReq > 1) werte.push(`ab Stufe ${def.levelReq}`);
+    werte.push(`Wert ${def.value} G`);
+    if (werte.length > 0) teile.push(el('div', 'detail-stats', werte.join(' · ')));
+
+    teile.push(el('p', 'detail-text', def.description));
+
+    if (entry.equipped) {
+      teile.push(el('div', 'detail-worn', 'Angelegt'));
+    } else if (def.slot !== 'none') {
+      const anlegen = el('button', 'btn', 'Anlegen');
+      anlegen.type = 'button';
+      anlegen.addEventListener('click', () => this.onEquipItem?.(entry.slot));
+      teile.push(anlegen);
+    }
+
+    this.itemDetail.replaceChildren(...teile);
+    // Bei dreissig Plätzen steht die Beschreibung auf einem Telefon unter dem
+    // sichtbaren Bereich — man tippt und sieht nichts. `nearest` scrollt nur,
+    // wenn es nötig ist, und lässt den Rest in Ruhe.
+    if (!behalten) this.itemDetail.scrollIntoView({ block: 'nearest' });
   }
 
   /** Namensschilder und Zahlen weiterschieben. */

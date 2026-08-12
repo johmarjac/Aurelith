@@ -36,6 +36,7 @@ import {
   encodeRespawn,
   encodeEquipItem,
   encodeInteract,
+  encodeUpgradeItem,
   encodeQuestAction,
   encodeSetTarget,
   encodeShopTrade,
@@ -270,8 +271,14 @@ export class Connection {
     this.send(encodeRespawn());
   }
 
-  sendEquipItem(itemId: string): void {
-    this.send(encodeEquipItem(itemId));
+  /** Anlegen und Aufwerten meinen ein *Stück*, also den Platz im Beutel. */
+  sendEquipItem(slot: number): void {
+    this.send(encodeEquipItem(slot));
+    this.flush();
+  }
+
+  sendUpgradeItem(slot: number): void {
+    this.send(encodeUpgradeItem(slot));
     this.flush();
   }
 
@@ -285,8 +292,8 @@ export class Connection {
     this.flush();
   }
 
-  sendShopTrade(mode: number, itemId: string, count: number): void {
-    this.send(encodeShopTrade(mode, itemId, count));
+  sendShopTrade(mode: number, itemId: string, count: number, slot = 0): void {
+    this.send(encodeShopTrade(mode, itemId, count, slot));
     this.flush();
   }
 

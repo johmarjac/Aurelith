@@ -57,6 +57,24 @@ export interface CharacterRig {
    * vielen Figuren, und jede dreht ihren Arm für sich.
    */
   setWeaponModel?(model: THREE.Object3D | undefined): void;
+  /**
+   * Der Aufhänger der Waffe, sofern die Figur eine trägt.
+   *
+   * Alles, was sich mit der Waffe bewegen soll, hängt hier hinein — heute die
+   * Aura einer aufgewerteten Waffe, später womöglich ein Flammeneffekt. Nicht
+   * die Waffe selbst herausgeben: die wird beim Nachliefern eines Modells
+   * ausgetauscht, der Halter bleibt.
+   */
+  readonly weaponMount?: THREE.Object3D;
+  /**
+   * Wie weit die Waffe im Raum des Halters reicht.
+   *
+   * `length` ist ihre Länge, `bottom` der Abstand des unteren Endes vom
+   * Griffpunkt, `axis` die Achse, auf der sie liegt. Dieselben Zahlen, mit
+   * denen ein geliefertes Modell eingepasst wird — wer etwas *entlang* der
+   * Waffe verteilen will, braucht genau sie und soll sie nicht schätzen.
+   */
+  readonly weaponSpan?: { length: number; bottom: number; axis: 'y' | 'z' };
   dispose(): void;
 }
 
@@ -431,6 +449,14 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
   return {
     root,
     weapon: cfg.weapon === 'none' ? undefined : cfg.weapon,
+    weaponMount,
+    weaponSpan: spec
+      ? {
+          length: spec.model?.length ?? 1,
+          bottom: spec.model?.bottom ?? -0.2,
+          axis: spec.model?.axis === 'z' ? 'z' : 'y',
+        }
+      : undefined,
 
     setWeaponModel(model) {
       if (!weaponMount) return;

@@ -39,6 +39,7 @@ import {
   encodeInteract,
   encodeQuestAction,
   encodeShopTrade,
+  encodeUpgradeItem,
   encodeInput,
   nullCipher,
   readPacket,
@@ -262,8 +263,15 @@ function eingabe(moveX: number, moveZ: number, yaw: number, angriff: boolean): v
   send(encodeInput({ seq: seq++, moveX, moveZ, yaw, buttons: angriff ? 1 : 0 }));
 }
 
+/** Ist schon etwas herausgefallen? Die Beute ist ein Wurf, kein Automatismus. */
+const beute = (): boolean => chat.some((line) => line.startsWith('Erhalten:'));
+
+// Weitergeschlagen wird, bis *beides* steht: der Auftrag erfüllt und
+// mindestens ein Fundstück im Beutel. Bei fünfundvierzig Prozent je Irrlicht
+// geht das fast immer in den ersten fünf auf — aber eben nicht immer, und ein
+// Test, der in einem von zwanzig Läufen rot wird, ist schlimmer als keiner.
 const bisErfuellt = Date.now() + 120000;
-while (Date.now() < bisErfuellt && questLog[0]?.status !== QuestStatus.Erfuellt) {
+while (Date.now() < bisErfuellt && (questLog[0]?.status !== QuestStatus.Erfuellt || !beute())) {
   const selbst = seen.get(localId);
   let ziel: { x: number; z: number } | undefined;
   let beste = Infinity;
@@ -299,7 +307,7 @@ check(
   `Fortschritt ${questLog[0]?.progress[0]}`,
 );
 check(
-  chat.some((line) => line.startsWith('Erhalten:')),
+  beute(),
   'Beute ist im Beutel gelandet',
   chat.filter((l) => l.startsWith('Erhalten:'))[0] ?? 'nichts',
 );
@@ -378,6 +386,61 @@ send(encodeShopTrade(0, 'iron_blade', 1));
 await sleep(400);
 check((stats?.gold ?? 0) === vorHandel, 'ohne Händler in der Nähe wird nicht gekauft');
 check(zaehle('iron_blade') === 0, 'und nichts geliefert');
+
+// ---------------------------------------------------------------------------
+// Aufwerten
+// ---------------------------------------------------------------------------
+
+console.log('\nAufwerten');
+
+const schwert = () => inventory.find((i) => i.itemId === 'wooden_sword');
+check(schwert()?.upgrade === 0, 'das Holzschwert steht auf +0', String(schwert()?.upgrade));
+
+// Aurel ist kein Schmied. Aus seiner Nähe darf nichts gehen.
+const goldVorSchmied = stats?.gold ?? 0;
+send(encodeUpgradeItem(schwert()!.slot));
+await sleep(500);
+check(schwert()?.upgrade === 0, 'ohne Schmied bleibt die Stufe stehen');
+check((stats?.gold ?? 0) === goldVorSchmied, 'und das Gold auch');
+
+// Bregan steht auf (16, -7).
+const bregan = [...seen].find(([, e]) => e.type === EntityType.Npc && e.defId === 'npc_smith')?.[1];
+check(bregan !== undefined, 'Bregan steht in der Welt');
+
+const bisSchmied = Date.now() + 60000;
+while (Date.now() < bisSchmied && bregan) {
+  const selbst = seen.get(localId);
+  if (!selbst) break;
+  const dx = bregan.x - selbst.x;
+  const dz = bregan.z - selbst.z;
+  const laenge = Math.hypot(dx, dz);
+  if (laenge <= 3.5) break;
+  eingabe(dx / laenge, dz / laenge, Math.atan2(dx, dz), false);
+  await sleep(50);
+}
+
+const goldBeimSchmied = stats?.gold ?? 0;
+send(encodeUpgradeItem(schwert()!.slot));
+const bisPlus = Date.now() + 5000;
+while (Date.now() < bisPlus && schwert()?.upgrade === 0) await sleep(50);
+
+// Der erste Schritt gelingt immer — die Tabelle sagt hundert Prozent.
+check(schwert()?.upgrade === 1, 'der erste Versuch gelingt sicher', `+${schwert()?.upgrade}`);
+check((stats?.gold ?? 0) < goldBeimSchmied, 'und kostet Gold', `${goldBeimSchmied} → ${stats?.gold}`);
+
+// Der Schaden steigt mit. Die angelegte Waffe ist das Holzschwert, also muss
+// sich der Angriffswert geändert haben, sobald sie aufgewertet ist.
+const angriffMitPlus = stats?.attackDamage ?? 0;
+check(angriffMitPlus > 0, 'der Angriffswert steht', String(angriffMitPlus));
+
+// Etwas, das sich nicht aufwerten lässt, wird abgelehnt — und kostet nichts.
+const trank = inventory.find((i) => i.itemId === 'potion_hp_small');
+const goldVorTrank = stats?.gold ?? 0;
+if (trank) {
+  send(encodeUpgradeItem(trank.slot));
+  await sleep(400);
+  check((stats?.gold ?? 0) === goldVorTrank, 'ein Trank lässt sich nicht verstärken');
+}
 
 socket.close();
 await sleep(200);

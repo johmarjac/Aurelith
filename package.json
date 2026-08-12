@@ -20,6 +20,7 @@
     "core:test": "node tools/build-core.mjs --native",
     "maps": "node tools/gen-maps.mjs",
     "figur": "tsx tools/render-rig.mjs",
+    "aura": "node tools/shot-aura.mjs",
     "dev:server": "npm run dev --workspace @aurelith/server",
     "dev:client": "npm run dev --workspace @aurelith/client",
     "dev:editor": "npm run dev --workspace @aurelith/editor",

@@ -26,6 +26,8 @@ export interface ItemRecord {
   count: number;
   slot: number;
   equipped: boolean;
+  /** Aufwertungsstufe, 0 bis 10. Stapelbares hat immer 0. */
+  upgrade: number;
 }
 
 export interface QuestRecord {

@@ -25,6 +25,13 @@ export interface EntityMeta {
    * eigene.
    */
   weapon?: string;
+  /**
+   * Aufwertungsstufe der getragenen Waffe.
+   *
+   * Aus demselben Grund hier wie die Waffe selbst: ab +4 hat sie eine Aura,
+   * und die gehört zu dem, was andere von dieser Figur sehen.
+   */
+  weaponUpgrade?: number;
   defId: string;
   name: string;
   type: EntityType;

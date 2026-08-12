@@ -47,7 +47,9 @@ console.log('\nBeutel');
 
   // Angelegtes bleibt liegen. Sonst verkauft man beim Aufräumen die Waffe,
   // die man gerade in der Hand hält.
-  const getragen: ItemRecord[] = [{ itemId: 'iron_blade', count: 1, slot: 0, equipped: true }];
+  const getragen: ItemRecord[] = [
+    { itemId: 'iron_blade', count: 1, slot: 0, equipped: true, upgrade: 0 },
+  ];
   check(!removeItem(getragen, 'iron_blade', 1), 'Angelegtes wird nicht herausgenommen');
 
   // Voller Beutel: was nicht mehr hineingeht, wird gemeldet und nicht still
@@ -210,7 +212,7 @@ console.log('\nGegenprobe (Buch ohne Zustandswechsel, muss auffallen)');
 {
   /** Zählt Fortschritt, zieht aber den Zustand nie nach. */
   class KaputtesBuch extends QuestBook {
-    override onKill(): boolean {
+    override onKill(_mobId: string): boolean {
       return true;
     }
   }

@@ -65,6 +65,7 @@ export class MemoryStore implements GameStore {
       count: s.count,
       slot: index,
       equipped: s.equipped,
+      upgrade: 0,
     }));
 
     this.byAccount.set(accountName, { character, items, quests: [] });

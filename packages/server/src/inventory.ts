@@ -43,7 +43,7 @@ export function addItem(items: ItemRecord[], itemId: string, count: number): num
 
   if (def.stackable) {
     for (const row of items) {
-      if (row.itemId !== itemId) continue;
+      if (row.itemId !== itemId || row.upgrade !== 0) continue;
       const platz = def.maxStack - row.count;
       if (platz <= 0) continue;
       const nimm = Math.min(platz, rest);
@@ -57,11 +57,20 @@ export function addItem(items: ItemRecord[], itemId: string, count: number): num
     const slot = freeSlot(items);
     if (slot < 0) break;
     const nimm = def.stackable ? Math.min(def.maxStack, rest) : 1;
-    items.push({ itemId, count: nimm, slot, equipped: false });
+    items.push({ itemId, count: nimm, slot, equipped: false, upgrade: 0 });
     rest -= nimm;
   }
 
   return count - rest;
+}
+
+/** Was sich anfassen lässt: nicht angelegt und nicht aufgewertet. */
+function frei(row: ItemRecord, itemId: string): boolean {
+  // Aufgewertetes wird nie über die Kennung angefasst. Ein Auftrag, der vier
+  // Essenzen einzieht, soll nicht die +5-Klinge daneben erwischen, nur weil
+  // beide dieselbe Kennung tragen — und Materialien lassen sich ohnehin nicht
+  // aufwerten, also kostet die Regel nichts.
+  return row.itemId === itemId && !row.equipped && row.upgrade === 0;
 }
 
 /**
@@ -75,20 +84,38 @@ export function addItem(items: ItemRecord[], itemId: string, count: number): num
 export function removeItem(items: ItemRecord[], itemId: string, count: number): boolean {
   let verfuegbar = 0;
   for (const row of items) {
-    if (row.itemId === itemId && !row.equipped) verfuegbar += row.count;
+    if (frei(row, itemId)) verfuegbar += row.count;
   }
   if (verfuegbar < count) return false;
 
   let rest = count;
   for (let i = items.length - 1; i >= 0 && rest > 0; i--) {
     const row = items[i]!;
-    if (row.itemId !== itemId || row.equipped) continue;
+    if (!frei(row, itemId)) continue;
     const nimm = Math.min(row.count, rest);
     row.count -= nimm;
     rest -= nimm;
     if (row.count === 0) items.splice(i, 1);
   }
   return true;
+}
+
+/**
+ * Nimmt aus einem bestimmten Platz. Für alles, was ein *Stück* meint und
+ * nicht eine Sorte — verkaufen zum Beispiel.
+ */
+export function removeSlot(items: ItemRecord[], slot: number, count: number): ItemRecord | undefined {
+  const index = items.findIndex((i) => i.slot === slot);
+  if (index < 0) return undefined;
+
+  const row = items[index]!;
+  if (row.equipped) return undefined;
+  if (row.count < count) return undefined;
+
+  const genommen: ItemRecord = { ...row, count };
+  row.count -= count;
+  if (row.count === 0) items.splice(index, 1);
+  return genommen;
 }
 
 /** Wie viel ein Händler beim Verkauf zahlt. */
