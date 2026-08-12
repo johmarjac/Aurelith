@@ -162,6 +162,8 @@ export class Mixer {
   private readonly pending = new Map<string, Promise<AudioBuffer | undefined>>();
 
   private levels: MixerLevels;
+  /** Letzter gemeldeter Zustandswechsel — nur für die Diagnose. */
+  private lastStateChange = '';
 
   /** Wo der Zuhörer steht. Bestimmt Lautstärke und Seite eines Tons. */
   private listenerX = 0;
@@ -190,11 +192,16 @@ export class Mixer {
    * und nur die ersten beiden kann die Seite überhaupt sehen. Wer das
    * angezeigt bekommt, muss nicht raten.
    */
-  get state(): 'stumm' | 'wartet' | 'bereit' | 'unmoeglich' {
+  get state(): 'stumm' | 'wartet' | 'bereit' | 'unterbrochen' | 'unmoeglich' {
     if (this.levels.muted) return 'stumm';
     if (!this.context) return 'wartet';
     if (this.context.state === 'running') return 'bereit';
-    return this.context.state === 'closed' ? 'unmoeglich' : 'wartet';
+    if (this.context.state === 'closed') return 'unmoeglich';
+    // `interrupted` ist Safaris eigener Zustand für „eine andere Anwendung
+    // hat den Ton übernommen" — Anruf, Siri, Wecker. Von „wartet auf die
+    // erste Geste" zu unterscheiden, weil die Abhilfe dieselbe, der Grund
+    // aber ein ganz anderer ist.
+    return (this.context.state as string) === 'interrupted' ? 'unterbrochen' : 'wartet';
   }
 
   /**
@@ -204,6 +211,16 @@ export class Mixer {
    * wieder einschlafen, etwa wenn der Tab lange im Hintergrund lag.
    */
   resume(): void {
+    // Ein geschlossener Kontext lässt sich nicht wiederbeleben — dann bleibt
+    // nur, einen neuen zu bauen. Die Rohdaten liegen noch da und werden
+    // gleich neu dekodiert.
+    if (this.context?.state === 'closed') {
+      this.context = undefined;
+      this.masterGain = undefined;
+      this.categoryGain.clear();
+      this.buffers.clear();
+    }
+
     if (!this.context) {
       type WithWebkit = typeof globalThis & { webkitAudioContext?: typeof AudioContext };
       const Ctor = globalThis.AudioContext ?? (globalThis as WithWebkit).webkitAudioContext;
@@ -234,9 +251,21 @@ export class Mixer {
 
       // Alles nachholen, was vor der ersten Geste schon geladen wurde.
       for (const path of this.raw.keys()) void this.decode(path);
+
+      this.context.addEventListener('statechange', () => {
+        this.lastStateChange = this.context?.state ?? '?';
+      });
     }
 
-    if (this.context.state === 'suspended') void this.context.resume();
+    // Alles, was nicht läuft, wird aufgeweckt — nicht nur `suspended`.
+    //
+    // Safari kennt einen dritten Zustand: `interrupted`. Dorthin fällt der
+    // Kontext, wenn eine andere Anwendung den Ton übernimmt — ein Anruf,
+    // Siri, oder ein Wecker. Die Prüfung stand vorher auf `suspended`, und
+    // deshalb wachte er danach nie wieder auf: das Spiel blieb bis zum
+    // Neuladen stumm. Der Zustand steht nicht in der Norm, also fragt man
+    // besser nach dem, was man will, statt nach dem, was man kennt.
+    if (this.context.state !== 'running') void this.context.resume();
   }
 
   /**
@@ -438,6 +467,7 @@ export class Mixer {
   diagnostics(): {
     state: string;
     contextState: string;
+    letzterWechsel: string;
     sampleRate: number;
     geladen: string[];
     dekodiert: string[];
@@ -446,6 +476,7 @@ export class Mixer {
     return {
       state: this.state,
       contextState: this.context?.state ?? 'kein Kontext',
+      letzterWechsel: this.lastStateChange,
       sampleRate: this.context?.sampleRate ?? 0,
       geladen: [...this.raw.keys()],
       dekodiert: [...this.buffers.keys()],

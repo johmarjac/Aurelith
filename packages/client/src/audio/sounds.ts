@@ -33,6 +33,16 @@ export interface SoundDef {
    * 0 bedeutet: sofort, ohne Verzögerung.
    */
   cue: number;
+  /**
+   * Der Ton hängt am Geschoss, nicht am Schwung.
+   *
+   * Für Fernkampfwaffen: der Server lässt die Schwinge auch dann beginnen,
+   * wenn kein Ziel in Reichweite ist — er muss, sonst rechnete die Vorhersage
+   * im Client an dieser Stelle anders. Es fliegt dann aber kein Pfeil, und ein
+   * Sirren ohne Pfeil klingt nach einem Fehler. Also klingt es erst, wenn
+   * wirklich etwas losfliegt; `cue` bleibt dabei ungenutzt.
+   */
+  viaProjectile?: boolean;
 }
 
 export type SoundId = 'bogen_schuss' | 'schwert_schwung';
@@ -43,9 +53,10 @@ export const SOUNDS: Record<SoundId, SoundDef> = {
     category: 'weapons',
     gain: 0.9,
     spread: 0.6,
-    // Der Moment des Loslassens: das Ausholen endet bei 0,45, und die Sehne
-    // schnellt unmittelbar danach vor.
+    // Ungenutzt, solange der Ton am Pfeil hängt — steht hier, damit die
+    // Umstellung eine Zeile ist, falls es doch der Schwung sein soll.
     cue: 0.5,
+    viaProjectile: true,
   },
   schwert_schwung: {
     path: 'audio/schwert_schwung.mp3',

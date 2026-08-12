@@ -357,6 +357,11 @@ export class Game {
     window.addEventListener('pointerdown', wake);
     window.addEventListener('touchend', wake);
     window.addEventListener('keydown', wake);
+    // Nach einem Anruf, einem Wecker oder einem App-Wechsel liegt der
+    // Tonkontext unterbrochen da. Ohne das bliebe es still, bis der Spieler
+    // zufaellig etwas antippt — und er wuesste nicht, warum.
+    document.addEventListener('visibilitychange', wake);
+    window.addEventListener('focus', wake);
     this.ui.setAudioState(this.mixer.state);
 
     globalThis.aurelith = this.diagnostics;
@@ -436,6 +441,8 @@ export class Game {
     if (!id) return;
 
     const def = SOUNDS[id];
+    // Fernkampf klingt erst, wenn ein Pfeil fliegt — siehe playProjectileSound.
+    if (def.viaProjectile) return;
     const delayMs = def.cue * ATTACK_ANIM_SECONDS * 1000;
     if (delayMs < 1) {
       this.emitSound(def, entity.id);
@@ -454,6 +461,27 @@ export class Game {
       if (!still || still.attackTimer < 0) return;
       this.emitSound(def, attacker);
     }, delayMs);
+  }
+
+  /**
+   * Der Ton eines abgefeuerten Geschosses.
+   *
+   * Getrennt vom Schwung, weil ein Bogen nur klingt, wenn tatsächlich ein
+   * Pfeil fliegt. Der Server lässt die Schwinge auch ohne Ziel beginnen —
+   * das muss er, sonst rechnete die Vorhersage im Client, der keine Monster
+   * kennt, an dieser Stelle anders als die Autorität. Sichtbar wird der
+   * Unterschied erst hier: Animation ja, Pfeil nein, also auch kein Sirren.
+   */
+  private playProjectileSound(attackerId: number): void {
+    const attacker = this.view.entities.get(attackerId);
+    if (!attacker) return;
+
+    const id = WEAPON_SWING[attacker.weapon];
+    if (!id) return;
+
+    const def = SOUNDS[id];
+    if (!def.viaProjectile) return;
+    this.emitSound(def, attackerId);
   }
 
   private emitSound(def: SoundDef, entityId: number): void {
@@ -878,8 +906,17 @@ export class Game {
     y: number;
     z: number;
   }): void {
-    this.view.triggerAttack(msg.attackerId);
-
+    // Hier wird **nicht** die Schlaganimation ausgelöst.
+    //
+    // Diese Nachricht ist der Treffer, also das *Ende* des Ausholens — eine
+    // Animation, die hier begänne, liefe hinter ihrem eigenen Schaden her.
+    // Der Beginn steht im Zustandswechsel nach `Attack`, den der Schnappschuss
+    // meldet, und für die eigene Figur im Tastendruck.
+    //
+    // Es war außerdem ein zweiter, unabhängiger Auslöser: dieselbe Schwinge
+    // konnte zweimal beginnen, wenn Zustandswechsel und Treffer weiter
+    // auseinanderlagen als die Animation dauert. Genau daraus wurde der
+    // doppelte Schusston.
     const mine = msg.attackerId === this.localId;
     const onMe = msg.victimId === this.localId;
 
@@ -907,6 +944,9 @@ export class Game {
     // in der richtigen Reihenfolge kommen.
     if ((msg.flags & CombatFlag.Ranged) !== 0) {
       this.view.spawnArrow(msg.attackerId, msg.x, msg.y, msg.z, impact);
+      // Der Schuss klingt, wenn ein Pfeil fliegt — und nur dann. Ein Bogen,
+      // der ins Leere gezogen wird, gibt kein Sirren.
+      this.playProjectileSound(msg.attackerId);
       return;
     }
 

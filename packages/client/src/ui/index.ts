@@ -109,7 +109,8 @@ export class UI {
   onAudioProbe?: () => boolean;
 
   private audioState?: HTMLElement;
-  private lastAudioState: 'stumm' | 'wartet' | 'bereit' | 'unmoeglich' = 'wartet';
+  private lastAudioState: 'stumm' | 'wartet' | 'bereit' | 'unterbrochen' | 'unmoeglich' =
+    'wartet';
 
   private lastStats?: StatsMsg;
 
@@ -392,13 +393,18 @@ export class UI {
    * `hinweis` ist die Rückmeldung des Testknopfs und verfällt beim nächsten
    * Zustandswechsel — sie gehört zu einem Druck, nicht zum Zustand.
    */
-  setAudioState(state: 'stumm' | 'wartet' | 'bereit' | 'unmoeglich', hinweis?: string): void {
+  setAudioState(
+    state: 'stumm' | 'wartet' | 'bereit' | 'unterbrochen' | 'unmoeglich',
+    hinweis?: string,
+  ): void {
     this.lastAudioState = state;
     if (!this.audioState) return;
 
     const text: Record<typeof state, string> = {
       bereit: 'Ton ist bereit.',
       wartet: 'Wartet auf die erste Eingabe — einmal ins Bild tippen.',
+      unterbrochen:
+        'Vom System unterbrochen (Anruf, Wecker, Siri) — einmal ins Bild tippen.',
       stumm: 'Ton ist ausgeschaltet.',
       unmoeglich: 'Dieser Browser gibt keinen Ton aus.',
     };
