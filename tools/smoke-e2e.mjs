@@ -755,9 +755,16 @@ try {
 check(tabletReady, 'Tablet: Spielfigur ist eingeloggt');
 
 if (tabletReady) {
-  // Warten, bis die Begruessungszeilen ausgeblendet sind — sonst misst man
-  // das kurze Einblenden statt des Ruhezustands.
-  await tabletPage.waitForTimeout(7000);
+  // Warten, bis die Begruessungszeilen ausgeblendet **sind** — nicht sieben
+  // Sekunden lang hoffen, dass es reicht. Eine feste Wartezeit misst den
+  // Ruhezustand nur, solange die letzte Zeile puenktlich kommt; kommt sie eine
+  // Sekunde spaeter, faengt man mitten im Ausblenden eine Deckkraft von 0,13.
+  await tabletPage
+    .waitForFunction(
+      () => Number(getComputedStyle(document.querySelector('.chat')).opacity) < 0.05,
+      { timeout: 20000 },
+    )
+    .catch(() => undefined);
 
   const chat = await tabletPage.evaluate(() => {
     const node = document.querySelector('.chat');

@@ -15,16 +15,19 @@
  */
 
 import type { EnvironmentDef } from './mapFormat.ts';
+import { tuning } from './tuning.ts';
 
 /**
- * Wie lang ein voller Tag dauert.
+ * Wie lang ein voller Tag dauert, in Millisekunden.
  *
- * Vierundzwanzig Minuten: eine Spielstunde ist eine echte Minute. Das ist
- * leicht zu merken, und es sorgt dafür, dass man beim Spielen tatsächlich
- * beides zu sehen bekommt — bei einer echten Stunde je Zyklus säße die Hälfte
- * aller Sitzungen dauerhaft im Dunkeln.
+ * Steht als Minutenzahl in den Stellschrauben. Vierundzwanzig Minuten heisst:
+ * eine Spielstunde ist eine echte Minute. Das ist leicht zu merken, und man
+ * bekommt beim Spielen tatsächlich beides zu sehen — bei einer echten Stunde
+ * je Zyklus säße die Hälfte aller Sitzungen dauerhaft im Dunkeln.
  */
-export const DAY_MS = 24 * 60 * 1000;
+export function dayMs(): number {
+  return tuning().world.dayMinutes * 60 * 1000;
+}
 
 /** Sonnenaufgang und -untergang als Anteil des Tages. Nur zur Auskunft. */
 export const SUNRISE = 0.25;
@@ -32,7 +35,8 @@ export const SUNSET = 0.75;
 
 /** Tageszeit als Anteil: 0 ist Mitternacht, 0,5 ist Mittag. */
 export function timeOfDay(serverTimeMs: number): number {
-  const t = (serverTimeMs % DAY_MS) / DAY_MS;
+  const laenge = dayMs();
+  const t = (serverTimeMs % laenge) / laenge;
   return t < 0 ? t + 1 : t;
 }
 

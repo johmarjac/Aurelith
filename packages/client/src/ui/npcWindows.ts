@@ -9,13 +9,14 @@
  */
 
 import {
-  MAX_UPGRADE,
+  maxUpgrade,
   QuestAction,
   QuestStatus,
   getItem,
   getNpc,
   getQuest,
   isUpgradable,
+  sellPrice,
   type NpcDialogMsg,
   type QuestDef,
   type QuestLogRow,
@@ -326,16 +327,14 @@ export class ShopWindow {
       const item = getItem(row.itemId);
       if (!item) continue;
       etwas = true;
-      // Derselbe Anteil wie auf dem Server. Steht er hier falsch, verkauft man
-      // trotzdem richtig — der Server rechnet nach —, aber die Anzeige lügt.
-      const preis = Math.max(1, Math.floor(item.value * 0.4));
-      // Aufgewertetes bringt mehr — derselbe Zuschlag wie auf dem Server.
-      const erloes = Math.round(preis * (1 + row.upgrade * 0.35));
+      // Dieselbe Funktion wie auf dem Server. Sie zweimal zu schreiben hiesse,
+      // dass die Anzeige lügt, sobald jemand nur eine der beiden ändert.
+      const preis = sellPrice(item, row.upgrade);
       const name = upgradeName(item, row.upgrade);
       const zeile = el('div', 'shop-row');
       zeile.append(
         el('span', 'shop-name', row.count > 1 ? `${name} ×${row.count}` : name),
-        el('span', 'shop-price', `${erloes} G`),
+        el('span', 'shop-price', `${preis} G`),
         button('Verkaufen', () => this.onSell?.(row.itemId, 1, row.slot), 'btn shop-action'),
       );
       verkaufen.append(zeile);
@@ -409,7 +408,7 @@ export class UpgradeWindow {
       const zeile = el('div', 'upgrade-row');
       const kosten = upgradeCost(def, row.upgrade);
       const aussicht = Math.round(upgradeChance(row.upgrade) * 100);
-      const amAnschlag = row.upgrade >= MAX_UPGRADE;
+      const amAnschlag = row.upgrade >= maxUpgrade();
 
       zeile.dataset.leistbar = String(!amAnschlag && this.gold >= kosten);
       zeile.append(

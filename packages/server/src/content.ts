@@ -24,12 +24,13 @@ async function json(dir: string, name: string): Promise<unknown> {
 
 /** Liest die Inhaltsdateien aus einem Verzeichnis und trägt sie ein. */
 export async function loadContentFromDisk(dir: string): Promise<ContentSummary> {
-  const [items, mobs, npcs, quests] = await Promise.all([
+  const [items, mobs, npcs, quests, tuning] = await Promise.all([
     json(dir, 'items.json'),
     json(dir, 'mobs.json'),
     json(dir, 'npcs.json'),
     json(dir, 'quests.json'),
+    json(dir, 'tuning.json'),
   ]);
 
-  return loadContent({ items, mobs, npcs, quests });
+  return loadContent({ items, mobs, npcs, quests, tuning });
 }

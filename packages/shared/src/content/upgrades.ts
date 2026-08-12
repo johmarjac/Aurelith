@@ -1,9 +1,10 @@
 /**
  * Aufwertung von Ausrüstung, +0 bis +10.
  *
- * Wie alles unter `content/` eine Tabelle mit ein paar Funktionen darauf —
- * Server und Client lesen dieselbe, sonst zeigt der Laden andere Kosten an,
- * als abgebucht werden.
+ * Hier stehen die Regeln, die Zahlen stehen in `assets/content/tuning.json`:
+ * Höchststufe, Erfolgsaussichten, Kosten, Bonus, ab wann es leuchtet. Server
+ * und Client lesen dieselben — sonst zeigt der Laden andere Kosten an, als
+ * abgebucht werden.
  *
  * Der Wurf selbst passiert **ausschliesslich auf dem Server**. Was hier steht,
  * ist die Wahrscheinlichkeit, nicht ihre Ziehung: ein Client, der würfeln
@@ -11,9 +12,12 @@
  */
 
 import type { ItemDef } from './database.ts';
+import { tuning } from './tuning.ts';
 
 /** Höchste erreichbare Stufe. */
-export const MAX_UPGRADE = 10;
+export function maxUpgrade(): number {
+  return tuning().upgrades.max;
+}
 
 /**
  * Ab hier leuchtet die Waffe.
@@ -22,22 +26,15 @@ export const MAX_UPGRADE = 10;
  * wird sie zur Entscheidung. Wer eine leuchtende Waffe trägt, hat etwas
  * riskiert — und genau das soll man von weitem sehen.
  */
-export const GLOW_FROM = 4;
-
-/**
- * Erfolgsaussicht je aktueller Stufe: Feld 0 gilt für +0 auf +1.
- *
- * Der Verlauf ist bewusst gnädiger als bei den Vorbildern. Ein Fehlschlag
- * kostet hier nur Gold, nicht die Waffe — dafür darf er häufiger vorkommen,
- * ohne dass jemand das Spiel schliesst.
- */
-const CHANCES = [1, 0.95, 0.9, 0.85, 0.75, 0.65, 0.5, 0.4, 0.3, 0.2];
+export function glowFrom(): number {
+  return tuning().upgrades.glowFrom;
+}
 
 /** Wie wahrscheinlich der Sprung von `level` auf `level + 1` gelingt. */
 export function upgradeChance(level: number): number {
-  if (level < 0) return 0;
-  if (level >= MAX_UPGRADE) return 0;
-  return CHANCES[level] ?? 0;
+  const u = tuning().upgrades;
+  if (level < 0 || level >= u.max) return 0;
+  return u.chances[level] ?? 0;
 }
 
 /**
@@ -48,8 +45,9 @@ export function upgradeChance(level: number): number {
  * billiges Zeug für nichts auf +10 steht.
  */
 export function upgradeCost(def: ItemDef, level: number): number {
-  const basis = Math.max(40, def.value);
-  return Math.round(basis * (0.5 + level * 0.85));
+  const u = tuning().upgrades;
+  const basis = Math.max(u.costMinValue, def.value);
+  return Math.round(basis * (u.costBase + level * u.costPerLevel));
 }
 
 /**
@@ -60,14 +58,29 @@ export function upgradeCost(def: ItemDef, level: number): number {
  * Aufwertung wäre auf niedriger Stufe sinnlos.
  */
 export function upgradeBonus(def: ItemDef, level: number): { attackDamage: number; defense: number } {
-  const stufe = Math.max(0, Math.min(MAX_UPGRADE, Math.round(level)));
+  const u = tuning().upgrades;
+  const stufe = Math.max(0, Math.min(u.max, Math.round(level)));
   if (stufe === 0) return { attackDamage: 0, defense: 0 };
 
-  const anteil = 0.13 * stufe;
+  const anteil = u.bonusPerLevel * stufe;
   return {
     attackDamage: def.attackDamage > 0 ? Math.max(stufe, Math.round(def.attackDamage * anteil)) : 0,
     defense: def.defense > 0 ? Math.max(stufe, Math.round(def.defense * anteil)) : 0,
   };
+}
+
+/**
+ * Was ein Händler für ein Stück zahlt.
+ *
+ * Ein Anteil des Grundwerts, und Aufgewertetes bringt mehr — was hineingesteckt
+ * wurde, ist nicht weg. Server und Oberfläche rechnen mit dieser einen
+ * Funktion: stünde sie zweimal da, zeigte der Laden andere Preise an, als
+ * gutgeschrieben werden.
+ */
+export function sellPrice(def: ItemDef, upgrade = 0): number {
+  const t = tuning();
+  const grund = Math.max(1, Math.floor(def.value * t.economy.sellFactor));
+  return Math.round(grund * (1 + Math.max(0, upgrade) * t.upgrades.sellBonusPerLevel));
 }
 
 /** Lässt sich dieser Gegenstand überhaupt aufwerten? */
@@ -83,16 +96,18 @@ export function upgradeName(def: ItemDef, level: number): string {
 /**
  * Wie stark die Aura leuchtet, 0 bis 1.
  *
- * Unter `GLOW_FROM` gar nicht, ab dort auf einen Schlag deutlich sichtbar und
- * von da an linear bis +10. Der Sockel ist der Punkt: die erste Fassung fing
- * bei einem Siebtel an, und ein Leuchten, das man suchen muss, ist keine
- * Belohnung. Wer +4 erreicht, soll es von weitem sehen.
+ * Unter der Leuchtschwelle gar nicht, ab dort auf einen Schlag deutlich
+ * sichtbar und von da an linear bis zur Höchststufe. Der Sockel ist der Punkt:
+ * die erste Fassung fing bei einem Siebtel an, und ein Leuchten, das man
+ * suchen muss, ist keine Belohnung.
  *
  * Eine Zahl statt einer Fallunterscheidung, damit Renderer und Oberfläche
  * dieselbe Kurve benutzen.
  */
 export function glowStrength(level: number): number {
-  if (level < GLOW_FROM) return 0;
-  const t = (level - GLOW_FROM) / (MAX_UPGRADE - GLOW_FROM);
-  return Math.max(0, Math.min(1, 0.42 + 0.58 * t));
+  const u = tuning().upgrades;
+  if (level < u.glowFrom) return 0;
+  const spanne = Math.max(1, u.max - u.glowFrom);
+  const t = (level - u.glowFrom) / spanne;
+  return Math.max(0, Math.min(1, u.glowBase + (1 - u.glowBase) * t));
 }

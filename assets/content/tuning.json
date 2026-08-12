@@ -1,0 +1,53 @@
+{
+  "format": "aurelith.content",
+  "version": 1,
+  "progression": {
+    "maxLevel": 60,
+    "expFactor": 45,
+    "expExponent": 1.72,
+    "expLinear": 55,
+
+    "baseHp": 80,
+    "hpPerLevel": 22,
+    "baseMp": 40,
+    "mpPerLevel": 10,
+    "baseAttack": 6,
+    "attackPerLevel": 2.4,
+    "baseDefense": 1,
+    "defensePerLevel": 1.1,
+    "moveSpeed": 6.2,
+
+    "expMaxBonus": 1.5,
+    "expBonusPerLevel": 0.08,
+    "expMalusPerLevel": 0.1,
+    "expFarMalusPerLevel": 0.08,
+    "expFloor": 0.05
+  },
+  "player": {
+    "attackRange": 3,
+    "attackArc": 2.670353755551324,
+    "attackCooldownSec": 0.62,
+    "attackWindupSec": 0.15,
+    "radius": 0.45,
+    "height": 1.8
+  },
+  "upgrades": {
+    "max": 10,
+    "glowFrom": 4,
+    "glowBase": 0.42,
+    "chances": [1, 0.95, 0.9, 0.85, 0.75, 0.65, 0.5, 0.4, 0.3, 0.2],
+    "costMinValue": 40,
+    "costBase": 0.5,
+    "costPerLevel": 0.85,
+    "bonusPerLevel": 0.13,
+    "sellBonusPerLevel": 0.35
+  },
+  "economy": {
+    "sellFactor": 0.4,
+    "inventorySlots": 30
+  },
+  "world": {
+    "dayMinutes": 24,
+    "interactRange": 6
+  }
+}

@@ -10,11 +10,18 @@
  * für jede Kachel eine Nummer.
  */
 
-import { getItem, type ItemDef } from '@aurelith/shared';
+import { getItem, tuning } from '@aurelith/shared';
 import type { ItemRecord } from './db/index.ts';
 
-/** So viele Plätze hat der Beutel. Muss zur Anzeige im Client passen. */
-export const INVENTORY_SLOTS = 30;
+/**
+ * So viele Plätze hat der Beutel.
+ *
+ * Aus den Stellschrauben, nicht als Zahl hier: der Client zeichnet dasselbe
+ * Raster, und zwei Zahlen für dieselbe Sache gehen irgendwann auseinander.
+ */
+export function inventorySlots(): number {
+  return tuning().economy.inventorySlots;
+}
 
 export function countItem(items: ItemRecord[], itemId: string): number {
   let sum = 0;
@@ -24,7 +31,8 @@ export function countItem(items: ItemRecord[], itemId: string): number {
 
 function freeSlot(items: ItemRecord[]): number {
   const used = new Set(items.map((i) => i.slot));
-  for (let i = 0; i < INVENTORY_SLOTS; i++) if (!used.has(i)) return i;
+  const plaetze = inventorySlots();
+  for (let i = 0; i < plaetze; i++) if (!used.has(i)) return i;
   return -1;
 }
 
@@ -41,7 +49,7 @@ export function addItem(
   count: number,
   upgrade = 0,
 ): number {
-  const def: ItemDef | undefined = getItem(itemId);
+  const def = getItem(itemId);
   if (!def || count <= 0) return 0;
 
   let rest = count;
@@ -125,7 +133,4 @@ export function removeSlot(items: ItemRecord[], slot: number, count: number): It
   return genommen;
 }
 
-/** Wie viel ein Händler beim Verkauf zahlt. */
-export function sellPrice(def: ItemDef): number {
-  return Math.max(1, Math.floor(def.value * 0.4));
-}
+

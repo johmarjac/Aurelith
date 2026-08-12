@@ -124,6 +124,7 @@ const items = (await json('items.json')) as { items: Record<string, unknown>[] }
 const mobs = (await json('mobs.json')) as { mobs: Record<string, unknown>[] };
 const npcs = (await json('npcs.json')) as { npcs: Record<string, unknown>[] };
 const quests = (await json('quests.json')) as { quests: Record<string, unknown>[] };
+const tuning = (await json('tuning.json')) as Record<string, Record<string, unknown>>;
 
 lehntAb('fehlender Kopf', () => parseItems({ items: [] }));
 lehntAb('fehlender Name', () =>
@@ -161,25 +162,43 @@ lehntAb('Belohnung mit unbekanntem Gegenstand', () => {
   // Über `loadContent`, weil erst dort die Verweise geprüft werden — der
   // Parser allein kennt nur seine eigene Datei. Die Prüfung läuft vor dem
   // Eintragen, die geladenen Tabellen bleiben also heil.
-  return loadContent({ items, mobs, npcs, quests: kaputt });
+  return loadContent({ items, mobs, npcs, quests: kaputt, tuning });
 });
 
 lehntAb('Auftrag von einem NPC, den es nicht gibt', () => {
   const kaputt = structuredClone(quests);
   (kaputt.quests[0] as { giver: string }).giver = 'npc_niemand';
-  return loadContent({ items, mobs, npcs, quests: kaputt });
+  return loadContent({ items, mobs, npcs, quests: kaputt, tuning });
 });
 
 lehntAb('Beute, die kein Gegenstand ist', () => {
   const kaputt = structuredClone(mobs);
   (kaputt.mobs[0] as { drops: unknown[] }).drops = [{ item: 'gold_nugget', chance: 0.5 }];
-  return loadContent({ items, mobs: kaputt, npcs, quests });
+  return loadContent({ items, mobs: kaputt, npcs, quests, tuning });
+});
+
+lehntAb('Stellschraube fehlt', () => {
+  const kaputt = structuredClone(tuning);
+  delete kaputt.progression.expFactor;
+  return loadContent({ items, mobs, npcs, quests, tuning: kaputt });
+});
+
+lehntAb('zu kurze Aufwertungstabelle', () => {
+  const kaputt = structuredClone(tuning);
+  (kaputt.upgrades.chances as number[]) = [1, 0.9];
+  return loadContent({ items, mobs, npcs, quests, tuning: kaputt });
+});
+
+lehntAb('Aussicht über hundert Prozent', () => {
+  const kaputt = structuredClone(tuning);
+  (kaputt.upgrades.chances as number[])[3] = 1.4;
+  return loadContent({ items, mobs, npcs, quests, tuning: kaputt });
 });
 
 // Und zum Schluss: die echten Dateien gehen weiterhin durch. Sonst hätte die
 // Gegenprobe oben womöglich nur bewiesen, dass alles abgelehnt wird.
 check(
-  loadContent({ items, mobs, npcs, quests }).items === ITEMS.size,
+  loadContent({ items, mobs, npcs, quests, tuning }).items === ITEMS.size,
   'die echten Dateien gehen weiterhin durch',
 );
 

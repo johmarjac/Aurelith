@@ -13,14 +13,32 @@
  */
 
 import {
-  DAY_MS,
   clockText,
+  dayMs,
+  loadContent,
   mixColor,
   skyAt,
   timeOfDay,
   type EnvironmentDef,
   type SkyState,
 } from '@aurelith/shared';
+import { readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// Die Taglänge steht in den Stellschrauben, also müssen die Inhalte stehen,
+// bevor hier irgendetwas gerechnet wird.
+const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+const datei = (name: string): unknown =>
+  JSON.parse(readFileSync(join(repo, 'assets', 'content', name), 'utf8'));
+loadContent({
+  items: datei('items.json'),
+  mobs: datei('mobs.json'),
+  npcs: datei('npcs.json'),
+  quests: datei('quests.json'),
+  tuning: datei('tuning.json'),
+});
+const DAY_MS = dayMs();
 
 let failures = 0;
 function check(ok: boolean, what: string, detail = ''): void {

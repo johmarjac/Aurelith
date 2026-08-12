@@ -13,8 +13,8 @@
  * Fortschritt annimmt, aber nie den Zustand nachzieht.
  */
 
-import { QuestStatus, getQuest } from '@aurelith/shared';
-import { addItem, countItem, removeItem, sellPrice } from '../src/inventory.ts';
+import { QuestStatus, getQuest, sellPrice } from '@aurelith/shared';
+import { addItem, countItem, removeItem } from '../src/inventory.ts';
 import { loadContentFromDisk } from '../src/content.ts';
 import { QuestBook } from '../src/quests.ts';
 import type { ItemRecord } from '../src/db/index.ts';
@@ -69,6 +69,10 @@ console.log('\nBeutel');
 
   check(sellPrice({ value: 100 } as never) === 40, 'Verkaufspreis ist zwei Fünftel');
   check(sellPrice({ value: 1 } as never) === 1, 'und nie null');
+  // Aufgewertetes bringt mehr — dieselbe Funktion, aus der auch der Laden
+  // seinen angezeigten Preis nimmt.
+  check(sellPrice({ value: 100 } as never, 4) === 96, 'und mit +4 deutlich mehr',
+    String(sellPrice({ value: 100 } as never, 4)));
 }
 
 // ---------------------------------------------------------------------------

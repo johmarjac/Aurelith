@@ -17,6 +17,8 @@ import {
   QuestStatus,
   clockText,
   getItem,
+  tuning,
+  tuningLoaded,
   type NpcDialogMsg,
   type QuestLogRow,
   type StatsMsg,
@@ -55,8 +57,7 @@ export type ConnectionState = 'verbindet' | 'verbunden' | 'getrennt';
 const CHAT_HISTORY = 120;
 /** Wie lange eine neue Zeile den eingeklappten Chat sichtbar hält. */
 const CHAT_FLASH_MS = 6000;
-/** Plätze im Inventar. */
-const INVENTORY_SLOTS = 30;
+
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -798,10 +799,19 @@ export class UI {
     this.shopWindow.setInventory(this.sellableItems(), this.lastStats?.gold ?? 0);
     this.upgradeWindow.setInventory(entries, this.lastStats?.gold ?? 0);
 
+    // Wie viele Plätze das Raster hat, sagen die Stellschrauben — der Server
+    // rechnet mit derselben Zahl. Vor dem Laden gibt es sie noch nicht: die
+    // Oberfläche steht schon, bevor die erste Datei da ist. Dann bleibt das
+    // Raster leer, und die erste Inventarnachricht baut es auf.
+    if (!tuningLoaded()) {
+      this.inventoryGrid.replaceChildren();
+      return;
+    }
+
     const bySlot = new Map(entries.map((e) => [e.slot, e]));
     const slots: HTMLElement[] = [];
-
-    for (let i = 0; i < INVENTORY_SLOTS; i++) {
+    const plaetze = tuning().economy.inventorySlots;
+    for (let i = 0; i < plaetze; i++) {
       const entry = bySlot.get(i);
       const slot = el('div', 'item-slot');
       slot.dataset.equipped = String(entry?.equipped ?? false);

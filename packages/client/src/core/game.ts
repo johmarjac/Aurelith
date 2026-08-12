@@ -28,12 +28,13 @@ import {
   CombatFlag,
   EntityState,
   EntityType,
-  PLAYER_PROFILE,
+  playerProfile,
   TICK_MS,
   TICK_SECONDS,
   attackProfileFor,
   getItem,
   loadContent,
+  type AttackProfile,
   parseMapDocument,
   type MapDocument,
   type StatsMsg,
@@ -255,7 +256,7 @@ export class Game {
    * dieselbe Tabelle. Der Client braucht es für die Vorhersage und fürs
    * Zielen, der Server für den Schaden.
    */
-  private profile = attackProfileFor(undefined);
+  private profile!: AttackProfile;
 
   /**
    * Wie weit die Serveruhr von der des Geräts abweicht, in Millisekunden.
@@ -425,10 +426,6 @@ export class Game {
     this.ui.setPlayerName(accountName);
     this.ui.setConnection('verbindet');
 
-    this.running = true;
-    this.lastFrameAt = performance.now();
-    requestAnimationFrame(this.frame);
-
     // Das Manifest darf fehlschlagen — ohne es lädt der Streamer direkt, nur
     // ohne Größen und damit ohne echte Priorisierung.
     try {
@@ -437,15 +434,27 @@ export class Game {
       console.warn('[assets] Manifest nicht verfügbar, lade ohne Priorisierung:', err);
     }
 
-    // Die Inhaltstabellen **vor** dem Kern: der bekommt seine Monsterprofile
-    // daraus. Vier kleine Dateien, gleichzeitig geholt — und dieselben, die
-    // auch der Server liest.
+    // Die Inhaltstabellen **vor allem anderen**.
+    //
+    // Der Kern bekommt seine Monsterprofile daraus, das Angriffsprofil der
+    // eigenen Figur steht darin, und die Zeichenschleife fragt bei jedem Bild
+    // die Tageszeit ab — die ihre Länge ebenfalls von dort nimmt. Fünf kleine
+    // Dateien, gleichzeitig geholt, zusammen unter zwanzig Kilobyte: das ist
+    // kein Ladebalken, sondern ein Wimpernschlag. Ohne sie gäbe es nichts
+    // Sinnvolles zu zeichnen.
     try {
       await this.loadContentTables();
     } catch (err) {
       this.ui.addChat(0, '', `Inhalte konnten nicht geladen werden: ${String(err)}`);
       throw err;
     }
+
+    // Erst jetzt steht fest, wie die Figur ohne Waffe zuschlägt.
+    this.profile = attackProfileFor(undefined);
+
+    this.running = true;
+    this.lastFrameAt = performance.now();
+    requestAnimationFrame(this.frame);
 
     try {
       this.core = await loadClientCore();
@@ -479,13 +488,14 @@ export class Game {
    * geholt.
    */
   private async loadContentTables(): Promise<void> {
-    const [items, mobs, npcs, quests] = await Promise.all([
+    const [items, mobs, npcs, quests, tuning] = await Promise.all([
       this.streamer.requestJson<unknown>('content/items.json'),
       this.streamer.requestJson<unknown>('content/mobs.json'),
       this.streamer.requestJson<unknown>('content/npcs.json'),
       this.streamer.requestJson<unknown>('content/quests.json'),
+      this.streamer.requestJson<unknown>('content/tuning.json'),
     ]);
-    const summe = loadContent({ items, mobs, npcs, quests });
+    const summe = loadContent({ items, mobs, npcs, quests, tuning });
     console.log(
       `[inhalt] ${summe.items} Gegenstände, ${summe.mobs} Monster, ` +
         `${summe.npcs} NPCs, ${summe.quests} Aufträge`,
@@ -949,13 +959,13 @@ export class Game {
       attackDamage: 1,
       defense: 0,
       moveSpeed: this.stats ? 6.2 : 6.2,
-      attackRange: PLAYER_PROFILE.attackRange,
-      attackArc: PLAYER_PROFILE.attackArc,
-      attackCooldownSec: PLAYER_PROFILE.attackCooldownSec,
-      attackWindupSec: PLAYER_PROFILE.attackWindupSec,
+      attackRange: playerProfile().attackRange,
+      attackArc: playerProfile().attackArc,
+      attackCooldownSec: playerProfile().attackCooldownSec,
+      attackWindupSec: playerProfile().attackWindupSec,
       attackStyle: 0,
-      radius: PLAYER_PROFILE.radius,
-      height: PLAYER_PROFILE.height,
+      radius: playerProfile().radius,
+      height: playerProfile().height,
     });
     // Und gleich das Profil der angelegten Waffe darüber. Getrennt, weil beim
     // Erscheinen noch nicht feststeht, ob das Inventar schon da ist.

@@ -18,7 +18,7 @@ import {
   INTEREST_RADIUS,
   KickReason,
   MOBS,
-  PLAYER_PROFILE,
+  playerProfile,
   PROTOCOL_VERSION,
   QuestAction,
   SNAPSHOT_TICK_DIVISOR,
@@ -52,7 +52,7 @@ import {
   encodeWelcome,
   expForLevel,
   expGain,
-  MAX_UPGRADE,
+  maxUpgrade,
   getItem,
   getNpc,
   getQuest,
@@ -63,7 +63,9 @@ import {
   upgradeChance,
   upgradeCost,
   upgradeName,
+  sellPrice,
   type SpawnRow,
+  tuning,
   turnInOf,
   type UpdateRow,
 } from '@aurelith/shared';
@@ -73,11 +75,11 @@ import type { CoreBundle } from './core.ts';
 import type { MapStore } from './maps.ts';
 import { MapInstance } from './mapInstance.ts';
 import { INPUT_QUEUE_DRAIN_AT, INPUT_QUEUE_DRAIN_MAX, Session } from './session.ts';
-import { addItem, removeItem, removeSlot, sellPrice } from './inventory.ts';
+import { addItem, removeItem, removeSlot } from './inventory.ts';
 import type { GameStore } from './db/index.ts';
 
-/** Wie nah man an einem NPC stehen muss, um ihn anzusprechen. */
-const INTERACT_RANGE = 6;
+/** Wie nah man an einem NPC stehen muss — aus den Stellschrauben. */
+const interactRange = (): number => tuning().world.interactRange;
 
 export class GameServer {
   private readonly instances = new Map<string, MapInstance>();
@@ -338,8 +340,8 @@ export class GameServer {
       attackCooldownSec: profile.cooldownSec,
       attackWindupSec: profile.windupSec,
       attackStyle: profile.style,
-      radius: PLAYER_PROFILE.radius,
-      height: PLAYER_PROFILE.height,
+      radius: playerProfile().radius,
+      height: playerProfile().height,
     });
     instance.meta.set(session.entityId, {
       defId: 'player',
@@ -756,8 +758,8 @@ export class GameServer {
       attackCooldownSec: profile.cooldownSec,
       attackWindupSec: profile.windupSec,
       attackStyle: profile.style,
-      radius: PLAYER_PROFILE.radius,
-      height: PLAYER_PROFILE.height,
+      radius: playerProfile().radius,
+      height: playerProfile().height,
     });
     to.meta.set(session.entityId, {
       defId: 'player',
@@ -865,7 +867,7 @@ export class GameServer {
       return;
     }
 
-    if (entry.upgrade >= MAX_UPGRADE) {
+    if (entry.upgrade >= maxUpgrade()) {
       this.systemMessage(session, `${upgradeName(def, entry.upgrade)} ist am Anschlag.`);
       return;
     }
@@ -909,7 +911,7 @@ export class GameServer {
       if (getNpc(meta.defId)?.role !== 'smith') continue;
       const dx = row.x - self.x;
       const dz = row.z - self.z;
-      if (dx * dx + dz * dz <= INTERACT_RANGE * INTERACT_RANGE) return true;
+      if (dx * dx + dz * dz <= interactRange() * interactRange()) return true;
     }
     return false;
   }
@@ -1004,7 +1006,7 @@ export class GameServer {
 
     const dx = target.x - self.x;
     const dz = target.z - self.z;
-    if (dx * dx + dz * dz > INTERACT_RANGE * INTERACT_RANGE) {
+    if (dx * dx + dz * dz > interactRange() * interactRange()) {
       this.systemMessage(session, 'Zu weit weg.');
       return;
     }
@@ -1176,9 +1178,9 @@ export class GameServer {
         this.systemMessage(session, 'So viel ist nicht da.');
         return;
       }
-      // Aufgewertetes bringt mehr — was hineingesteckt wurde, ist nicht weg.
-      const zuschlag = 1 + genommen.upgrade * 0.35;
-      const erloes = Math.round(sellPrice(def) * menge * zuschlag);
+      // Der Zuschlag für Aufgewertetes steckt in `sellPrice` — dieselbe
+      // Funktion, aus der die Oberfläche ihren Preis nimmt.
+      const erloes = sellPrice(def, genommen.upgrade) * menge;
       character.gold += erloes;
       this.systemMessage(
         session,
@@ -1215,7 +1217,7 @@ export class GameServer {
       if (!meta || meta.type !== EntityType.Npc || meta.defId !== npcDefId) continue;
       const dx = row.x - self.x;
       const dz = row.z - self.z;
-      if (dx * dx + dz * dz <= INTERACT_RANGE * INTERACT_RANGE) return row.id;
+      if (dx * dx + dz * dz <= interactRange() * interactRange()) return row.id;
     }
     return undefined;
   }
@@ -1253,7 +1255,7 @@ export class GameServer {
       if (!def?.shop?.length) continue;
       const dx = row.x - self.x;
       const dz = row.z - self.z;
-      if (dx * dx + dz * dz <= INTERACT_RANGE * INTERACT_RANGE) return def;
+      if (dx * dx + dz * dz <= interactRange() * interactRange()) return def;
     }
     return undefined;
   }

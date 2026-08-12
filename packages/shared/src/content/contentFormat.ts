@@ -34,6 +34,7 @@ import {
   type StarterEntry,
 } from './database.ts';
 import { setQuests, type ObjectiveKind, type QuestDef } from './quests.ts';
+import { setTuning, type Tuning } from './tuning.ts';
 
 export class ContentFormatError extends Error {
   constructor(
@@ -366,6 +367,111 @@ export function parseQuests(raw: unknown, source = 'quests.json'): QuestDef[] {
 }
 
 // ---------------------------------------------------------------------------
+// Stellschrauben
+// ---------------------------------------------------------------------------
+
+/**
+ * Liest `tuning.json`.
+ *
+ * **Ohne Vorgabewerte**: jede Zahl muss dastehen. Ein eingesetzter Standard
+ * wäre eine zweite Wahrheit über dieselbe Sache, und die schweigende von
+ * beiden gewinnt genau dann, wenn jemand sich vertippt. Fehlt etwas, sagt der
+ * Fehler, was — das ist in dreissig Sekunden behoben, ein falsch balanciertes
+ * Spiel nicht.
+ */
+export function parseTuning(raw: unknown, source = 'tuning.json'): Tuning {
+  const doc = obj(raw, source);
+  if (optStr(doc, 'format', '') !== 'aurelith.content') {
+    throw new ContentFormatError('Format ist keine Inhaltsdatei', source);
+  }
+
+  const abschnitt = (key: string): Record<string, unknown> =>
+    obj(doc[key], `${source}.${key}`);
+
+  const p = abschnitt('progression');
+  const pPath = `${source}.progression`;
+  const sp = abschnitt('player');
+  const spPath = `${source}.player`;
+  const u = abschnitt('upgrades');
+  const uPath = `${source}.upgrades`;
+  const e = abschnitt('economy');
+  const ePath = `${source}.economy`;
+  const w = abschnitt('world');
+  const wPath = `${source}.world`;
+
+  const chancen = list(u, 'chances', uPath).map((c, i) => {
+    if (typeof c !== 'number' || c < 0 || c > 1) {
+      throw new ContentFormatError('Aussicht muss zwischen 0 und 1 liegen', `${uPath}.chances[${i}]`);
+    }
+    return c;
+  });
+
+  const werte: Tuning = {
+    progression: {
+      maxLevel: num(p, 'maxLevel', pPath),
+      expFactor: num(p, 'expFactor', pPath),
+      expExponent: num(p, 'expExponent', pPath),
+      expLinear: num(p, 'expLinear', pPath),
+      baseHp: num(p, 'baseHp', pPath),
+      hpPerLevel: num(p, 'hpPerLevel', pPath),
+      baseMp: num(p, 'baseMp', pPath),
+      mpPerLevel: num(p, 'mpPerLevel', pPath),
+      baseAttack: num(p, 'baseAttack', pPath),
+      attackPerLevel: num(p, 'attackPerLevel', pPath),
+      baseDefense: num(p, 'baseDefense', pPath),
+      defensePerLevel: num(p, 'defensePerLevel', pPath),
+      moveSpeed: num(p, 'moveSpeed', pPath),
+      expMaxBonus: num(p, 'expMaxBonus', pPath),
+      expBonusPerLevel: num(p, 'expBonusPerLevel', pPath),
+      expMalusPerLevel: num(p, 'expMalusPerLevel', pPath),
+      expFarMalusPerLevel: num(p, 'expFarMalusPerLevel', pPath),
+      expFloor: num(p, 'expFloor', pPath),
+    },
+    player: {
+      attackRange: num(sp, 'attackRange', spPath),
+      attackArc: num(sp, 'attackArc', spPath),
+      attackCooldownSec: num(sp, 'attackCooldownSec', spPath),
+      attackWindupSec: num(sp, 'attackWindupSec', spPath),
+      radius: num(sp, 'radius', spPath),
+      height: num(sp, 'height', spPath),
+    },
+    upgrades: {
+      max: num(u, 'max', uPath),
+      glowFrom: num(u, 'glowFrom', uPath),
+      glowBase: num(u, 'glowBase', uPath),
+      chances: chancen,
+      costMinValue: num(u, 'costMinValue', uPath),
+      costBase: num(u, 'costBase', uPath),
+      costPerLevel: num(u, 'costPerLevel', uPath),
+      bonusPerLevel: num(u, 'bonusPerLevel', uPath),
+      sellBonusPerLevel: num(u, 'sellBonusPerLevel', uPath),
+    },
+    economy: {
+      sellFactor: num(e, 'sellFactor', ePath),
+      inventorySlots: num(e, 'inventorySlots', ePath),
+    },
+    world: {
+      dayMinutes: num(w, 'dayMinutes', wPath),
+      interactRange: num(w, 'interactRange', wPath),
+    },
+  };
+
+  // Die Aufwertungstabelle muss zur Höchststufe passen: eine Stufe ohne
+  // Aussicht liesse sich nie erreichen, und niemand würde merken warum.
+  if (werte.upgrades.chances.length < werte.upgrades.max) {
+    throw new ContentFormatError(
+      `chances hat ${werte.upgrades.chances.length} Einträge, gebraucht werden ${werte.upgrades.max}`,
+      uPath,
+    );
+  }
+  if (werte.upgrades.glowFrom > werte.upgrades.max) {
+    throw new ContentFormatError('glowFrom liegt über der Höchststufe', uPath);
+  }
+
+  return werte;
+}
+
+// ---------------------------------------------------------------------------
 // Laden
 // ---------------------------------------------------------------------------
 
@@ -375,6 +481,7 @@ export interface RawContent {
   mobs: unknown;
   npcs: unknown;
   quests: unknown;
+  tuning: unknown;
 }
 
 /** Was `loadContent` eingelesen hat — nur zur Auskunft. */
@@ -399,6 +506,7 @@ export function loadContent(raw: RawContent): ContentSummary {
   const mobs = parseMobs(raw.mobs);
   const npcs = parseNpcs(raw.npcs);
   const quests = parseQuests(raw.quests);
+  const werte = parseTuning(raw.tuning);
 
   const probleme = checkReferences({ items, mobs, npcs, quests, starter });
   if (probleme.length > 0) {
@@ -410,6 +518,7 @@ export function loadContent(raw: RawContent): ContentSummary {
   setNpcs(npcs);
   setQuests(quests);
   setStarter(starter);
+  setTuning(werte);
 
   return { items: items.length, mobs: mobs.length, npcs: npcs.length, quests: quests.length };
 }
