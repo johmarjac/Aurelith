@@ -13,7 +13,7 @@
  */
 
 import * as THREE from 'three';
-import { assemble, box, cone, cylinder, sphere, type Part } from './geometry.ts';
+import { assemble, box, cone, cylinder, paint, sphere, type Part } from './geometry.ts';
 
 export interface RigState {
   /** Weltnenheiten pro Sekunde. Treibt die Schrittfrequenz. */
@@ -60,17 +60,42 @@ export interface CharacterRig {
   dispose(): void;
 }
 
-/** Ein Gelenk: ein Drehpunkt, unter dem die Geometrie hängt. */
+/**
+ * Dieselbe Farbe, heller oder dunkler.
+ *
+ * Damit kommt ein Gesicht mit den fünf Farben aus, die eine Figur ohnehin
+ * beschreibt. Fünf weitere Felder für Lippen, Ohren und Stiefel wären fünf
+ * Stellen mehr, an denen eine neue Figur unstimmig aussehen kann — hier
+ * verschiebt sich alles mit, sobald man die Hautfarbe ändert.
+ */
+function shade(color: number, factor: number): number {
+  const r = Math.min(255, Math.round(((color >> 16) & 0xff) * factor));
+  const g = Math.min(255, Math.round(((color >> 8) & 0xff) * factor));
+  const b = Math.min(255, Math.round((color & 0xff) * factor));
+  return (r << 16) | (g << 8) | b;
+}
+
+/**
+ * Ein Gelenk: ein Drehpunkt, unter dem die Geometrie hängt.
+ *
+ * `color` ist nicht optional, obwohl es das sein könnte. Genau daran hing ein
+ * Fehler: Arme und Beine wurden aus roher `box`-Geometrie gebaut, und die
+ * bringt kein Farbattribut mit. Das gemeinsame Material zeichnet aus
+ * Vertexfarben — fehlen sie, kommt Schwarz heraus. Die Figur lief also mit
+ * schwarzen Ärmeln und schwarzen Hosenbeinen herum, während `shirt` und
+ * `pants` in ihrer Beschreibung standen und niemand sie benutzte.
+ */
 function joint(
   geometry: THREE.BufferGeometry,
   material: THREE.Material,
+  color: number,
   pivot: [number, number, number],
   offset: [number, number, number],
   disposables: THREE.BufferGeometry[],
 ): THREE.Object3D {
   const holder = new THREE.Object3D();
   holder.position.set(...pivot);
-  const mesh = new THREE.Mesh(geometry, material);
+  const mesh = new THREE.Mesh(paint(geometry, color), material);
   mesh.position.set(...offset);
   holder.add(mesh);
   disposables.push(geometry);
@@ -263,12 +288,55 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
   const armLength = 0.62;
 
   // Rumpf, Kopf und Haar als ein Stück — sie bewegen sich nie gegeneinander.
+  //
+  // Das Gesicht steckt mit drin. Es besteht aus flachen Kästchen, die knapp
+  // vor der Kopffläche sitzen: keine Texturen, keine Rundungen, sondern
+  // dieselbe Formensprache wie der Rest. Low-Poly heißt nicht wenig Details,
+  // sondern Details aus wenigen Flächen.
+  //
+  // Der Kopf blickt nach +Z. Die Vorderfläche liegt bei z = 0,13; alles, was
+  // im Gesicht sitzt, steht ein paar Millimeter davor.
+  const brow = shade(cfg.hair, 0.9);
   const torsoParts: Part[] = [
     { geometry: box(0.5 * w, 0.6, 0.3 * w), color: cfg.shirt, position: [0, 1.22, 0] },
     { geometry: box(0.42 * w, 0.16, 0.28 * w), color: cfg.accent, position: [0, 0.96, 0] },
+
+    // Hals — vorher saß der Kopf ohne Übergang auf den Schultern.
+    { geometry: box(0.14, 0.1, 0.14), color: shade(cfg.skin, 0.86), position: [0, 1.5, 0] },
+
     { geometry: box(0.28, 0.28, 0.26), color: cfg.skin, position: [0, 1.66, 0] },
-    { geometry: box(0.31, 0.1, 0.29), color: cfg.hair, position: [0, 1.76, 0] },
+    // Kinn: schmaler als der Kopf, damit der Würfel eine Form bekommt.
+    { geometry: box(0.2, 0.07, 0.22), color: cfg.skin, position: [0, 1.535, 0.012] },
+
+    // Ohren.
+    { geometry: box(0.03, 0.075, 0.06), color: shade(cfg.skin, 0.94), position: [0.147, 1.665, -0.005] },
+    { geometry: box(0.03, 0.075, 0.06), color: shade(cfg.skin, 0.94), position: [-0.147, 1.665, -0.005] },
+
+    // Brauen.
+    { geometry: box(0.082, 0.024, 0.02), color: brow, position: [0.06, 1.729, 0.126] },
+    { geometry: box(0.082, 0.024, 0.02), color: brow, position: [-0.06, 1.729, 0.126] },
+
+    // Augen: helle Fläche, dunkle Pupille davor.
+    { geometry: box(0.066, 0.048, 0.012), color: 0xf0ece4, position: [0.062, 1.699, 0.132] },
+    { geometry: box(0.066, 0.048, 0.012), color: 0xf0ece4, position: [-0.062, 1.699, 0.132] },
+    { geometry: box(0.03, 0.034, 0.012), color: 0x2a2018, position: [0.066, 1.697, 0.136] },
+    { geometry: box(0.03, 0.034, 0.012), color: 0x2a2018, position: [-0.066, 1.697, 0.136] },
+
+    // Nase: der einzige Teil, der wirklich vorsteht.
+    { geometry: box(0.055, 0.08, 0.06), color: shade(cfg.skin, 1.04), position: [0, 1.662, 0.145] },
+
+    // Mund.
+    { geometry: box(0.082, 0.016, 0.012), color: shade(cfg.skin, 0.72), position: [0, 1.6, 0.13] },
+
+    // Haar: Dach, Nacken, Seiten und eine Strähne über der Stirn. Vier Kästen
+    // statt einem — ein einzelner Deckel sieht aus wie ein aufgesetzter Hut.
+    { geometry: box(0.31, 0.09, 0.29), color: cfg.hair, position: [0, 1.79, 0] },
     { geometry: box(0.15, 0.09, 0.06), color: cfg.hair, position: [0, 1.7, -0.14] },
+    { geometry: box(0.032, 0.17, 0.28), color: cfg.hair, position: [0.148, 1.7, -0.012] },
+    { geometry: box(0.032, 0.17, 0.28), color: cfg.hair, position: [-0.148, 1.7, -0.012] },
+    // Flach am Kopf und ueber der Braue: eine Straehne, die weiter vorsteht
+    // als die Augen, deckt sie zu — und sieht aus wie ein Fehler im Modell.
+    { geometry: box(0.292, 0.05, 0.04), color: cfg.hair, position: [0, 1.772, 0.112] },
   ];
   const torso = new THREE.Mesh(assemble(torsoParts), material);
   torso.scale.setScalar(s);
@@ -278,22 +346,59 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
   const armGeo = () => box(0.16 * w, armLength, 0.16 * w);
   const legGeo = () => box(0.18 * w, legLength, 0.2 * w);
 
-  const armL = joint(armGeo(), material, [-0.34 * w * s, shoulderY * s, 0], [0, -armLength / 2, 0], disposables);
-  const armR = joint(armGeo(), material, [0.34 * w * s, shoulderY * s, 0], [0, -armLength / 2, 0], disposables);
-  const legL = joint(legGeo(), material, [-0.14 * w * s, hipY * s, 0], [0, -legLength / 2, 0], disposables);
-  const legR = joint(legGeo(), material, [0.14 * w * s, hipY * s, 0], [0, -legLength / 2, 0], disposables);
+  // Ärmel in Hemdfarbe, Hosenbeine in Hosenfarbe — beides stand schon in der
+  // Beschreibung, wurde aber nie gezeichnet.
+  const sleeve = shade(cfg.shirt, 0.92);
+  const armL = joint(armGeo(), material, sleeve, [-0.34 * w * s, shoulderY * s, 0], [0, -armLength / 2, 0], disposables);
+  const armR = joint(armGeo(), material, sleeve, [0.34 * w * s, shoulderY * s, 0], [0, -armLength / 2, 0], disposables);
+  const legL = joint(legGeo(), material, cfg.pants, [-0.14 * w * s, hipY * s, 0], [0, -legLength / 2, 0], disposables);
+  const legR = joint(legGeo(), material, cfg.pants, [0.14 * w * s, hipY * s, 0], [0, -legLength / 2, 0], disposables);
   for (const j of [armL, armR, legL, legR]) {
     j.scale.setScalar(s);
     body.add(j);
   }
 
-  // Hautfarbe an Händen und Füßen andeuten.
-  const skinMat = material;
-  const handGeo = box(0.17 * w, 0.14, 0.17 * w);
-  const hand = new THREE.Mesh(handGeo, skinMat);
-  hand.position.set(0, -armLength, 0);
-  armR.add(hand);
-  disposables.push(handGeo);
+  // Hände und Füße.
+  //
+  // Die Hand war ein Würfel von 17 cm Kantenlänge — breiter als der Arm und
+  // deutlich breiter als jeder Griff, den sie halten soll. Die Waffe steckte
+  // darin, statt gehalten zu werden. Jetzt ist sie schmal und hoch, mit einem
+  // Daumen zur Körpermitte hin, und der Griff läuft sichtbar durch die Faust.
+  const handParts = (thumbSide: number): Part[] => [
+    { geometry: box(0.1 * w, 0.155, 0.125 * w), color: cfg.skin, position: [0, 0, 0] },
+    {
+      geometry: box(0.042 * w, 0.062, 0.055 * w),
+      color: cfg.skin,
+      position: [thumbSide * 0.062 * w, 0.032, 0.028],
+    },
+    // Bündchen: die Grenze zwischen Ärmel und Haut, sonst wächst die Hand
+    // ohne Übergang aus dem Hemd.
+    { geometry: box(0.13 * w, 0.035, 0.14 * w), color: shade(cfg.shirt, 0.8), position: [0, 0.092, 0] },
+  ];
+
+  for (const [arm, thumbSide] of [
+    [armR, -1],
+    [armL, 1],
+  ] as const) {
+    const geo = assemble(handParts(thumbSide));
+    const hand = new THREE.Mesh(geo, material);
+    hand.position.set(0, -armLength, 0);
+    arm.add(hand);
+    disposables.push(geo);
+  }
+
+  const bootParts: Part[] = [
+    { geometry: box(0.2 * w, 0.1, 0.22 * w), color: shade(cfg.pants, 0.62), position: [0, 0, 0.01] },
+    // Die Spitze steht nach vorn über — ohne sie steht die Figur auf Stümpfen.
+    { geometry: box(0.18 * w, 0.07, 0.1 * w), color: shade(cfg.pants, 0.62), position: [0, -0.016, 0.14] },
+  ];
+  for (const leg of [legL, legR]) {
+    const geo = assemble(bootParts);
+    const boot = new THREE.Mesh(geo, material);
+    boot.position.set(0, -legLength, 0);
+    leg.add(boot);
+    disposables.push(geo);
+  }
 
   // Die Waffe haengt an der Hand. Nicht mitskalieren: der Arm ist bereits mit
   // `s` skaliert, und zweimal skaliert waere der Gruftwaerter-Knueppel dreimal
@@ -484,7 +589,7 @@ function makeQuadruped(cfg: CreatureConfig, material: THREE.Material): Character
   ];
   for (const [x, z] of positions) {
     const geo = box(0.14 * s, 0.44 * s, 0.14 * s);
-    const leg = joint(geo, material, [x, 0.44 * s, z], [0, -0.22 * s, 0], disposables);
+    const leg = joint(geo, material, shade(cfg.secondary, 0.9), [x, 0.44 * s, z], [0, -0.22 * s, 0], disposables);
     body.add(leg);
     legs.push(leg);
   }
@@ -549,6 +654,7 @@ function makeCrawler(cfg: CreatureConfig, material: THREE.Material): CharacterRi
     const leg = joint(
       geo,
       material,
+      shade(cfg.secondary, 0.9),
       [side * 0.42 * s, 0.4 * s, row * 0.36 * s],
       [0, -0.21 * s, 0],
       disposables,

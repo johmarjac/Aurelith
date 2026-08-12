@@ -12,10 +12,42 @@ import type { EnvironmentDef } from '@aurelith/shared';
 import type { QualitySettings } from '../config.ts';
 
 /** Wie weit die Kamera hinter der Figur steht, in Stufen. */
-const ZOOM_MIN = 3.5;
+const ZOOM_MIN = 0.35;
 const ZOOM_MAX = 22;
 const PITCH_MIN = -0.25;
 const PITCH_MAX = 1.35;
+
+/**
+ * Ab hier wird die eigene Figur ausgeblendet.
+ *
+ * Darunter steckt die Kamera in ihr, und was man dann sähe, wäre die Innenseite
+ * des Brustkorbs. Oberhalb bleibt sie stehen — auch ganz nah, denn genau dort
+ * will man sie ja ansehen.
+ */
+const FIRST_PERSON_AT = 0.9;
+
+/**
+ * Radius um die Achse der Figur, in den die Kamera nicht eindringt.
+ *
+ * Ohne das schiebt sich die Kamera beim Herandrehen seitlich durch Schulter und
+ * Kopf. Ein Zylinder statt einer Kugel, weil die Figur genau das ist: aufrecht,
+ * kantig, überall etwa gleich breit.
+ */
+const BODY_CLEARANCE = 0.62;
+
+/**
+ * Wie schnell ein Mausrad-Schritt zoomt, als Faktor statt als Abstand.
+ *
+ * Ein fester Abstand je Schritt ist weit draußen zu fein und nah dran viel zu
+ * grob — von 3,5 auf 2,3 auf 1,1 sind drei Schritte durch den gesamten
+ * interessanten Bereich. Multiplikativ bleibt der Schritt gefühlt gleich groß,
+ * egal wo man steht.
+ */
+const ZOOM_RATE = 0.16;
+
+function clamp(v: number, lo: number, hi: number): number {
+  return v < lo ? lo : v > hi ? hi : v;
+}
 
 export class Scene3D {
   readonly renderer: THREE.WebGLRenderer;
@@ -61,7 +93,10 @@ export class Scene3D {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-    this.camera = new THREE.PerspectiveCamera(60, 1, 0.1, quality.viewDistance * 2.2);
+    // Nahebene bei 5 cm statt 10: nah an der Figur schneidet 0,1 sonst sichtbar
+    // in Nase und Schulter. Die Tiefengenauigkeit trägt das — die Fernebene
+    // liegt bei einigen hundert Metern, nicht bei Kilometern.
+    this.camera = new THREE.PerspectiveCamera(60, 1, 0.05, quality.viewDistance * 2.2);
 
     this.sun.castShadow = quality.shadows;
     if (quality.shadows) {
@@ -142,12 +177,12 @@ export class Scene3D {
   }
 
   zoom(delta: number): void {
-    this.distance = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, this.distance + delta));
+    this.distance = clamp(this.distance * Math.exp(delta * ZOOM_RATE), ZOOM_MIN, ZOOM_MAX);
   }
 
   /** Ist die Kamera so nah, dass die eigene Figur ausgeblendet werden sollte? */
   get isFirstPerson(): boolean {
-    return this.distance <= ZOOM_MIN + 0.2;
+    return this.distance <= FIRST_PERSON_AT;
   }
 
   /**
@@ -155,16 +190,43 @@ export class Scene3D {
    * zu halten — ohne das taucht sie an Hängen in die Erde.
    */
   follow(targetX: number, targetY: number, targetZ: number, world: CoreWorld | undefined, dt: number): void {
+    // Der Drehpunkt wandert beim Herankommen nach oben. Bliebe er auf
+    // Brusthöhe, zoomte man aus der Ferne schön heran und stünde am Ende vor
+    // einem Hemd — das Gesicht läge über dem Bildrand.
+    const closeness = 1 - clamp((this.distance - ZOOM_MIN) / (4 - ZOOM_MIN), 0, 1);
+    const pivotY = 1.4 + 0.3 * closeness;
+
     this.followed.lerp(
-      this.desired.set(targetX, targetY + 1.4, targetZ),
+      this.desired.set(targetX, targetY + pivotY, targetZ),
       // Weiches Nachziehen, aber bildratenunabhängig.
       1 - Math.pow(0.0015, dt),
     );
 
     const cosP = Math.cos(this.pitch);
-    const camX = this.followed.x - Math.sin(this.yaw) * cosP * this.distance;
-    const camZ = this.followed.z - Math.cos(this.yaw) * cosP * this.distance;
+    let camX = this.followed.x - Math.sin(this.yaw) * cosP * this.distance;
+    let camZ = this.followed.z - Math.cos(this.yaw) * cosP * this.distance;
     let camY = this.followed.y + Math.sin(this.pitch) * this.distance;
+
+    // Nicht in die Figur hinein.
+    //
+    // Der Abstand wird vom Drehpunkt aus gemessen, und der sitzt *in* der
+    // Figur. Nah dran und flach geneigt landet die Kamera deshalb zwischen
+    // den Schultern — man sieht die Rückseite der Vorderseite. Wo die Kamera
+    // auf Körperhöhe steht, wird sie hier nach außen geschoben.
+    //
+    // In der ersten Person entfällt das: dort ist die Figur ohnehin
+    // ausgeblendet, und ein Herausschieben nähme dem Modus den Sinn.
+    if (!this.isFirstPerson) {
+      const dx = camX - this.followed.x;
+      const dz = camZ - this.followed.z;
+      const horizontal = Math.hypot(dx, dz);
+      const withinBody = camY > targetY + 0.1 && camY < targetY + 1.95;
+      if (withinBody && horizontal < BODY_CLEARANCE && horizontal > 1e-4) {
+        const push = BODY_CLEARANCE / horizontal;
+        camX = this.followed.x + dx * push;
+        camZ = this.followed.z + dz * push;
+      }
+    }
 
     if (world) {
       const ground = world.heightAt(camX, camZ);

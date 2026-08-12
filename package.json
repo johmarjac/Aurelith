@@ -19,6 +19,7 @@
     "core": "node tools/build-core.mjs",
     "core:test": "node tools/build-core.mjs --native",
     "maps": "node tools/gen-maps.mjs",
+    "figur": "tsx tools/render-rig.mjs",
     "dev:server": "npm run dev --workspace @aurelith/server",
     "dev:client": "npm run dev --workspace @aurelith/client",
     "dev:editor": "npm run dev --workspace @aurelith/editor",
