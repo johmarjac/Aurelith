@@ -14,7 +14,7 @@
  */
 
 import * as THREE from 'three';
-import { assemble, box, cone, cylinder, sphere } from './geometry.ts';
+import { assemble, box, cone, cylinder, sphere, type Part } from './geometry.ts';
 import { buildWeaponGeometry } from './rigs.ts';
 import type { ItemDef } from '@aurelith/shared';
 
@@ -113,8 +113,131 @@ function ironBlade(): THREE.BufferGeometry {
   ]);
 }
 
+/**
+ * Der Rüstungssatz.
+ *
+ * Grob und einprägsam: bei achtundvierzig Bildpunkten zählt der Umriss und
+ * nichts sonst. Die Farben sind dieselben, die `ARMOR_STYLES` im Rig für
+ * `leder` benutzt — was im Beutel liegt, soll aussehen wie das, was danach an
+ * der Figur hängt.
+ */
+const LEDER = 0x8a6a42;
+const LEDER_DUNKEL = 0x5b4526;
+
+/** Lederkappe: Schale mit Schirm. */
+function cap(): THREE.BufferGeometry {
+  return assemble([
+    { geometry: sphere(0.3, 1), color: LEDER, position: [0, 0.32, 0], scale: [1, 0.62, 1] },
+    { geometry: box(0.32, 0.05, 0.16), color: LEDER_DUNKEL, position: [0, 0.24, 0.2] },
+    { geometry: box(0.56, 0.07, 0.5), color: LEDER_DUNKEL, position: [0, 0.2, 0] },
+  ]);
+}
+
+/** Lederwams: Rumpfstück mit Schulterklappen und Gürtel. */
+function tunic(): THREE.BufferGeometry {
+  return assemble([
+    { geometry: box(0.5, 0.6, 0.26), color: LEDER, position: [0, 0.42, 0] },
+    { geometry: box(0.66, 0.13, 0.3), color: LEDER_DUNKEL, position: [0, 0.64, 0] },
+    { geometry: box(0.52, 0.1, 0.29), color: LEDER_DUNKEL, position: [0, 0.16, 0] },
+    // Schnürung vorn — sonst ist es ein Kasten.
+    { geometry: box(0.05, 0.34, 0.02), color: 0xe8d8b8, position: [0, 0.42, 0.14] },
+  ]);
+}
+
+/** Lederhose: zwei Beine mit Bund. */
+function pants(): THREE.BufferGeometry {
+  return assemble([
+    { geometry: box(0.46, 0.12, 0.26), color: LEDER_DUNKEL, position: [0, 0.62, 0] },
+    { geometry: box(0.2, 0.56, 0.24), color: LEDER, position: [-0.12, 0.28, 0] },
+    { geometry: box(0.2, 0.56, 0.24), color: LEDER, position: [0.12, 0.28, 0] },
+  ]);
+}
+
+/** Lederstiefel: Schaft, Sohle, Spitze. */
+function boots(): THREE.BufferGeometry {
+  return assemble([
+    { geometry: box(0.24, 0.42, 0.24), color: LEDER, position: [0, 0.42, -0.02] },
+    { geometry: box(0.26, 0.12, 0.42), color: LEDER_DUNKEL, position: [0, 0.16, 0.06] },
+    { geometry: box(0.24, 0.08, 0.14), color: LEDER_DUNKEL, position: [0, 0.08, 0.2] },
+  ]);
+}
+
+/** Wanderumhang: ein Tuch, oben schmal, unten weit. */
+function cloak(): THREE.BufferGeometry {
+  const stoff = 0x5a6b8a;
+  return assemble([
+    { geometry: box(0.34, 0.2, 0.06), color: stoff, position: [0, 0.72, 0] },
+    { geometry: box(0.56, 0.44, 0.07), color: stoff, position: [0, 0.42, 0] },
+    { geometry: box(0.66, 0.22, 0.08), color: shadeItem(stoff, 0.88), position: [0, 0.14, 0] },
+    // Spange am Hals.
+    { geometry: cylinder(0.07, 0.07, 0.05, 8), color: 0xc9a44a, position: [0, 0.78, 0.06], rotation: [Math.PI / 2, 0, 0] },
+  ]);
+}
+
+/** Lesebrille: zwei Gläser in Messing. */
+function glasses(): THREE.BufferGeometry {
+  const messing = 0xc9a44a;
+  const glas = 0xbfe4f0;
+  return assemble([
+    { geometry: cylinder(0.17, 0.17, 0.03, 12), color: glas, position: [-0.2, 0.4, 0], rotation: [Math.PI / 2, 0, 0] },
+    { geometry: cylinder(0.17, 0.17, 0.03, 12), color: glas, position: [0.2, 0.4, 0], rotation: [Math.PI / 2, 0, 0] },
+    { geometry: cylinder(0.19, 0.19, 0.025, 12), color: messing, position: [-0.2, 0.4, -0.01], rotation: [Math.PI / 2, 0, 0] },
+    { geometry: cylinder(0.19, 0.19, 0.025, 12), color: messing, position: [0.2, 0.4, -0.01], rotation: [Math.PI / 2, 0, 0] },
+    { geometry: box(0.1, 0.035, 0.03), color: messing, position: [0, 0.4, 0] },
+    { geometry: box(0.03, 0.03, 0.22), color: messing, position: [-0.37, 0.4, -0.1] },
+    { geometry: box(0.03, 0.03, 0.22), color: messing, position: [0.37, 0.4, -0.1] },
+  ]);
+}
+
+/** Moorkette: Schnur mit einem Splitter Irrlichtessenz. */
+function pendant(): THREE.BufferGeometry {
+  const schnur = 0x6b4a2c;
+  const stein = 0x7fd8e8;
+  return assemble([
+    { geometry: cylinder(0.03, 0.03, 0.34, 6), color: schnur, position: [-0.16, 0.5, 0], rotation: [0, 0, 0.5] },
+    { geometry: cylinder(0.03, 0.03, 0.34, 6), color: schnur, position: [0.16, 0.5, 0], rotation: [0, 0, -0.5] },
+    { geometry: cylinder(0.03, 0.03, 0.16, 6), color: schnur, position: [0, 0.36, 0] },
+    { geometry: cone(0.16, 0.34, 6), color: stein, position: [0, 0.16, 0] },
+    { geometry: cone(0.16, 0.16, 6), color: stein, position: [0, 0.36, 0], rotation: [Math.PI, 0, 0] },
+  ]);
+}
+
+/** Kupferring: ein Reif, hochkant, damit man das Loch sieht. */
+function ring(): THREE.BufferGeometry {
+  const kupfer = 0xb87333;
+  const teile: Part[] = [];
+  // Ein Torus aus acht Klötzchen: `cylinder` allein wäre eine Scheibe, und
+  // ein Ring ohne Loch ist keiner.
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    teile.push({
+      geometry: box(0.09, 0.09, 0.12),
+      color: kupfer,
+      position: [Math.cos(a) * 0.24, 0.4 + Math.sin(a) * 0.24, 0],
+      rotation: [0, 0, a],
+    });
+  }
+  return assemble(teile);
+}
+
+/** Dieselbe Aufhellung wie im Rig — hier lokal, um nichts zu exportieren. */
+function shadeItem(color: number, factor: number): number {
+  const r = Math.min(255, Math.round(((color >> 16) & 0xff) * factor));
+  const g = Math.min(255, Math.round(((color >> 8) & 0xff) * factor));
+  const b = Math.min(255, Math.round((color & 0xff) * factor));
+  return (r << 16) | (g << 8) | b;
+}
+
 /** Der Katalog. Schlüssel entsprechen dem `model`-Feld der Gegenstandstabelle. */
 export const ITEM_BUILDERS: Record<string, ItemBuilder> = {
+  armor_head: cap,
+  armor_chest: tunic,
+  armor_legs: pants,
+  armor_feet: boots,
+  armor_cloak: cloak,
+  armor_glasses: glasses,
+  armor_necklace: pendant,
+  armor_ring: ring,
   item_potion: potion,
   item_essence: essence,
   item_hide: hide,

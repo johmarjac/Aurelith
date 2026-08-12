@@ -179,7 +179,8 @@
       "model": "armor_head",
       "iconColor": "#8a6a42",
       "armorStyle": "leder",
-      "description": "Weiches Leder mit Nackenschutz. Hält den Regen ab und manchen Schlag."
+      "description": "Weiches Leder mit Nackenschutz. Hält den Regen ab und manchen Schlag.",
+      "icon": "icons/leather_cap.webp"
     },
     {
       "id": "leather_tunic",
@@ -196,7 +197,8 @@
       "model": "armor_chest",
       "iconColor": "#9a7548",
       "armorStyle": "leder",
-      "description": "Gegerbtes Leder über einem Leinenhemd. Der Kern jedes ersten Satzes."
+      "description": "Gegerbtes Leder über einem Leinenhemd. Der Kern jedes ersten Satzes.",
+      "icon": "icons/leather_tunic.webp"
     },
     {
       "id": "leather_pants",
@@ -213,7 +215,8 @@
       "model": "armor_legs",
       "iconColor": "#7d5c38",
       "armorStyle": "leder",
-      "description": "Verstärkt an Knie und Hüfte, sonst bequem genug zum Laufen."
+      "description": "Verstärkt an Knie und Hüfte, sonst bequem genug zum Laufen.",
+      "icon": "icons/leather_pants.webp"
     },
     {
       "id": "leather_boots",
@@ -230,7 +233,8 @@
       "model": "armor_feet",
       "iconColor": "#6b4a2c",
       "armorStyle": "leder",
-      "description": "Hoher Schaft, feste Sohle. Man hört sich damit kommen."
+      "description": "Hoher Schaft, feste Sohle. Man hört sich damit kommen.",
+      "icon": "icons/leather_boots.webp"
     },
     {
       "id": "wanderer_cloak",
@@ -248,7 +252,8 @@
       "iconColor": "#5a6b8a",
       "armorStyle": "leinen",
       "description": "Ein weiter Umhang aus grobem Leinen. Wärmt nachts, staubt tagsüber.",
-      "maxHp": 14
+      "maxHp": 14,
+      "icon": "icons/wanderer_cloak.webp"
     },
     {
       "id": "reading_glasses",
@@ -267,7 +272,8 @@
       "armorStyle": "messing",
       "description": "Geschliffenes Glas in Messing. Man sieht damit nicht besser — nur genauer.",
       "maxMp": 10,
-      "critChance": 0.02
+      "critChance": 0.02,
+      "icon": "icons/reading_glasses.webp"
     },
     {
       "id": "copper_ring",
@@ -285,7 +291,8 @@
       "iconColor": "#b87333",
       "description": "Schlicht und schwer. Zwei davon passen an eine Hand.",
       "maxHp": 12,
-      "critChance": 0.03
+      "critChance": 0.03,
+      "icon": "icons/copper_ring.webp"
     },
     {
       "id": "moor_pendant",
@@ -303,7 +310,8 @@
       "iconColor": "#7fd8e8",
       "description": "Ein Splitter Irrlichtessenz an einer Lederschnur. Kühl auf der Haut.",
       "maxMp": 15,
-      "maxHp": 8
+      "maxHp": 8,
+      "icon": "icons/moor_pendant.webp"
     }
   ],
   "starter": [
@@ -325,6 +333,51 @@
     {
       "item": "potion_hp_small",
       "count": 3,
+      "equipped": false
+    },
+    {
+      "item": "leather_cap",
+      "count": 1,
+      "equipped": false
+    },
+    {
+      "item": "leather_tunic",
+      "count": 1,
+      "equipped": false
+    },
+    {
+      "item": "leather_pants",
+      "count": 1,
+      "equipped": false
+    },
+    {
+      "item": "leather_boots",
+      "count": 1,
+      "equipped": false
+    },
+    {
+      "item": "wanderer_cloak",
+      "count": 1,
+      "equipped": false
+    },
+    {
+      "item": "reading_glasses",
+      "count": 1,
+      "equipped": false
+    },
+    {
+      "item": "moor_pendant",
+      "count": 1,
+      "equipped": false
+    },
+    {
+      "item": "copper_ring",
+      "count": 1,
+      "equipped": false
+    },
+    {
+      "item": "copper_ring",
+      "count": 1,
       "equipped": false
     }
   ]
