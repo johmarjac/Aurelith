@@ -56,6 +56,15 @@ export interface PlayOptions {
    * billigste Gewinn im ganzen Tonsystem.
    */
   spread?: number;
+  /**
+   * Grundtonhöhe als Abspielrate, 1 ist unverändert.
+   *
+   * Damit wird aus einer Aufnahme eine Familie: derselbe Einschlag etwas
+   * höher klingt schärfer, etwas tiefer schwerer. Drei Dateien für drei
+   * Trefferarten wären drei Aufnahmen, die zueinander passen müssen — hier
+   * passen sie per Konstruktion, weil es dieselbe ist.
+   */
+  rate?: number;
 }
 
 /** Ab hier ist ein Ton nicht mehr zu hören. */
@@ -446,10 +455,9 @@ export class Mixer {
     const source = this.context.createBufferSource();
     source.buffer = ready;
 
-    if (options.spread) {
-      const halbton = (Math.random() * 2 - 1) * options.spread;
-      source.playbackRate.value = 2 ** (halbton / 12);
-    }
+    const halbton = options.spread ? (Math.random() * 2 - 1) * options.spread : 0;
+    const rate = (options.rate ?? 1) * 2 ** (halbton / 12);
+    if (rate !== 1) source.playbackRate.value = rate;
 
     const voice = this.context.createGain();
     voice.gain.value = gain;

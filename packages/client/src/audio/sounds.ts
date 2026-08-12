@@ -43,6 +43,8 @@ export interface SoundDef {
    * wirklich etwas losfliegt; `cue` bleibt dabei ungenutzt.
    */
   viaProjectile?: boolean;
+  /** Grundtonhöhe als Abspielrate. Siehe PlayOptions.rate. */
+  rate?: number;
 }
 
 export type SoundId =
@@ -50,7 +52,8 @@ export type SoundId =
   | 'schwert_schwung'
   | 'treffer'
   | 'treffer_kritisch'
-  | 'treffer_toedlich';
+  | 'treffer_toedlich'
+  | 'ausruestung';
 
 export const SOUNDS: Record<SoundId, SoundDef> = {
   bogen_schuss: {
@@ -78,6 +81,11 @@ export const SOUNDS: Record<SoundId, SoundDef> = {
 
   // --- Einschläge ---------------------------------------------------------
   //
+  // Eine Aufnahme, drei Ausprägungen. Der kritische Treffer klingt schärfer,
+  // weil er etwas höher läuft, der tödliche schwerer, weil er tiefer läuft —
+  // und weil es dieselbe Aufnahme ist, passen die drei per Konstruktion
+  // zueinander. Drei getrennte Dateien müssten das erst werden.
+  //
   // Kategorie `effects`, nicht `weapons`: ein Treffer gehört zum Ziel, nicht
   // zur Waffe. Wer die Waffen leiser dreht, weil ihm das eigene Schwert auf
   // die Nerven geht, will trotzdem hören, ob er trifft.
@@ -88,22 +96,39 @@ export const SOUNDS: Record<SoundId, SoundDef> = {
   treffer: {
     path: 'audio/treffer.mp3',
     category: 'effects',
-    gain: 0.55,
-    spread: 1.2,
+    gain: 0.6,
+    spread: 1.0,
     cue: 0,
   },
   treffer_kritisch: {
-    path: 'audio/treffer_kritisch.mp3',
+    path: 'audio/treffer.mp3',
     category: 'effects',
-    gain: 0.7,
-    spread: 0.8,
+    gain: 0.8,
+    spread: 0.7,
+    rate: 1.12,
     cue: 0,
   },
   treffer_toedlich: {
-    path: 'audio/treffer_toedlich.mp3',
+    path: 'audio/treffer.mp3',
     category: 'effects',
-    gain: 0.8,
-    spread: 0.5,
+    gain: 0.85,
+    spread: 0.4,
+    rate: 0.82,
+    cue: 0,
+  },
+
+  // --- Oberfläche ---------------------------------------------------------
+  //
+  // Ohne Ort: ein Waffenwechsel findet nicht in der Welt statt, sondern in
+  // der Hand des Spielers. Ihn nach links zu ziehen, weil die Figur gerade
+  // links steht, wäre albern.
+  ausruestung: {
+    path: 'audio/ausruestung.mp3',
+    category: 'effects',
+    gain: 0.75,
+    // Keine Streuung: ein Bestätigungsklang soll jedes Mal gleich klingen.
+    // Variation gehört dorthin, wo etwas oft hintereinander passiert.
+    spread: 0,
     cue: 0,
   },
 };
@@ -130,6 +155,5 @@ export const PRELOAD: SoundId[] = [
   'bogen_schuss',
   'schwert_schwung',
   'treffer',
-  'treffer_kritisch',
-  'treffer_toedlich',
+  'ausruestung',
 ];

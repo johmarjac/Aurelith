@@ -218,6 +218,14 @@ export class Game {
   private readonly textures: TextureLoader;
   private readonly quality = QUALITY[guessQuality()];
   private readonly mixer = new Mixer();
+  /**
+   * Was gerade angelegt ist, als sortierte Kennungsliste.
+   *
+   * `undefined` heißt: noch nie ein Inventar gesehen. Die erste Nachricht
+   * setzt nur den Ausgangswert und klingt nicht — sonst begrüßte einen das
+   * Spiel beim Betreten mit einem Waffenwechsel, den niemand vorgenommen hat.
+   */
+  private equipped?: string;
 
   private core?: ClientCore;
   private connection?: Connection;
@@ -664,6 +672,26 @@ export class Game {
         });
         this.profile = attackProfileFor(mainhand ? getItem(mainhand.itemId) : undefined);
         this.applyProfileToPrediction();
+
+        // Klang nur beim *Wechsel*, nicht bei jeder Inventarnachricht.
+        //
+        // Der Server schickt das Inventar auch beim Anmelden und nach jedem
+        // Aufsammeln. Ohne den Vergleich klänge es beim Betreten der Welt und
+        // bei jedem eingesammelten Kraut — der Ton bestätigt aber eine
+        // Handlung, und wo keine war, gehört keine Bestätigung hin.
+        const angelegt = rows
+          .filter((r) => r.equipped)
+          .map((r) => r.itemId)
+          .sort()
+          .join(',');
+        if (this.equipped !== undefined && angelegt !== this.equipped) {
+          const ton = SOUNDS.ausruestung;
+          // Ohne Ort: das passiert in der Hand des Spielers, nicht in der Welt.
+          this.mixer.play(ton.path, ton.category, (path) => this.streamer.request(path), {
+            gain: ton.gain,
+          });
+        }
+        this.equipped = angelegt;
       },
 
       onChat: (msg) => this.ui.addChat(msg.channel, msg.from, msg.text),
