@@ -179,13 +179,20 @@ jobs:
           # Ohne das läuft das Skript weiter, wenn ein Befehl scheitert, und
           # der Schritt meldet trotzdem Erfolg.
           script_stop: true
-          # `update.sh` erledigt alles: Quellstand holen, Bild ziehen,
-          # herunterfahren, wieder hoch — mit der SWAG-Ergänzung und dem Netz
-          # swag_default. Was hier stünde, stünde doppelt.
+          # Erst den Quellstand holen, dann das Skript aufrufen — und dem
+          # Skript sagen, dass es nicht noch einmal ziehen soll.
+          #
+          # Der `git pull` gehört hierher, nicht nur in `update.sh`, sonst
+          # beißt sich die Katze in den Schwanz: das Skript holt den Stand,
+          # in dem es selbst erst enthalten ist. Beim ersten Lauf gab es
+          # genau das — „./update.sh: No such file or directory", weil auf
+          # dem Pi noch der Stand von davor lag. So bringt sich das Ausrollen
+          # selbst auf Stand, auch wenn sich das Skript ändert.
           script: |
             set -euo pipefail
             cd "${{ secrets.PI_PATH || '/home/johmarjac/aurelith' }}"
-            ./update.sh
+            git pull --ff-only
+            ./update.sh --ohne-git
 
       - name: Telegram benachrichtigen
         # `always()`, damit auch ein Fehlschlag ankommt. Eine Nachricht, die
