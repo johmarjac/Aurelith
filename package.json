@@ -27,12 +27,14 @@
     "manifest": "node tools/build-manifest.mjs",
     "typecheck": "tsc --noEmit -p packages/shared && tsc --noEmit -p packages/core && tsc --noEmit -p packages/server && tsc --noEmit -p packages/client && tsc --noEmit -p packages/editor",
     "db:migrate": "npm run migrate --workspace @aurelith/server",
-    "test": "npm run core:test && npm run test:wasm && npm run test:steering && npm run test:brushes && npm run test:particles && npm run test:gait && node tools/smoke-e2e.mjs && node tools/smoke-prediction.mjs && node tools/smoke-portal.mjs && node tools/smoke-background.mjs && node tools/smoke-editor.mjs && node tools/smoke-pages.mjs",
+    "test": "npm run core:test && npm run test:wasm && npm run test:steering && npm run test:brushes && npm run test:particles && npm run test:gait && npm run test:audio && node tools/smoke-e2e.mjs && node tools/smoke-prediction.mjs && node tools/smoke-portal.mjs && node tools/smoke-background.mjs && node tools/smoke-editor.mjs && node tools/smoke-pages.mjs",
     "test:wasm": "tsx packages/core/test/wasm_smoke.ts",
     "test:steering": "tsx packages/client/test/steering_test.ts",
     "test:brushes": "tsx packages/editor/test/brushes_test.ts",
     "test:particles": "tsx packages/client/test/particles_test.ts",
     "test:gait": "tsx packages/client/test/gait_test.ts",
+    "test:audio": "tsx packages/client/test/audio_test.ts",
+    "audio": "node tools/pack-audio.mjs",
     "test:e2e": "node tools/smoke-e2e.mjs",
     "test:editor": "node tools/smoke-editor.mjs",
     "test:pages": "node tools/smoke-pages.mjs",
@@ -42,8 +44,9 @@
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
+    "ffmpeg-static": "^5.2.0",
+    "playwright": "^1.62.1",
     "tsx": "^4.20.0",
-    "typescript": "^5.9.0",
-    "playwright": "^1.62.1"
+    "typescript": "^5.9.0"
   }
 }

@@ -15,6 +15,7 @@ import { ChatChannel, getItem, type StatsMsg } from '@aurelith/shared';
 import type { EntityVisual } from '../render/worldView.ts';
 import { GameWindow } from './windows.ts';
 import { Overlay } from './overlay.ts';
+import { DEFAULT_LEVELS, type MixerLevels } from '../audio/mixer.ts';
 import './style.css';
 
 export interface InventoryEntry {
@@ -93,6 +94,17 @@ export class UI {
   private readonly inventoryGrid: HTMLElement;
   private readonly characterWindow: GameWindow;
   private readonly characterStats: HTMLElement;
+  private readonly settingsWindow: GameWindow;
+
+  /** Lautstärken, wie sie im Fenster stehen. */
+  private levels: MixerLevels = DEFAULT_LEVELS;
+  private muteBox?: HTMLInputElement;
+  private readonly levelInputs = new Map<
+    'master' | 'weapons' | 'effects' | 'music',
+    { input: HTMLInputElement; value: HTMLElement }
+  >();
+  /** Meldet eine Änderung nach draußen — das Mischpult hängt nicht an der UI. */
+  onAudioChange?: (levels: Partial<MixerLevels>) => void;
 
   private lastStats?: StatsMsg;
 
@@ -188,12 +200,23 @@ export class UI {
     this.characterStats = el('dl', 'stat-list');
     this.characterWindow.body.appendChild(this.characterStats);
 
+    // --- Einstellungen ----------------------------------------------------
+    this.settingsWindow = new GameWindow(
+      host,
+      'settings',
+      'Einstellungen',
+      { left: Math.max(20, window.innerWidth / 2 - 150), top: 100 },
+      true,
+    );
+    this.buildSettings();
+
     // --- Aktionsleiste ----------------------------------------------------
     const actionbar = el('div', 'actionbar panel');
     actionbar.append(
       this.slot('🎒', 'I', 'Inventar', () => this.inventoryWindow.toggle()),
       this.slot('👤', 'C', 'Charakter', () => this.characterWindow.toggle()),
       this.slot('💬', '⏎', 'Chat', () => this.setChatOpen(!this.chatOpen)),
+      this.slot('⚙', 'O', 'Einstellungen', () => this.settingsWindow.toggle()),
     );
     host.appendChild(actionbar);
 
@@ -263,6 +286,94 @@ export class UI {
     update();
   }
 
+  /**
+   * Baut das Einstellungsfenster.
+   *
+   * Vier Regler statt einem: wer die Waffen leiser dreht, will nicht auch die
+   * Musik leiser haben. Musik gibt es noch nicht — der Regler steht trotzdem
+   * schon da, weil ein Mischpult, das man später umbauen muss, kein Mischpult
+   * ist, sondern eine Baustelle.
+   */
+  private buildSettings(): void {
+    const body = this.settingsWindow.body;
+
+    const ton = el('section', 'settings-group');
+    ton.append(el('h3', 'settings-head', 'Ton'));
+
+    const muteRow = el('label', 'settings-toggle');
+    const mute = el('input');
+    mute.type = 'checkbox';
+    mute.addEventListener('change', () => {
+      this.levels = { ...this.levels, muted: mute.checked };
+      this.applyLevelsToForm();
+      this.onAudioChange?.({ muted: mute.checked });
+    });
+    muteRow.append(mute, el('span', undefined, 'Ton aus'));
+    ton.append(muteRow);
+
+    const keys = [
+      ['master', 'Gesamt'],
+      ['weapons', 'Waffen'],
+      ['effects', 'Effekte'],
+      ['music', 'Musik'],
+    ] as const;
+
+    for (const [key, label] of keys) {
+      const row = el('div', 'settings-slider');
+      const name = el('label', undefined, label);
+      const value = el('span', 'settings-value', '0 %');
+
+      const input = el('input');
+      input.type = 'range';
+      input.min = '0';
+      input.max = '100';
+      input.step = '1';
+      input.setAttribute('aria-label', label);
+      input.addEventListener('input', () => {
+        const level = Number(input.value) / 100;
+        this.levels = { ...this.levels, [key]: level };
+        value.textContent = `${input.value} %`;
+        this.onAudioChange?.({ [key]: level });
+      });
+
+      const head = el('div', 'settings-slider-head');
+      head.append(name, value);
+      row.append(head, input);
+      ton.append(row);
+
+      this.levelInputs.set(key, { input, value });
+    }
+
+    this.muteBox = mute;
+    body.append(ton);
+
+    const hinweis = el(
+      'p',
+      'settings-note',
+      'Töne starten erst nach der ersten Eingabe — Browser lassen Ton ohne ' +
+        'Zutun nicht zu.',
+    );
+    body.append(hinweis);
+  }
+
+  /** Übernimmt Lautstärken von außen ins Fenster. */
+  setAudioLevels(levels: MixerLevels): void {
+    this.levels = levels;
+    this.applyLevelsToForm();
+  }
+
+  private applyLevelsToForm(): void {
+    if (this.muteBox) this.muteBox.checked = this.levels.muted;
+    for (const [key, { input, value }] of this.levelInputs) {
+      const pct = Math.round(this.levels[key] * 100);
+      input.value = String(pct);
+      value.textContent = `${pct} %`;
+      // Bei stumm bleiben die Regler bedienbar, sehen aber inaktiv aus —
+      // sonst dreht man am Regler und wundert sich, warum nichts kommt.
+      input.closest('.settings-slider')?.setAttribute('data-muted', String(this.levels.muted));
+    }
+  }
+
   private slot(icon: string, key: string, label: string, onClick: () => void): HTMLButtonElement {
     const button = el('button', 'btn slot', icon);
     button.type = 'button';
@@ -282,6 +393,7 @@ export class UI {
       }
       if (e.code === 'KeyI') this.inventoryWindow.toggle();
       else if (e.code === 'KeyC') this.characterWindow.toggle();
+      else if (e.code === 'KeyO') this.settingsWindow.toggle();
       else if (e.code === 'Enter') {
         e.preventDefault();
         this.chatInput.focus();

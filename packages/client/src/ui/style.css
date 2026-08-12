@@ -472,6 +472,72 @@ body {
   text-align: right;
 }
 
+/* --- Einstellungen -------------------------------------------------------- */
+
+.settings-group {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.settings-head {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.settings-toggle input {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--accent);
+}
+
+.settings-slider {
+  display: grid;
+  gap: 0.2rem;
+}
+
+/* Stumm: die Regler bleiben bedienbar, sehen aber inaktiv aus. Sperrt man
+   sie, kann man nichts mehr vorbereiten, bevor man den Ton wieder anmacht. */
+.settings-slider[data-muted='true'] {
+  opacity: 0.45;
+}
+
+.settings-slider-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+}
+
+.settings-value {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--ink-dim);
+}
+
+.settings-slider input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+  /* Auf dem Telefon ist ein Regler von Systemhöhe kaum zu treffen. */
+  height: 1.6rem;
+}
+
+.settings-note {
+  margin: 0.7rem 0 0;
+  font-size: 0.74rem;
+  line-height: 1.4;
+  color: var(--ink-faint);
+}
+
 /* --- Chat ----------------------------------------------------------------- */
 
 .chat {

@@ -119,6 +119,14 @@ export class WorldView {
   private doc?: MapDocument;
   private elapsed = 0;
 
+  /**
+   * Meldet den Beginn eines Schlags — für jede Figur, nicht nur die eigene.
+   *
+   * Die Ansicht selbst macht keinen Ton. Sie weiß, *wann* geschlagen wird und
+   * *womit*; was daraus zu hören ist, entscheidet das Spiel.
+   */
+  onAttackStart?: (entity: EntityVisual) => void;
+
   constructor(
     private readonly registry: ModelRegistry,
     private readonly textures: TextureLoader,
@@ -358,9 +366,23 @@ export class WorldView {
     e.hp = row.hp;
 
     if (row.state === EntityState.Attack && e.state !== EntityState.Attack) {
-      e.attackTimer = 0;
+      this.beginAttack(e);
     }
     e.state = row.state;
+  }
+
+  /**
+   * Startet die Schlaganimation — und meldet es genau einmal.
+   *
+   * Es gibt zwei Wege hierher: das Kampfereignis, das sofort kommt, und der
+   * Schnappschuss, der den Zustand kurz darauf bestätigt. Ohne die Sperre auf
+   * `attackTimer` liefe derselbe Schlag zweimal, und man hörte jeden Schuss
+   * doppelt.
+   */
+  private beginAttack(e: EntityVisual): void {
+    if (e.attackTimer >= 0) return;
+    e.attackTimer = 0;
+    this.onAttackStart?.(e);
   }
 
   /**
@@ -407,7 +429,7 @@ export class WorldView {
   /** Löst die Schlaganimation aus, ohne auf den nächsten Snapshot zu warten. */
   triggerAttack(id: number): void {
     const e = this.entities.get(id);
-    if (e && e.attackTimer < 0) e.attackTimer = 0;
+    if (e) this.beginAttack(e);
   }
 
   /**

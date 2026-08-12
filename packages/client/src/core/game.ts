@@ -57,6 +57,8 @@ import { WorldView, type EntityVisual } from '../render/worldView.ts';
 import { burstHit } from '../render/particles.ts';
 import { TextureLoader } from '../render/textures.ts';
 import { InputManager } from '../input/input.ts';
+import { Mixer } from '../audio/mixer.ts';
+import { PRELOAD, SOUNDS, WEAPON_SWING } from '../audio/sounds.ts';
 import { Connection } from '../net/connection.ts';
 import { UI } from '../ui/index.ts';
 
@@ -202,6 +204,7 @@ export class Game {
   private readonly streamer = new AssetStreamer();
   private readonly textures: TextureLoader;
   private readonly quality = QUALITY[guessQuality()];
+  private readonly mixer = new Mixer();
 
   private core?: ClientCore;
   private connection?: Connection;
@@ -308,6 +311,26 @@ export class Game {
     this.input.onPick = (x, y) => this.pickTarget(x, y);
     this.input.onAttackPressed = () => this.view.triggerAttack(this.localId);
 
+    // --- Ton --------------------------------------------------------------
+    //
+    // Die Ansicht meldet jeden beginnenden Schlag, egal von wem. Was daraus zu
+    // hören ist, entscheidet sich hier — sie kennt keine Töne.
+    this.view.onAttackStart = (entity) => this.playSwing(entity);
+    this.ui.setAudioLevels(this.mixer.settings);
+    this.ui.onAudioChange = (levels) => {
+      // Auch die Bedienung des Reglers ist eine Nutzerhandlung, und die
+      // braucht der Tonkontext. Wer als Erstes die Lautstärke anfasst, soll
+      // nicht erst noch woanders hinklicken müssen.
+      this.mixer.resume();
+      this.mixer.setLevels(levels);
+    };
+
+    // Ein AudioContext startet gesperrt und darf erst nach einer Geste
+    // aufwachen. Beide Ereignisse, weil beide Bedienarten dazugehören.
+    const wake = (): void => this.mixer.resume();
+    window.addEventListener('pointerdown', wake);
+    window.addEventListener('keydown', wake);
+
     globalThis.aurelith = this.diagnostics;
 
     // Beim Wechsel in den Hintergrund noch einmal alles rausschicken, und beim
@@ -362,8 +385,35 @@ export class Game {
     // wartet auf nichts.
     void this.registry.loadWeaponModels((path) => this.streamer.request(path));
 
+    // Kampfgeräusche vorladen, ebenfalls ohne `await`. Zusammen zwölf
+    // Kilobyte — ein Ton, der erst beim ersten Schlag geholt wird, fehlt
+    // genau bei diesem ersten Schlag.
+    for (const id of PRELOAD) {
+      void this.mixer.preload(SOUNDS[id].path, (path) => this.streamer.request(path));
+    }
+
     await this.ensureMap(BOOTSTRAP_MAP);
     this.connect(accountName);
+  }
+
+  /**
+   * Spielt den Schwung, der zu der Waffe in der Hand gehört.
+   *
+   * Gilt für jede Figur: der Bogen des Spielers neben einem soll zu hören
+   * sein, und zwar aus der Richtung, in der er steht. Kennt die Waffe keinen
+   * Ton, bleibt es still — lieber keiner als der falsche.
+   */
+  private playSwing(entity: EntityVisual): void {
+    const id = WEAPON_SWING[entity.weapon];
+    if (!id) return;
+
+    const def = SOUNDS[id];
+    this.mixer.play(def.path, def.category, (path) => this.streamer.request(path), {
+      // Auf Brusthöhe, nicht am Boden: die Höhe geht in die Entfernung ein.
+      at: { x: entity.x, y: entity.y + entity.height * 0.6, z: entity.z },
+      gain: def.gain,
+      spread: def.spread,
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -1057,6 +1107,10 @@ export class Game {
       const yaw = prev.yaw + angleDelta(prev.yaw, curr.yaw) * alpha;
 
       this.view.setLocal(this.localId, x, y, z, yaw, curr.speed);
+      // Der Zuhörer steht bei der Figur, hört aber in Blickrichtung der
+      // Kamera. Nähme man die Blickrichtung der Figur, wanderten die Töne bei
+      // jeder Drehung durch den Kopf, obwohl das Bild stehen bleibt.
+      this.mixer.setListener(x, z, this.scene.yaw);
       this.scene.follow(x, y, z, this.prediction, dt);
       this.streamer.setViewer(x, z);
       this.updateNearbyPortal(x, z);
