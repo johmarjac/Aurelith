@@ -416,6 +416,37 @@ der Server unten. So läuft er im Fehlerfall unverändert weiter.
 Der Netzname des Proxys ist auf `swag_default` voreingestellt und lässt sich
 über `SWAG_NETWORK` überschreiben.
 
+### Von selbst ausrollen
+
+Sobald ein neues Bild in der Registry liegt, kann der Workflow den Pi per SSH
+anstoßen — er ruft dort dasselbe `update.sh` auf. Dazu unter
+Settings → Secrets and variables → Actions:
+
+| Secret | wofür |
+|---|---|
+| `PI_HOST` | Adresse des Raspberry Pi |
+| `PI_USER` | Benutzer dort |
+| `PI_SSH_KEY` | privater Schlüssel, der ganze Block |
+| `PI_SSH_PASSPHRASE` | nur falls der Schlüssel eine hat |
+| `PI_PATH` | Pfad zum Repository, sonst `/home/johmarjac/aurelith` |
+| `TELEGRAM_BOT_TOKEN` | optional, für die Benachrichtigung |
+| `TELEGRAM_CHAT_ID` | optional, dieselbe |
+
+Fehlt `PI_HOST`, wird der Schritt übersprungen und der Workflow bleibt grün —
+so lässt sich das Repository auch ohne Pi bauen.
+
+Ausgerollt wird nur vom Vorgabe-Branch und von Versionsschildern. Ein Zweig,
+an dem gerade gearbeitet wird, hat auf dem laufenden Server nichts zu suchen.
+
+Und einmalig auf dem Pi, weil das Paket privat ist:
+
+```
+echo <token> | docker login ghcr.io -u <name> --password-stdin
+```
+
+Ohne das scheitert `docker compose pull` mit *unauthorized* — bei jedem Lauf,
+nicht nur beim ersten.
+
 Zwei Kleinigkeiten noch: die Zeitüberschreitung des Proxys großzügig setzen
 (eine Spielverbindung steht stundenlang; nginx' Standard von 60 Sekunden
 trennt sie mitten im Spiel), und `/health` gibt einen JSON-Puls zurück, falls

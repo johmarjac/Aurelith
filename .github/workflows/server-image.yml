@@ -104,3 +104,102 @@ jobs:
         run: |
           echo "Geschoben:"
           echo "${{ steps.meta.outputs.tags }}" | sed 's/^/  /'
+
+  # ---------------------------------------------------------------------------
+  # Ausrollen
+  # ---------------------------------------------------------------------------
+  #
+  # Läuft nur, wenn das Bild wirklich geschoben wurde — `needs: build` sorgt
+  # dafür. Und nur vom Vorgabe-Branch oder von einem Versionsschild aus: ein
+  # Zweig, an dem gerade gearbeitet wird, hat auf dem laufenden Server nichts
+  # zu suchen.
+  #
+  # Einmalig einzurichten:
+  #
+  #   Settings → Secrets and variables → Actions → Secrets:
+  #     PI_HOST              Adresse des Raspberry Pi
+  #     PI_USER              Benutzer dort
+  #     PI_SSH_KEY           privater Schlüssel (der ganze Block)
+  #     PI_SSH_PASSPHRASE    falls der Schlüssel eine hat, sonst weglassen
+  #     PI_PATH              Pfad zum Repository, sonst /home/johmarjac/aurelith
+  #     TELEGRAM_BOT_TOKEN   optional, für die Benachrichtigung
+  #     TELEGRAM_CHAT_ID     optional, dieselbe
+  #
+  # Und auf dem Pi einmalig, weil das Paket privat ist:
+  #
+  #   echo <token> | docker login ghcr.io -u <name> --password-stdin
+  #
+  # Ohne das scheitert `docker compose pull` mit „unauthorized“ — und zwar
+  # jedes Mal, nicht nur beim ersten Lauf.
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: >-
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+      || startsWith(github.ref, 'refs/tags/')
+
+    # Zwei Ausrollvorgänge gleichzeitig auf denselben Rechner ergeben keinen
+    # Sinn; der laufende darf aber zu Ende gehen, damit der Server nicht
+    # mitten im Neustart abgeschnitten wird.
+    concurrency:
+      group: deploy-pi
+      cancel-in-progress: false
+
+    env:
+      # Über env statt direkt aus `secrets`, weil eine Schritt-Bedingung den
+      # `secrets`-Kontext nicht lesen kann. So bleibt der Workflow grün, wenn
+      # jemand ihn ohne eingerichteten Pi laufen lässt.
+      PI_HOST: ${{ secrets.PI_HOST }}
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+
+    steps:
+      - name: Auf dem Raspberry Pi aktualisieren
+        if: env.PI_HOST != ''
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PI_HOST }}
+          username: ${{ secrets.PI_USER }}
+          key: ${{ secrets.PI_SSH_KEY }}
+          passphrase: ${{ secrets.PI_SSH_PASSPHRASE }}
+          # Ohne das läuft das Skript weiter, wenn ein Befehl scheitert, und
+          # der Schritt meldet trotzdem Erfolg.
+          script_stop: true
+          # `update.sh` erledigt alles: Quellstand holen, Bild ziehen,
+          # herunterfahren, wieder hoch — mit der SWAG-Ergänzung und dem Netz
+          # swag_default. Was hier stünde, stünde doppelt.
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.PI_PATH || '/home/johmarjac/aurelith' }}"
+            ./update.sh
+
+      - name: Telegram benachrichtigen
+        # `always()`, damit auch ein Fehlschlag ankommt. Eine Nachricht, die
+        # nur bei Erfolg kommt, ist keine Überwachung — dann weiß man beim
+        # Ausbleiben nie, ob es schiefging oder ob niemand etwas geschoben hat.
+        if: always() && env.TELEGRAM_TOKEN != ''
+        env:
+          STATUS: ${{ job.status }}
+        run: |
+          if [ "$STATUS" = 'success' ]; then
+            zeichen='✅'
+            was='ausgerollt'
+          else
+            zeichen='❌'
+            was="fehlgeschlagen ($STATUS)"
+          fi
+
+          text="$zeichen Aurelith $was
+          Bild: ghcr.io/johmarjac/aurelith-server:latest
+          Stand: ${GITHUB_SHA:0:7} auf ${GITHUB_REF_NAME}
+          Lauf: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+          # --data-urlencode statt einer zusammengebauten Adresse: der Text
+          # enthält Zeilenumbrüche und Doppelpunkte.
+          curl -sS --fail-with-body \
+            "https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT}" \
+            --data-urlencode "text=${text}" \
+            --data-urlencode 'disable_web_page_preview=true' \
+            >/dev/null
