@@ -185,6 +185,7 @@ npm run test:content     # die Inhaltsdateien: Format und Verweise
 npm run test:loot        # wer welche Beute vom Boden aufheben darf
 npm run test:npcflow     # ansprechen, annehmen, erlegen, aufheben, abgeben
 npm run test:npc         # NPC-Fenster und Inventar im Browser
+npm run test:loot-ui     # Beute im Bild: Schild, Antippen, Aufheben
 npm run test:e2e         # Spiel im Browser, Desktop und Berührung
 npm run test:prediction  # springt die eigene Figur beim Laufen zurück?
 npm run test:portal      # Tore: hineinlaufen, stehen, F drücken, zurück
