@@ -72,14 +72,20 @@ jobs:
           ./emsdk install "$EMSDK_VERSION"
           ./emsdk activate "$EMSDK_VERSION"
 
-      # Ohne die optionalen Abhängigkeiten. Dahinter steht genau eine:
-      # `ffmpeg-static`, das beim Installieren achtzig Megabyte von einem
-      # Release-Server nachlädt. Gebraucht wird es allein von `npm run audio`,
-      # also von Hand und nie im Bau — und einmal hat dieser Download den
-      # ganzen Lauf mit einem abgerissenen Socket gekippt. Ein Bau, der an
-      # einer Datei scheitert, die er nicht benutzt, ist ein Bau mit einer
-      # Wette darin.
-      - run: npm ci --omit=optional
+      # Gewöhnliches `npm ci` — **nicht** `--omit=optional`.
+      #
+      # Das stand hier einen Lauf lang und war ein Fehler: unter den optionalen
+      # Abhängigkeiten stecken nicht nur eigene, sondern auch die
+      # plattformabhängigen Binärpakete fremder Werkzeuge. Rollup lädt sein
+      # `@rollup/rollup-linux-x64-gnu` genau so, und ohne das bricht `vite
+      # build` mit MODULE_NOT_FOUND ab. Der Schalter ist ein Vorschlaghammer
+      # für eine Schraube.
+      #
+      # Gegen den ursprünglichen Ausfall — `ffmpeg-static` lädt beim
+      # Installieren achtzig Megabyte nach, und die Verbindung riss ab —
+      # reicht, dass es *optional* ist: npm macht dann weiter, statt den Lauf
+      # abzubrechen.
+      - run: npm ci
 
       - name: Kern bauen und prüfen
         # tools/build-core.mjs findet das SDK über $EMSDK und baut immer zuerst

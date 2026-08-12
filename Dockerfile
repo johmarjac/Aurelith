@@ -55,6 +55,10 @@ COPY packages/editor/package.json packages/editor/
 # Entwicklungsabhängigkeiten und war damit von `--omit=dev` schon erfasst;
 # seit es optional ist, wäre es das nicht mehr — und achtzig Megabyte
 # Tonwerkzeug haben in einem Serverbild nichts verloren.
+#
+# Hier ist der Schalter unbedenklich, im Pages-Lauf war er es nicht: dort baut
+# Vite, und Rollup holt seine Plattformbinärdatei über genau diesen Weg. Der
+# Server hängt an `pg` und `ws` — beides reines JavaScript.
 RUN npm ci --omit=dev --omit=optional --include-workspace-root --workspace @aurelith/server \
  && npm cache clean --force
 
