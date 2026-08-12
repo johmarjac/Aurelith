@@ -319,6 +319,7 @@ export class Game {
       this.registry,
       this.textures,
       this.scene.renderer.capabilities.getMaxAnisotropy(),
+      this.quality.lanternLights,
     );
     this.scene.scene.add(this.view.root);
 
@@ -1244,6 +1245,9 @@ export class Game {
       // Kamera. Nähme man die Blickrichtung der Figur, wanderten die Töne bei
       // jeder Drehung durch den Kopf, obwohl das Bild stehen bleibt.
       this.mixer.setListener(x, y, z, this.scene.yaw);
+      // Die Laternenlichter folgen dem Spieler: ein fester Pool, verteilt auf
+      // die nächstgelegenen. Siehe render/lanterns.ts.
+      this.view.lanterns.update(x, z);
       this.scene.follow(x, y, z, this.prediction, dt);
       this.streamer.setViewer(x, z);
       this.updateNearbyPortal(x, z);

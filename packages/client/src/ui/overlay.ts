@@ -103,6 +103,10 @@ export class Overlay {
       el.dataset.kind =
         e.type === EntityType.Monster ? 'monster' : e.type === EntityType.Npc ? 'npc' : 'player';
       el.dataset.target = String(e.id === targetId);
+      // Rot, sobald das Wesen jemanden verfolgt. Nicht nur „greift mich an":
+      // ein Monster, das gerade jemand anderen jagt, ist genauso gefährlich,
+      // wenn man ihm in den Weg läuft.
+      el.dataset.aggro = String(e.type === EntityType.Monster && e.aggro);
 
       const name = el.firstElementChild as HTMLElement;
       const label = e.type === EntityType.Monster ? `${e.name} (${e.level})` : e.name;

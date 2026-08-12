@@ -549,6 +549,10 @@ export class GameServer {
           yaw: row.yaw,
           hp: row.hp,
           state: row.state as EntityState,
+          // Der Kern führt für jedes Wesen mit, wen es gerade verfolgt. Das
+          // ist genau die Frage, die der Client für ein rotes Namensschild
+          // beantwortet haben will — mehr braucht es dafür nicht.
+          aggro: row.targetId !== 0,
         });
         continue;
       }
@@ -567,6 +571,7 @@ export class GameServer {
         hp: row.hp,
         maxHp: row.maxHp,
         state: row.state as EntityState,
+        aggro: row.targetId !== 0,
         weapon: meta?.weapon ?? '',
       });
       session.known.add(row.id);

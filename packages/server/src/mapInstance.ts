@@ -9,6 +9,7 @@
 import type { CoreEntityRow, CoreWorld } from '@aurelith/core';
 import {
   EntityType,
+  getMob,
   getNpc,
   type MapDocument,
   terrainSetup,
@@ -100,7 +101,10 @@ export class MapInstance {
         if (ok) {
           this.meta.set(id, {
             defId: spawner.mob,
-            name: '',
+            // Aus der Content-Tabelle, genau wie beim NPC eine Schleife
+            // weiter oben. Vorher stand hier ein leerer Text, und im Spiel
+            // trug jedes Monster ein Schild, auf dem nur die Stufe stand.
+            name: getMob(spawner.mob)?.name ?? '',
             type: EntityType.Monster,
           });
         }

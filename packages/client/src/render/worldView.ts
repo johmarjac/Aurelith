@@ -26,6 +26,7 @@ import {
 } from '@aurelith/shared';
 import type { QualitySettings } from '../config.ts';
 import type { ModelRegistry } from './modelRegistry.ts';
+import { Lanterns, type LanternPlacement } from './lanterns.ts';
 import { ParticleField } from './particles.ts';
 import { buildTerrain, type TerrainMesh } from './terrain.ts';
 import type { TextureLoader } from './textures.ts';
@@ -96,6 +97,9 @@ export interface EntityVisual {
   /** Geschätztes Tempo für die Laufanimation. */
   speed: number;
 
+  /** Verfolgt dieses Wesen gerade jemanden? Färbt das Namensschild. */
+  aggro: boolean;
+
   rig: CharacterRig;
   /** Was die Figur in der Hand hält. Ändert sich beim Anlegen einer Waffe. */
   weapon: string;
@@ -129,6 +133,8 @@ export class WorldView {
   private arrows: FlyingArrow[] = [];
   /** Funken. Eine Wolke für alles, mit fester Größe. */
   readonly particles = new ParticleField();
+  /** Warmes Licht an den Laternen. Fester Pool, wandert zum Betrachter. */
+  readonly lanterns: Lanterns;
   private doc?: MapDocument;
   private elapsed = 0;
 
@@ -144,11 +150,14 @@ export class WorldView {
     private readonly registry: ModelRegistry,
     private readonly textures: TextureLoader,
     private readonly maxAnisotropy: number,
+    lanternLights = 4,
   ) {
     // Die Funkenwolke haengt dauerhaft in der Szene, nicht je Karte: sie hat
     // feste Groesse, kostet nichts, solange sie leer ist, und ein Neuaufbau bei
     // jedem Kartenwechsel waere Arbeit ohne Wirkung.
     this.root.add(this.particles.object);
+    this.lanterns = new Lanterns(lanternLights);
+    this.root.add(this.lanterns.root);
   }
 
   get mapId(): string {
@@ -222,6 +231,10 @@ export class WorldView {
       else byModel.set(prop.model, [prop]);
     }
 
+    // Wo Laternen stehen — das Licht braucht die Stelle des Glases, nicht die
+    // des Fußes.
+    const lanterns: LanternPlacement[] = [];
+
     const matrix = new THREE.Matrix4();
     const quaternion = new THREE.Quaternion();
     const position = new THREE.Vector3();
@@ -262,6 +275,12 @@ export class WorldView {
           color.setRGB(1, 1, 1);
         }
         mesh.setColorAt(i, color);
+
+        if (model === 'lantern_post') {
+          // 2,65 ist die Höhe des Glaskörpers im Modell; die Skalierung des
+          // Props zieht sie mit.
+          lanterns.push({ x: prop.position[0], y: y + 2.65 * prop.scale, z: prop.position[2] });
+        }
       }
 
       mesh.instanceMatrix.needsUpdate = true;
@@ -271,6 +290,8 @@ export class WorldView {
       this.root.add(mesh);
       this.propMeshes.push(mesh);
     }
+
+    this.lanterns.setPlacements(lanterns);
   }
 
   /**
@@ -356,6 +377,7 @@ export class WorldView {
       speed: 0,
       rig,
       weapon: row.weapon,
+      aggro: row.aggro,
       height: heightFor(row.type, row.defId),
     };
     this.entities.set(row.id, visual);
@@ -377,6 +399,7 @@ export class WorldView {
     e.targetZ = row.z;
     e.targetYaw = row.yaw;
     e.hp = row.hp;
+    e.aggro = row.aggro;
 
     if (row.state === EntityState.Attack && e.state !== EntityState.Attack) {
       this.beginAttack(e);
@@ -599,11 +622,14 @@ export class WorldView {
     this.arrows = [];
     // Nur leeren, nicht entfernen — das Objekt bleibt in der Szene.
     this.particles.reset();
+    // Dasselbe für die Laternen. Ohne das leuchteten beim Kartenwechsel die
+    // Standorte der alten Karte weiter, bis die neuen Props gebaut sind.
+    this.lanterns.setPlacements([]);
 
     for (const e of this.entities.values()) {
       this.root.remove(e.rig.root);
       this.registry.releaseRig(e.rig);
-    e.rig.dispose();
+      e.rig.dispose();
     }
     this.entities.clear();
 

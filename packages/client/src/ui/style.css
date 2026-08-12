@@ -718,6 +718,28 @@ body {
   color: var(--accent);
 }
 
+/*
+ * Aggro schlägt beides: die Frage „jagt mich das gerade?" ist dringender als
+ * „habe ich es angeklickt?". Deshalb steht die Regel *nach* der für das Ziel —
+ * bei gleicher Spezifität gewinnt die spätere.
+ */
+.nameplate[data-aggro='true'] .np-name {
+  color: var(--danger);
+  /* Ein leichtes Pulsieren. Rot allein geht im Gefecht unter, wenn ohnehin
+     alles rot blinkt; Bewegung fällt am Bildrand auf, Farbe nicht. */
+  animation: aggro-puls 1.1s ease-in-out infinite;
+}
+
+@keyframes aggro-puls {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
 .np-bar {
   width: 3.6rem;
   height: 3px;

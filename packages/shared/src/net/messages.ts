@@ -187,6 +187,17 @@ export interface SpawnRow {
   maxHp: number;
   state: EntityState;
   /**
+   * Hat dieses Wesen gerade ein Ziel?
+   *
+   * Ein eigenes Byte, nicht ein freies Bit in `state`. Der Zustand ist eine
+   * Aufzählung mit vier Werten, und ein Vorzeichenbit darin würde jeden
+   * Vergleich `state === Attack` still falsch machen, sobald jemand eine
+   * Maskierung vergisst. Ein Byte je Wesen und Schnappschuss sind bei
+   * dreißig sichtbaren Wesen und zehn Schnappschüssen dreihundert Byte je
+   * Sekunde — der Preis ist die Klarheit wert.
+   */
+  aggro: boolean;
+  /**
    * Was die Figur in der Hand hält — Schlüssel des Rigs, oder leer.
    *
    * Muss mit, weil sonst jede fremde Figur mit dem Schwert dasteht, das im
@@ -205,6 +216,17 @@ export interface UpdateRow {
   yaw: number;
   hp: number;
   state: EntityState;
+  /**
+   * Hat dieses Wesen gerade ein Ziel?
+   *
+   * Ein eigenes Byte, nicht ein freies Bit in `state`. Der Zustand ist eine
+   * Aufzählung mit vier Werten, und ein Vorzeichenbit darin würde jeden
+   * Vergleich `state === Attack` still falsch machen, sobald jemand eine
+   * Maskierung vergisst. Ein Byte je Wesen und Schnappschuss sind bei
+   * dreißig sichtbaren Wesen und zehn Schnappschüssen dreihundert Byte je
+   * Sekunde — der Preis ist die Klarheit wert.
+   */
+  aggro: boolean;
 }
 
 export interface SnapshotMsg {
@@ -235,6 +257,7 @@ export function encodeSnapshot(m: SnapshotMsg): Uint8Array {
       .u32(Math.max(0, Math.round(s.hp)))
       .u32(Math.max(0, Math.round(s.maxHp)))
       .u8(s.state)
+      .u8(s.aggro ? 1 : 0)
       .str(s.weapon);
   }
 
@@ -246,7 +269,8 @@ export function encodeSnapshot(m: SnapshotMsg): Uint8Array {
       .pos(u.z)
       .angle(u.yaw)
       .u32(Math.max(0, Math.round(u.hp)))
-      .u8(u.state);
+      .u8(u.state)
+      .u8(u.aggro ? 1 : 0);
   }
 
   w.u16(m.despawns.length);
@@ -276,6 +300,7 @@ export function decodeSnapshot(r: ByteReader): SnapshotMsg {
       hp: r.u32(),
       maxHp: r.u32(),
       state: r.u8() as EntityState,
+      aggro: r.u8() !== 0,
       weapon: r.str(),
     };
   }
@@ -291,6 +316,7 @@ export function decodeSnapshot(r: ByteReader): SnapshotMsg {
       yaw: r.angle(),
       hp: r.u32(),
       state: r.u8() as EntityState,
+      aggro: r.u8() !== 0,
     };
   }
 

@@ -82,6 +82,110 @@ function scatter(rng, { count, size, models, keepOut, minGap, scaleRange, tints 
 
 const round = (v) => Math.round(v * 100) / 100;
 
+// --------------------------------------------------------------------------
+// Gesetzte Props: Zäune, Laternen, Lager.
+//
+// Der Streuer oben wirft Bäume und Büsche über die Fläche — das macht Natur.
+// Alles, was nach Bewohnern aussehen soll, muss dagegen in Linien und Gruppen
+// stehen: ein gestreuter Zaun ist kein Zaun, sondern Bauholz im Wald.
+// --------------------------------------------------------------------------
+
+/**
+ * Reiht Zaunfelder auf einer Strecke auf.
+ *
+ * Ein Feld ist zwei Einheiten breit und hat seine Pfosten an den Enden, deshalb
+ * ergibt eine lückenlose Kette eine durchgehende Linie. Die Strecke wird auf
+ * ganze Felder gerundet — lieber ein Feld zu wenig als eines, das über die Ecke
+ * hinausragt.
+ *
+ * Die Drehung: eine Drehung um Y bildet die lokale +X-Achse auf
+ * `(cos θ, −sin θ)` ab, das Feld liegt entlang +X. Für die Richtung `(dx, dz)`
+ * ist also `θ = atan2(−dz, dx)` — das Minus ist kein Tippfehler.
+ */
+function fenceRun(model, from, to, { scale = 1, collisionRadius = 0.85 } = {}) {
+  const dx = to[0] - from[0];
+  const dz = to[1] - from[1];
+  const laenge = Math.hypot(dx, dz);
+  const feld = 2 * scale;
+  const felder = Math.max(1, Math.round(laenge / feld));
+  const yaw = round(Math.atan2(-dz, dx));
+
+  const out = [];
+  for (let i = 0; i < felder; i++) {
+    const t = (i + 0.5) / felder;
+    out.push({
+      model,
+      position: [round(from[0] + dx * t), 0, round(from[1] + dz * t)],
+      rotation: [0, yaw, 0],
+      scale,
+      snapToGround: true,
+      collision: 'circle',
+      collisionRadius,
+    });
+  }
+  return out;
+}
+
+/** Ein geschlossenes Gehege. Vier Läufe, an den Ecken gestoßen. */
+function fenceRect(model, cx, cz, halfX, halfZ, opts = {}) {
+  return [
+    ...fenceRun(model, [cx - halfX, cz - halfZ], [cx + halfX, cz - halfZ], opts),
+    ...fenceRun(model, [cx + halfX, cz - halfZ], [cx + halfX, cz + halfZ], opts),
+    ...fenceRun(model, [cx + halfX, cz + halfZ], [cx - halfX, cz + halfZ], opts),
+    ...fenceRun(model, [cx - halfX, cz + halfZ], [cx - halfX, cz - halfZ], opts),
+  ];
+}
+
+/** Ein einzelnes gesetztes Prop. */
+function place(model, x, z, { yaw = 0, scale = 1, collision = 'none', collisionRadius = 0.6 } = {}) {
+  return {
+    model,
+    position: [round(x), 0, round(z)],
+    rotation: [0, round(yaw), 0],
+    scale,
+    snapToGround: true,
+    collision,
+    collisionRadius,
+  };
+}
+
+/**
+ * Laternen entlang eines Weges, abwechselnd links und rechts.
+ *
+ * Versetzt statt paarweise: zwei Laternen nebeneinander leuchten dieselbe
+ * Stelle an, versetzte decken den Weg mit der halben Zahl ab. Und weil die
+ * Zahl gleichzeitiger Lichter fest ist, ist jede gesparte Laterne eine, die
+ * anderswo leuchten kann.
+ */
+function lanternRoad(from, to, { abstand = 30, seite = 6, scale = 1 } = {}) {
+  const dx = to[0] - from[0];
+  const dz = to[1] - from[1];
+  const laenge = Math.hypot(dx, dz);
+  const n = Math.max(1, Math.round(laenge / abstand));
+  // Senkrecht zur Wegrichtung.
+  const nx = -dz / laenge;
+  const nz = dx / laenge;
+
+  const out = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const s = i % 2 === 0 ? seite : -seite;
+    out.push(
+      place('lantern_post', from[0] + dx * t + nx * s, from[1] + dz * t + nz * s, {
+        scale,
+        collision: 'circle',
+        collisionRadius: 0.4,
+      }),
+    );
+  }
+  return out;
+}
+
+/** Sperrzonen aus gesetzten Props, damit der Streuer keine Bäume hineinstellt. */
+function keepOutOf(props, r) {
+  return props.map((p) => ({ x: p.position[0], z: p.position[2], r }));
+}
+
 /**
  * Bodenebenen.
  *
@@ -184,14 +288,63 @@ function lichtmoor() {
     { id: 's_boar', mob: 'thistle_boar', position: [12, 150], radius: 30, count: 5, respawnMs: 20000 },
   ];
 
+  // Das Dorf: alles von Hand gesetzt, damit es nach Absicht aussieht.
+  //
+  // Der Weg nach Norden zum Tor bekommt Laternen — er ist die einzige Strecke,
+  // die jeder Spieler zwangsläufig geht, und ohne Licht ist sie nachts eine
+  // schwarze Wiese. Nach Süden steht die Koppel mit den Strohballen, weil dort
+  // niemand hin muss und sie dem Blick vom Brunnen aus etwas gibt.
+  const dorf = [
+    place('well', 0, 14, { collision: 'circle', collisionRadius: 2.2 }),
+    place('signpost', 3.5, 4, { yaw: 0.6 }),
+    place('banner', -3.6, 15.5, { yaw: 0.4 }),
+
+    // Laternen am Brunnenplatz.
+    place('lantern_post', -5.5, 10, { collision: 'circle', collisionRadius: 0.4 }),
+    place('lantern_post', 5.5, 10, { collision: 'circle', collisionRadius: 0.4 }),
+    place('lantern_post', -5.5, 19, { collision: 'circle', collisionRadius: 0.4 }),
+    place('lantern_post', 5.5, 19, { collision: 'circle', collisionRadius: 0.4 }),
+
+    // Der Weg zum Tor. Die letzte Laterne steht kurz vor dem Torwaechter.
+    ...lanternRoad([0, 30], [0, 186], { abstand: 32, seite: 6.5 }),
+
+    // Koppel suedlich vom Start.
+    ...fenceRect('fence_wood', -26, -14, 9, 7),
+    place('hay_bale', -29, -16, { yaw: 0.3 }),
+    place('hay_bale', -27.4, -12.6, { yaw: 1.9, collision: 'circle', collisionRadius: 0.7 }),
+    place('hay_bale', -22.5, -15.8, { yaw: 2.7, collision: 'circle', collisionRadius: 0.7 }),
+
+    // Lager beim Haendler.
+    place('crate', -15.5, 16.5, { yaw: 0.5, collision: 'circle', collisionRadius: 0.6 }),
+    place('crate', -14.4, 17.6, { yaw: 1.2, scale: 0.85 }),
+    place('barrel', -16.8, 15.2, { yaw: 0.2, collision: 'circle', collisionRadius: 0.5 }),
+    place('barrel', -13.2, 14.6, { yaw: 1.1, collision: 'circle', collisionRadius: 0.5 }),
+
+    // Und beim Schmied. Mehr Fass als Kiste — Kohle und Wasser.
+    place('barrel', 18.6, -9.4, { yaw: 0.7, collision: 'circle', collisionRadius: 0.5 }),
+    place('barrel', 19.4, -7.8, { yaw: 2.4, collision: 'circle', collisionRadius: 0.5 }),
+    place('crate', 17.2, -10.8, { yaw: 0.9, collision: 'circle', collisionRadius: 0.6 }),
+    ...fenceRun('fence_stone', [13, -12.5], [21, -12.5]),
+
+    // Das Tor im Norden: eine kurze Steinmauer links und rechts, damit der
+    // Uebergang nach Dornwald wie ein Grenzposten wirkt und nicht wie ein
+    // Kreis im Gras.
+    ...fenceRun('fence_stone', [-14, 198], [-5, 198]),
+    ...fenceRun('fence_stone', [5, 198], [14, 198]),
+    place('banner', -6.5, 199.5, { yaw: 3.14 }),
+    place('banner', 6.5, 199.5, { yaw: 3.14 }),
+  ];
+
   const keepOut = [
     { x: 0, z: 0, r: 26 },
     ...npcs.map((n) => ({ x: n.position[0], z: n.position[1], r: 7 })),
     ...portals.map((p) => ({ x: p.position[0], z: p.position[1], r: 12 })),
     ...spawners.map((s) => ({ x: s.position[0], z: s.position[1], r: s.radius * 0.45 })),
+    ...keepOutOf(dorf, 4),
   ];
 
   const props = [
+    ...dorf,
     ...scatter(rng, {
       count: 190,
       size,
@@ -224,30 +377,6 @@ function lichtmoor() {
       keepOut: keepOut.map((k) => ({ ...k, r: k.r * 0.55 })),
     }),
   ].map((p, i) => ({ ...p, id: `p_${String(i + 1).padStart(4, '0')}` }));
-
-  // Ein paar von Hand gesetzte Landmarken rund um den Startpunkt.
-  props.push(
-    {
-      id: 'p_well',
-      model: 'well',
-      position: [0, 0, 14],
-      rotation: [0, 0, 0],
-      scale: 1,
-      snapToGround: true,
-      collision: 'circle',
-      collisionRadius: 2.2,
-    },
-    {
-      id: 'p_sign_start',
-      model: 'signpost',
-      position: [3.5, 0, 4],
-      rotation: [0, 0.6, 0],
-      scale: 1,
-      snapToGround: true,
-      collision: 'none',
-      collisionRadius: 0.4,
-    },
-  );
 
   return {
     format: 'aurelith.map',
@@ -326,13 +455,54 @@ function dornwald() {
     { id: 's_bandit_c', mob: 'bandit_scout', position: [110, 60], radius: 26, count: 5, respawnMs: 22000 },
   ];
 
+  // Dornwald ist nicht bewohnt, sondern durchzogen: ein Grenzposten am Tor,
+  // ein Banditenlager mittendrin und Licht nur da, wo jemand welches
+  // aufgestellt hat. Deshalb keine Laternenreihe wie in Lichtmoor — die paar
+  // Lichter sollen im Dunkeln als Ziel wirken, nicht als Beleuchtung.
+  const gesetzt = [
+    // Grenzposten am Rueckportal.
+    ...fenceRun('fence_stone', [-13, -182], [-5, -182]),
+    ...fenceRun('fence_stone', [5, -182], [13, -182]),
+    place('lantern_post', -7, -176, { collision: 'circle', collisionRadius: 0.4 }),
+    place('lantern_post', 7, -176, { collision: 'circle', collisionRadius: 0.4 }),
+    place('banner', -9.5, -180, { yaw: 0 }),
+    place('crate', 9, -174, { yaw: 0.4, collision: 'circle', collisionRadius: 0.6 }),
+    place('barrel', 10.4, -175.6, { yaw: 1.3, collision: 'circle', collisionRadius: 0.5 }),
+
+    // Banditenlager. Der Zaun ist ein Stueckwerk, kein Gehege — drei Laeufe,
+    // die nicht schliessen.
+    ...fenceRun('fence_wood', [-50, 52], [-38, 52]),
+    ...fenceRun('fence_wood', [-50, 52], [-50, 62]),
+    ...fenceRun('fence_wood', [-36, 60], [-36, 68]),
+    place('lantern_post', -44, 58, { collision: 'circle', collisionRadius: 0.4 }),
+    place('lantern_post', -38, 64, { collision: 'circle', collisionRadius: 0.4 }),
+    place('crate', -46, 56, { yaw: 0.8, collision: 'circle', collisionRadius: 0.6 }),
+    place('crate', -44.8, 57.2, { yaw: 2.1, scale: 0.9 }),
+    place('barrel', -42.5, 55, { yaw: 0.3, collision: 'circle', collisionRadius: 0.5 }),
+    place('barrel', -41.2, 56.4, { yaw: 1.7, collision: 'circle', collisionRadius: 0.5 }),
+    place('hay_bale', -47, 61, { yaw: 1.1, collision: 'circle', collisionRadius: 0.7 }),
+    place('banner', -42, 60, { yaw: 2.2 }),
+
+    // Wegkreuzung zwischen den Sauen — zwei Laternen und ein umgeworfenes Fass.
+    place('lantern_post', 2, 8, { collision: 'circle', collisionRadius: 0.4 }),
+    place('lantern_post', 6, 30, { collision: 'circle', collisionRadius: 0.4 }),
+    place('barrel', 4.2, 18.5, { yaw: 0.9, collision: 'circle', collisionRadius: 0.5 }),
+
+    // Vor der Gruft. Hier soll das Licht warnen, nicht einladen.
+    place('lantern_post', 88, 142, { collision: 'circle', collisionRadius: 0.4 }),
+    place('lantern_post', 100, 140, { collision: 'circle', collisionRadius: 0.4 }),
+    ...fenceRun('fence_stone', [84, 136], [92, 136]),
+  ];
+
   const keepOut = [
     ...npcs.map((n) => ({ x: n.position[0], z: n.position[1], r: 8 })),
     ...portals.map((p) => ({ x: p.position[0], z: p.position[1], r: 14 })),
     ...spawners.map((s) => ({ x: s.position[0], z: s.position[1], r: s.radius * 0.4 })),
+    ...keepOutOf(gesetzt, 4),
   ];
 
   const props = [
+    ...gesetzt,
     ...scatter(rng, {
       count: 340,
       size,
@@ -436,13 +606,34 @@ function gruft() {
     { id: 's_warden', mob: 'dungeon_warden', position: [0, 92], radius: 6, count: 1, respawnMs: 120000 },
   ];
 
+  // Unter Tage ist die Laterne das einzige warme Licht. Deshalb stehen sie
+  // hier am dichtesten: sie zeichnen den Weg vom Eingang bis zum Waerter, und
+  // wer zwischen zwei Lichtern steht, sieht immer das naechste.
+  const gesetzt = [
+    place('lantern_post', -6, -86, { collision: 'circle', collisionRadius: 0.4 }),
+    place('lantern_post', 6, -86, { collision: 'circle', collisionRadius: 0.4 }),
+    place('crate', -8.5, -92, { yaw: 0.6, collision: 'circle', collisionRadius: 0.6 }),
+    place('barrel', 8.2, -91, { yaw: 1.4, collision: 'circle', collisionRadius: 0.5 }),
+
+    ...lanternRoad([-4, -70], [-14, 0], { abstand: 26, seite: 5 }),
+    ...lanternRoad([12, 0], [4, 70], { abstand: 26, seite: 5 }),
+
+    // Der Vorraum des Waerters: Mauerreste und zwei Laternen als Rahmen.
+    ...fenceRun('fence_stone', [-12, 80], [-4, 80]),
+    ...fenceRun('fence_stone', [4, 80], [12, 80]),
+    place('lantern_post', -7, 84, { collision: 'circle', collisionRadius: 0.4 }),
+    place('lantern_post', 7, 84, { collision: 'circle', collisionRadius: 0.4 }),
+  ];
+
   const keepOut = [
     { x: 0, z: -96, r: 16 },
     ...portals.map((p) => ({ x: p.position[0], z: p.position[1], r: 14 })),
     ...spawners.map((s) => ({ x: s.position[0], z: s.position[1], r: s.radius * 0.5 })),
+    ...keepOutOf(gesetzt, 4),
   ];
 
   const props = [
+    ...gesetzt,
     ...scatter(rng, {
       count: 90,
       size,

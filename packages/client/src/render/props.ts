@@ -178,6 +178,110 @@ function signpost(): THREE.BufferGeometry {
   ]);
 }
 
+/**
+ * Ein Zaunfeld aus Holz.
+ *
+ * Zwei Meter breit und so gebaut, dass sich Felder aneinanderreihen lassen:
+ * die Pfosten sitzen an den Enden, nicht in der Mitte. Wer zwei Stück im
+ * Abstand von zwei Metern setzt, bekommt eine durchgehende Linie statt einer
+ * Reihe einzelner Stücke mit Lücken.
+ */
+function fenceWood(): THREE.BufferGeometry {
+  const holz = 0x8a6a42;
+  return assemble([
+    { geometry: box(0.14, 1.15, 0.14), color: BARK, position: [-1, 0.575, 0] },
+    { geometry: box(0.14, 1.15, 0.14), color: BARK, position: [1, 0.575, 0] },
+    // Zwei Riegel, der obere etwas dicker — sonst wirkt der Zaun kopflastig.
+    { geometry: box(2, 0.12, 0.07), color: holz, position: [0, 0.92, 0] },
+    { geometry: box(2, 0.1, 0.06), color: holz, position: [0, 0.52, 0] },
+  ]);
+}
+
+/** Dasselbe in Stein: niedriger, massiver, mit Abdeckung. */
+function fenceStone(): THREE.BufferGeometry {
+  return assemble([
+    { geometry: box(2, 0.7, 0.34), color: STONE, position: [0, 0.35, 0] },
+    { geometry: box(2.1, 0.12, 0.44), color: DARK_STONE, position: [0, 0.76, 0] },
+    // Ein versetzter Stein je Feld: ohne ihn wiederholt sich eine lange Mauer
+    // zu offensichtlich.
+    { geometry: box(0.5, 0.24, 0.38), color: 0x8d8a80, position: [-0.5, 0.5, 0] },
+  ]);
+}
+
+/**
+ * Laternenpfahl.
+ *
+ * Der Glaskörper ist hier nur ein heller Farbwert. Das eigentliche Licht kommt
+ * aus `lanterns.ts`: eine feste Handvoll Punktlichter, die zu den
+ * nächstgelegenen Laternen wandert. Eine Lichtquelle je Laterne wäre bei
+ * fünfzig Stück auf einer Karte fünfzig zusätzliche Lichter — das trägt kein
+ * Renderer, der auf einem Telefon laufen soll.
+ */
+function lanternPost(): THREE.BufferGeometry {
+  const eisen = 0x3a3a40;
+  const glas = 0xffd88a;
+  return assemble([
+    // Zwei Meter sechzig statt drei zehn: der erste Anlauf war so hoch und
+    // duenn, dass die Laterne im Bild wie eine Lanze aussah.
+    { geometry: cylinder(0.11, 0.17, 2.35, 6), color: eisen, position: [0, 1.18, 0] },
+    { geometry: cylinder(0.26, 0.3, 0.14, 6), color: eisen, position: [0, 0.07, 0] },
+    // Der Kopf sitzt oben auf, nicht an einem Ausleger. Ein Arm braucht ein
+    // Gegengewicht, um nicht falsch auszusehen, und das ist bei dieser
+    // Bauteilgroesse mehr Aufwand als Wirkung.
+    { geometry: box(0.34, 0.1, 0.34), color: eisen, position: [0, 2.4, 0] },
+    { geometry: box(0.3, 0.4, 0.3), color: glas, position: [0, 2.65, 0] },
+    // Vier Streben, damit der Glaskoerper nicht wie ein Block wirkt.
+    { geometry: box(0.05, 0.42, 0.05), color: eisen, position: [0.14, 2.65, 0.14] },
+    { geometry: box(0.05, 0.42, 0.05), color: eisen, position: [-0.14, 2.65, 0.14] },
+    { geometry: box(0.05, 0.42, 0.05), color: eisen, position: [0.14, 2.65, -0.14] },
+    { geometry: box(0.05, 0.42, 0.05), color: eisen, position: [-0.14, 2.65, -0.14] },
+    { geometry: box(0.42, 0.07, 0.42), color: eisen, position: [0, 2.88, 0] },
+    { geometry: cone(0.3, 0.26, 4), color: eisen, position: [0, 3.04, 0] },
+  ]);
+}
+
+/** Fass. Steht in jedem Lager herum und füllt Ecken. */
+function barrel(): THREE.BufferGeometry {
+  const daube = 0x7a5a36;
+  const reif = 0x4a4a52;
+  return assemble([
+    { geometry: cylinder(0.34, 0.34, 0.9, 8), color: daube, position: [0, 0.45, 0] },
+    { geometry: cylinder(0.38, 0.38, 0.9, 8), color: daube, position: [0, 0.45, 0], scale: [1, 0.55, 1] },
+    { geometry: cylinder(0.39, 0.39, 0.08, 8), color: reif, position: [0, 0.22, 0] },
+    { geometry: cylinder(0.39, 0.39, 0.08, 8), color: reif, position: [0, 0.68, 0] },
+  ]);
+}
+
+/** Kiste. */
+function crate(): THREE.BufferGeometry {
+  const holz = 0x8a6a42;
+  const kante = 0x6b4f34;
+  return assemble([
+    { geometry: box(0.8, 0.7, 0.8), color: holz, position: [0, 0.35, 0] },
+    { geometry: box(0.86, 0.09, 0.09), color: kante, position: [0, 0.62, 0.4] },
+    { geometry: box(0.86, 0.09, 0.09), color: kante, position: [0, 0.1, 0.4] },
+    { geometry: box(0.09, 0.09, 0.86), color: kante, position: [0.4, 0.62, 0] },
+  ]);
+}
+
+/** Strohballen. */
+function hayBale(): THREE.BufferGeometry {
+  const stroh = 0xc9a94f;
+  return assemble([
+    { geometry: cylinder(0.55, 0.55, 1.1, 8), color: stroh, position: [0, 0.55, 0], rotation: [0, 0, Math.PI / 2] },
+    { geometry: box(0.06, 0.08, 1.14), color: 0x8f7a3a, position: [0, 0.55, 0] },
+  ]);
+}
+
+/** Bannermast — ein Farbtupfer für Lager und Wegkreuzungen. */
+function banner(): THREE.BufferGeometry {
+  return assemble([
+    { geometry: cylinder(0.08, 0.11, 2.9, 6), color: BARK, position: [0, 1.45, 0] },
+    { geometry: box(0.06, 1.15, 0.8), color: 0x8c3b3b, position: [0, 2.15, 0.4] },
+    { geometry: box(0.08, 0.1, 0.84), color: 0xd8b84a, position: [0, 2.7, 0.4] },
+  ]);
+}
+
 function archway(stoneColor: number, accent: number): THREE.BufferGeometry {
   return assemble([
     { geometry: box(0.7, 4.4, 0.7), color: stoneColor, position: [-2.0, 2.2, 0] },
@@ -203,6 +307,15 @@ export const PROP_BUILDERS: Record<string, PropBuilder> = {
   brazier,
   well,
   signpost,
+
+  // Siedlung und Weg — was eine Karte bewohnt aussehen lässt.
+  fence_wood: fenceWood,
+  fence_stone: fenceStone,
+  lantern_post: lanternPost,
+  barrel,
+  crate,
+  hay_bale: hayBale,
+  banner,
 };
 
 /**

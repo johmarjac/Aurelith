@@ -190,19 +190,32 @@ export interface QualitySettings {
    * Punkte kosten kaum Rechenzeit, aber sehr wohl Pixel.
    */
   particleBudget: number;
+  /**
+   * Wie viele Laternen gleichzeitig echtes Licht werfen.
+   *
+   * Eine feste Zahl, keine Obergrenze: die Lichter hängen dauerhaft in der
+   * Szene und wandern zu den nächstgelegenen Laternen. Three.js übersetzt
+   * seine Shader neu, sobald sich die Zahl der Lichter ändert — Lichter nach
+   * Bedarf anzulegen hieße, mitten im Spiel Shader zu übersetzen, und das
+   * sieht man als Ruckler.
+   */
+  lanternLights: number;
 }
 
 export const QUALITY: Record<QualityLevel, QualitySettings> = {
   niedrig: {
     viewDistance: 160, terrainCell: 8, shadows: false, maxPixelRatio: 1,
     propDistance: 110, groundNormalMaps: false, particleBudget: 24,
+    lanternLights: 2,
   },
   mittel: {
     viewDistance: 240, terrainCell: 6, shadows: false, maxPixelRatio: 1.5,
     propDistance: 170, groundNormalMaps: true, particleBudget: 48,
+    lanternLights: 4,
   },
   hoch: {
     viewDistance: 340, terrainCell: 4, shadows: true, maxPixelRatio: 2,
     propDistance: 260, groundNormalMaps: true, particleBudget: 80,
+    lanternLights: 6,
   },
 };

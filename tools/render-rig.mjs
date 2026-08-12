@@ -15,6 +15,7 @@
  * interpretieren muss, taugt nicht zum Hinsehen.
  *
  *   node tools/render-rig.mjs [--rig player] [--waffe sword] [--breite 480]
+ *   node tools/render-rig.mjs --prop fence_wood,lantern_post,barrel
  */
 
 import { writeFile } from 'node:fs/promises';
@@ -34,17 +35,48 @@ const opt = (name, fallback) => {
 const rigKey = opt('rig', 'player');
 const weapon = opt('waffe', undefined);
 const width = Number(opt('breite', 420));
-const height = Math.round(width * 1.35);
-const outFile = opt('aus', join(root, 'artefakte', `rig-${rigKey}.png`));
+// Bei einer Figur ist das Bild hochkant, bei einer Reihe Props quer. Die
+// endgueltige Hoehe steht erst fest, wenn die Ausschnitte berechnet sind —
+// sonst bildet man elf Einheiten Breite auf achthundert Bildpunkte ab und
+// drei Einheiten Hoehe auf elfhundert, und alles ist vierfach gestaucht.
+let height = Math.round(width * 1.35);
+const outFile = opt('aus', join(root, 'artefakte', `rig-${opt('prop', rigKey).split(',')[0]}.png`));
 
 // three und der Rig-Code sind TypeScript-Module; tsx lädt sie.
 const { default: sharp } = await import('sharp');
 const THREE = await import('three');
 const { createRig } = await import(join(root, 'packages/client/src/render/rigs.ts'));
 
-const rig = createRig(rigKey, new THREE.MeshBasicMaterial({ vertexColors: true }), weapon);
-// Eine Ruhepose: stehend, nicht mitten im Schritt.
-rig.update({ speed: 0, attackPhase: -1, dead: false, time: 0, dt: 1 / 60 });
+// Entweder eine Figur oder eine Reihe Props — dieselbe Rasterung, dieselben
+// Ansichten. Ein zweites Werkzeug fuer Props waere dieselbe Arbeit noch einmal.
+const propListe = opt('prop', undefined);
+const rig = { root: new THREE.Object3D() };
+
+if (propListe) {
+  const { PROP_BUILDERS } = await import(join(root, 'packages/client/src/render/props.ts'));
+  const namen = propListe.split(',');
+  // Nebeneinander aufgereiht, mit Abstand nach ihrer eigenen Breite.
+  let x = 0;
+  for (const name of namen) {
+    const bauer = PROP_BUILDERS[name];
+    if (!bauer) {
+      console.error(`Unbekanntes Prop: ${name}`);
+      process.exit(1);
+    }
+    const geo = bauer();
+    geo.computeBoundingBox();
+    const breite = geo.boundingBox.max.x - geo.boundingBox.min.x;
+    const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true }));
+    mesh.position.x = x + breite / 2;
+    rig.root.add(mesh);
+    x += breite + 0.6;
+  }
+} else {
+  const gebaut = createRig(rigKey, new THREE.MeshBasicMaterial({ vertexColors: true }), weapon);
+  // Eine Ruhepose: stehend, nicht mitten im Schritt.
+  gebaut.update({ speed: 0, attackPhase: -1, dead: false, time: 0, dt: 1 / 60 });
+  rig.root.add(gebaut.root);
+}
 rig.root.updateMatrixWorld(true);
 
 // --- Dreiecke einsammeln ----------------------------------------------------
@@ -85,7 +117,15 @@ let modelTop = 0;
 for (const t of tris) for (const v of t.verts) modelTop = Math.max(modelTop, v.y);
 const H = modelTop || 1.8;
 
-const views = [
+let breiteGesamt = 0;
+for (const t of tris) for (const v of t.verts) breiteGesamt = Math.max(breiteGesamt, v.x);
+
+const views = propListe
+  ? [
+      { name: 'vorn', yaw: 0, top: H * 1.1, bottom: -H * 0.05, spanX: breiteGesamt + 1 },
+      { name: 'halb', yaw: -0.6, top: H * 1.1, bottom: -H * 0.05, spanX: breiteGesamt + 1 },
+    ]
+  : [
   { name: 'vorn', yaw: 0, top: H * 1.04, bottom: -H * 0.03 },
   { name: 'halb', yaw: -0.7, top: H * 1.04, bottom: -H * 0.03 },
   { name: 'seite', yaw: -Math.PI / 2, top: H * 1.04, bottom: -H * 0.03 },
@@ -95,6 +135,12 @@ const views = [
   { name: 'hand', yaw: -0.75, top: H * 0.55, bottom: H * 0.265, centerX: H * 0.19 },
 ];
 
+// Massstabstreu: dieselbe Zahl Bildpunkte je Einheit in beide Richtungen.
+if (propListe) {
+  const v = views[0];
+  height = Math.max(80, Math.round((width * (v.top - v.bottom)) / v.spanX));
+}
+
 const LIGHT = new THREE.Vector3(0.4, 0.8, 0.55).normalize();
 
 function render(view) {
@@ -102,7 +148,9 @@ function render(view) {
   const sin = Math.sin(view.yaw);
   const span = view.top - view.bottom;
   const scale = height / span;
-  const halfW = width / (2 * scale);
+  // `spanX` erzwingt eine Breite: eine Reihe Props ist breiter als hoch, und
+  // ohne das faellt die Haelfte aus dem Bild.
+  const halfW = view.spanX ? view.spanX / 2 : width / (2 * scale);
 
   const pixels = new Float32Array(width * height * 3);
   // Hintergrund: ein neutrales Grau, damit helle wie dunkle Teile auffallen.
@@ -128,7 +176,7 @@ function render(view) {
 
   const depthBuffer = new Float32Array(width * height).fill(-Infinity);
 
-  const cx0 = view.centerX ?? 0;
+  const cx0 = view.centerX ?? (view.spanX ? view.spanX / 2 : 0);
   const sx = (x) => ((x - cx0 + halfW) / (2 * halfW)) * width;
   const sy = (y) => height - ((y - view.bottom) / span) * height;
 
