@@ -23,7 +23,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { mkdir, stat } from 'node:fs/promises';
+import { mkdir, readFile, stat, unlink } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -76,32 +76,80 @@ try {
 await mkdir(outDir, { recursive: true });
 const target = join(outDir, `${name}.mp3`);
 
-const result = spawnSync(
-  ffmpeg,
-  [
+/**
+ * Spitzenwert der **dekodierten** Datei.
+ *
+ * Nicht der der Quelle: MP3 rekonstruiert die Wellenform nur näherungsweise,
+ * und zwischen zwei Abtastwerten kann das Ergebnis über die Aussteuerung
+ * hinausschießen. Gemessen an den gelieferten Aufnahmen waren das bis zu
+ * +3 dB — beim Bogenschuss auf neun Prozent aller Abtastwerte. Der Browser
+ * kappt das beim Abspielen, und man hört es als Verzerrung, die in keiner
+ * Quelldatei steht.
+ */
+function decodedPeak(file) {
+  const res = spawnSync(ffmpeg, ['-v', 'error', '-i', file, '-f', 'f32le', '-'], {
+    maxBuffer: 256 * 1024 * 1024,
+  });
+  if (res.status !== 0) return 1;
+
+  const view = new Float32Array(
+    res.stdout.buffer,
+    res.stdout.byteOffset,
+    Math.floor(res.stdout.length / 4),
+  );
+  let peak = 0;
+  for (const v of view) {
+    const a = Math.abs(v);
+    if (a > peak) peak = a;
+  }
+  return peak;
+}
+
+function encode(gain) {
+  return spawnSync(
+    ffmpeg,
+    [
     '-y',
     '-i', source,
     '-ac', '1',
     '-ar', sampleRate,
-    // `reverse` zweimal: silenceremove schneidet nur am Anfang, also dreht
-    // man die Spur um, schneidet den nun vorne liegenden Schwanz ab und
-    // dreht zurück. Ein alter Trick, aber der kürzeste.
-    '-af', [
-      `silenceremove=start_periods=1:start_threshold=${silence}:start_duration=${minSignal}:start_silence=0.02`,
-      'areverse',
-      `silenceremove=start_periods=1:start_threshold=${silence}:start_duration=${minSignal}:start_silence=0.02`,
-      'areverse',
-    ].join(','),
-    '-codec:a', 'libmp3lame',
-    '-b:a', bitrate,
-    target,
-  ],
-  { encoding: 'utf8' },
-);
+      // `reverse` zweimal: silenceremove schneidet nur am Anfang, also dreht
+      // man die Spur um, schneidet den nun vorne liegenden Schwanz ab und
+      // dreht zurück. Ein alter Trick, aber der kürzeste.
+      '-af', [
+        `silenceremove=start_periods=1:start_threshold=${silence}:start_duration=${minSignal}:start_silence=0.02`,
+        'areverse',
+        `silenceremove=start_periods=1:start_threshold=${silence}:start_duration=${minSignal}:start_silence=0.02`,
+        'areverse',
+        `volume=${gain}`,
+      ].join(','),
+      '-codec:a', 'libmp3lame',
+      '-b:a', bitrate,
+      target,
+    ],
+    { encoding: 'utf8' },
+  );
+}
 
+let result = encode(1);
 if (result.status !== 0) {
   console.error(result.stderr?.split('\n').slice(-15).join('\n'));
   process.exit(result.status ?? 1);
+}
+
+// Zweiter Durchgang, falls die dekodierte Datei über die Aussteuerung geht.
+// Ein Dezibel Luft: knapp genug, dass nichts leiser klingt als nötig, weit
+// genug, dass die Näherung des Encoders darunter bleibt.
+const ziel = 0.891;
+const peak = decodedPeak(target);
+let korrektur = 1;
+if (peak > ziel) {
+  korrektur = ziel / peak;
+  result = encode(korrektur);
+  if (result.status !== 0) {
+    console.error(result.stderr?.split('\n').slice(-15).join('\n'));
+    process.exit(result.status ?? 1);
+  }
 }
 
 const before = (await stat(source)).size;
@@ -118,6 +166,9 @@ const dauer = /time=(\d+:\d+:\d+\.\d+)/.exec(probe.stderr ?? '')?.[1] ?? '?';
 
 console.log(
   `${name}.mp3\n` +
+    (korrektur < 1
+      ? `  Spitze nach Dekodieren ${peak.toFixed(3)} → um ${(-20 * Math.log10(1 / korrektur)).toFixed(1)} dB gesenkt\n`
+      : '') +
     `  ${(before / 1024).toFixed(1)} KiB → ${(after / 1024).toFixed(1)} KiB ` +
     `(${((1 - after / before) * 100).toFixed(0)} % kleiner)\n` +
     `  Dauer ${dauer}, mono, ${sampleRate} Hz, ${bitrate}`,
