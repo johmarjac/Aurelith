@@ -50,7 +50,12 @@ COPY packages/editor/package.json packages/editor/
 #
 # `--include-workspace-root` ist nötig, weil die Workspace-Verweise am Wurzel-
 # manifest hängen; ohne ihn fehlen die Symlinks nach packages/.
-RUN npm ci --omit=dev --include-workspace-root --workspace @aurelith/server \
+#
+# `--omit=optional` schneidet `ffmpeg-static` weg. Es stand einmal unter den
+# Entwicklungsabhängigkeiten und war damit von `--omit=dev` schon erfasst;
+# seit es optional ist, wäre es das nicht mehr — und achtzig Megabyte
+# Tonwerkzeug haben in einem Serverbild nichts verloren.
+RUN npm ci --omit=dev --omit=optional --include-workspace-root --workspace @aurelith/server \
  && npm cache clean --force
 
 # --- Stufe 3: Laufzeit ------------------------------------------------------

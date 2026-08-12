@@ -72,7 +72,14 @@ jobs:
           ./emsdk install "$EMSDK_VERSION"
           ./emsdk activate "$EMSDK_VERSION"
 
-      - run: npm ci
+      # Ohne die optionalen Abhängigkeiten. Dahinter steht genau eine:
+      # `ffmpeg-static`, das beim Installieren achtzig Megabyte von einem
+      # Release-Server nachlädt. Gebraucht wird es allein von `npm run audio`,
+      # also von Hand und nie im Bau — und einmal hat dieser Download den
+      # ganzen Lauf mit einem abgerissenen Socket gekippt. Ein Bau, der an
+      # einer Datei scheitert, die er nicht benutzt, ist ein Bau mit einer
+      # Wette darin.
+      - run: npm ci --omit=optional
 
       - name: Kern bauen und prüfen
         # tools/build-core.mjs findet das SDK über $EMSDK und baut immer zuerst

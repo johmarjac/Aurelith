@@ -69,7 +69,9 @@ let ffmpeg;
 try {
   ffmpeg = (await import('ffmpeg-static')).default;
 } catch {
-  console.error('Zum Umwandeln fehlt ffmpeg. Einmalig: npm i -D ffmpeg-static');
+  // Optional und nicht versehentlich fehlend: `npm ci` im Bau lässt es
+  // absichtlich weg, weil dort niemand Ton umwandelt.
+  console.error('Zum Umwandeln fehlt ffmpeg. Einmalig: npm i ffmpeg-static');
   process.exit(1);
 }
 

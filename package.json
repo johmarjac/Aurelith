@@ -57,10 +57,12 @@
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
-    "ffmpeg-static": "^5.2.0",
     "playwright": "^1.62.1",
     "sharp": "^0.35.3",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0"
+  },
+  "optionalDependencies": {
+    "ffmpeg-static": "^5.2.0"
   }
 }
