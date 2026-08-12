@@ -16,6 +16,16 @@ import { getItem, type LootRow } from '@aurelith/shared';
 import { assemble, cylinder } from './geometry.ts';
 import { buildItemGeometry } from './itemModels.ts';
 
+/**
+ * Wie gross die Haufen im Bild sind.
+ *
+ * Deutlich grösser als der Gegenstand in Wirklichkeit wäre. Ein Münzstapel
+ * mit realistischem Durchmesser ist aus zehn Metern ein paar Bildpunkte —
+ * man findet ihn dann nur über sein Schild, und das Modell wird zur
+ * Behauptung. Beute soll man sehen, bevor man den Text liest.
+ */
+const SCALE = 2.2;
+
 /** Wie hoch die Beute über dem Boden schwebt, und wie weit sie dabei wippt. */
 const HOVER = 0.45;
 const BOB = 0.09;
@@ -24,16 +34,24 @@ const SPIN_SPEED = 0.9;
 
 /**
  * Gold ist kein Gegenstand aus der Tabelle, also braucht es ein eigenes
- * Modell: ein kleiner Stapel Münzen, leicht versetzt, damit man drei Scheiben
- * sieht und nicht einen Zylinder.
+ * Modell: ein Stapel Münzen, gegeneinander versetzt, damit man einzelne
+ * Scheiben sieht und nicht einen Zylinder.
  */
 function coinPile(): THREE.BufferGeometry {
   const gold = 0xe8c25a;
   const dunkel = 0xbc9636;
   return assemble([
-    { geometry: cylinder(0.22, 0.22, 0.05, 12), color: gold, position: [0, 0.03, 0] },
-    { geometry: cylinder(0.2, 0.2, 0.05, 12), color: dunkel, position: [0.06, 0.08, -0.04] },
-    { geometry: cylinder(0.18, 0.18, 0.05, 12), color: gold, position: [-0.03, 0.13, 0.05] },
+    { geometry: cylinder(0.3, 0.3, 0.06, 14), color: gold, position: [0, 0.03, 0] },
+    { geometry: cylinder(0.27, 0.27, 0.06, 14), color: dunkel, position: [0.08, 0.1, -0.05] },
+    { geometry: cylinder(0.24, 0.24, 0.06, 14), color: gold, position: [-0.04, 0.17, 0.07] },
+    // Eine vierte, hochkant an den Stapel gelehnt: erst dadurch ist von der
+    // Seite zu erkennen, dass es Münzen sind und kein Klotz.
+    {
+      geometry: cylinder(0.26, 0.26, 0.05, 14),
+      color: gold,
+      position: [0.26, 0.26, 0.02],
+      rotation: [0, 0, Math.PI * 0.5],
+    },
   ]);
 }
 
@@ -76,6 +94,7 @@ export class LootView {
       if (!geometry) continue;
 
       const mesh = new THREE.Mesh(geometry, this.material);
+      mesh.scale.setScalar(SCALE);
       mesh.position.set(row.x, row.y + HOVER, row.z);
       // Kein Frustum-Culling: die Geometrien sitzen im Ursprung und werden
       // über die Objektposition gesetzt, ihre Hülle stimmt also nicht.

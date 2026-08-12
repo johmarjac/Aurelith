@@ -210,6 +210,17 @@ gezeichnete Position. Ohne den lässt sich von außen nicht ansehen, was auf dem
 Bildschirm tatsächlich passiert — und genau daran hingen mehrere Fehler, die
 man sieht, aber nicht kompiliert bekommt.
 
+### Tageszeit für Prüfungen und Bilder
+
+`AURELITH_TIME_OFFSET_MS` verschiebt die **Serveruhr**. Der Tageszyklus hängt
+an ihr und nicht an der Geräteuhr — nur so haben zwei Spieler nebeneinander
+dieselbe Tageszeit, und genau deshalb lässt sich die Stunde auch nur dort
+stellen. `npm run himmel` nutzt das: es startet je Tageszeit einen Server und
+legt Bilder in `artefakte/himmel-*.png`.
+
+Helligkeit lässt sich rechnen, und `npm run test:tag` tut das. Ob eine Nacht
+*benutzbar* ist, sieht man nur — dafür sind die Bilder da.
+
 ### Startpunkt für Prüfungen
 
 `AURELITH_START_POS="x,z"` (oder `"x,z,blickrichtung"`) setzt, wo ein **neu

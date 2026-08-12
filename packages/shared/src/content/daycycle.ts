@@ -53,7 +53,30 @@ export interface SkyState {
   sunDirection: [number, number, number];
   sunColor: number;
   sunIntensity: number;
+  /**
+   * Wahre Richtung zur Sonne — nachts unter dem Horizont.
+   *
+   * Nicht dasselbe wie `sunDirection`: die zeigt zur *Lichtquelle* und wird
+   * nachts nach oben gespiegelt, damit der Mond von oben scheint und nicht
+   * von unten durch die Karte. Für die Scheiben am Himmel braucht es den
+   * echten Stand — die Sonne muss untergehen, sonst steht sie um Mitternacht
+   * neben dem Mond.
+   */
+  sunDisc: [number, number, number];
   ambientColor: number;
+  /**
+   * Womit der Himmel den Boden beleuchtet.
+   *
+   * Getrennt von `skyColor`, und das ist der Punkt. Der Himmel ist zwei
+   * Dinge: ein Bild und eine Lichtquelle. Als Bild ist er nachts fast
+   * schwarz, und solange das Umgebungslicht dieselbe Farbe bekam, war es
+   * nachts *aus* — schwarzes Licht bleibt schwarz, gleich welche Intensität
+   * daran steht. Man lief durch eine Karte, die man nicht sah.
+   *
+   * Als Lichtquelle bleibt der Nachthimmel deshalb kühl und hell: das ist
+   * Mondlicht, kein Sonnenlicht, aber es ist Licht.
+   */
+  ambientSkyColor: number;
   ambientIntensity: number;
   skyColor: number;
   horizonColor: number;
@@ -69,11 +92,33 @@ export interface SkyState {
 }
 
 /** Nachthimmel, Mondlicht, Dämmerung. Keine Karteneinstellung, sondern Stimmung. */
-const NIGHT_SKY = 0x070c1c;
-const NIGHT_HORIZON = 0x16203c;
-const NIGHT_FOG = 0x0c1430;
+const NIGHT_SKY = 0x0b1430;
+const NIGHT_HORIZON = 0x1e2c50;
+const NIGHT_FOG = 0x141f44;
 const MOON_COLOR = 0x9fb4e0;
 const DUSK = 0xe08a44;
+
+/**
+ * Die Farbe, in der der Nachthimmel *leuchtet* — nicht die, in der er
+ * aussieht.
+ *
+ * Deutlich heller als `NIGHT_SKY`, und mit Absicht: eine Nacht soll man an
+ * den Farben erkennen, nicht daran, dass man nichts mehr sieht. Kühl und
+ * bläulich, damit sie trotzdem als Nacht liest.
+ */
+const NIGHT_AMBIENT_SKY = 0x8fa6d8;
+
+/**
+ * Wieviel Licht die Nacht behält, verglichen mit dem Tag.
+ *
+ * Ein hoher Wert. Vorher stand hier ein Drittel, und das war die Rechnung
+ * eines Fotografen und nicht die eines Spiels: gemessen war es dunkel, im
+ * Spiel war es unbenutzbar. Der Tag bleibt trotzdem heller, und der
+ * Unterschied liegt vor allem in den Farben — dafür sind sie da.
+ */
+const NIGHT_AMBIENT_FLOOR = 0.78;
+/** Mondlicht als gerichtete Quelle. Genug für Formen und Schattenkanten. */
+const MOON_INTENSITY = 0.46;
 
 function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;
@@ -108,7 +153,11 @@ export function skyAt(t: number, base: EnvironmentDef): SkyState {
       sunDirection: [...base.sunDirection] as [number, number, number],
       sunColor: base.sunColor,
       sunIntensity: base.sunIntensity,
+      // Unter Tage gibt es keine Sonne zu sehen. Die Scheibe steht deshalb
+      // unter dem Horizont — der Client zeichnet dann keine.
+      sunDisc: [0, -1, 0],
       ambientColor: base.ambientColor,
+      ambientSkyColor: base.skyColor,
       ambientIntensity: base.ambientIntensity,
       skyColor: base.skyColor,
       horizonColor: base.horizonColor,
@@ -161,15 +210,16 @@ export function skyAt(t: number, base: EnvironmentDef): SkyState {
 
   return {
     sunDirection: [dx, dy, dz],
+    // Der echte Stand, ungespiegelt: hier geht die Sonne wirklich unter.
+    sunDisc: [ex * cos + nx * 0.35 * Math.abs(hoehe), hoehe, ez * cos + nz * 0.35 * Math.abs(hoehe)],
     sunColor: sonnenfarbe,
     // Mondlicht ist nicht null: eine Nacht ohne jedes gerichtete Licht ist
     // eine Fläche aus Umgebungslicht, in der nichts mehr eine Form hat.
-    sunIntensity: base.sunIntensity * tag + 0.22 * nacht,
+    sunIntensity: base.sunIntensity * tag + MOON_INTENSITY * nacht,
     ambientColor: mixColor(base.ambientColor, NIGHT_HORIZON, nacht),
-    // Nicht bis auf null: bei voller Dunkelheit sieht man den Boden nicht mehr
-    // und läuft blind. Ein Drittel bleibt stehen — dunkel genug, dass die
-    // Laternen wirken, hell genug, dass man den Weg findet.
-    ambientIntensity: base.ambientIntensity * (0.34 + 0.66 * tag),
+    // Nicht die Farbe der Kuppel, sondern die des Lichts — siehe `SkyState`.
+    ambientSkyColor: mixColor(base.skyColor, NIGHT_AMBIENT_SKY, nacht),
+    ambientIntensity: base.ambientIntensity * (NIGHT_AMBIENT_FLOOR + (1 - NIGHT_AMBIENT_FLOOR) * tag),
     skyColor: mixColor(base.skyColor, NIGHT_SKY, nacht),
     horizonColor: mixColor(
       mixColor(base.horizonColor, NIGHT_HORIZON, nacht),

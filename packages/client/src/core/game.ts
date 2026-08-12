@@ -32,6 +32,7 @@ import {
   TICK_MS,
   TICK_SECONDS,
   attackProfileFor,
+  clockText,
   getItem,
   loadContent,
   type AttackProfile,
@@ -203,6 +204,23 @@ export interface Diagnostics {
   entityCount: number;
   /** Wie viele Beutehaufen gerade in Sichtweite liegen. */
   lootCount: number;
+  /**
+   * Der Stand des Tageszyklus, gerundet.
+   *
+   * Helligkeit lässt sich rechnen, aber nicht ansehen — und umgekehrt sieht
+   * man einem Bild nicht an, ob es dunkel *gerechnet* oder dunkel *gefärbt*
+   * ist. Genau daran hing der Fehler, dass nachts das Umgebungslicht die
+   * Farbe der Kuppel bekam und damit schwarz war.
+   */
+  sky: {
+    uhr: string;
+    dunkelheit: number;
+    sonne: number;
+    umgebung: number;
+    /** Farbe des Umgebungslichts — nicht die der Kuppel. */
+    lichtfarbe: string;
+    kuppelfarbe: string;
+  };
   targetId: number;
   connection: string;
   latencyMs: number;
@@ -321,6 +339,7 @@ export class Game {
     localId: 0,
     entityCount: 0,
     lootCount: 0,
+    sky: { uhr: '', dunkelheit: 0, sonne: 0, umgebung: 0, lichtfarbe: '', kuppelfarbe: '' },
     targetId: 0,
     connection: 'getrennt',
     latencyMs: 0,
@@ -1445,6 +1464,9 @@ export class Game {
     this.ui.setWorldTime(this.dayCycle.time, this.dayCycle.state?.darkness ?? 0);
 
     this.view.step(dt, this.localId);
+    // Die Wolken ziehen je Bild. Die Farben rechnet der Zyklus nur alle paar
+    // Zehntel — ein Wolkenzug in Rucken wäre daran sofort zu sehen.
+    this.scene.stepSky(dt);
     this.ui.updateOverlay(
       this.scene.camera,
       this.view.entities.values(),
@@ -1503,6 +1525,17 @@ export class Game {
     d.localId = this.localId;
     d.entityCount = this.view.entities.size;
     d.lootCount = this.view.loot.piles.size;
+
+    const himmel = this.dayCycle.state;
+    if (himmel) {
+      const hex = (c: number): string => `#${c.toString(16).padStart(6, '0')}`;
+      d.sky.uhr = clockText(this.dayCycle.time);
+      d.sky.dunkelheit = Number(himmel.darkness.toFixed(3));
+      d.sky.sonne = Number(himmel.sunIntensity.toFixed(3));
+      d.sky.umgebung = Number(himmel.ambientIntensity.toFixed(3));
+      d.sky.lichtfarbe = hex(himmel.ambientSkyColor);
+      d.sky.kuppelfarbe = hex(himmel.skyColor);
+    }
     d.targetId = this.targetId;
     d.connection = this.connection?.status ?? 'getrennt';
     d.latencyMs = this.connection?.latency ?? 0;

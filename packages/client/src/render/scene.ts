@@ -49,6 +49,8 @@ function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
 }
 
+import { SkyBodies } from './skyBodies.ts';
+
 export class Scene3D {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
@@ -59,6 +61,8 @@ export class Scene3D {
   private readonly skyMesh: THREE.Mesh;
   private readonly skyGeometry: THREE.SphereGeometry;
   private readonly skyMaterial: THREE.MeshBasicMaterial;
+  /** Sonne, Mond und Wolken. Hängen an der Kuppel, nicht in der Welt. */
+  private readonly bodies = new SkyBodies();
 
   /** Kamerastand. Yaw ist zugleich die Blickrichtung der Figur. */
   yaw = 0;
@@ -137,6 +141,7 @@ export class Scene3D {
     this.skyMesh = new THREE.Mesh(this.skyGeometry, this.skyMaterial);
     this.skyMesh.renderOrder = -1000;
     this.scene.add(this.skyMesh);
+    this.scene.add(this.bodies.root);
 
     this.resize();
   }
@@ -192,9 +197,19 @@ export class Scene3D {
 
     this.sun.color.setHex(state.sunColor);
     this.sun.intensity = state.sunIntensity;
-    this.ambient.color.setHex(state.skyColor);
+    // `ambientSkyColor` und nicht `skyColor`: der Himmel ist ein Bild *und*
+    // eine Lichtquelle, und nachts sind das zwei verschiedene Farben. Stand
+    // hier die Farbe der Kuppel, war das Umgebungslicht nachts schwarz.
+    this.ambient.color.setHex(state.ambientSkyColor);
     this.ambient.groundColor.setHex(state.ambientColor);
     this.ambient.intensity = state.ambientIntensity;
+
+    this.bodies.update(state.sunDisc, state.sunColor, state.horizonColor, state.darkness);
+  }
+
+  /** Lässt die Wolken ziehen. Je Bild, anders als die Farben. */
+  stepSky(dt: number): void {
+    this.bodies.step(dt);
   }
 
   /** Färbt die Himmelskuppel neu ein. */
@@ -290,6 +305,14 @@ export class Scene3D {
 
     this.skyMesh.position.copy(this.camera.position);
     this.skyMesh.scale.setScalar(this.camera.far * 0.9);
+    // Sonne, Mond und Wolken genauso: sie haben eine Richtung und keinen Ort.
+    // Wer nach Norden läuft, kommt der Sonne nicht näher.
+    this.bodies.follow(
+      this.camera.position.x,
+      this.camera.position.y,
+      this.camera.position.z,
+      this.camera.far,
+    );
 
     // Schattenkamera dem Spieler nachführen, sonst fällt er aus ihr heraus.
     // Die Richtung kommt vom Tageszyklus: dadurch wandern die Schatten über
@@ -323,6 +346,8 @@ export class Scene3D {
   }
 
   dispose(): void {
+    this.bodies.dispose();
+
     this.skyGeometry.dispose();
     this.skyMaterial.dispose();
     this.renderer.dispose();

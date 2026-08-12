@@ -118,9 +118,49 @@ function pruefe(f: (t: number, base: EnvironmentDef) => SkyState): number {
     mitternacht.sunIntensity.toFixed(3),
   );
   check(
-    mitternacht.ambientIntensity > BASE.ambientIntensity * 0.25,
+    mitternacht.ambientIntensity > BASE.ambientIntensity * 0.6,
     'nachts bleibt genug Umgebungslicht, um den Boden zu sehen',
     mitternacht.ambientIntensity.toFixed(2),
+  );
+
+  /**
+   * Der eigentliche Fehler, und er stand nicht bei der Helligkeit.
+   *
+   * Das Umgebungslicht bekam als Farbe die Farbe der *Kuppel*. Die ist nachts
+   * fast schwarz, also war das Licht nachts aus — die Intensität daneben war
+   * bedeutungslos, denn schwarzes Licht bleibt schwarz. Gemessen wird deshalb
+   * die Farbe und nicht die Zahl: das Licht muss nachts deutlich heller sein
+   * als das Bild.
+   */
+  check(
+    luma(mitternacht.ambientSkyColor) > luma(mitternacht.skyColor) * 3,
+    'nachts leuchtet der Himmel heller, als er aussieht',
+    `Licht ${luma(mitternacht.ambientSkyColor).toFixed(0)} zu Bild ${luma(mitternacht.skyColor).toFixed(0)}`,
+  );
+  check(
+    luma(mitternacht.ambientSkyColor) > 100,
+    'und hell genug, um den Boden zu treffen',
+    luma(mitternacht.ambientSkyColor).toFixed(0),
+  );
+  // Am Tag ist beides dasselbe — dort gibt es nichts zu trennen.
+  check(
+    mittag.ambientSkyColor === mittag.skyColor,
+    'am Tag sind Bild und Licht dieselbe Farbe',
+  );
+
+  // Die Sonnenscheibe geht wirklich unter. Ohne das stünde sie um
+  // Mitternacht neben dem Mond, weil die *Lichtrichtung* nach oben
+  // gespiegelt wird.
+  check(mittag.sunDisc[1] > 0.9, 'mittags steht die Sonnenscheibe hoch', mittag.sunDisc[1].toFixed(2));
+  check(
+    mitternacht.sunDisc[1] < -0.9,
+    'nachts steht sie unter dem Horizont',
+    mitternacht.sunDisc[1].toFixed(2),
+  );
+  check(
+    mitternacht.sunDirection[1] > 0 && mitternacht.sunDisc[1] < 0,
+    'das Licht kommt dabei trotzdem von oben',
+    `Licht ${mitternacht.sunDirection[1].toFixed(2)}, Scheibe ${mitternacht.sunDisc[1].toFixed(2)}`,
   );
 
   check(luma(mittag.skyColor) > luma(mitternacht.skyColor) * 2, 'Nachthimmel ist dunkler');
@@ -165,6 +205,7 @@ const gruft = skyAt(0.5, { ...BASE, daylight: false });
 check(gruft.sunIntensity === BASE.sunIntensity, 'Werte bleiben unverändert');
 check(gruft.skyColor === BASE.skyColor, 'Himmelsfarbe bleibt unverändert');
 check(gruft.darkness === 1, 'unter Tage brennen die Laternen immer');
+check(gruft.sunDisc[1] < 0, 'und es steht keine Sonne am Himmel', gruft.sunDisc[1].toFixed(2));
 
 // ---------------------------------------------------------------------------
 // Gegenprobe
@@ -174,9 +215,13 @@ console.log('\nGegenprobe (kaputte Fassung, muss auffallen)');
 const stillFailures = failures;
 const kaputt = (_t: number, base: EnvironmentDef): SkyState => ({
   sunDirection: [...base.sunDirection] as [number, number, number],
+  sunDisc: [...base.sunDirection] as [number, number, number],
   sunColor: base.sunColor,
   sunIntensity: base.sunIntensity,
   ambientColor: base.ambientColor,
+  // Genau der Fehler, der behoben wurde: das Licht bekommt die Farbe des
+  // Bildes. Die Gegenprobe muss ihn also anschlagen lassen.
+  ambientSkyColor: base.skyColor,
   ambientIntensity: base.ambientIntensity,
   skyColor: base.skyColor,
   horizonColor: base.horizonColor,

@@ -190,18 +190,8 @@ async function drehe(pixel) {
 
 let runde = 0;
 const gefallen = await waitUntil(async () => {
+  runde++;
   const x = await zielX();
-
-  // Alle zehn Runden eine Spur. Ohne sie ist ein Fehlschlag nur „nichts
-  // gefallen", und man braucht einen zweiten Lauf, um zu sehen, ob der Bot
-  // gedreht, gelaufen oder gar nichts gefunden hat.
-  if (++runde % 10 === 0) {
-    const p = await page.evaluate(() => window.aurelith.player);
-    console.log(
-      `  · Runde ${runde}: Ziel ${x === undefined ? 'keins im Bild' : Math.round(x)}` +
-        `, Figur bei ${p.x.toFixed(1)}/${p.z.toFixed(1)}`,
-    );
-  }
 
   // Nichts Brauchbares im Bild: weiterdrehen und wieder nachsehen.
   if (x === undefined) {
@@ -210,18 +200,35 @@ const gefallen = await waitUntil(async () => {
   }
 
   const abweichung = x - MITTE_X;
-  if (Math.abs(abweichung) > 45) {
+
+  // Grob ausrichten, dann laufen — nicht erst perfekt zielen. Ein Bot, der
+  // erst auf fünfundvierzig Bildpunkte genau dreht, dreht die ganze Zeit:
+  // das Irrlicht wandert, und jede Drehung ist wieder veraltet, bevor der
+  // erste Schritt getan ist. Genau daran ist der Lauf davor gescheitert —
+  // die Figur kam in vierzig Runden drei Einheiten weit.
+  if (Math.abs(abweichung) > 150) {
     await drehe(abweichung > 0 ? 120 : -120);
     return false;
   }
 
-  // Ziel steht mittig: hinlaufen und dabei schlagen. Der Schlag trifft alles
-  // im Bogen vor der Figur, ein eigenes Zielen braucht es nicht.
+  // Und dann *laufen*, nicht tippen. Drei Sekunden am Stück mit gedrücktem
+  // Angriff: in SwiftShader zeichnet der Client ein paar Bilder je Sekunde,
+  // und in achthundert Millisekunden kommt die Figur kaum vom Fleck.
   await page.keyboard.down('KeyW');
   await page.keyboard.down('Space');
-  await page.waitForTimeout(800);
+  for (let i = 0; i < 6; i++) {
+    await page.waitForTimeout(500);
+    if ((await page.evaluate(() => window.aurelith.lootCount)) > 0) break;
+  }
   await page.keyboard.up('KeyW');
   await page.keyboard.up('Space');
+
+  if (runde % 5 === 0) {
+    const p = await page.evaluate(() => ({ ...window.aurelith.player }));
+    console.log(
+      `  · Runde ${runde}: Ziel ${Math.round(x)}, Figur bei ${p.x.toFixed(1)}/${p.z.toFixed(1)}`,
+    );
+  }
 
   return (await page.evaluate(() => window.aurelith.lootCount)) > 0;
 }, 150000);

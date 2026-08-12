@@ -83,6 +83,15 @@ import type { GameStore } from './db/index.ts';
 /** Wie nah man an einem NPC stehen muss — aus den Stellschrauben. */
 const interactRange = (): number => tuning().world.interactRange;
 
+/**
+ * Die Weltuhr.
+ *
+ * Nicht `Date.now()` an den Aufrufstellen: an dieser Uhr hängt der
+ * Tageszyklus, und sie muss sich für Bilder und Prüfungen stellen lassen.
+ * Drei Abschriften von `Date.now()` liessen sich das nicht sagen.
+ */
+const worldNow = (): number => Date.now() + config.timeOffsetMs;
+
 export class GameServer {
   private readonly instances = new Map<string, MapInstance>();
   private readonly sessions = new Set<Session>();
@@ -372,7 +381,7 @@ export class GameServer {
         // Klartext. Die Aushandlung existiert, damit der Wechsel später keine
         // Protokolländerung ist.
         cipherId: 0,
-        serverTimeMs: Date.now(),
+        serverTimeMs: worldNow(),
       }),
     );
     this.sendStats(session);
@@ -666,7 +675,7 @@ export class GameServer {
       encodeSnapshot({
         tick: instance.world.tick,
         ackInputSeq: session.lastInputSeq,
-        serverTimeMs: Date.now(),
+        serverTimeMs: worldNow(),
         spawns,
         updates,
         despawns,
@@ -811,7 +820,7 @@ export class GameServer {
         tickRate: 20,
         snapshotRate: 20 / SNAPSHOT_TICK_DIVISOR,
         cipherId: 0,
-        serverTimeMs: Date.now(),
+        serverTimeMs: worldNow(),
       }),
     );
     session.send(

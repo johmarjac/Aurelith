@@ -70,6 +70,27 @@ export const config = {
   })(),
 
   /**
+   * Versatz der Weltuhr, in Millisekunden.
+   *
+   * Der Tageszyklus hängt an der Serveruhr — nur so haben zwei Spieler
+   * nebeneinander dieselbe Tageszeit. Genau deshalb lässt sich die Tageszeit
+   * auch nur hier stellen und nicht im Client. Für Bilder und Prüfungen zu
+   * einer bestimmten Stunde ist das der einzige ehrliche Hebel.
+   *
+   * Dieselbe Kategorie wie `AURELITH_START_POS`: nichts, was im Betrieb
+   * gesetzt wird, aber ohne das läuft jede Prüfung zu der Tageszeit, zu der
+   * sie zufällig startet.
+   */
+  timeOffsetMs: ((): number => {
+    const raw = Number(process.env.AURELITH_TIME_OFFSET_MS ?? '0');
+    if (!Number.isFinite(raw)) {
+      console.warn(`[config] AURELITH_TIME_OFFSET_MS="${process.env.AURELITH_TIME_OFFSET_MS}" nicht lesbar.`);
+      return 0;
+    }
+    return raw;
+  })(),
+
+  /**
    * PostgreSQL-Verbindung. Fehlt sie, läuft der Server mit einem
    * Speicher-Backend weiter — praktisch für schnelle Tests, aber alles ist
    * beim Neustart weg. Der Server sagt das beim Hochfahren deutlich.
