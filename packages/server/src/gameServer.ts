@@ -33,6 +33,7 @@ import {
   decodeHello,
   decodeInput,
   decodeInteract,
+  decodePickupLoot,
   decodePing,
   decodeQuestAction,
   decodeSetTarget,
@@ -58,6 +59,7 @@ import {
   getQuest,
   isUpgradable,
   type ItemDef,
+  type LootRow,
   readPacket,
   upgradeBonus,
   upgradeChance,
@@ -239,6 +241,12 @@ export class GameServer {
           if (session.state !== 'playing') break;
           const { mode, itemId, count, slot } = decodeShopTrade(reader);
           this.shopTrade(session, mode, itemId, count, slot);
+          break;
+        }
+        case ClientOp.PickupLoot: {
+          if (session.state !== 'playing') break;
+          const { lootId } = decodePickupLoot(reader);
+          this.pickupLoot(session, lootId);
           break;
         }
         case ClientOp.Respawn:
@@ -443,6 +451,9 @@ export class GameServer {
       instance.world.step(TICK_SECONDS);
       instance.refresh();
       this.dispatchEvents(instance);
+      // Nach dem Ablegen, nicht davor: sonst läge frische Beute einen Tick
+      // lang da, ohne dass die Frist schon liefe.
+      instance.loot.expire();
     }
 
     const instanceTick = this.instances.values().next().value?.world.tick ?? 0;
@@ -542,24 +553,21 @@ export class GameServer {
     // Balancing und soll sich ohne neuen wasm-Build ändern lassen.
     const gained = expGain(baseExp, character.level, mobLevel);
     character.exp += gained;
-    character.gold += Math.round(gold);
     this.levelUpIfNeeded(session);
 
     // Beute und Auftragsfortschritt hängen an derselben Stelle, weil beide
     // dieselbe Frage beantworten: *wer* hat *was* erlegt. Der Kern meldet den
     // Erfahrungsgewinn nur an den, der den Todesstoss gesetzt hat — genau der
-    // soll auch die Haut bekommen.
+    // soll auch die Beute vorfinden.
     const mobId = meta?.defId ?? '';
-    const beute = mobId ? this.rollDrops(session, mobId) : false;
-    let logGeaendert = mobId ? session.quests.onKill(mobId) : false;
-
-    if (beute) {
-      session.itemsDirty = true;
-      // Was eben hereinkam, kann ein Sammelziel erfüllen.
-      if (session.quests.syncCollect(session.items)) logGeaendert = true;
-      this.sendInventory(session);
+    const leiche = instance.entity(victimId);
+    if (mobId && leiche) {
+      this.dropLoot(session, instance, mobId, leiche.x, leiche.y, leiche.z, Math.round(gold));
     }
-    if (logGeaendert) {
+
+    // Erfahrung bleibt sofort, Beutel und Gold nicht: die Erfahrung ist kein
+    // Gegenstand, sie liegt nirgends herum.
+    if (mobId && session.quests.onKill(mobId)) {
       session.questsDirty = true;
       this.sendQuestLog(session);
     }
@@ -638,6 +646,22 @@ export class GameServer {
       }
     }
 
+    // Beute ohne Buchführung: die volle Liste dessen, was in Sichtweite liegt.
+    // Was hier fehlt, liegt nicht mehr da — der Client braucht dafür keinen
+    // eigenen Abgleich.
+    const loot: LootRow[] = instance.loot
+      .near(originX, originZ, INTEREST_RADIUS)
+      .map((p) => ({
+        id: p.id,
+        x: p.x,
+        y: p.y,
+        z: p.z,
+        item: p.item,
+        count: p.count,
+        upgrade: p.upgrade,
+        gold: p.gold,
+      }));
+
     session.send(
       encodeSnapshot({
         tick: instance.world.tick,
@@ -646,6 +670,7 @@ export class GameServer {
         spawns,
         updates,
         despawns,
+        loot,
       }),
     );
   }
@@ -1267,31 +1292,109 @@ export class GameServer {
   /**
    * Beute.
    *
-   * Fällt ohne Umweg in den Beutel des Spielers, der den Todesstoss gesetzt
-   * hat. Kein Beutel am Boden — auf dem Telefon wäre das Aufheben eine
-   * Zumutung, und für den Server ist es eine zweite Sorte Entity.
+   * Fällt zu Boden, statt in den Beutel zu springen. Das ist die teurere
+   * Variante — eine zweite Liste, ein weiteres Paket, ein Ziel zum Antippen —,
+   * aber die richtige: ein erlegtes Monster, das wortlos eine Zeile im Beutel
+   * erzeugt, sieht nach nichts aus. Gold liegt aus demselben Grund mit da und
+   * wird nicht still gutgeschrieben.
    */
-  private rollDrops(session: Session, mobId: string): boolean {
+  private dropLoot(
+    session: Session,
+    instance: MapInstance,
+    mobId: string,
+    x: number,
+    y: number,
+    z: number,
+    gold: number,
+  ): void {
     const mob = MOBS.get(mobId);
-    if (!mob?.drops?.length) return false;
 
-    let etwas = false;
-    for (const drop of mob.drops) {
+    // Erst sammeln, dann ablegen: `drop` streut die Haufen auf einem Kreis
+    // und muss dafür wissen, wie viele es insgesamt werden.
+    const haufen: Array<{ item: string; count: number; gold: number }> = [];
+    if (gold > 0) haufen.push({ item: '', count: 0, gold });
+
+    for (const drop of mob?.drops ?? []) {
       if (Math.random() > drop.chance) continue;
       const min = drop.min ?? 1;
       const max = drop.max ?? min;
-      const menge = min + Math.floor(Math.random() * (max - min + 1));
-      const angekommen = addItem(session.items, drop.item, menge);
-      if (angekommen <= 0) continue;
-
-      etwas = true;
-      const def = getItem(drop.item);
-      this.systemMessage(
-        session,
-        `Erhalten: ${def?.name ?? drop.item}${angekommen > 1 ? ` ×${angekommen}` : ''}.`,
-      );
+      haufen.push({
+        item: drop.item,
+        count: min + Math.floor(Math.random() * (max - min + 1)),
+        gold: 0,
+      });
     }
-    return etwas;
+    if (haufen.length === 0) return;
+
+    haufen.forEach((h, i) => {
+      instance.loot.drop(
+        { x, y, z, item: h.item, count: h.count, upgrade: 0, gold: h.gold, owner: session.entityId },
+        i,
+        haufen.length,
+      );
+    });
+  }
+
+  /**
+   * Einen Haufen aufheben.
+   *
+   * Der Client schickt nur die Kennung. Ob der Haufen noch da ist, ob der
+   * Spieler nah genug steht und ob die Beute noch für den Erleger reserviert
+   * ist, entscheidet ausschließlich der Server — sonst hebt ein geänderter
+   * Client die halbe Karte von der Stelle aus auf.
+   */
+  private pickupLoot(session: Session, lootId: number): void {
+    const instance = this.instances.get(session.mapId);
+    const self = instance?.entity(session.entityId);
+    if (!instance || !self) return;
+
+    const ergebnis = instance.loot.check(lootId, session.entityId, self.x, self.z);
+    if (!ergebnis.ok) {
+      // „weg" ist der Normalfall bei einem Doppelklick oder wenn ein anderer
+      // schneller war — dazu jedes Mal eine Meldung wäre nur Lärm.
+      if (ergebnis.reason === 'zu weit') this.systemMessage(session, 'Das liegt zu weit weg.');
+      if (ergebnis.reason === 'fremd') this.systemMessage(session, 'Das gehört noch jemand anderem.');
+      return;
+    }
+
+    const pile = ergebnis.pile;
+    const character = session.character;
+    if (!character) return;
+
+    if (pile.gold > 0) {
+      character.gold += pile.gold;
+      instance.loot.take(pile.id);
+      this.systemMessage(session, `Aufgehoben: ${pile.gold} Gold.`);
+      this.sendStats(session);
+      return;
+    }
+
+    const angekommen = addItem(session.items, pile.item, pile.count, pile.upgrade);
+    if (angekommen <= 0) {
+      this.systemMessage(session, 'Dein Beutel ist voll.');
+      return;
+    }
+
+    // Nur was hereinpasste, verschwindet vom Boden. Ein halb aufgehobener
+    // Haufen behält den Rest — sonst frisst ein voller Beutel die Beute.
+    if (angekommen < pile.count) {
+      pile.count -= angekommen;
+    } else {
+      instance.loot.take(pile.id);
+    }
+
+    const def = getItem(pile.item);
+    this.systemMessage(
+      session,
+      `Aufgehoben: ${def?.name ?? pile.item}${angekommen > 1 ? ` ×${angekommen}` : ''}.`,
+    );
+
+    session.itemsDirty = true;
+    if (session.quests.syncCollect(session.items)) {
+      session.questsDirty = true;
+      this.sendQuestLog(session);
+    }
+    this.sendInventory(session);
   }
 
   /** Stufenaufstiege einlösen, solange die Erfahrung reicht. */

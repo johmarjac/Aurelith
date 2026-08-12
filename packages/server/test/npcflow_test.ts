@@ -37,6 +37,7 @@ import {
   encodeFrame,
   encodeHello,
   encodeInteract,
+  encodePickupLoot,
   encodeQuestAction,
   encodeShopTrade,
   encodeUpgradeItem,
@@ -44,6 +45,7 @@ import {
   nullCipher,
   readPacket,
   type InventoryRow,
+  type LootRow,
   type NpcDialogMsg,
   type QuestLogRow,
   type StatsMsg,
@@ -114,6 +116,16 @@ let stats: StatsMsg | undefined;
 let localId = 0;
 /** Alles, was der Server als sichtbar meldet: Kennung → Art, Lage, Leben. */
 const seen = new Map<number, { type: number; defId: string; hp: number; x: number; z: number }>();
+/**
+ * Was gerade auf dem Boden liegt.
+ *
+ * Wird bei jedem Snapshot **ersetzt** und nicht ergänzt: der Server schickt
+ * die vollständige Liste, und ein Test, der sie zusammenstückelt, prüfte am
+ * Ende seine eigene Buchführung statt der des Servers.
+ */
+let loot: LootRow[] = [];
+/** Wie viele Haufen im Verlauf höchstens gleichzeitig dalagen. */
+let lootMax = 0;
 
 function send(...packets: Uint8Array[]): void {
   socket.send(encodeFrame(packets, txSeq.next(), nullCipher));
@@ -141,6 +153,8 @@ socket.on('message', (data: ArrayBuffer | Buffer) => {
           row.z = u.z;
         }
         for (const id of snap.despawns) seen.delete(id);
+        loot = snap.loot;
+        if (loot.length > lootMax) lootMax = loot.length;
         break;
       }
       case ServerOp.NpcDialog:
@@ -263,8 +277,20 @@ function eingabe(moveX: number, moveZ: number, yaw: number, angriff: boolean): v
   send(encodeInput({ seq: seq++, moveX, moveZ, yaw, buttons: angriff ? 1 : 0 }));
 }
 
-/** Ist schon etwas herausgefallen? Die Beute ist ein Wurf, kein Automatismus. */
-const beute = (): boolean => chat.some((line) => line.startsWith('Erhalten:'));
+/** Ist schon etwas aufgehoben worden? Die Beute ist ein Wurf, kein Automatismus. */
+const beute = (): boolean => chat.some((line) => line.startsWith('Aufgehoben:'));
+
+/** Der nächstliegende Haufen, gemessen von der eigenen Figur. */
+function naechsteBeute(): { row: LootRow; dist: number } | undefined {
+  const selbst = seen.get(localId);
+  if (!selbst) return undefined;
+  let beste: { row: LootRow; dist: number } | undefined;
+  for (const row of loot) {
+    const d = Math.hypot(row.x - selbst.x, row.z - selbst.z);
+    if (!beste || d < beste.dist) beste = { row, dist: d };
+  }
+  return beste;
+}
 
 // Weitergeschlagen wird, bis *beides* steht: der Auftrag erfüllt und
 // mindestens ein Fundstück im Beutel. Bei fünfundvierzig Prozent je Irrlicht
@@ -272,6 +298,15 @@ const beute = (): boolean => chat.some((line) => line.startsWith('Erhalten:'));
 // Test, der in einem von zwanzig Läufen rot wird, ist schlimmer als keiner.
 const bisErfuellt = Date.now() + 120000;
 while (Date.now() < bisErfuellt && (questLog[0]?.status !== QuestStatus.Erfuellt || !beute())) {
+  // Was in Reichweite liegt, wird eingesammelt. Das ist nicht nur Beiwerk:
+  // seit die Beute am Boden liegt, kommt auch das Gold nur so herein, und
+  // ohne Gold scheitert der Schmied weiter unten.
+  const naeheste = naechsteBeute();
+  if (naeheste && naeheste.dist <= 3) {
+    send(encodePickupLoot(naeheste.row.id));
+    await sleep(60);
+  }
+
   const selbst = seen.get(localId);
   let ziel: { x: number; z: number } | undefined;
   let beste = Infinity;
@@ -308,9 +343,70 @@ check(
 );
 check(
   beute(),
-  'Beute ist im Beutel gelandet',
-  chat.filter((l) => l.startsWith('Erhalten:'))[0] ?? 'nichts',
+  'aufgehobene Beute ist im Beutel gelandet',
+  chat.filter((l) => l.startsWith('Aufgehoben:'))[0] ?? 'nichts',
 );
+check(lootMax > 0, 'Beute lag überhaupt einmal am Boden', `höchstens ${lootMax} Haufen gleichzeitig`);
+check(
+  chat.some((l) => l.startsWith('Aufgehoben:') && l.includes('Gold')),
+  'auch Gold liegt am Boden und wird aufgehoben',
+  chat.filter((l) => l.includes('Gold'))[0] ?? 'nichts',
+);
+
+// ---------------------------------------------------------------------------
+// Was beim Aufheben nicht gehen darf
+// ---------------------------------------------------------------------------
+
+console.log('\nBeute: die Gegenproben');
+
+// Eine erfundene Kennung. Der Server darf davon nichts merken — und vor allem
+// nichts liefern.
+const vorUnsinn = inventory.reduce((s_, i) => s_ + i.count, 0);
+send(encodePickupLoot(9999999));
+await sleep(400);
+check(
+  inventory.reduce((s_, i) => s_ + i.count, 0) === vorUnsinn,
+  'eine erfundene Kennung liefert nichts',
+);
+
+// Und ein Haufen, der zu weit weg liegt. Damit einer da ist, wird einer
+// abgelegt und dann davongelaufen — die Beute bleibt liegen, die Figur nicht.
+const weit = naechsteBeute();
+if (weit) {
+  const selbst = seen.get(localId)!;
+  const wegX = selbst.x - weit.row.x;
+  const wegZ = selbst.z - weit.row.z;
+  const l = Math.hypot(wegX, wegZ) || 1;
+  const bisWeg = Date.now() + 20000;
+  while (Date.now() < bisWeg) {
+    const jetzt = seen.get(localId);
+    if (!jetzt) break;
+    if (Math.hypot(jetzt.x - weit.row.x, jetzt.z - weit.row.z) > 12) break;
+    eingabe(wegX / l, wegZ / l, Math.atan2(wegX, wegZ), false);
+    await sleep(50);
+  }
+
+  const vorFern = chat.length;
+  const bestandVorFern = inventory.reduce((s_, i) => s_ + i.count, 0);
+  send(encodePickupLoot(weit.row.id));
+  await sleep(500);
+  check(
+    chat.slice(vorFern).some((line) => line.includes('zu weit weg')),
+    'aus der Ferne lässt sich nichts aufheben',
+    chat.slice(vorFern)[0] ?? 'keine Antwort',
+  );
+  // Nicht „der Haufen liegt noch da": er könnte inzwischen verfallen sein,
+  // und ein Test, der an einer Frist hängt, wird irgendwann grundlos rot.
+  // Der Beutel dagegen darf sich in keinem Fall gefüllt haben.
+  check(
+    inventory.reduce((s_, i) => s_ + i.count, 0) === bestandVorFern,
+    'und nichts ist im Beutel gelandet',
+  );
+} else {
+  // Kein Haufen übrig heisst: alles eingesammelt. Das ist kein Fehler, aber
+  // die Gegenprobe fällt dann aus, und das soll im Protokoll stehen.
+  console.log('  · kein Haufen mehr da — die Entfernungsprobe entfällt');
+}
 
 // ---------------------------------------------------------------------------
 // Abgeben

@@ -89,12 +89,30 @@ export interface WorldTuning {
   interactRange: number;
 }
 
+export interface LootTuning {
+  /** Wie nah man an einem Haufen stehen muss, um ihn aufzuheben. */
+  pickupRange: number;
+  /** Wie lange ein Haufen liegen bleibt, bevor er verfällt. */
+  lifetimeSec: number;
+  /**
+   * Wie lange nur der Erleger aufheben darf.
+   *
+   * Ohne diese Frist wäre Beute am Boden eine Einladung: wer daneben steht,
+   * hebt auf, was ein anderer erkämpft hat. Danach wird der Haufen frei —
+   * liegen lassen soll nicht heißen, dass er für immer blockiert ist.
+   */
+  reserveSec: number;
+  /** Wie weit die Haufen um den Kadaver streuen. */
+  scatterRadius: number;
+}
+
 export interface Tuning {
   progression: ProgressionTuning;
   player: PlayerTuning;
   upgrades: UpgradeTuning;
   economy: EconomyTuning;
   world: WorldTuning;
+  loot: LootTuning;
 }
 
 let geladen: Tuning | undefined;

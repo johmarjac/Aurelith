@@ -35,6 +35,7 @@ import {
   getItem,
   loadContent,
   type AttackProfile,
+  type LootRow,
   parseMapDocument,
   type MapDocument,
   type StatsMsg,
@@ -200,6 +201,8 @@ export interface Diagnostics {
   mapId: string;
   localId: number;
   entityCount: number;
+  /** Wie viele Beutehaufen gerade in Sichtweite liegen. */
+  lootCount: number;
   targetId: number;
   connection: string;
   latencyMs: number;
@@ -317,6 +320,7 @@ export class Game {
     mapId: '',
     localId: 0,
     entityCount: 0,
+    lootCount: 0,
     targetId: 0,
     connection: 'getrennt',
     latencyMs: 0,
@@ -355,6 +359,10 @@ export class Game {
       this.connection?.sendShopTrade(1, itemId, count, slot);
     this.ui.onAttackHold = (held) => this.input.setAttackButton(held);
     this.input.onPick = (x, y) => this.pickTarget(x, y);
+    // Das Beuteschild im Overlay ist die verlässliche Trefferfläche — vor
+    // allem auf dem Telefon, wo der Haufen am Boden ein paar Bildpunkte gross
+    // ist. Der Klick auf das Modell selbst geht durch `pickTarget`.
+    this.ui.overlay.onPickup = (lootId) => this.pickupLoot(lootId);
     this.input.onAttackPressed = () => this.view.triggerAttack(this.localId);
 
     // --- Ton --------------------------------------------------------------
@@ -886,6 +894,7 @@ export class Game {
     spawns: Array<Parameters<WorldView['spawn']>[0]>;
     updates: Array<Parameters<WorldView['update']>[0]>;
     despawns: number[];
+    loot?: LootRow[];
   }): void {
     // Waehrend eine Karte geladen wird, gehoert dieser Snapshot noch keiner
     // Welt. Aufheben und danach nachspielen.
@@ -904,6 +913,11 @@ export class Game {
       this.view.despawn(id);
       if (id === this.targetId) this.setTarget(0);
     }
+
+    // Die volle Liste, kein Abgleich: was der Server nicht mehr nennt, liegt
+    // nicht mehr da. Fehlt das Feld ganz — beim Nachspielen aufgehobener
+    // Snapshots aus einer älteren Fassung —, bleibt die Ansicht wie sie war.
+    if (msg.loot) this.view.loot.sync(msg.loot);
 
     const self = this.view.entities.get(this.localId);
     if (self) {
@@ -1150,12 +1164,50 @@ export class Game {
 
     // Ein getroffenes Monster gewinnt gegen einen NPC dahinter — im Gefecht
     // will man kämpfen, nicht plaudern.
-    if (!best && bestNpc) {
+    if (best) {
+      this.setTarget(best.id);
+      return;
+    }
+    if (bestNpc) {
       this.connection?.sendInteract(bestNpc.id);
       return;
     }
 
-    this.setTarget(best?.id ?? 0);
+    // Beute erst, wenn weder Monster noch NPC getroffen sind. Sie liegt
+    // genau dort, wo eben gekämpft wurde: gewönne sie gegen das nächste
+    // Monster, verlöre man das Ziel an den Haufen des vorigen.
+    let bestLoot = 0;
+    let bestLootDist = PICK_RADIUS_PX;
+    for (const { row } of this.view.loot.piles.values()) {
+      this.projection.set(row.x, row.y + 0.5, row.z).project(this.scene.camera);
+      if (this.projection.z > 1) continue;
+      const lx = (this.projection.x * 0.5 + 0.5) * width;
+      const ly = (-this.projection.y * 0.5 + 0.5) * height;
+      const d = Math.hypot(lx - clickX, ly - clickY);
+      if (d < bestLootDist) {
+        bestLootDist = d;
+        bestLoot = row.id;
+      }
+    }
+    if (bestLoot > 0) {
+      this.pickupLoot(bestLoot);
+      return;
+    }
+
+    this.setTarget(0);
+  }
+
+  /**
+   * Bittet den Server, einen Haufen aufzuheben.
+   *
+   * Der Client nimmt nichts vorweg — kein Ausblenden des Modells, keine Zeile
+   * im Beutel. Ob der Haufen noch da ist und ob er dem Spieler zusteht, weiss
+   * nur der Server; ein vorweggenommenes Aufheben müsste in dem Moment
+   * zurückgenommen werden, in dem ein anderer schneller war.
+   */
+  private pickupLoot(lootId: number): void {
+    if (this.dead) return;
+    this.connection?.sendPickupLoot(lootId);
   }
 
   /**
@@ -1393,7 +1445,17 @@ export class Game {
     this.ui.setWorldTime(this.dayCycle.time, this.dayCycle.state?.darkness ?? 0);
 
     this.view.step(dt, this.localId);
-    this.ui.updateOverlay(this.scene.camera, this.view.entities.values(), this.localId, this.targetId, dt);
+    this.ui.updateOverlay(
+      this.scene.camera,
+      this.view.entities.values(),
+      this.localId,
+      this.targetId,
+      dt,
+      {
+        piles: this.view.loot.piles.values(),
+        label: (row) => this.view.loot.label(row),
+      },
+    );
     this.scene.render();
 
     this.updateDiagnostics();
@@ -1440,6 +1502,7 @@ export class Game {
     d.mapId = this.view.mapId;
     d.localId = this.localId;
     d.entityCount = this.view.entities.size;
+    d.lootCount = this.view.loot.piles.size;
     d.targetId = this.targetId;
     d.connection = this.connection?.status ?? 'getrennt';
     d.latencyMs = this.connection?.latency ?? 0;

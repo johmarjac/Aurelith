@@ -722,6 +722,47 @@ body {
   overflow: hidden;
 }
 
+/*
+ * Beuteschild.
+ *
+ * Das einzige Element im Overlay, das Zeiger annimmt — der Rest ist reine
+ * Anzeige und muss Klicks zur Welt durchlassen. Die Polsterung ist grosszügig,
+ * weil das hier die Trefferfläche auf dem Telefon ist: der Haufen selbst ist
+ * einen halben Meter gross und in der Kamera oft ein paar Bildpunkte.
+ */
+.loot-label {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  pointer-events: auto;
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.28rem 0.55rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(12, 16, 26, 0.72);
+  text-shadow: 0 1px 3px #000;
+  will-change: transform;
+  /* Ohne das wählt ein langer Druck auf dem Telefon den Text aus, statt die
+     Beute aufzuheben. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.loot-label[data-kind='gold'] {
+  color: #f0cf72;
+}
+
+.loot-label[data-kind='item'] {
+  color: #cfe6ff;
+}
+
+.loot-label:active {
+  background: rgba(40, 52, 76, 0.9);
+}
+
 .nameplate {
   position: absolute;
   transform: translate(-50%, -100%);

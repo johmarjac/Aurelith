@@ -398,6 +398,8 @@ export function parseTuning(raw: unknown, source = 'tuning.json'): Tuning {
   const ePath = `${source}.economy`;
   const w = abschnitt('world');
   const wPath = `${source}.world`;
+  const l = abschnitt('loot');
+  const lPath = `${source}.loot`;
 
   const chancen = list(u, 'chances', uPath).map((c, i) => {
     if (typeof c !== 'number' || c < 0 || c > 1) {
@@ -453,6 +455,12 @@ export function parseTuning(raw: unknown, source = 'tuning.json'): Tuning {
     world: {
       dayMinutes: num(w, 'dayMinutes', wPath),
       interactRange: num(w, 'interactRange', wPath),
+    },
+    loot: {
+      pickupRange: num(l, 'pickupRange', lPath),
+      lifetimeSec: num(l, 'lifetimeSec', lPath),
+      reserveSec: num(l, 'reserveSec', lPath),
+      scatterRadius: num(l, 'scatterRadius', lPath),
     },
   };
 

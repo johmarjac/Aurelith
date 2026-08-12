@@ -27,6 +27,7 @@ import {
 import type { QualitySettings } from '../config.ts';
 import type { ModelRegistry } from './modelRegistry.ts';
 import { Lanterns, type LanternPlacement } from './lanterns.ts';
+import { LootView } from './lootView.ts';
 import { WeaponAura, stepAuras } from './weaponAura.ts';
 import { ParticleField } from './particles.ts';
 import { buildTerrain, type TerrainMesh } from './terrain.ts';
@@ -140,6 +141,8 @@ export class WorldView {
   readonly particles = new ParticleField();
   /** Warmes Licht an den Laternen. Fester Pool, wandert zum Betrachter. */
   readonly lanterns: Lanterns;
+  /** Was gerade auf dem Boden liegt. Wird aus dem Snapshot abgeglichen. */
+  readonly loot: LootView;
   private doc?: MapDocument;
   private elapsed = 0;
 
@@ -163,6 +166,11 @@ export class WorldView {
     this.root.add(this.particles.object);
     this.lanterns = new Lanterns(lanternLights);
     this.root.add(this.lanterns.root);
+
+    // Wie die Funkenwolke dauerhaft in der Szene und nicht je Karte: die
+    // Gruppe ist leer, solange nichts liegt, und `clear` räumt sie mit.
+    this.loot = new LootView(registry.material);
+    this.root.add(this.loot.root);
   }
 
   get mapId(): string {
@@ -613,6 +621,7 @@ export class WorldView {
     this.elapsed += dt;
     this.stepArrows(dt);
     this.particles.step(dt);
+    this.loot.step(dt);
     // Eine Uhr für alle Auren: sie pulsieren im Shader, und der braucht nur
     // die Zeit. Je Aura eine Schleife wäre dieselbe Zahl fünfzigmal.
     stepAuras(dt);
@@ -652,6 +661,10 @@ export class WorldView {
 
   /** Entfernt alle Figuren, behält aber Boden und Props. Für Serverwechsel. */
   clearEntities(): void {
+    // Auch die Beute: sie gehört zur alten Sitzung. Was auf der neuen liegt,
+    // meldet der erste Snapshot.
+    this.loot.clear();
+
     for (const e of this.entities.values()) {
       this.root.remove(e.rig.root);
       this.registry.releaseRig(e.rig);
@@ -668,6 +681,8 @@ export class WorldView {
     // Dasselbe für die Laternen. Ohne das leuchteten beim Kartenwechsel die
     // Standorte der alten Karte weiter, bis die neuen Props gebaut sind.
     this.lanterns.setPlacements([]);
+    // Und für die Beute: sie gehört zur alten Karte und liegt dort weiter.
+    this.loot.clear();
 
     for (const e of this.entities.values()) {
       this.root.remove(e.rig.root);

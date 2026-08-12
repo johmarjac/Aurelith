@@ -36,6 +36,7 @@ import {
   encodeRespawn,
   encodeEquipItem,
   encodeInteract,
+  encodePickupLoot,
   encodeUpgradeItem,
   encodeQuestAction,
   encodeSetTarget,
@@ -284,6 +285,12 @@ export class Connection {
 
   sendInteract(entityId: number): void {
     this.send(encodeInteract(entityId));
+    this.flush();
+  }
+
+  /** Einen Beutehaufen aufheben. Der Server prüft Nähe und Anspruch. */
+  sendPickupLoot(lootId: number): void {
+    this.send(encodePickupLoot(lootId));
     this.flush();
   }
 

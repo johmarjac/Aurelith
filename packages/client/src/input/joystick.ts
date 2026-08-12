@@ -24,6 +24,34 @@ const RADIUS = 62;
 /** Kleinere Auslenkungen gelten als Zittern. */
 const DEAD_ZONE = 0.14;
 
+/**
+ * Die Daumenecke: Anteil der Bildbreite und -höhe, in Grenzen.
+ *
+ * Anteilig, weil ein Tablet mehr Platz hat als ein Telefon; gedeckelt, weil
+ * die Ecke auf einem grossen Bild sonst so weit reicht, dass sie wieder im Weg
+ * steht. Untergrenze, damit sie auf einem kleinen Bild noch zu treffen ist.
+ */
+const ZONE_WIDTH_RATIO = 0.45;
+const ZONE_HEIGHT_RATIO = 0.42;
+const ZONE_MIN_PX = 150;
+const ZONE_MAX_PX = 400;
+
+function clamp(v: number, lo: number, hi: number): number {
+  return v < lo ? lo : v > hi ? hi : v;
+}
+
+/** Liegt dieser Punkt in der Daumenecke? Exportiert, damit es prüfbar ist. */
+export function inThumbZone(
+  clientX: number,
+  clientY: number,
+  width = window.innerWidth,
+  height = window.innerHeight,
+): boolean {
+  const zoneW = clamp(width * ZONE_WIDTH_RATIO, ZONE_MIN_PX, ZONE_MAX_PX);
+  const zoneH = clamp(height * ZONE_HEIGHT_RATIO, ZONE_MIN_PX, ZONE_MAX_PX);
+  return clientX <= zoneW && clientY >= height - zoneH;
+}
+
 export class VirtualJoystick {
   readonly element: HTMLDivElement;
 
@@ -51,10 +79,20 @@ export class VirtualJoystick {
     host.appendChild(this.element);
   }
 
-  /** Nimmt eine Berührung an, wenn sie in der linken Hälfte beginnt. */
+  /**
+   * Nimmt eine Berührung an, wenn sie in der Daumenecke beginnt.
+   *
+   * Vorher galt die **ganze linke Bildhälfte**. Das war bequem gedacht und
+   * im Spiel eine Sperre: alles links von der Mitte gehörte dem Joystick, also
+   * liess sich dort kein Monster anklicken, kein NPC ansprechen und kein Tor
+   * treffen. Auf einem Telefon ist das die halbe Welt.
+   *
+   * Jetzt ist es die untere linke Ecke — dort, wo der Daumen ohnehin liegt.
+   * Der Rest des Bildes gehört wieder der Welt.
+   */
   tryClaim(pointerId: number, clientX: number, clientY: number): boolean {
     if (this.pointerId !== null) return false;
-    if (clientX > window.innerWidth * 0.5) return false;
+    if (!inThumbZone(clientX, clientY)) return false;
 
     this.pointerId = pointerId;
     this.originX = clientX;

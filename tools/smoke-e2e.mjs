@@ -632,6 +632,41 @@ if (mobileMode.hasJoystick && mobileReady) {
   });
 
   check(joystickResult.visible, 'Mobil: Joystick erscheint unter dem Daumen');
+
+  // Und **nur** dort. Vorher galt die ganze linke Bildhälfte, und damit liess
+  // sich links von der Mitte nichts anklicken — kein Monster, kein NPC, kein
+  // Tor. Auf einem Telefon ist das die halbe Welt.
+  const obenLinks = await mobilePage.evaluate(async () => {
+    const canvas = document.querySelector('canvas');
+    const send = (target, type, id, x, y) =>
+      target.dispatchEvent(
+        new PointerEvent(type, {
+          pointerId: id,
+          pointerType: 'touch',
+          clientX: x,
+          clientY: y,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+
+    const vorher = { ...window.aurelith.input };
+    send(canvas, 'pointerdown', 7, 90, 200);
+    await new Promise((r) => setTimeout(r, 120));
+    send(canvas, 'pointermove', 7, 90, 120);
+    await new Promise((r) => setTimeout(r, 300));
+    const sichtbar = !document.querySelector('.joystick').hidden;
+    const eingabe = { ...window.aurelith.input };
+    send(window, 'pointerup', 7, 90, 120);
+    return { sichtbar, eingabe, vorher };
+  });
+
+  check(!obenLinks.sichtbar, 'Mobil: oben links greift der Joystick nicht');
+  check(
+    obenLinks.eingabe.moveX === 0 && obenLinks.eingabe.moveZ === 0,
+    'Mobil: und die Figur bleibt dabei stehen',
+    `${obenLinks.eingabe.moveX} / ${obenLinks.eingabe.moveZ}`,
+  );
   check(
     joystickResult.moved > 0.1,
     `Mobil: Joystick bewegt die Figur (${joystickResult.moved.toFixed(2)} Einheiten, ` +

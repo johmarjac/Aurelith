@@ -199,6 +199,20 @@ export function decodeShopTrade(r: ByteReader): {
   return { mode: r.u8(), itemId: r.str(), count: r.u16(), slot: r.u16() };
 }
 
+/**
+ * Beute vom Boden aufheben.
+ *
+ * Nur die Kennung des Haufens. Was darin liegt, weiß der Server — ein Client,
+ * der den Inhalt mitschickte, dürfte sich aussuchen, was er findet.
+ */
+export function encodePickupLoot(lootId: number): Uint8Array {
+  return packet(ClientOp.PickupLoot, 16).u32(lootId).finish();
+}
+
+export function decodePickupLoot(r: ByteReader): { lootId: number } {
+  return { lootId: r.u32() };
+}
+
 // ---------------------------------------------------------------------------
 // Server → Client
 // ---------------------------------------------------------------------------
@@ -307,6 +321,25 @@ export interface UpdateRow {
   aggro: boolean;
 }
 
+/**
+ * Ein Haufen Beute, der auf dem Boden liegt.
+ *
+ * Entweder Gold (`gold > 0`, `item` leer) oder ein Gegenstand (`item` gesetzt,
+ * `gold` null). Nicht beides in einem Haufen: dann müsste der Client zwei
+ * Modelle an dieselbe Stelle stellen und beim Aufheben zwei Meldungen zeigen.
+ */
+export interface LootRow {
+  id: number;
+  x: number;
+  y: number;
+  z: number;
+  /** Kennung des Gegenstands, oder leer bei Gold. */
+  item: string;
+  count: number;
+  upgrade: number;
+  gold: number;
+}
+
 export interface SnapshotMsg {
   tick: number;
   /** Letzte vom Server verarbeitete Eingabesequenz — Anker der Reconciliation. */
@@ -315,6 +348,22 @@ export interface SnapshotMsg {
   spawns: SpawnRow[];
   updates: UpdateRow[];
   despawns: number[];
+  /**
+   * **Alle** sichtbaren Beutehaufen, jedes Mal vollständig.
+   *
+   * Anders als bei Wesen gibt es hier kein Spawn/Despawn-Buch. Das ist
+   * Absicht: Haufen entstehen und verschwinden ständig — beim Töten, beim
+   * Aufheben, nach Ablauf der Zeit —, und ein Buch darüber kann auseinander
+   * laufen, sobald ein Paket verloren geht oder zwei Spieler gleichzeitig
+   * zugreifen. Eine vollständige Liste kann das nicht: was nicht drin steht,
+   * liegt nicht mehr da.
+   *
+   * Der Preis ist gering. Ein Haufen sind rund dreißig Byte, und in Sichtweite
+   * liegen selten mehr als ein paar Dutzend — bei zehn Schnappschüssen je
+   * Sekunde ein paar Kilobyte. Für die Wesen wäre dieselbe Rechnung teuer
+   * genug, um sich das Buch zu leisten; hier ist sie es nicht.
+   */
+  loot: LootRow[];
 }
 
 export function encodeSnapshot(m: SnapshotMsg): Uint8Array {
@@ -354,6 +403,18 @@ export function encodeSnapshot(m: SnapshotMsg): Uint8Array {
 
   w.u16(m.despawns.length);
   for (const id of m.despawns) w.u32(id);
+
+  w.u16(m.loot.length);
+  for (const l of m.loot) {
+    w.u32(l.id)
+      .pos(l.x)
+      .pos(l.y)
+      .pos(l.z)
+      .str(l.item)
+      .u16(Math.max(0, Math.round(l.count)))
+      .u8(Math.max(0, Math.min(255, Math.round(l.upgrade))))
+      .u32(Math.max(0, Math.round(l.gold)));
+  }
 
   return w.finish();
 }
@@ -404,7 +465,22 @@ export function decodeSnapshot(r: ByteReader): SnapshotMsg {
   const despawns: number[] = new Array(despawnCount);
   for (let i = 0; i < despawnCount; i++) despawns[i] = r.u32();
 
-  return { tick, ackInputSeq, serverTimeMs, spawns, updates, despawns };
+  const lootCount = r.u16();
+  const loot: LootRow[] = new Array(lootCount);
+  for (let i = 0; i < lootCount; i++) {
+    loot[i] = {
+      id: r.u32(),
+      x: r.pos(),
+      y: r.pos(),
+      z: r.pos(),
+      item: r.str(),
+      count: r.u16(),
+      upgrade: r.u8(),
+      gold: r.u32(),
+    };
+  }
+
+  return { tick, ackInputSeq, serverTimeMs, spawns, updates, despawns, loot };
 }
 
 export interface MapChangeMsg {

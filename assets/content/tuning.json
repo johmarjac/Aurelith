@@ -49,5 +49,11 @@
   "world": {
     "dayMinutes": 24,
     "interactRange": 6
+  },
+  "loot": {
+    "pickupRange": 3.5,
+    "lifetimeSec": 120,
+    "reserveSec": 20,
+    "scatterRadius": 0.9
   }
 }

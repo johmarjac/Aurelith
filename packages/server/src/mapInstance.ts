@@ -15,6 +15,7 @@ import {
   terrainSetup,
 } from '@aurelith/shared';
 import type { CoreBundle } from './core.ts';
+import { LootField } from './loot.ts';
 
 export interface EntityMeta {
   /**
@@ -43,6 +44,8 @@ export class MapInstance {
   readonly meta = new Map<number, EntityMeta>();
   /** Kennungen der Sitzungen auf dieser Map. */
   readonly playerIds = new Set<number>();
+  /** Was hier gerade auf dem Boden liegt. */
+  readonly loot = new LootField();
 
   private rows: CoreEntityRow[] = [];
   private byId = new Map<number, CoreEntityRow>();

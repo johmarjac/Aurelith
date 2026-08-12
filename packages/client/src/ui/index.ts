@@ -19,6 +19,7 @@ import {
   getItem,
   tuning,
   tuningLoaded,
+  type LootRow,
   type NpcDialogMsg,
   type QuestLogRow,
   type StatsMsg,
@@ -933,13 +934,14 @@ export class UI {
     if (!behalten) this.itemDetail.scrollIntoView({ block: 'nearest' });
   }
 
-  /** Namensschilder und Zahlen weiterschieben. */
+  /** Namensschilder, Beuteschilder und Zahlen weiterschieben. */
   updateOverlay(
     camera: THREE.PerspectiveCamera,
     entities: Iterable<EntityVisual>,
     localId: number,
     targetId: number,
     dt: number,
+    loot?: { piles: Iterable<{ row: LootRow }>; label: (row: LootRow) => string },
   ): void {
     const width = window.innerWidth;
     const height = window.innerHeight;
@@ -952,6 +954,9 @@ export class UI {
       height,
       this.questMarks,
     );
+    if (loot) {
+      this.overlay.updateLootLabels(camera, loot.piles, loot.label, width, height);
+    }
     this.overlay.updateNumbers(camera, dt, width, height);
   }
 

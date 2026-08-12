@@ -7,7 +7,7 @@
  * ändert, zählt PROTOCOL_VERSION hoch.
  */
 
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 export const ClientOp = {
   Hello: 0x01,
@@ -27,6 +27,8 @@ export const ClientOp = {
   ShopTrade: 0x0b,
   /** Einen Gegenstand beim Schmied aufwerten. */
   UpgradeItem: 0x0c,
+  /** Beute vom Boden aufheben. */
+  PickupLoot: 0x0d,
 } as const;
 export type ClientOp = (typeof ClientOp)[keyof typeof ClientOp];
 

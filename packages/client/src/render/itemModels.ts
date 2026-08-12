@@ -2,10 +2,10 @@
  * Kleine Modelle für alles, was man im Beutel trägt.
  *
  * Waffen haben schon eines — sie hängen im Rig an der Hand. Ein Trank, eine
- * Haut oder ein Panzerstück haben keins, weil sie in der Welt nie auftauchen:
- * Beute fällt ohne Umweg in den Beutel. Für die Inventarbilder braucht es sie
- * trotzdem, und ein Bild von einem Gegenstand, den es als Modell nicht gibt,
- * lässt sich schlecht rendern.
+ * Haut oder ein Panzerstück hatten keins. Gebraucht werden sie an zwei
+ * Stellen: für die Inventarbilder und für die Beute, die nach einem Kampf auf
+ * dem Boden liegt. Beide Male dasselbe Modell — was da liegt, muss aussehen
+ * wie das Symbol, das man danach im Beutel wiederfindet.
  *
  * Deshalb hier eine Handvoll Formen aus denselben Grundkörpern wie die Props.
  * Sie sind bewusst grob: ein Symbol, das man auf achtundvierzig Bildpunkten

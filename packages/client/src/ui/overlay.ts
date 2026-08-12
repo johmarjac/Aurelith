@@ -12,7 +12,7 @@
  */
 
 import * as THREE from 'three';
-import { EntityState, EntityType } from '@aurelith/shared';
+import { EntityState, EntityType, type LootRow } from '@aurelith/shared';
 import type { EntityVisual } from '../render/worldView.ts';
 
 /** Mehr Schilder gleichzeitig sind auf keinem Bildschirm noch lesbar. */
@@ -20,6 +20,16 @@ const MAX_NAMEPLATES = 24;
 const MAX_DAMAGE_NUMBERS = 40;
 /** Ab dieser Entfernung wird kein Schild mehr gezeichnet. */
 const NAMEPLATE_RANGE = 48;
+
+/**
+ * Beuteschilder gibt es weniger und näher als Namensschilder.
+ *
+ * Näher, weil ein Haufen in vierzig Metern nichts ist, was man anklicken will;
+ * weniger, weil sie anders als Namensschilder *bedienbar* sind — zwölf
+ * Klickflächen übereinander wären ein Feld aus Fehlgriffen.
+ */
+const MAX_LOOT_LABELS = 12;
+const LOOT_LABEL_RANGE = 22;
 
 interface FloatingNumber {
   element: HTMLDivElement;
@@ -34,7 +44,18 @@ interface FloatingNumber {
 export class Overlay {
   readonly element: HTMLDivElement;
 
+  /**
+   * Wird gerufen, wenn jemand auf ein Beuteschild tippt.
+   *
+   * Das Schild ist bewusst die Klickfläche und nicht das Modell am Boden. Ein
+   * Haufen ist einen halben Meter groß und liegt oft hinter einer Figur; auf
+   * dem Telefon wäre er kaum zu treffen. Das Schild steht darüber, ist so
+   * breit wie sein Text und fängt den Druck ab, bevor er die Welt erreicht.
+   */
+  onPickup?: (lootId: number) => void;
+
   private readonly plates: HTMLDivElement[] = [];
+  private readonly lootLabels: HTMLDivElement[] = [];
   private readonly numbers: FloatingNumber[] = [];
   private readonly numberPool: HTMLDivElement[] = [];
 
@@ -139,6 +160,81 @@ export class Overlay {
 
     for (let i = shown; i < this.plates.length; i++) {
       this.plates[i]!.style.display = 'none';
+    }
+  }
+
+  private lootLabel(index: number): HTMLDivElement {
+    let el = this.lootLabels[index];
+    if (el) return el;
+
+    el = document.createElement('div');
+    el.className = 'loot-label';
+    // Auf `pointerdown` und nicht auf `click`: die Welt darunter hört
+    // ebenfalls auf `pointerdown`, und ein `click` käme zu spät, um ihn zu
+    // verschlucken. `stopPropagation` verhindert, dass derselbe Druck
+    // zusätzlich ein Ziel wählt.
+    el.addEventListener('pointerdown', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const id = Number(el?.dataset.loot ?? 0);
+      if (id > 0) this.onPickup?.(id);
+    });
+    this.element.appendChild(el);
+    this.lootLabels[index] = el;
+    return el;
+  }
+
+  /**
+   * Setzt die Beuteschilder neu.
+   *
+   * `label` kommt von aussen, weil der Name eines Gegenstands aus der
+   * Inhaltstabelle stammt und die Beschriftung von Gold anders lautet — beides
+   * weiß die Ansicht, die die Haufen führt, und nicht dieses Overlay.
+   */
+  updateLootLabels(
+    camera: THREE.PerspectiveCamera,
+    piles: Iterable<{ row: LootRow }>,
+    label: (row: LootRow) => string,
+    width: number,
+    height: number,
+  ): void {
+    const candidates: Array<{ row: LootRow; dist: number }> = [];
+    for (const { row } of piles) {
+      const dist = camera.position.distanceTo(this.projected.set(row.x, row.y, row.z));
+      if (dist > LOOT_LABEL_RANGE) continue;
+      candidates.push({ row, dist });
+    }
+
+    candidates.sort((a, b) => a.dist - b.dist);
+    const shown = Math.min(candidates.length, MAX_LOOT_LABELS);
+
+    for (let i = 0; i < shown; i++) {
+      const { row } = candidates[i]!;
+      const el = this.lootLabel(i);
+
+      this.projected.set(row.x, row.y + 1.05, row.z).project(camera);
+      if (this.projected.z > 1) {
+        el.style.display = 'none';
+        continue;
+      }
+
+      const sx = (this.projected.x * 0.5 + 0.5) * width;
+      const sy = (-this.projected.y * 0.5 + 0.5) * height;
+
+      el.style.display = '';
+      el.style.transform = `translate(${sx}px, ${sy}px) translate(-50%, -100%)`;
+      el.dataset.loot = String(row.id);
+      el.dataset.kind = row.gold > 0 ? 'gold' : 'item';
+
+      const text = label(row);
+      if (el.textContent !== text) el.textContent = text;
+    }
+
+    for (let i = shown; i < this.lootLabels.length; i++) {
+      this.lootLabels[i]!.style.display = 'none';
+      // Die Kennung mit ausräumen: ein verborgenes Schild, das noch eine alte
+      // Nummer trägt, hebt beim nächsten Treffer den falschen Haufen auf.
+      delete this.lootLabels[i]!.dataset.loot;
     }
   }
 

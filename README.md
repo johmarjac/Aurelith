@@ -179,6 +179,12 @@ npm run test:brushes     # die Editor-Pinsel — ohne Browser
 npm run test:particles   # die Funkenwolke und der Pfeilschweif
 npm run test:audio       # Richtung und Entfernung im Raumklang
 npm run test:gait        # Laufbewegung: springt eine Pose?
+npm run test:tag         # Tag- und Nachtwechsel: Licht, Farben, Uhr
+npm run test:quests      # das Auftragsbuch — ohne Server
+npm run test:content     # die Inhaltsdateien: Format und Verweise
+npm run test:loot        # wer welche Beute vom Boden aufheben darf
+npm run test:npcflow     # ansprechen, annehmen, erlegen, aufheben, abgeben
+npm run test:npc         # NPC-Fenster und Inventar im Browser
 npm run test:e2e         # Spiel im Browser, Desktop und Berührung
 npm run test:prediction  # springt die eigene Figur beim Laufen zurück?
 npm run test:portal      # Tore: hineinlaufen, stehen, F drücken, zurück
