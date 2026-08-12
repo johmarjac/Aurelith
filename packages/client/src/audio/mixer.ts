@@ -172,6 +172,22 @@ export class Mixer {
   }
 
   /**
+   * Wie es um den Ton steht, in Worten.
+   *
+   * Nicht für den Code, sondern für die Anzeige. „Ich höre nichts" hat auf
+   * einem Telefon drei mögliche Ursachen — der Kontext schläft noch, der
+   * Regler steht auf stumm, oder der Lautlos-Schalter des Geräts ist an —
+   * und nur die ersten beiden kann die Seite überhaupt sehen. Wer das
+   * angezeigt bekommt, muss nicht raten.
+   */
+  get state(): 'stumm' | 'wartet' | 'bereit' | 'unmoeglich' {
+    if (this.levels.muted) return 'stumm';
+    if (!this.context) return 'wartet';
+    if (this.context.state === 'running') return 'bereit';
+    return this.context.state === 'closed' ? 'unmoeglich' : 'wartet';
+  }
+
+  /**
    * Weckt den Tonkontext. Muss aus einer Nutzerhandlung heraus geschehen.
    *
    * Mehrfach aufzurufen ist ausdrücklich vorgesehen: der Kontext kann später
@@ -193,9 +209,49 @@ export class Mixer {
         this.categoryGain.set(key, gain);
       }
       this.applyLevels();
+
+      // Ein Tropfen Stille, sofort abgespielt.
+      //
+      // Auf iOS reicht `resume()` allein nicht immer: der Kontext meldet
+      // „running" und bleibt trotzdem taub, bis einmal etwas durch ihn
+      // hindurchgelaufen ist. Ein Puffer von einem Sample kostet nichts und
+      // erspart die Klasse von Fehlern, bei der alles richtig aussieht und
+      // nichts zu hören ist.
+      const stille = this.context.createBufferSource();
+      stille.buffer = this.context.createBuffer(1, 1, this.context.sampleRate);
+      stille.connect(this.context.destination);
+      stille.start();
     }
 
     if (this.context.state === 'suspended') void this.context.resume();
+  }
+
+  /**
+   * Spielt einen bereits geladenen Ton ohne Ort — zum Ausprobieren.
+   *
+   * Getrennt von `play`, weil hier bewusst *kein* Puffer nachgeladen wird:
+   * Wer auf „Ton testen" drückt, soll entweder etwas hören oder erfahren,
+   * dass nichts da ist. Ein Knopf, der beim ersten Druck nichts tut und beim
+   * zweiten schon, ist schlimmer als einer, der ehrlich fehlschlägt.
+   */
+  probe(path: string, category: SoundCategory, gain = 1): boolean {
+    if (!this.context || this.context.state !== 'running') return false;
+    if (!this.buffers.has(path)) return false;
+
+    const source = this.context.createBufferSource();
+    source.buffer = this.buffers.get(path)!;
+    const voice = this.context.createGain();
+    voice.gain.value = gain;
+    const target = this.categoryGain.get(category);
+    if (!target) return false;
+
+    source.connect(voice).connect(target);
+    source.start();
+    source.onended = () => {
+      source.disconnect();
+      voice.disconnect();
+    };
+    return true;
   }
 
   setLevels(next: Partial<MixerLevels>): void {

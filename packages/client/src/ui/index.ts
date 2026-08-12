@@ -105,6 +105,11 @@ export class UI {
   >();
   /** Meldet eine Änderung nach draußen — das Mischpult hängt nicht an der UI. */
   onAudioChange?: (levels: Partial<MixerLevels>) => void;
+  /** Der Testknopf. Gibt zurück, ob tatsächlich etwas gespielt wurde. */
+  onAudioProbe?: () => boolean;
+
+  private audioState?: HTMLElement;
+  private lastAudioState: 'stumm' | 'wartet' | 'bereit' | 'unmoeglich' = 'wartet';
 
   private lastStats?: StatsMsg;
 
@@ -347,13 +352,59 @@ export class UI {
     this.muteBox = mute;
     body.append(ton);
 
-    const hinweis = el(
-      'p',
-      'settings-note',
-      'Töne starten erst nach der ersten Eingabe — Browser lassen Ton ohne ' +
-        'Zutun nicht zu.',
+    // --- Zustand und Probe ------------------------------------------------
+    //
+    // „Ich höre nichts" hat auf einem Telefon drei Ursachen: der Tonkontext
+    // schläft noch, der Regler steht auf stumm, oder der Lautlos-Schalter des
+    // Geräts ist an. Die Seite sieht nur die ersten beiden — also zeigt sie
+    // die an und nennt die dritte, statt den Benutzer raten zu lassen.
+    const probe = el('section', 'settings-group');
+    this.audioState = el('p', 'settings-state', '');
+
+    const testButton = el('button', 'btn', 'Ton testen');
+    testButton.type = 'button';
+    testButton.addEventListener('click', () => {
+      const ok = this.onAudioProbe?.() ?? false;
+      this.setAudioState(this.lastAudioState, ok ? 'gespielt' : 'nichts da');
+    });
+
+    probe.append(this.audioState, testButton);
+    body.append(probe);
+
+    const hinweis = el('p', 'settings-note', '');
+    hinweis.append(
+      document.createTextNode(
+        'Töne starten erst nach der ersten Eingabe — Browser lassen Ton ohne ' +
+          'Zutun nicht zu. Ein Tipper ins Bild genügt. ',
+      ),
+      el(
+        'strong',
+        undefined,
+        'Auf iPhone und iPad schaltet der Lautlos-Schalter auch Web-Ton stumm.',
+      ),
     );
     body.append(hinweis);
+  }
+
+  /**
+   * Zeigt an, ob Ton möglich ist.
+   *
+   * `hinweis` ist die Rückmeldung des Testknopfs und verfällt beim nächsten
+   * Zustandswechsel — sie gehört zu einem Druck, nicht zum Zustand.
+   */
+  setAudioState(state: 'stumm' | 'wartet' | 'bereit' | 'unmoeglich', hinweis?: string): void {
+    this.lastAudioState = state;
+    if (!this.audioState) return;
+
+    const text: Record<typeof state, string> = {
+      bereit: 'Ton ist bereit.',
+      wartet: 'Wartet auf die erste Eingabe — einmal ins Bild tippen.',
+      stumm: 'Ton ist ausgeschaltet.',
+      unmoeglich: 'Dieser Browser gibt keinen Ton aus.',
+    };
+
+    this.audioState.dataset.state = state;
+    this.audioState.textContent = hinweis ? `${text[state]} (${hinweis})` : text[state];
   }
 
   /** Übernimmt Lautstärken von außen ins Fenster. */

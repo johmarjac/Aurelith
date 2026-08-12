@@ -323,13 +323,27 @@ export class Game {
       // nicht erst noch woanders hinklicken müssen.
       this.mixer.resume();
       this.mixer.setLevels(levels);
+      this.ui.setAudioState(this.mixer.state);
+    };
+
+    this.ui.onAudioProbe = () => {
+      this.mixer.resume();
+      const def = SOUNDS.bogen_schuss;
+      return this.mixer.probe(def.path, def.category, def.gain);
     };
 
     // Ein AudioContext startet gesperrt und darf erst nach einer Geste
-    // aufwachen. Beide Ereignisse, weil beide Bedienarten dazugehören.
-    const wake = (): void => this.mixer.resume();
+    // aufwachen. Drei Ereignisse, weil drei Bedienarten dazugehören —
+    // `touchend` ist dabei, weil ältere iOS-Fassungen darauf zuverlässiger
+    // freischalten als auf `pointerdown`.
+    const wake = (): void => {
+      this.mixer.resume();
+      this.ui.setAudioState(this.mixer.state);
+    };
     window.addEventListener('pointerdown', wake);
+    window.addEventListener('touchend', wake);
     window.addEventListener('keydown', wake);
+    this.ui.setAudioState(this.mixer.state);
 
     globalThis.aurelith = this.diagnostics;
 

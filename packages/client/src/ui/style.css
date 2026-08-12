@@ -531,6 +531,25 @@ body {
   height: 1.6rem;
 }
 
+.settings-state {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.settings-state[data-state='bereit'] {
+  color: var(--exp);
+}
+
+.settings-state[data-state='wartet'] {
+  color: var(--gold);
+}
+
+.settings-state[data-state='stumm'],
+.settings-state[data-state='unmoeglich'] {
+  color: var(--ink-dim);
+}
+
 .settings-note {
   margin: 0.7rem 0 0;
   font-size: 0.74rem;
