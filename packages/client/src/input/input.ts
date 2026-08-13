@@ -26,6 +26,15 @@ export interface InputSnapshot {
   yaw: number;
   attack: boolean;
   interact: boolean;
+  /**
+   * Ob in diesem Takt tatsächlich jemand gesteuert hat.
+   *
+   * Nicht dasselbe wie „die Figur bewegt sich": die Glättung lässt sie noch
+   * ein Stück weiterlaufen, nachdem die Taste losgelassen wurde. Wer wissen
+   * will, ob ein automatischer Lauf abgebrochen werden soll, muss nach der
+   * **Absicht** fragen und nicht nach der Bewegung.
+   */
+  manual: boolean;
 }
 
 /** Empfindlichkeit der Kameradrehung, Bogenmaß je Pixel. */
@@ -39,13 +48,39 @@ export class InputManager {
   onAttackPressed?: () => void;
   /** Klick oder Tipper ins Bild, in normalisierten Gerätekoordinaten. */
   onPick?: (ndcX: number, ndcY: number) => void;
+  /**
+   * Liegt an dieser Stelle etwas, das man anfasst statt anzugreifen?
+   *
+   * Beantwortet vom Spiel — hier ist nur bekannt, wo geklickt wurde, nicht
+   * was dort liegt. Zwei Dinge hängen an derselben Antwort, und das ist der
+   * Sinn der Sache: die Maus zeigt dort eine Hand, und ein Klick dorthin löst
+   * keinen Schlag aus. Wären es zwei Abfragen, zeigte irgendwann die eine
+   * eine Hand, während die andere zuschlägt.
+   */
+  attackBlocked?: (ndcX: number, ndcY: number) => boolean;
 
   private readonly keys = new Set<string>();
   /** Macht aus dem sprunghaften Wunsch eine stetige Bewegung. */
   private readonly steering = new Steering();
-  private attackHeld = false;
+  /**
+   * Wer den Schlag hält — getrennt nach Hand.
+   *
+   * Drei Flächen können angreifen: die Leertaste, die Maustaste und der Knopf
+   * auf dem Telefon. Sie teilten sich einmal ein einziges Feld, und damit
+   * beendete jedes Loslassen den Schlag der anderen: wer die Leertaste hielt
+   * und dabei ein Ziel anklickte, hörte beim Loslassen der Maustaste auf zu
+   * schlagen — die Leertaste war noch unten, die Figur stand still. Ein Feld
+   * je Fläche, und der Schlag gilt, solange **irgendeine** von ihnen hält.
+   */
+  private attackKey = false;
+  private attackMouse = false;
   private attackButtonHeld = false;
   private interactPressed = false;
+
+  /** Hält gerade irgendeine Fläche den Schlag? */
+  private get attackHeld(): boolean {
+    return this.attackKey || this.attackMouse || this.attackButtonHeld;
+  }
 
   /** Zeiger, der gerade die Kamera dreht. */
   private lookPointer: number | null = null;
@@ -93,17 +128,18 @@ export class InputManager {
       if (e.code === 'Space') {
         e.preventDefault();
         if (!this.attackHeld) this.onAttackPressed?.();
-        this.attackHeld = true;
+        this.attackKey = true;
       }
       if (e.code === 'KeyF') this.interactPressed = true;
     };
     const up = (e: KeyboardEvent) => {
       this.keys.delete(e.code);
-      if (e.code === 'Space') this.attackHeld = false;
+      if (e.code === 'Space') this.attackKey = false;
     };
     const blur = () => {
       this.keys.clear();
-      this.attackHeld = false;
+      this.attackKey = false;
+      this.attackMouse = false;
     };
 
     window.addEventListener('keydown', down);
@@ -132,8 +168,16 @@ export class InputManager {
         this.pickMoved = 0;
         this.pickX = e.clientX;
         this.pickY = e.clientY;
-        this.attackHeld = true;
-        this.onAttackPressed?.();
+
+        // Auf einen Beutehaufen geklickt heisst aufheben, nicht zuschlagen.
+        // Der Schlag beginnt beim Drücken und nicht beim Loslassen — wer erst
+        // beim Loslassen entscheidet, hat die Schwungphase schon angefangen
+        // und sieht die Figur ins Leere hauen.
+        const [nx, ny] = this.toNdc(e.clientX, e.clientY);
+        if (this.attackBlocked?.(nx, ny) === true) return;
+
+        if (!this.attackHeld) this.onAttackPressed?.();
+        this.attackMouse = true;
       }
     };
 
@@ -144,8 +188,17 @@ export class InputManager {
         this.pickY = e.clientY;
         return;
       }
-      if (this.lookPointer !== e.pointerId) return;
-      this.applyLook(e.clientX, e.clientY, LOOK_SPEED);
+      if (this.lookPointer === e.pointerId) {
+        this.applyLook(e.clientX, e.clientY, LOOK_SPEED);
+        return;
+      }
+
+      // Freie Maus: eine Hand dort, wo ein Klick etwas anfasst. Dieselbe
+      // Frage wie beim Drücken — was die Hand zeigt, greift auch nicht an.
+      if (this.attackBlocked) {
+        const [nx, ny] = this.toNdc(e.clientX, e.clientY);
+        this.canvas.style.cursor = this.attackBlocked(nx, ny) ? 'pointer' : '';
+      }
     };
 
     const up = (e: PointerEvent) => {
@@ -154,15 +207,12 @@ export class InputManager {
       if (this.pickPointer === e.pointerId) {
         // Ein Klick, der sich kaum bewegt hat, ist ein Klick — kein Wischen.
         if (this.pickMoved < 6) {
-          const rect = this.canvas.getBoundingClientRect();
-          this.onPick?.(
-            ((e.clientX - rect.left) / rect.width) * 2 - 1,
-            -(((e.clientY - rect.top) / rect.height) * 2 - 1),
-          );
+          const [nx, ny] = this.toNdc(e.clientX, e.clientY);
+          this.onPick?.(nx, ny);
         }
         this.pickPointer = null;
       }
-      if (e.button === 0) this.attackHeld = false;
+      if (e.button === 0) this.attackMouse = false;
     };
 
     const wheel = (e: WheelEvent) => {
@@ -297,7 +347,7 @@ export class InputManager {
 
   /** Der Angriffsknopf der Touch-Oberfläche meldet sich hierüber. */
   setAttackButton(held: boolean): void {
-    if (held && !this.attackButtonHeld) this.onAttackPressed?.();
+    if (held && !this.attackHeld) this.onAttackPressed?.();
     this.attackButtonHeld = held;
   }
 
@@ -367,15 +417,42 @@ export class InputManager {
     const interact = this.interactPressed;
     this.interactPressed = false;
 
-    const steered = this.steering.step(wishX, wishZ, dt);
+    // Der automatische Lauf geht durch dieselbe Glättung wie die Hand am
+    // Joystick — nicht an ihr vorbei. Sonst gäbe es zwei Arten, wie sich eine
+    // Figur in Bewegung setzt, und die Blickrichtung käme nur bei einer davon
+    // heraus: `steering` leitet sie aus dem Wunsch ab.
+    //
+    // Der Wunsch von aussen steht bereits in Weltachsen und wird deshalb
+    // nicht mehr gedreht.
+    const selbst = localX !== 0 || localZ !== 0;
+    const auto = !selbst && (this.autoX !== 0 || this.autoZ !== 0);
+    const steered = this.steering.step(
+      auto ? this.autoX : wishX,
+      auto ? this.autoZ : wishZ,
+      dt,
+    );
 
     return {
       moveX: steered.moveX,
       moveZ: steered.moveZ,
       yaw: steered.yaw,
-      attack: !frozen && (this.attackHeld || this.attackButtonHeld),
+      attack: !frozen && this.attackHeld,
       interact: !frozen && interact,
+      manual: selbst,
     };
+  }
+
+  /**
+   * Setzt einen Bewegungswunsch, der ohne Hand am Steuer gilt.
+   *
+   * In **Weltachsen** und höchstens einen Meter lang. Gedacht für den Weg zu
+   * einem Beutehaufen: wer darauf klickt, soll hinlaufen, ohne die Taste zu
+   * halten. Eigene Eingabe schlägt ihn jederzeit — deshalb wird er nur
+   * genommen, wenn gerade niemand steuert.
+   */
+  setAutoWish(x: number, z: number): void {
+    this.autoX = x;
+    this.autoZ = z;
   }
 
   /**
@@ -386,6 +463,19 @@ export class InputManager {
   setFacing(yaw: number): void {
     this.steering.reset(yaw);
   }
+
+  /** Bildpunkte in normalisierte Gerätekoordinaten. */
+  private toNdc(clientX: number, clientY: number): [number, number] {
+    const rect = this.canvas.getBoundingClientRect();
+    return [
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -(((clientY - rect.top) / rect.height) * 2 - 1),
+    ];
+  }
+
+  /** Bewegungswunsch ohne Hand am Steuer — siehe `setAutoWish`. */
+  private autoX = 0;
+  private autoZ = 0;
 
   dispose(): void {
     for (const off of this.disposers) off();

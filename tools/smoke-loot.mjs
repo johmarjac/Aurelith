@@ -14,7 +14,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
@@ -52,6 +52,10 @@ const check = (ok, what, detail = '') => {
   console.log(`  ${ok ? '✓' : '✗'} ${what}${detail ? ` — ${detail}` : ''}`);
   if (!ok) failures++;
 };
+
+/** Wie oft im Verlauf schon etwas aufgehoben wurde. */
+const meldungen = async () =>
+  (((await page.locator('.chat-log').textContent()) ?? '').match(/Aufgehoben:/g) ?? []).length;
 
 const waitUntil = async (fn, ms) => {
   const deadline = Date.now() + ms;
@@ -108,7 +112,26 @@ const browser = await chromium.launch({
   ],
 });
 
-const page = await browser.newPage({ viewport: { width: 1100, height: 700 } });
+// Kleines Fenster, halbe Punktdichte — und zwar aus einem handfesten Grund:
+// gezeichnet wird hier in SwiftShader, also auf der CPU, und die Bildrate
+// hängt fast ausschliesslich an der Zahl der Bildpunkte. Der Client deckelt
+// den Simulationsschritt je Bild; bei zwei Bildern je Sekunde läuft die Figur
+// deshalb in echter Zeit gemessen nur noch ein Sechstel so schnell, während
+// die Monster auf dem Server mit voller Geschwindigkeit umherwandern — der
+// Bot bekäme sie nie zu fassen.
+//
+// Gemessen, nicht geraten: 1100×700 bei voller Dichte ergaben 2,0 Bilder/s
+// und 0,96 Einheiten/s, 800×520 bei halber Dichte 7,4 Bilder/s und 3,59
+// Einheiten/s. Ein wanderndes Irrlicht ist mit 1,44 Einheiten/s unterwegs —
+// darüber muss die Figur liegen, sonst holt sie es nie ein. Auf die
+// Prüfungen wirkt die Dichte nicht: `getBoundingClientRect` liefert
+// CSS-Punkte, keine Gerätepunkte.
+const BREITE = 800;
+const HOEHE = 520;
+const page = await browser.newPage({
+  viewport: { width: BREITE, height: HOEHE },
+  deviceScaleFactor: 0.5,
+});
 const fehler = [];
 page.on('pageerror', (err) => fehler.push(String(err)));
 
@@ -117,6 +140,7 @@ await page.goto(`http://127.0.0.1:5198/?name=${name}`, { waitUntil: 'domcontentl
 await page.waitForFunction(() => window.aurelith?.localId > 0, { timeout: 40000 });
 await page.waitForTimeout(2500);
 
+const beginn = Date.now();
 console.log('Prüfungen');
 
 // --- Vorher liegt nichts ---------------------------------------------------
@@ -133,6 +157,89 @@ check(
   'und es steht kein Beuteschild im Bild',
 );
 
+// --- Die Monster wandern von selbst ----------------------------------------
+//
+// Irrlichter greifen niemanden von selbst an: bewegt sich eines, während die
+// Figur die Hände im Schoss hat, dann weil es umherwandert. Die Regel dahinter
+// prüft `packages/core/test/native_test.cpp` — hier geht es darum, dass die
+// Bewegung durch Snapshot und Zeichnung bis ins Bild kommt.
+//
+// Gemessen werden die Namensschilder, weil `window.aurelith` die Weltlage von
+// Monstern bewusst nicht hergibt. Sortiert, damit ein Tausch der Reihenfolge
+// nicht als Bewegung durchgeht.
+// Nur, was wirklich im Bild steht: ein Schild hinter der Kamera wird auf
+// Koordinaten weit ausserhalb projiziert und springt dort um Tausende von
+// Bildpunkten, sobald sich das Wesen bewegt. Die Prüfung ginge daran nicht
+// kaputt — die Kamera steht ja still —, aber die genannte Zahl hätte mit dem
+// Weg des Monsters nichts mehr zu tun.
+const monsterPunkte = () =>
+  page.evaluate(() => {
+    const punkte = [];
+    for (const plate of document.querySelectorAll('.nameplate[data-kind="monster"]')) {
+      if (plate.style.display === 'none') continue;
+      const box = plate.getBoundingClientRect();
+      const x = box.x + box.width / 2;
+      const y = box.y + box.height / 2;
+      if (x < 0 || x > window.innerWidth || y < 0 || y > window.innerHeight) continue;
+      punkte.push([x, y]);
+    }
+    punkte.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    return punkte;
+  });
+
+// Kurze Abschnitte, verglichen mit dem Vorgänger **und** mit dem Anfang. Die
+// Schilderliste ist nur so lange zuordenbar, wie gleich viele darin stehen —
+// deshalb die kurzen Abschnitte. Aber ein Irrlicht rastet zehn Sekunden am
+// Stück, und wer nur Nachbarn vergleicht, erwischt womöglich lauter Pausen:
+// ein Lauf meldete acht vergleichbare Abschnitte und fünf Bildpunkte. Der
+// Vergleich mit dem Anfang sieht auch die Strecke, die in vielen kleinen
+// Schritten zusammengekommen ist.
+const ABSCHNITTE = 12;
+const abstandZu = (a, b) => {
+  if (a.length === 0 || a.length !== b.length) return -1;
+  let weit = 0;
+  for (let i = 0; i < a.length; i++) {
+    const d = Math.hypot(a[i][0] - b[i][0], a[i][1] - b[i][1]);
+    if (d > weit) weit = d;
+  }
+  return weit;
+};
+
+const stelleVorher = await page.evaluate(() => ({ ...window.aurelith.player }));
+const anfang = await monsterPunkte();
+let vorige = anfang;
+let weiteste = 0;
+let vergleichbar = 0;
+for (let runde = 0; runde < ABSCHNITTE; runde++) {
+  await page.waitForTimeout(1500);
+  const jetzt = await monsterPunkte();
+  const zumVorgaenger = abstandZu(jetzt, vorige);
+  if (zumVorgaenger >= 0) {
+    vergleichbar++;
+    if (zumVorgaenger > weiteste) weiteste = zumVorgaenger;
+  }
+  const zumAnfang = abstandZu(jetzt, anfang);
+  if (zumAnfang > weiteste) weiteste = zumAnfang;
+  vorige = jetzt;
+}
+const stelleNachher = await page.evaluate(() => ({ ...window.aurelith.player }));
+
+// Gegenprobe: hätte sich die Figur bewegt, wäre auch die Kamera mit ihr
+// gewandert, und dann verschiebt sich jedes Schild im Bild — ohne dass ein
+// Monster einen Schritt getan hätte.
+const eigenerWeg = Math.hypot(
+  stelleNachher.x - stelleVorher.x,
+  stelleNachher.z - stelleVorher.z,
+);
+check(eigenerWeg < 0.1, 'die Figur steht dabei still', `${eigenerWeg.toFixed(2)} Einheiten`);
+
+check(
+  vergleichbar >= 3 && weiteste > 8,
+  'die Monster wandern von selbst umher',
+  `${vergleichbar} von ${ABSCHNITTE} Abschnitten vergleichbar, ` +
+    `weiteste Verschiebung ${Math.round(weiteste)} px`,
+);
+
 // --- Ein Irrlicht suchen und erlegen ---------------------------------------
 //
 // Irrlichter greifen nicht von selbst an, also muss die Figur zu ihnen. Der
@@ -141,100 +248,208 @@ check(
 // Bildmitte, wird die Kamera gedreht, bis es mittig steht — dann läuft die
 // Figur geradeaus darauf zu, denn W folgt der Blickrichtung.
 //
+// Verfolgt wird ein **angepeiltes** Wesen und nicht „das gerade nächste": seit
+// die Irrlichter umherwandern, wechselt das Nächste alle paar Sekunden, und
+// ein Bot, der immer dem Nächsten nachläuft, pendelt zwischen zweien hin und
+// her, ohne je bei einem anzukommen. Ein Klick ins Bild wählt ein Ziel, und
+// das Spiel schreibt `data-target="true"` an dessen Schild — daran ist es
+// wiederzuerkennen, ohne dass der Test Weltkoordinaten bräuchte.
+//
 // Kein Zugriff auf Weltkoordinaten von Monstern: die gibt `window.aurelith`
 // bewusst nicht her, und ein Testhaken dafür wäre Gerüst im Auslieferungscode.
 
-const MITTE_X = 550;
+const MITTE_X = BREITE / 2;
 
 /**
- * Bildschirmmitte des nächsten Monsterschilds, oder nichts.
+ * Bildschirmmitte eines Monsterschilds, oder nichts.
  *
- * Die Schilder stehen nach Entfernung sortiert im DOM — das erste sichtbare
+ * `nurZiel` verlangt das angepeilte Wesen; sonst gilt das nächste. Die
+ * Schilder stehen nach Entfernung sortiert im DOM — das erste sichtbare
  * gehört zum nächsten Wesen. Gefiltert wird über `display`, nicht über
  * Playwrights `:visible`: ein Schild hinter der Kamera wird zwar auf einen
  * Punkt weit ausserhalb des Bildes projiziert, hat dort aber immer noch
  * Ausdehnung und gälte damit als sichtbar.
  */
-async function zielX() {
-  return page.evaluate((breite) => {
-    for (const plate of document.querySelectorAll('.nameplate[data-kind="monster"]')) {
-      if (plate.style.display === 'none') continue;
-      const box = plate.getBoundingClientRect();
-      const x = box.x + box.width / 2;
-      // „Im Bild" heisst im Bild — nicht „ungefähr". Ein Wesen seitlich oder
-      // hinter der Kamera landet bei der Projektion irgendwo daneben, und wer
-      // darauf zusteuert, dreht sich fest: das Ziel kommt nie zur Mitte, weil
-      // es nie auf dem Schirm war. Solche Schilder werden übersprungen, das
-      // nächste in der Liste ist das zweitnächste Wesen.
-      if (x < 0 || x > breite) continue;
-      return x;
-    }
-    return undefined;
-  }, 1100);
+async function schildOrt(nurZiel) {
+  return page.evaluate(
+    ({ breite, hoehe, nurZiel, jagd }) => {
+      for (const plate of document.querySelectorAll('.nameplate[data-kind="monster"]')) {
+        if (plate.style.display === 'none') continue;
+        if (nurZiel && plate.dataset.target !== 'true') continue;
+        // Nur Irrlichter. Auf der Wiese daneben stehen Grabwelpen und
+        // Distelkeiler — Stufe drei und sechs, und die erschlagen eine frische
+        // Figur, statt zu sterben. Ein Bot, der „das nächste Wesen" jagt,
+        // wandert irgendwann dorthin und liegt dann tot im Feld, während der
+        // Test auf Beute wartet, die nie fällt.
+        if (!(plate.children[1]?.textContent ?? '').startsWith(jagd)) continue;
+        const box = plate.getBoundingClientRect();
+        const x = box.x + box.width / 2;
+        const y = box.y + box.height / 2;
+        // „Im Bild" heisst im Bild — nicht „ungefähr". Ein Wesen seitlich oder
+        // hinter der Kamera landet bei der Projektion irgendwo daneben, und wer
+        // darauf zusteuert, dreht sich fest: das Ziel kommt nie zur Mitte, weil
+        // es nie auf dem Schirm war. Solche Schilder werden übersprungen, das
+        // nächste in der Liste ist das zweitnächste Wesen.
+        if (x < 0 || x > breite || y < 0 || y > hoehe) continue;
+        // Der Lebensbalken im Schild sagt, ob die Schläge ankommen — die
+        // einzige Rückmeldung, an der ein Bot „ich stehe daneben" von „ich
+        // renne daran vorbei" unterscheiden kann.
+        const fill = plate.lastElementChild?.firstElementChild;
+        const teil = /scaleX\(([\d.]+)\)/.exec(fill?.style.transform ?? '');
+        return { x, y, hp: teil ? Number(teil[1]) : 1 };
+      }
+      return undefined;
+    },
+    { breite: BREITE, hoehe: HOEHE, nurZiel, jagd: 'Irrlicht' },
+  );
 }
 
 /**
- * Dreht die Kamera. Ein Zug nach rechts schiebt das Bild nach links.
+ * Dreht die Kamera. Ein Zug nach rechts holt ein Ziel rechts der Mitte heran.
  *
- * Gemessen und nicht angenommen: ein Zug von 550 auf 700 hat ein Schild von
- * 621 auf 555 gebracht. Wer ein Ziel rechts der Mitte zur Mitte holen will,
- * zieht also nach rechts.
+ * Gemessen und nicht angenommen: ein Zug von 150 Mauspunkten hat ein
+ * Namensschild um gut 500 Bildpunkte verschoben — rund **3,5 Bildpunkte je
+ * Mauspunkt**. Wer die Abweichung eins zu eins in einen Zug übersetzt, dreht
+ * also mehr als dreimal so weit wie nötig, schiesst über das Ziel hinaus,
+ * korrigiert in die Gegenrichtung und pendelt sich fest. Genau daran ist ein
+ * Lauf gescheitert, der das Ziel zwar dauernd mittig hatte, aber in zweihundert
+ * Runden nichts erlegte.
  */
-async function drehe(pixel) {
-  await page.mouse.move(MITTE_X, 350);
+async function drehe(pixel, schritte = 6) {
+  await page.mouse.move(MITTE_X, HOEHE / 2);
   await page.mouse.down({ button: 'right' });
-  await page.mouse.move(MITTE_X + pixel, 350, { steps: 6 });
+  await page.mouse.move(MITTE_X + pixel, HOEHE / 2, { steps: schritte });
   await page.mouse.up({ button: 'right' });
-  await page.waitForTimeout(120);
 }
 
 let runde = 0;
-const gefallen = await waitUntil(async () => {
-  runde++;
-  const x = await zielX();
 
-  // Nichts Brauchbares im Bild: weiterdrehen und wieder nachsehen.
-  if (x === undefined) {
-    await drehe(200);
-    return false;
-  }
-
-  const abweichung = x - MITTE_X;
-
-  // Grob ausrichten, dann laufen — nicht erst perfekt zielen. Ein Bot, der
-  // erst auf fünfundvierzig Bildpunkte genau dreht, dreht die ganze Zeit:
-  // das Irrlicht wandert, und jede Drehung ist wieder veraltet, bevor der
-  // erste Schritt getan ist. Genau daran ist der Lauf davor gescheitert —
-  // die Figur kam in vierzig Runden drei Einheiten weit.
-  if (Math.abs(abweichung) > 150) {
-    await drehe(abweichung > 0 ? 120 : -120);
-    return false;
-  }
-
-  // Und dann *laufen*, nicht tippen. Drei Sekunden am Stück mit gedrücktem
-  // Angriff: in SwiftShader zeichnet der Client ein paar Bilder je Sekunde,
-  // und in achthundert Millisekunden kommt die Figur kaum vom Fleck.
-  await page.keyboard.down('KeyW');
+/**
+ * Kämpft, bis etwas am Boden liegt.
+ *
+ * Als Funktion und nicht als Schleife am Stück: der zweite Teil des Tests
+ * braucht wieder einen Haufen, und ein zweiter abgeschriebener Kampfablauf
+ * wäre eine zweite Gelegenheit, ihn falsch zu machen.
+ */
+async function kaempfeBisBeute() {
+  // Der Schlag bleibt die ganze Jagd über gedrückt: er kostet nichts, wenn
+  // niemand in Reichweite steht, und trifft sofort, wenn doch.
+  //
+  // Der Vorwärtsgang dagegen wird an- und ausgeschaltet, und zwar nach dem
+  // Lebensbalken des Ziels. Sinkt er, steht die Figur richtig — dann heisst
+  // Weiterlaufen, am Ziel vorbeizurennen und es hinter sich zu lassen. Sinkt
+  // er zwei Sekunden lang nicht, ist die Figur nicht (mehr) dran und muss
+  // wieder hin. Ohne diese Rückmeldung umkreist ein Bot sein Ziel: er läuft
+  // darauf zu, daran vorbei, dreht um, und wieder von vorn.
+  //
+  // Nebenbei ist dieser Ablauf — Leertaste halten und dabei anklicken — die
+  // Probe auf einen Fehler, der genau hier steckte: Tastatur und Maus teilten
+  // sich ein Feld für „Schlag gehalten", und das Loslassen der Maustaste nach
+  // dem Anpeilen beendete den Schlag der Leertaste mit. Der Bot lief dann
+  // minutenlang hinter Wesen her, die bei hundert Prozent Leben blieben.
   await page.keyboard.down('Space');
-  for (let i = 0; i < 6; i++) {
+  let laeuft = false;
+  const gehe = async (an) => {
+    if (an === laeuft) return;
+    await page.keyboard[an ? 'down' : 'up']('KeyW');
+    laeuft = an;
+  };
+  await gehe(true);
+
+  const frist = Date.now() + 240000;
+  let fertig = false;
+  let letzteHp = 1;
+  let letzterTreffer = Date.now();
+
+  while (Date.now() < frist) {
+    runde++;
+    if ((await page.evaluate(() => window.aurelith.lootCount)) > 0) {
+      fertig = true;
+      break;
+    }
+
+    let ziel = await schildOrt(true);
+
+    // Kein angepeiltes Wesen mehr — erlegt, aus dem Bild gewandert oder noch
+    // keines gewählt. Dann das nächste anklicken; ein Klick ins Bild wählt,
+    // was dort steht.
+    if (!ziel) {
+      await gehe(false);
+      const naechstes = await schildOrt(false);
+      if (naechstes) {
+        // Etwas unter das Schild, auf den Körper: das Schild schwebt über dem
+        // Wesen, und gewählt wird nach dem, was im Bild unter dem Zeiger liegt.
+        await page.mouse.click(naechstes.x, naechstes.y + 18);
+        ziel = await schildOrt(true);
+        letzteHp = 1;
+        letzterTreffer = Date.now();
+        if (ziel) await gehe(true);
+      } else {
+        // Nichts im Bild: ein Vierteldrehung weiter suchen.
+        await drehe(80);
+      }
+    }
+
+    if (ziel) {
+      if (ziel.hp < letzteHp - 0.001) {
+        letzteHp = ziel.hp;
+        letzterTreffer = Date.now();
+        await gehe(false);
+      } else if (Date.now() - letzterTreffer > 2000) {
+        await gehe(true);
+      }
+
+      // Nachführen statt Zielen: ein Bruchteil der Abweichung je Runde. Wer in
+      // einem Zug genau ausrichtet, überdreht, weil das Ziel weiterwandert,
+      // während die Maus noch zieht.
+      const abweichung = ziel.x - MITTE_X;
+      if (Math.abs(abweichung) > 60) {
+        // Etwas weniger als der gemessene Kehrwert (0,29): lieber zweimal
+        // nachziehen als einmal vorbei.
+        await drehe(Math.max(-150, Math.min(150, abweichung * 0.25)), 3);
+      }
+    }
+
+    if (runde % 10 === 0) {
+      const p = await page.evaluate(() => ({ ...window.aurelith.player }));
+      console.log(
+        `  · Runde ${runde}: ${ziel ? `Ziel ${Math.round(ziel.x)} bei ` +
+          `${Math.round(ziel.hp * 100)}% Leben` : 'kein Ziel im Bild'}, ` +
+          `Figur bei ${p.x.toFixed(1)}/${p.z.toFixed(1)}`,
+      );
+    }
+
+    // Und dann laufen lassen — in **jeder** Runde, auch in denen ohne Ziel.
+    // Eine halbe Sekunde zwischen zwei Eingriffen ist kein Bummeln, sondern
+    // die Bedingung dafür, dass überhaupt etwas vorangeht: jede Drehung
+    // schwenkt die Laufrichtung mit, und wer alle fünfzig Millisekunden
+    // schwenkt, beschreibt Schlangenlinien statt eines Weges. Genau daran ist
+    // ein Lauf gescheitert, der in vier Minuten neuntausend Runden drehte und
+    // kein einziges Wesen erreichte — die Suchdrehung hatte die Wartezeit
+    // übersprungen und die Kamera in einen Kreisel geschickt.
     await page.waitForTimeout(500);
-    if ((await page.evaluate(() => window.aurelith.lootCount)) > 0) break;
   }
-  await page.keyboard.up('KeyW');
+
+  await gehe(false);
   await page.keyboard.up('Space');
+  return fertig;
+}
 
-  if (runde % 5 === 0) {
-    const p = await page.evaluate(() => ({ ...window.aurelith.player }));
-    console.log(
-      `  · Runde ${runde}: Ziel ${Math.round(x)}, Figur bei ${p.x.toFixed(1)}/${p.z.toFixed(1)}`,
-    );
-  }
-
-  return (await page.evaluate(() => window.aurelith.lootCount)) > 0;
-}, 150000);
+const gefallen = await kaempfeBisBeute();
 
 check(gefallen, 'nach dem Kampf liegt Beute am Boden',
   `${await page.evaluate(() => window.aurelith.lootCount)} Haufen`);
+
+// Ohne Beute hat der Rest keinen Gegenstand. Hier abbrechen und nicht in
+// dreissig Sekunden Wartezeit auf ein Schild laufen, das nie kommt — die
+// Meldung darüber ist die Nachricht, nicht der Zeitüberlauf danach.
+if (!gefallen) {
+  await page.screenshot({ path: join(root, 'artefakte', 'beute-fehlgeschlagen.png') });
+  await browser.close();
+  shutdown();
+  console.log(`\n${failures} Prüfung(en) fehlgeschlagen.\n`);
+  process.exit(1);
+}
 
 const schilder = page.locator('.loot-label');
 check(
@@ -243,9 +458,18 @@ check(
   String(await schilder.count()),
 );
 
+// Verglichen wird gegen die Inhaltstabelle und nicht gegen eine Handvoll
+// abgeschriebener Namen: was ein Irrlicht fallen lässt, steht in der
+// Beutetabelle und darf sich ändern. Eine Prüfung auf „Gold oder Essenz"
+// scheiterte an einem Heiltrank, obwohl das Schild genau das Richtige zeigte.
+const gegenstaende = new Set(
+  JSON.parse(readFileSync(join(root, 'assets', 'content', 'items.json'), 'utf8')).items.map(
+    (i) => i.name,
+  ),
+);
 const beschriftung = (await schilder.first().textContent()) ?? '';
 check(
-  /Gold|Essenz|Irrlicht/.test(beschriftung),
+  /^\d+ Gold$/.test(beschriftung) || gegenstaende.has(beschriftung.replace(/ ×\d+$/, '')),
   'und es nennt, was da liegt',
   beschriftung || '(leer)',
 );
@@ -286,6 +510,147 @@ check(
   'und der Haufen verschwindet aus der Welt',
   `${vorher} → ${await page.evaluate(() => window.aurelith.lootCount)}`,
 );
+
+// --- Zeiger, Schlagsperre und der Weg hin -----------------------------------
+//
+// Drei Dinge, die zusammengehören: über einem Haufen zeigt die Maus eine Hand,
+// ein Klick dorthin schlägt nicht zu, und liegt er ausserhalb der Reichweite,
+// läuft die Figur von selbst hin.
+//
+// Dafür muss wieder etwas am Boden liegen — der Klick oben hat aufgeräumt.
+if ((await page.evaluate(() => window.aurelith.lootCount)) === 0) {
+  check(await kaempfeBisBeute(), 'für den zweiten Teil fällt neue Beute');
+}
+
+// Erst einmal weg vom Haufen — sonst prüft der Weg dorthin nichts, weil man
+// schon davorsteht.
+//
+// Und zwar *bis* er ausser Reichweite ist, nicht zwei Sekunden lang: in
+// SwiftShader zeichnet der Client ein paar Bilder je Sekunde, und ein fester
+// Tastendruck brachte die Figur einmal ganze 1,8 Einheiten weit — mitten in
+// die Aufhebereichweite hinein. Der Klick hob dann sofort auf, ein Weg wurde
+// nie gelaufen, und die Prüfung darunter hätte fast bestanden, ohne dass es
+// die geprüfte Sache je gegeben hätte.
+const reichweite = JSON.parse(
+  readFileSync(join(root, 'assets', 'content', 'tuning.json'), 'utf8'),
+).loot.pickupRange;
+const abstand = () => page.evaluate(() => window.aurelith.lootNearest);
+
+/** Zwischenstand für die Fehlersuche: was liegt wo, und wie spät ist es. */
+const spur = async (was) => {
+  const d = await page.evaluate(() => ({
+    haufen: window.aurelith.lootCount,
+    nah: window.aurelith.lootNearest,
+    x: window.aurelith.player.x,
+    z: window.aurelith.player.z,
+  }));
+  console.log(
+    `  · ${was}: ${d.haufen} Haufen, nächster ${d.nah.toFixed(1)}, Figur bei ` +
+      `${d.x.toFixed(1)}/${d.z.toFixed(1)}, ${Math.round((Date.now() - beginn) / 1000)} s`,
+  );
+};
+
+await page.keyboard.down('KeyS');
+await waitUntil(async () => (await abstand()) > reichweite + 2, 20000);
+await page.keyboard.up('KeyS');
+await page.waitForTimeout(600);
+await spur('nach dem Rückzug');
+
+const entferntVorher = await abstand();
+check(
+  entferntVorher > reichweite,
+  'die Figur steht weit genug vom Haufen weg',
+  `${entferntVorher.toFixed(1)} Einheiten, Aufhebereichweite ${reichweite}`,
+);
+
+const schild = await schilder.first().boundingBox();
+if (schild) {
+  const mx = schild.x + schild.width / 2;
+  // Das Schild steht über dem Haufen; der Haufen selbst liegt darunter.
+  const my = schild.y + schild.height + 12;
+
+  await page.mouse.move(mx, my);
+  await page.waitForTimeout(120);
+  const zeiger = await page.evaluate(
+    () => getComputedStyle(document.querySelector('canvas')).cursor,
+  );
+  check(zeiger === 'pointer', 'über dem Haufen zeigt die Maus eine Hand', zeiger);
+
+  // Gegenprobe: über freiem Boden ist wieder gewöhnlicher Zeiger. Ohne sie
+  // zeigte die Prüfung oben nur, dass irgendwo eine Hand steht.
+  //
+  // „Frei" wird gesucht und nicht angenommen: eine feste Handbreit daneben lag
+  // schon einmal genau auf dem zweiten Haufen, und die Gegenprobe schlug fehl,
+  // obwohl alles richtig war. Genommen wird die Stelle auf der Höhe des
+  // Schilds, die am weitesten von allen Beuteschildern entfernt ist.
+  const schilderKaesten = [];
+  for (let i = 0; i < (await schilder.count()); i++) {
+    const k = await schilder.nth(i).boundingBox();
+    if (k) schilderKaesten.push([k.x + k.width / 2, k.y + k.height / 2]);
+  }
+  let freiX = 40;
+  let freiAbstand = -1;
+  for (let x = 40; x <= BREITE - 40; x += 20) {
+    let naechster = Infinity;
+    for (const [lx, ly] of schilderKaesten) {
+      naechster = Math.min(naechster, Math.hypot(lx - x, ly - my));
+    }
+    if (naechster > freiAbstand) {
+      freiAbstand = naechster;
+      freiX = x;
+    }
+  }
+
+  await page.mouse.move(freiX, my);
+  await page.waitForTimeout(120);
+  const daneben = await page.evaluate(
+    () => getComputedStyle(document.querySelector('canvas')).cursor,
+  );
+  check(
+    daneben !== 'pointer' && freiAbstand > 120,
+    'daneben nicht',
+    `${daneben || '(leer)'}, ${Math.round(freiAbstand)} px vom nächsten Schild`,
+  );
+
+  // Drücken und dabei nachsehen, ob geschlagen wird. Der Schlag beginnt beim
+  // Drücken, nicht beim Loslassen — genau deshalb wird hier gemessen, solange
+  // die Taste unten ist.
+  const aufgehobenVorher = await meldungen();
+  await page.mouse.move(mx, my);
+  await page.mouse.down();
+  await page.waitForTimeout(150);
+  const schlaegt = await page.evaluate(() => window.aurelith.input.attack);
+  await page.mouse.up();
+  check(schlaegt === false, 'ein Klick auf den Haufen schlägt nicht zu', String(schlaegt));
+
+  check(
+    await waitUntil(async () => (await abstand()) < entferntVorher - 1, 12000),
+    'die Figur läuft von selbst hin',
+    `${entferntVorher.toFixed(1)} → ${(await abstand()).toFixed(1)}`,
+  );
+
+  // Gezählt und nicht gesucht: die Meldung vom ersten Aufheben steht noch im
+  // Verlauf, und „enthält Aufgehoben" wäre damit schon vor dem Klick wahr.
+  const angekommen = await waitUntil(async () => (await meldungen()) > aufgehobenVorher, 30000);
+  await spur('nach dem Weg');
+  check(
+    angekommen,
+    'und hebt am Ende auf',
+    `${aufgehobenVorher} → ${await meldungen()} Meldungen`,
+  );
+
+  // Und zwar ohne Absage. Der Server rechnet mit seiner eigenen Lage der
+  // Figur; wer bis auf den letzten Zentimeter der Reichweite heranläuft,
+  // bekommt „Das liegt zu weit weg." und steht dann davor. Genau so ist ein
+  // Lauf schon einmal geendet — mit einem Haufen in drei Einheiten Abstand
+  // und einer Aufhebereichweite von dreieinhalb.
+  const verlauf = (await page.locator('.chat-log').textContent()) ?? '';
+  check(
+    !verlauf.includes('zu weit weg'),
+    'und der Server sagt kein „zu weit weg"',
+    verlauf.includes('zu weit weg') ? 'Absage im Verlauf' : 'keine Absage',
+  );
+}
 
 check(fehler.length === 0, 'keine unbehandelten Ausnahmen', String(fehler.length));
 if (fehler.length > 0) console.error(fehler.join('\n'));

@@ -200,8 +200,16 @@ console.log('\nPfeilschweif');
 
   const werte = [30, 60, 90, 144].map(dichte);
   check(werte[0]! > 5, 'ein Pfeil zieht einen sichtbaren Schweif', `${werte[0]} Punkte`);
+  // Ein Punkt Unterschied ist erlaubt, und zwar nicht aus Nachsicht: gezählt
+  // wird der Höchststand an lebenden Punkten, abgelesen jeweils am Bildende.
+  // Gesetzt werden sie in festen Zeitabständen — ob der älteste im Moment des
+  // Ablesens gerade noch lebt oder eben erloschen ist, hängt deshalb daran,
+  // wo die Bildgrenze liegt. Der Fehler, um den es geht, sieht anders aus:
+  // ein Schweif je Bild statt je Zeit ergäbe bei 144 Bildern fast das
+  // Fünffache von 30, nicht einen Punkt mehr.
+  const spanne = Math.max(...werte) - Math.min(...werte);
   check(
-    new Set(werte).size === 1,
+    spanne <= 1,
     'und zwar unabhaengig von der Bildrate',
     `30/60/90/144 Bilder → ${werte.join('/')} Punkte`,
   );

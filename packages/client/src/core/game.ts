@@ -35,6 +35,7 @@ import {
   clockText,
   getItem,
   loadContent,
+  tuning,
   type AttackProfile,
   type LootRow,
   parseMapDocument,
@@ -81,6 +82,11 @@ const MAX_QUEUED_SNAPSHOTS = 20;
 
 /** Ein Klick trifft ein Entity, wenn es näher als das am Zeiger liegt. */
 const PICK_RADIUS_PX = 70;
+/**
+ * So viel der Aufhebereichweite nutzt der Client — der Rest ist Luft für den
+ * Abstand zwischen Vorhersage und Server. Siehe `inPickupRange`.
+ */
+const PICKUP_SICHERHEIT = 0.6;
 
 interface PendingInput {
   seq: number;
@@ -204,6 +210,14 @@ export interface Diagnostics {
   entityCount: number;
   /** Wie viele Beutehaufen gerade in Sichtweite liegen. */
   lootCount: number;
+  /**
+   * Entfernung zum nächsten Haufen. Unendlich, wenn keiner liegt.
+   *
+   * Die Zahl, an der man von aussen sieht, ob der automatische Weg zu einem
+   * angeklickten Haufen tatsächlich zurückgelegt wird — „die Figur bewegt
+   * sich" allein sagt nichts darüber, wohin.
+   */
+  lootNearest: number;
   /**
    * Der Stand des Tageszyklus, gerundet.
    *
@@ -341,6 +355,7 @@ export class Game {
     localId: 0,
     entityCount: 0,
     lootCount: 0,
+    lootNearest: Infinity,
     doll: { bilder: 0, rig: false, breite: 0, hoehe: 0 },
     sky: { uhr: '', dunkelheit: 0, sonne: 0, umgebung: 0, lichtfarbe: '', kuppelfarbe: '' },
     targetId: 0,
@@ -384,6 +399,9 @@ export class Game {
       this.connection?.sendShopTrade(1, itemId, count, slot);
     this.ui.onAttackHold = (held) => this.input.setAttackButton(held);
     this.input.onPick = (x, y) => this.pickTarget(x, y);
+    // Über einem Haufen zeigt die Maus eine Hand, und ein Klick dorthin
+    // schlägt nicht zu — beides aus derselben Abfrage.
+    this.input.attackBlocked = (x, y) => this.lootUnderPointer(x, y).id !== 0;
     // Das Beuteschild im Overlay ist die verlässliche Trefferfläche — vor
     // allem auf dem Telefon, wo der Haufen am Boden ein paar Bildpunkte gross
     // ist. Der Klick auf das Modell selbst geht durch `pickTarget`.
@@ -1148,6 +1166,9 @@ export class Game {
     return Date.now() + this.clockOffset;
   }
 
+  /** Der Haufen, zu dem die Figur gerade von selbst läuft. 0 heisst: keiner. */
+  private lootZiel = 0;
+
   private pickTarget(ndcX: number, ndcY: number): void {
     const width = window.innerWidth;
     const height = window.innerHeight;
@@ -1193,6 +1214,20 @@ export class Game {
 
     // Ein getroffenes Monster gewinnt gegen einen NPC dahinter — im Gefecht
     // will man kämpfen, nicht plaudern.
+    //
+    // Beute gewinnt, wenn sie näher am Zeiger liegt als das Monster.
+    //
+    // Vorher kam sie erst dran, wenn gar nichts anderes getroffen war — mit
+    // dem Ergebnis, dass ein Haufen vor den Füssen eines Monsters nicht
+    // anzuklicken war: man schlug zu, statt aufzuheben. Ein Vergleich der
+    // Abstände beantwortet beide Fälle, ohne dass einer von ihnen eine
+    // Ausnahme braucht: wer auf das Monster zielt, trifft das Monster.
+    const beute = this.lootUnderPointer(ndcX, ndcY);
+    if (beute.id > 0 && (!best || beute.dist <= bestDist)) {
+      this.pickupLoot(beute.id);
+      return;
+    }
+
     if (best) {
       this.setTarget(best.id);
       return;
@@ -1202,28 +1237,36 @@ export class Game {
       return;
     }
 
-    // Beute erst, wenn weder Monster noch NPC getroffen sind. Sie liegt
-    // genau dort, wo eben gekämpft wurde: gewönne sie gegen das nächste
-    // Monster, verlöre man das Ziel an den Haufen des vorigen.
-    let bestLoot = 0;
-    let bestLootDist = PICK_RADIUS_PX;
+    this.setTarget(0);
+  }
+
+  /**
+   * Welcher Beutehaufen liegt unter dieser Bildstelle — und wie weit daneben.
+   *
+   * Eine Stelle für drei Nutzer: der Klick, der Handzeiger und die Sperre des
+   * Schlags. Stünde die Rechnung dreimal da, zeigte irgendwann die Maus eine
+   * Hand über etwas, das der Klick nicht trifft.
+   */
+  private lootUnderPointer(ndcX: number, ndcY: number): { id: number; dist: number } {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const px = ((ndcX + 1) / 2) * width;
+    const py = ((1 - ndcY) / 2) * height;
+
+    let id = 0;
+    let dist = PICK_RADIUS_PX;
     for (const { row } of this.view.loot.piles.values()) {
       this.projection.set(row.x, row.y + 0.5, row.z).project(this.scene.camera);
       if (this.projection.z > 1) continue;
       const lx = (this.projection.x * 0.5 + 0.5) * width;
       const ly = (-this.projection.y * 0.5 + 0.5) * height;
-      const d = Math.hypot(lx - clickX, ly - clickY);
-      if (d < bestLootDist) {
-        bestLootDist = d;
-        bestLoot = row.id;
+      const d = Math.hypot(lx - px, ly - py);
+      if (d < dist) {
+        dist = d;
+        id = row.id;
       }
     }
-    if (bestLoot > 0) {
-      this.pickupLoot(bestLoot);
-      return;
-    }
-
-    this.setTarget(0);
+    return { id, dist };
   }
 
   /**
@@ -1236,7 +1279,74 @@ export class Game {
    */
   private pickupLoot(lootId: number): void {
     if (this.dead) return;
+
+    // Zu weit weg? Dann wird hingelaufen statt abgelehnt.
+    //
+    // Der Server prüft die Entfernung ohnehin noch einmal; eine Bitte aus
+    // zwanzig Metern wäre also nicht falsch, nur nutzlos — und der Spieler
+    // bekäme „zu weit weg" zu lesen, obwohl er genau weiss, wo der Haufen
+    // liegt. Hinlaufen ist die Antwort, die er meint.
+    const haufen = this.view.loot.piles.get(lootId);
+    if (haufen && !this.inPickupRange(haufen.row.x, haufen.row.z)) {
+      this.lootZiel = lootId;
+      return;
+    }
+
+    this.lootZiel = 0;
+    this.input.setAutoWish(0, 0);
     this.connection?.sendPickupLoot(lootId);
+  }
+
+  /**
+   * Steht die Figur nah genug an dieser Stelle, um aufzuheben?
+   *
+   * Absichtlich strenger als der Server: der rechnet mit **seiner** Lage der
+   * Figur, und die Vorhersage ist ihm um die Laufzeit voraus. Wer den Rand
+   * der Reichweite ausreizt, fragt aus Sicht des Servers aus dem Nirgendwo —
+   * die Figur steht dann vor dem Haufen, und es geschieht nichts.
+   *
+   * Deshalb eine Antwort für beide Nutzer, den Klick und den Weg dorthin:
+   * gälte für den Klick der ganze Radius und für den Weg ein kleinerer, gäbe
+   * es zwei Entfernungen, die beide „nah genug" heissen.
+   */
+  private inPickupRange(x: number, z: number): boolean {
+    const reichweite = tuning().loot.pickupRange * PICKUP_SICHERHEIT;
+    const dx = x - this.poseCurr.x;
+    const dz = z - this.poseCurr.z;
+    return dx * dx + dz * dz <= reichweite * reichweite;
+  }
+
+  /**
+   * Führt die Figur zum angeklickten Haufen und hebt ihn dort auf.
+   *
+   * Läuft **vor** dem Einlesen der Eingabe: der Wunsch geht durch dieselbe
+   * Glättung wie die Hand am Joystick, und die liest ihn im selben Takt.
+   * Danach entscheidet `manual`, ob der Spieler das Steuer übernommen hat —
+   * dann ist der automatische Lauf zu Ende, ohne dass er es abbrechen müsste.
+   */
+  private steerToLoot(): void {
+    if (this.lootZiel === 0) return;
+
+    const haufen = this.view.loot.piles.get(this.lootZiel);
+    if (!haufen || this.dead) {
+      this.lootZiel = 0;
+      this.input.setAutoWish(0, 0);
+      return;
+    }
+
+    const { x, z } = haufen.row;
+    if (this.inPickupRange(x, z)) {
+      this.lootZiel = 0;
+      this.input.setAutoWish(0, 0);
+      this.connection?.sendPickupLoot(haufen.row.id);
+      return;
+    }
+
+    const dx = x - this.poseCurr.x;
+    const dz = z - this.poseCurr.z;
+    const laenge = Math.hypot(dx, dz);
+    if (laenge < 1e-3) return;
+    this.input.setAutoWish(dx / laenge, dz / laenge);
   }
 
   /**
@@ -1343,9 +1453,21 @@ export class Game {
     const connection = this.connection;
     if (!world || !connection || this.localId === 0) return;
 
+    // Der Weg zu einem angeklickten Haufen, bevor die Eingabe gelesen wird —
+    // er ist ein Bewegungswunsch wie jeder andere.
+    this.steerToLoot();
+
     // Solange der Chat den Fokus hat, nimmt die Eingabe nichts mehr an — sie
     // läuft aber weiter, damit die Figur ausläuft statt stehenzubleiben.
     const snapshot = this.input.read(TICK_SECONDS, this.ui.chatHasFocus);
+
+    // Wer selbst steuert, will nicht mehr zum Haufen. Gefragt ist die
+    // Absicht und nicht die Bewegung: die Glättung lässt die Figur auch dann
+    // noch laufen, wenn niemand mehr etwas drückt.
+    if (this.lootZiel !== 0 && (snapshot.manual || snapshot.attack)) {
+      this.lootZiel = 0;
+      this.input.setAutoWish(0, 0);
+    }
 
     const buttons = snapshot.attack && !this.dead ? CoreButton.Attack : 0;
 
@@ -1536,6 +1658,13 @@ export class Game {
     d.localId = this.localId;
     d.entityCount = this.view.entities.size;
     d.lootCount = this.view.loot.piles.size;
+    let naechster = Infinity;
+    for (const { row } of this.view.loot.piles.values()) {
+      const dx = row.x - this.poseCurr.x;
+      const dz = row.z - this.poseCurr.z;
+      naechster = Math.min(naechster, Math.hypot(dx, dz));
+    }
+    d.lootNearest = naechster;
     d.doll = this.ui.dollState;
 
     const himmel = this.dayCycle.state;
