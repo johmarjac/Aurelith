@@ -226,6 +226,26 @@ export interface Diagnostics {
   /** Simulationsschritte seit dem Start. */
   ticks: number;
   /**
+   * Die Laufmarke — jeder ihrer Punkte und der Boden darunter.
+   *
+   * Sie liegt auf dem Gelände oder sie liegt darin, und der Unterschied ist im
+   * Bild ein fehlender halber Ring. Von aussen ist das sonst nur mit dem Auge
+   * zu prüfen; hier steht es als Zahl. `boden` ist die Höhe der
+   * **gezeichneten** Fläche an dieser Stelle — die Fläche, die den Ring
+   * verdeckt, wenn er darunter liegt.
+   *
+   * `kern` daneben ist die **gerechnete** Höhe desselben Punktes. Die beiden
+   * auseinanderzuhalten ist der ganze Witz: an ihrem Unterschied hing der
+   * verschwundene Ring, und eine Prüfung, die nur eine von beiden kennt, kann
+   * ihn nicht wiederfinden.
+   */
+  laufmarke: {
+    sichtbar: boolean;
+    /** Boden in der Mitte der Marke. Zeigt, wie schief die Stelle ist. */
+    mitte: number;
+    punkte: { x: number; y: number; z: number; boden: number; kern: number }[];
+  };
+  /**
    * Welche gelieferten Waffenmodelle angekommen sind.
    *
    * Nicht zur Anzeige, sondern zur Unterscheidung: eine Figur mit Platzhalter
@@ -443,6 +463,7 @@ export class Game {
     input: { moveX: 0, moveZ: 0, yaw: 0 },
     auftrag: { art: 'nichts', zielId: 0, angriff: false },
     ticks: 0,
+    laufmarke: { sichtbar: false, mitte: 0, punkte: [] },
     weaponModels: [],
     audio: { state: 'wartet', contextState: 'kein Kontext', sampleRate: 0, geladen: [], dekodiert: [] },
     reconciles: 0,
@@ -1920,13 +1941,15 @@ export class Game {
       // Und weil ein Ring breiter ist als ein Punkt, bekommt er die Auskunft
       // gleich mit: seine Punkte legen sich einzeln auf das Gelände. Eine
       // waagerechte Scheibe verschwindet am Hang zur Hälfte im Boden.
-      const welt = this.prediction;
-      this.view.laufmarke.setze(
-        boden.x,
-        welt?.heightAt(boden.x, boden.z) ?? 0,
-        boden.z,
-        welt ? (x, z) => welt.heightAt(x, z) : undefined,
-      );
+      //
+      // Gefragt wird das **Netz** und nicht der Kern. Der Kern rechnet eine
+      // stetige Fläche, gezeichnet werden Dreiecke mit vier bis acht Einheiten
+      // Maschenweite, und dazwischen liegt die gerechnete Höhe regelmässig
+      // über dem Dreieck. Ein Ring von knapp einer Einheit passt fast immer in
+      // eine einzige Masche — er lag deshalb ganz oder halb unter dem Boden,
+      // je nachdem, wohin man geklickt hat.
+      const hoehe = (x: number, z: number) => this.view.gelaendeHoehe(x, z) ?? 0;
+      this.view.laufmarke.setze(boden.x, hoehe(boden.x, boden.z), boden.z, hoehe);
     } else this.brichAuftragAb();
   }
 
@@ -2435,6 +2458,17 @@ export class Game {
       this.auftrag?.art === 'kampf' ? this.auftrag.entityId : 0;
     this.diagnostics.auftrag.angriff = buttons !== 0;
     this.diagnostics.ticks++;
+
+    // Die Marke lebt anderthalb Sekunden; wer sie prüfen will, muss sie in
+    // dieser Zeit antreffen. Deshalb bei jedem Schritt und nicht auf Anfrage.
+    const marke = this.view.laufmarke.punkteWelt();
+    this.diagnostics.laufmarke.sichtbar = marke.length > 0;
+    this.diagnostics.laufmarke.punkte = marke.map((p) => ({
+      ...p,
+      boden: this.view.gelaendeHoehe(p.x, p.z) ?? 0,
+      kern: this.prediction?.heightAt(p.x, p.z) ?? 0,
+    }));
+    this.diagnostics.laufmarke.mitte = this.view.laufmarke.mittelpunkt();
 
     world.applyInput(
       this.localId,

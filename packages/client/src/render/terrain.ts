@@ -51,6 +51,27 @@ export interface TerrainMesh {
    * Ohne Grenzen wird alles neu gerechnet.
    */
   refresh(bounds?: TerrainBounds): void;
+  /**
+   * Höhe der **gezeichneten** Fläche an dieser Stelle.
+   *
+   * Nicht dasselbe wie `world.heightAt`, und der Unterschied ist keine
+   * Kleinigkeit: der Kern rechnet eine stetige Rauschfunktion, das Netz hier
+   * ist ein Dreiecksgitter mit vier bis acht Einheiten Maschenweite. Zwischen
+   * zwei Stützpunkten liegt die gerechnete Höhe regelmässig über dem Dreieck,
+   * das man sieht.
+   *
+   * Wer etwas auf den Boden legt, meint diese Fläche. Legt er es auf die
+   * gerechnete, verschwindet es im Hang — genau das ist der Laufmarke
+   * passiert: ein Ring von knapp einer Einheit Durchmesser liegt fast immer
+   * innerhalb **eines** Dreiecks, und der Fehler wird dort am grössten.
+   *
+   * Gerechnet wird mit derselben Aufteilung in Dreiecke, mit der auch die
+   * Indizes gebaut werden. Eine bilineare Mischung wäre die naheliegende und
+   * falsche Wahl: sie beschreibt eine gekrümmte Fläche, das Netz besteht aber
+   * aus ebenen Dreiecken, und in der Mitte einer Masche unterscheiden die
+   * beiden sich am deutlichsten.
+   */
+  hoeheAn(x: number, z: number): number;
   dispose(): void;
 }
 
@@ -284,6 +305,28 @@ export function buildTerrain(
   return {
     object: group,
     ground,
+
+    hoeheAn(x, z) {
+      // Auf das Gitter, mit einer Masche Luft zum Rand: dort gibt es keinen
+      // rechten Nachbarn mehr.
+      const fx = Math.min(cols - 1.0001, Math.max(0, (x + half) / step));
+      const fz = Math.min(cols - 1.0001, Math.max(0, (z + half) / step));
+      const ix = Math.floor(fx);
+      const iz = Math.floor(fz);
+      const u = fx - ix;
+      const v = fz - iz;
+
+      const ha = heights[iz * cols + ix]!;
+      const hb = heights[iz * cols + ix + 1]!;
+      const hc = heights[(iz + 1) * cols + ix]!;
+      const hd = heights[(iz + 1) * cols + ix + 1]!;
+
+      // Die Masche zerfällt in (a, c, b) und (b, c, d) — siehe die Indizes
+      // weiter oben. Welche Hälfte gilt, entscheidet die Diagonale.
+      return u + v <= 1
+        ? ha + (hb - ha) * u + (hc - ha) * v
+        : hd + (hc - hd) * (1 - u) + (hb - hd) * (1 - v);
+    },
 
     refresh(bounds) {
       // Ein Stützpunkt Rand mehr: die Normale eines Vertex hängt an seinen

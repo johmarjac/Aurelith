@@ -228,6 +228,16 @@ export class WorldView {
   readonly loot: LootView;
   /** Der Ring am Wegziel. Eine Marke für alles — es gibt immer nur ein Ziel. */
   readonly laufmarke = new Laufmarke();
+
+  /**
+   * Wo die **gezeichnete** Bodenfläche an dieser Stelle liegt.
+   *
+   * Für alles, was auf dem Boden aufliegen soll. Ohne geladene Karte gibt es
+   * keinen Boden — dann `undefined`, und der Aufrufer entscheidet.
+   */
+  gelaendeHoehe(x: number, z: number): number | undefined {
+    return this.terrain?.hoeheAn(x, z);
+  }
   /** Zwei Punkte für die Klingenlage. Wiederverwendet, je Bild und Figur. */
   private readonly klingeA = new THREE.Vector3();
   private readonly klingeB = new THREE.Vector3();

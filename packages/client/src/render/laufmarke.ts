@@ -94,6 +94,20 @@ export class Laufmarke {
     this.root.position.set(x, y, z);
     this.root.visible = true;
     this.zeit = 0;
+    /*
+     * Die Ringe erst einmal verstecken.
+     *
+     * In ihren Punkten steht noch die Form der vorigen Marke — angepasst an
+     * ein Gelände, das zwanzig Schritte weiter liegt. `loesche` hat nur die
+     * Gruppe unsichtbar gemacht, die Ringe selbst blieben auf „sichtbar", und
+     * mit der neuen Stelle darunter wurde für ein Bild diese alte Form
+     * gezeichnet: ein Ring, der schief im Hang steckt. Ein Bild ist kurz, aber
+     * es ist genau das Bild direkt nach dem Klick, auf das man schaut.
+     *
+     * Sichtbar werden sie im nächsten `step` — und dort werden sie im selben
+     * Zug auf das Gelände gelegt.
+     */
+    for (const netz of this.ringe) netz.visible = false;
     // Bei jedem Setzen neu: nach einem Kartenwechsel gehört die alte Auskunft
     // zu einem Gelände, das es nicht mehr gibt.
     this.hoehe = hoehe;
@@ -159,6 +173,40 @@ export class Laufmarke {
       punkte.setY(i, (hoehe(wx, wz) - mitte.y) / skala);
     }
     punkte.needsUpdate = true;
+  }
+
+  /** Wo die Marke steht — Höhe des Mittelpunkts. */
+  mittelpunkt(): number {
+    return this.root.position.y;
+  }
+
+  /**
+   * Die Punkte der Ringe in Weltkoordinaten — für Prüfungen.
+   *
+   * Ob die Marke auf dem Boden liegt, sieht man im Bild und in keinem
+   * Typecheck. Von aussen nachrechnen lässt es sich nur, wenn die Punkte
+   * herauskommen, wo sie tatsächlich landen: nach Skalierung, nach Versatz,
+   * nach allem.
+   */
+  punkteWelt(): { x: number; y: number; z: number }[] {
+    const raus: { x: number; y: number; z: number }[] = [];
+    if (this.zeit < 0) return raus;
+    for (const netz of this.ringe) {
+      if (!netz.visible) continue;
+      // Die Weltmatrix frisch rechnen. three.js tut das erst beim Zeichnen,
+      // und `step` hat eben die Skalierung geändert: eine alte Matrix auf
+      // neuen Punkten ergibt Weltkoordinaten, die es nie gab — im Bild ist
+      // alles richtig, in der Messung liegt der Ring im Boden.
+      netz.updateWorldMatrix(true, false);
+      const geo = netz.geometry;
+      const punkte = geo.getAttribute('position') as THREE.BufferAttribute;
+      for (let i = 0; i < punkte.count; i++) {
+        const p = new THREE.Vector3(punkte.getX(i), punkte.getY(i), punkte.getZ(i));
+        netz.localToWorld(p);
+        raus.push({ x: p.x, y: p.y, z: p.z });
+      }
+    }
+    return raus;
   }
 
   dispose(): void {
