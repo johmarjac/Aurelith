@@ -87,6 +87,15 @@ jobs:
             type=sha,format=short
             type=raw,value=latest,enable={{is_default_branch}}
 
+      # Kurzer Hash und der Zeitpunkt dieses Laufs. `github.sha` ist der volle
+      # Hash, und ein Zeitstempel steht im Ereignis nicht — beides wird hier
+      # gebildet, damit unten nur noch eingesetzt wird.
+      - name: Fassung bestimmen
+        id: fassung
+        run: |
+          echo "nummer=$(echo "${{ github.sha }}" | cut -c1-6)" >> "$GITHUB_OUTPUT"
+          echo "zeit=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+
       - name: Bauen und schieben
         uses: docker/build-push-action@v6
         with:
@@ -95,6 +104,11 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Damit `/version` im Spiel eine Fassung nennen kann, die es
+          # wirklich gibt: kurzer Commit-Hash und der Zeitpunkt dieses Laufs.
+          build-args: |
+            AURELITH_BUILD=${{ steps.fassung.outputs.nummer }}
+            AURELITH_BUILD_TIME=${{ steps.fassung.outputs.zeit }}
           # Der Emscripten-Bau ist die teuerste Schicht und ändert sich
           # selten. Ohne Cache kostet jeder Lauf ihn von vorn.
           cache-from: type=gha

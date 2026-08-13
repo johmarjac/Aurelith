@@ -34,4 +34,8 @@ export * from './content/daycycle.ts';
 
 export * from './assets/manifest.ts';
 
+// Nur das Format. `build/ermitteln.node.ts` steht bewusst nicht hier: es ruft
+// `git` auf und gehört damit nicht in ein Browserbündel.
+export * from './build/stamp.ts';
+
 export const ENGINE_NAME = 'Aurelith';

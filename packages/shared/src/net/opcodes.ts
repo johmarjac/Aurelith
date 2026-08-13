@@ -7,7 +7,7 @@
  * ändert, zählt PROTOCOL_VERSION hoch.
  */
 
-export const PROTOCOL_VERSION = 7;
+export const PROTOCOL_VERSION = 8;
 
 export const ClientOp = {
   Hello: 0x01,
@@ -31,6 +31,8 @@ export const ClientOp = {
   PickupLoot: 0x0d,
   /** Einen Verbrauchsgegenstand benutzen. */
   UseItem: 0x0e,
+  /** Frage nach der Fassung des Servers. Antwort: `ServerOp.Version`. */
+  VersionRequest: 0x0f,
 } as const;
 export type ClientOp = (typeof ClientOp)[keyof typeof ClientOp];
 
@@ -48,6 +50,8 @@ export const ServerOp = {
   NpcDialog: 0x8a,
   /** Der vollständige Auftragsstand des Spielers. */
   QuestLog: 0x8b,
+  /** Antwort auf `VersionRequest`: Buildnummer und Bauzeitpunkt. */
+  Version: 0x8c,
 } as const;
 export type ServerOp = (typeof ServerOp)[keyof typeof ServerOp];
 

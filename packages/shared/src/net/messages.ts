@@ -7,6 +7,7 @@
 import type { ByteReader } from './bytes.ts';
 import { packet } from './frame.ts';
 import { ClientOp, ServerOp } from './opcodes.ts';
+import type { BuildStamp } from '../build/stamp.ts';
 import type { EntityState, EntityType } from '../sim/types.ts';
 
 // ---------------------------------------------------------------------------
@@ -230,6 +231,18 @@ export function encodeUseItem(slot: number): Uint8Array {
 
 export function decodeUseItem(r: ByteReader): { slot: number } {
   return { slot: r.u16() };
+}
+
+/**
+ * Frage nach der Fassung des Servers. Ohne Rumpf — die Frage ist die Nachricht.
+ *
+ * Sie steht bewusst nicht in der Willkommensnachricht: die kommt einmal beim
+ * Verbinden, und wer nach zwei Stunden Spielzeit wissen will, gegen welchen
+ * Server er läuft, hätte dann eine Angabe von vor zwei Stunden. Gefragt wird,
+ * wenn gefragt wird.
+ */
+export function encodeVersionRequest(): Uint8Array {
+  return packet(ClientOp.VersionRequest, 8).finish();
 }
 
 // ---------------------------------------------------------------------------
@@ -599,6 +612,21 @@ export function encodePong(clientTime: number, serverTime: number): Uint8Array {
 
 export function decodePong(r: ByteReader): { clientTime: number; serverTime: number } {
   return { clientTime: r.f64(), serverTime: r.f64() };
+}
+
+/**
+ * Antwort auf `VersionRequest`: woraus dieser Server gebaut wurde.
+ *
+ * Die Zeit geht als `f64` über die Leitung und nicht als fertiger Text: der
+ * Client soll sie mit derselben Funktion formatieren wie seine eigene, sonst
+ * stehen im Chat zwei Zeilen in zwei Schreibweisen untereinander.
+ */
+export function encodeServerVersion(m: BuildStamp): Uint8Array {
+  return packet(ServerOp.Version, 64).str(m.nummer).f64(m.zeit).finish();
+}
+
+export function decodeServerVersion(r: ByteReader): BuildStamp {
+  return { nummer: r.str(), zeit: r.f64() };
 }
 
 export function encodeKick(reason: number, message: string): Uint8Array {

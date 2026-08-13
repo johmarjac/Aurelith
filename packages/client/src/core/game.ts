@@ -33,6 +33,7 @@ import {
   TICK_SECONDS,
   attackProfileFor,
   clockText,
+  formatBuild,
   getItem,
   loadContent,
   tuning,
@@ -46,6 +47,7 @@ import {
 import { DayCycle } from '../render/daycycle.ts';
 import {
   BOOTSTRAP_MAP,
+  BUILD_STAMP,
   QUALITY,
   checkServerUrl,
   guessQuality,
@@ -82,6 +84,13 @@ const MAX_QUEUED_SNAPSHOTS = 20;
 
 /** Ein Klick trifft ein Entity, wenn es näher als das am Zeiger liegt. */
 const PICK_RADIUS_PX = 70;
+/**
+ * So lange wartet `/version` auf die Antwort des Servers.
+ *
+ * Grosszügig gegenüber einer langsamen Leitung und trotzdem kurz genug, dass
+ * niemand glaubt, der Befehl sei verschluckt worden.
+ */
+const VERSION_TIMEOUT_MS = 4000;
 /**
  * So viel der Aufhebereichweite nutzt der Client — der Rest ist Luft für den
  * Abstand zwischen Vorhersage und Server. Siehe `inPickupRange`.
@@ -830,6 +839,16 @@ export class Game {
 
       onChat: (msg) => this.ui.addChat(msg.channel, msg.from, msg.text),
 
+      // Die Antwort auf `/version`. Beide Zeilen entstehen hier, mit derselben
+      // Formatierung — die eine aus dem, was der Server geschickt hat, die
+      // andere aus dem, was beim Bauen eingebacken wurde.
+      onVersion: (stamp) => {
+        if (this.versionFrage === 0) return;
+        this.versionFrage = 0;
+        this.systemLine(`Server: ${formatBuild(stamp)}`);
+        this.systemLine(`Client: ${formatBuild(BUILD_STAMP)}`);
+      },
+
       onCombat: (msg) => this.applyCombat(msg),
 
       onKick: (_reason, message) => {
@@ -868,18 +887,54 @@ export class Game {
       case 'server':
         this.systemLine(`Aktuelle Adresse: ${serverUrl()}`);
         break;
+      case 'version':
+        this.commandVersion();
+        break;
       case 'help':
         this.systemLine(
           '/connect <adresse> — mit einem Server verbinden, z. B. /connect ws://localhost:8787/ws',
         );
         this.systemLine('/disconnect — gespeicherte Adresse loeschen und trennen');
         this.systemLine('/server — aktuelle Adresse anzeigen');
+        this.systemLine('/version — Fassung von Server und Client anzeigen');
         break;
       default:
         this.systemLine(`Unbekannter Befehl: /${command}. /help zeigt die Liste.`);
         break;
     }
   }
+
+  /**
+   * `/version` — welche Fassung dort läuft, und welche hier.
+   *
+   * Die eigene Zeile wird **erst mit der Antwort** geschrieben, nicht sofort.
+   * Zwei Zeilen im Chat, zwischen denen eine Sekunde Netz liegt, lesen sich
+   * wie zwei Ereignisse; hier ist es eine Auskunft. Und käme die Antwort gar
+   * nicht, stünde sonst eine Clientzeile ohne Gegenstück da — wer schnell
+   * liest, hielte sie für die Serverzeile.
+   */
+  private commandVersion(): void {
+    if (!this.connection) {
+      this.systemLine('Nicht verbunden — nur die eigene Fassung:');
+      this.systemLine(`Client: ${formatBuild(BUILD_STAMP)}`);
+      return;
+    }
+
+    // Ein Zähler statt eines Zeitstempels: wer zweimal fragt und einmal keine
+    // Antwort bekommt, soll nicht die Absage auf die erste Frage zur zweiten
+    // gerechnet sehen.
+    const frage = ++this.versionFrage;
+    window.setTimeout(() => {
+      if (this.versionFrage !== frage) return;
+      this.systemLine('Der Server antwortet nicht auf die Frage nach seiner Fassung.');
+      this.systemLine(`Client: ${formatBuild(BUILD_STAMP)}`);
+    }, VERSION_TIMEOUT_MS);
+
+    this.connection.sendVersionRequest();
+  }
+
+  /** Läuft gerade eine `/version`-Frage, und welche? 0 heisst: keine. */
+  private versionFrage = 0;
 
   private commandConnect(argument: string): void {
     if (!argument) {

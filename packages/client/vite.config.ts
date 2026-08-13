@@ -2,6 +2,7 @@ import { brotliCompressSync, constants as zlib } from 'node:zlib';
 import { createReadStream, existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
+import { ermittleBuildStamp } from '@aurelith/shared/build/ermitteln.node.ts';
 
 const repoRoot = resolve(import.meta.dirname, '..', '..');
 
@@ -168,6 +169,17 @@ export default defineConfig({
 
   define: {
     __BUILD__: JSON.stringify(process.env.AURELITH_BUILD ?? 'dev'),
+    /**
+     * Nummer **und** Zeit dieses Baus, für `/version`.
+     *
+     * Nicht dasselbe wie `__BUILD__`, obwohl beide oft gleich lauten:
+     * `__BUILD__` ist der Cache-Schlüssel an jeder Asset-Adresse und muss zum
+     * Manifest passen, sonst zeigt die Seite auf Dateien, die es unter dieser
+     * Version nicht gibt. Der Stempel hier benennt den Quellstand und wird mit
+     * derselben Funktion ermittelt wie der des Servers — sonst stünden im Chat
+     * zwei Zeilen, die nach verschiedenen Regeln entstanden sind.
+     */
+    __BUILD_STAMP__: JSON.stringify(ermittleBuildStamp()),
   },
 
   server: {

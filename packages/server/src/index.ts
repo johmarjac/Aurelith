@@ -9,6 +9,7 @@
 import { createServer as createHttpServer, type Server } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
 import { readFileSync } from 'node:fs';
+import { formatBuild } from '@aurelith/shared';
 import { config } from './config.ts';
 import { loadContentFromDisk } from './content.ts';
 import { loadServerCore } from './core.ts';
@@ -73,6 +74,9 @@ game.start(server);
 
 server.listen(config.port, config.host, () => {
   console.log(`[server] ${scheme}://${config.host}:${config.port}/ws — bereit`);
+  // Dieselbe Zeile, die `/version` im Chat zeigt. Wer ein Protokoll liest,
+  // soll nicht raten müssen, welcher Stand da lief.
+  console.log(`[server] Fassung ${formatBuild(config.build)}`);
   if (!config.tls) {
     console.log('[server] Ohne TLS. Für wss: AURELITH_TLS_KEY und AURELITH_TLS_CERT setzen.');
   }

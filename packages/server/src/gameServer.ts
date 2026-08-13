@@ -44,6 +44,7 @@ import {
   encodeCombatEvent,
   encodeInventory,
   encodeKick,
+  encodeServerVersion,
   encodeMapChange,
   encodeNpcDialog,
   encodePong,
@@ -275,6 +276,12 @@ export class GameServer {
         }
         case ClientOp.Respawn:
           if (session.state === 'playing') this.respawn(session);
+          break;
+        case ClientOp.VersionRequest:
+          // Ohne Zustandsprüfung: die Fassung ist keine Auskunft über die
+          // Welt, und gerade wenn eine Sitzung nicht ins Spiel kommt, will
+          // man wissen, gegen welchen Server man läuft.
+          session.send(encodeServerVersion(config.build));
           break;
         default:
           // Unbekannter Opcode: verwerfen. Ein Kick wäre zu hart, solange

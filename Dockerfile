@@ -72,9 +72,18 @@ LABEL org.opencontainers.image.title="Aurelith-Spielserver" \
       org.opencontainers.image.licenses="MIT"
 
 WORKDIR /app
+
+# Woraus dieses Bild gebaut wurde. Im Container gibt es weder Arbeitsbaum noch
+# git — ohne diese beiden Angaben meldet `/version` nur `dev`. Der
+# Veröffentlichungslauf reicht sie als `--build-arg` herein.
+ARG AURELITH_BUILD=dev
+ARG AURELITH_BUILD_TIME=
+
 ENV NODE_ENV=production \
     AURELITH_HOST=0.0.0.0 \
-    AURELITH_PORT=8787
+    AURELITH_PORT=8787 \
+    AURELITH_BUILD=$AURELITH_BUILD \
+    AURELITH_BUILD_TIME=$AURELITH_BUILD_TIME
 
 # Der Server wird nicht vorübersetzt — er läuft im Betrieb aus denselben
 # .ts-Dateien wie in der Entwicklung, und damit kann kein übersetztes Abbild

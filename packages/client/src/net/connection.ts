@@ -25,6 +25,7 @@ import {
   decodePong,
   decodeQuestLog,
   decodeServerChat,
+  decodeServerVersion,
   decodeSnapshot,
   decodeStats,
   decodeWelcome,
@@ -43,8 +44,10 @@ import {
   encodeSetTarget,
   encodeShopTrade,
   encodeUsePortal,
+  encodeVersionRequest,
   nullCipher,
   readPacket,
+  type BuildStamp,
   type ChatMsg,
   type CombatEventMsg,
   type InputMsg,
@@ -72,6 +75,8 @@ export interface ConnectionHandlers {
   onNpcDialog?: (msg: NpcDialogMsg) => void;
   onQuestLog?: (rows: QuestLogRow[]) => void;
   onKick?: (reason: number, message: string) => void;
+  /** Antwort auf `sendVersionRequest`. */
+  onVersion?: (stamp: BuildStamp) => void;
 }
 
 /** Wartezeiten zwischen Verbindungsversuchen, in Millisekunden. */
@@ -205,6 +210,9 @@ export class Connection {
         case ServerOp.Chat:
           this.handlers.onChat?.(decodeServerChat(reader));
           break;
+        case ServerOp.Version:
+          this.handlers.onVersion?.(decodeServerVersion(reader));
+          break;
         case ServerOp.Stats:
           this.handlers.onStats?.(decodeStats(reader));
           break;
@@ -263,6 +271,11 @@ export class Connection {
 
   sendChat(text: string, channel = 1): void {
     this.send(encodeClientChat(channel, text));
+  }
+
+  /** Fragt den Server nach seiner Fassung. Die Antwort kommt über `onVersion`. */
+  sendVersionRequest(): void {
+    this.send(encodeVersionRequest());
   }
 
   sendTarget(entityId: number): void {

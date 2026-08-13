@@ -5,6 +5,7 @@
 
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ermittleBuildStamp } from '@aurelith/shared/build/ermitteln.node.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..', '..', '..');
@@ -123,6 +124,15 @@ export const config = {
 
   /** Obergrenze der Eingabepakete pro Sekunde und Sitzung. */
   maxInputsPerSecond: envNum('AURELITH_MAX_INPUT_RATE', 60),
+
+  /**
+   * Aus welchem Stand dieser Server gebaut wurde.
+   *
+   * Einmal beim Start ermittelt und nicht bei jeder Anfrage: der Bau ändert
+   * sich im laufenden Betrieb nicht, und ein `git`-Aufruf je Chatbefehl wäre
+   * ein Prozessstart für eine Antwort, die schon feststeht.
+   */
+  build: ermittleBuildStamp(),
 
   repoRoot,
 } as const;

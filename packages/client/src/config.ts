@@ -3,13 +3,32 @@
  * Entwicklung und Betrieb unterscheidet, steht hier und nirgends sonst.
  */
 
+import type { BuildStamp } from '@aurelith/shared';
+
 declare const __BUILD__: string;
+declare const __BUILD_STAMP__: BuildStamp;
 
 /**
  * Build-Kennung. Sie hängt an jeder Asset-URL als `?v=` — genau wie Flyffs
  * `FilemapVersion`. Ein neuer Build ist eine neue Zahl, kein Cache-Invalidieren.
  */
 export const BUILD = typeof __BUILD__ === 'string' ? __BUILD__ : 'dev';
+
+/**
+ * Woraus dieses Bündel gebaut wurde — Nummer und Zeitpunkt.
+ *
+ * Getrennt von `BUILD`, weil beide verschiedene Fragen beantworten: `BUILD`
+ * ist der Cache-Schlüssel und muss zum Manifest passen, der Stempel benennt
+ * den Quellstand für Menschen. Er wird mit derselben Funktion gebildet wie der
+ * des Servers, damit `/version` zwei vergleichbare Zeilen zeigt.
+ *
+ * Ohne Bau — im Entwicklungsserver ist er gesetzt, in einem Testaufbau ohne
+ * Vite nicht — bleibt es beim Cache-Schlüssel und der Startzeit.
+ */
+export const BUILD_STAMP: BuildStamp =
+  typeof __BUILD_STAMP__ === 'object' && __BUILD_STAMP__ !== null
+    ? __BUILD_STAMP__
+    : { nummer: BUILD, zeit: Date.now() };
 
 /**
  * Wurzel der Assets. Der Streamer redet ausschließlich mit dieser Adresse —
