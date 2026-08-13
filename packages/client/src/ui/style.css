@@ -667,6 +667,68 @@ body {
   touch-action: pan-y;
 }
 
+/* --- Auswahlmenü am NPC ---------------------------------------------------
+ *
+ * Eine Liste an der Stelle, an der man getippt hat. Kein Fenster: keine
+ * Titelleiste, nicht verschiebbar, schliesst beim ersten Druck daneben.
+ */
+.npc-menu {
+  position: absolute;
+  min-width: 12rem;
+  max-width: 18rem;
+  padding: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  /* Über allem, was in der Welt liegt, aber unter den Fenstern: wer eines
+     öffnet, hat die Wahl schon getroffen. */
+  z-index: 15;
+}
+
+.npc-menu-kopf {
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: var(--accent);
+  padding: 0.15rem 0.45rem 0.3rem;
+  border-bottom: 1px solid var(--panel-edge);
+  margin-bottom: 0.15rem;
+}
+
+.npc-menu-eintrag {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.05rem;
+  padding: 0.4rem 0.5rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: calc(var(--radius) * 0.5);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  /* Auf dem Telefon getippt und nicht geklickt: vierundvierzig Bildpunkte
+     sind die übliche Untergrenze für eine Fläche unter dem Daumen. */
+  min-height: 2.4rem;
+}
+
+.npc-menu-eintrag:hover,
+.npc-menu-eintrag:focus-visible {
+  /* Aufgehellt statt eingefärbt: die Tafel darunter hat einen Verlauf, und
+     eine gesetzte Farbe darüber wäre ein Fleck darin. */
+  background: #ffffff1c;
+  border-color: var(--panel-edge-bright);
+}
+
+.npc-menu-label {
+  font-size: 0.9rem;
+}
+
+.npc-menu-hinweis {
+  font-size: 0.72rem;
+  color: var(--ink-dim);
+}
+
 /* --- Konsole --------------------------------------------------------------
  *
  * Absichtlich schmucklos: hier wird gelesen, nicht bewundert. Feste Breite

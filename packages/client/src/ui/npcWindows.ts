@@ -94,9 +94,6 @@ export class DialogWindow {
   private readonly body: HTMLElement;
 
   onQuestAction?: (questId: string, action: number) => void;
-  onOpenShop?: (npcDefId: string) => void;
-  /** Der Schmied kann aufwerten — der Wegweiser nicht. */
-  onOpenUpgrade?: (npcDefId: string) => void;
 
   constructor(host: HTMLElement) {
     this.win = new GameWindow(
@@ -162,20 +159,11 @@ export class DialogWindow {
       teile.push(box);
     }
 
-    if (msg.shop) {
-      teile.push(
-        button('Waren ansehen', () => this.onOpenShop?.(msg.npcDefId), 'btn dialog-shop'),
-      );
-    }
-
-    // Aufwerten kann nur der Schmied. Die Rolle steht in der Content-Tabelle,
-    // also weiss der Client das ohne ein weiteres Feld im Paket.
-    if (def?.role === 'smith') {
-      teile.push(
-        button('Waffe verstärken', () => this.onOpenUpgrade?.(msg.npcDefId), 'btn dialog-shop'),
-      );
-    }
-
+    // Laden und Schmiede stehen **nicht** mehr hier drin.
+    //
+    // Sie sind eigene Anliegen und keine Absätze eines Gesprächs: wer handeln
+    // will, sucht keinen Knopf unter drei Auftragstexten. Beides steht jetzt
+    // im Auswahlmenü, das vor dem Gespräch aufgeht — siehe `NpcMenu`.
     this.body.replaceChildren(...teile);
     this.win.setOpen(true);
   }
@@ -439,5 +427,93 @@ export class UpgradeWindow {
     }
 
     this.win.body.replaceChildren(...teile);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Auswahlmenü vor dem Gespräch
+// ---------------------------------------------------------------------------
+
+/** Ein Anliegen, das man bei diesem NPC haben kann. */
+export interface NpcOption {
+  label: string;
+  /** Kurze Beschreibung darunter. Weglassen, wenn der Name genügt. */
+  hinweis?: string;
+  oeffne: () => void;
+}
+
+/**
+ * Was man bei diesem NPC vorhat — bevor irgendein Fenster aufgeht.
+ *
+ * Ein Händler, der nebenbei zwei Aufträge vergibt, hatte bisher alles in
+ * einem Fenster: Begrüssung, zwei Auftragstexte mit Belohnungen, darunter
+ * „Waren ansehen". Man sucht dann den Knopf, den man meint. Die Auswahl
+ * vorweg trennt die Anliegen — und wer nur eines hat, sieht sie gar nicht.
+ *
+ * Bewusst kein `GameWindow`: das Menü hat keine Titelleiste, wird nicht
+ * verschoben und schliesst beim ersten Druck daneben. Es ist eine Frage, kein
+ * Fenster.
+ */
+export class NpcMenu {
+  private readonly root: HTMLDivElement;
+
+  constructor(host: HTMLElement) {
+    this.root = el('div', 'npc-menu panel');
+    this.root.hidden = true;
+    host.appendChild(this.root);
+
+    // Ein Druck daneben schliesst. Auf `pointerdown` und nicht auf `click`:
+    // die Welt darunter hört ebenfalls auf `pointerdown`, und ein `click` käme
+    // zu spät — man hätte das Menü geschlossen *und* daneben ein Ziel gewählt.
+    window.addEventListener('pointerdown', (ev) => {
+      if (this.root.hidden) return;
+      const ziel = ev.target as Node | null;
+      if (ziel && this.root.contains(ziel)) return;
+      this.schliesse();
+    });
+    window.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape') this.schliesse();
+    });
+  }
+
+  get isOpen(): boolean {
+    return !this.root.hidden;
+  }
+
+  schliesse(): void {
+    this.root.hidden = true;
+  }
+
+  /**
+   * Zeigt die Auswahl neben der angetippten Stelle.
+   *
+   * Die Lage wird ins Bild zurückgeholt, nachdem das Menü steht: erst dann ist
+   * bekannt, wie breit es geworden ist. Ein am unteren Rand aufgeklapptes Menü
+   * wäre sonst zur Hälfte ausserhalb — und zwar genau dann, wenn man einen NPC
+   * am unteren Bildrand anspricht.
+   */
+  zeige(titel: string, optionen: readonly NpcOption[], x: number, y: number): void {
+    const kopf = el('div', 'npc-menu-kopf', titel);
+    const eintraege = optionen.map((o) => {
+      const knopf = el('button', 'npc-menu-eintrag');
+      knopf.type = 'button';
+      knopf.append(el('span', 'npc-menu-label', o.label));
+      if (o.hinweis) knopf.append(el('span', 'npc-menu-hinweis', o.hinweis));
+      knopf.addEventListener('click', () => {
+        this.schliesse();
+        o.oeffne();
+      });
+      return knopf;
+    });
+
+    this.root.replaceChildren(kopf, ...eintraege);
+    this.root.hidden = false;
+
+    const rand = 8;
+    const kasten = this.root.getBoundingClientRect();
+    const links = Math.max(rand, Math.min(window.innerWidth - kasten.width - rand, x));
+    const oben = Math.max(rand, Math.min(window.innerHeight - kasten.height - rand, y));
+    this.root.style.left = `${Math.round(links)}px`;
+    this.root.style.top = `${Math.round(oben)}px`;
   }
 }

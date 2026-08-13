@@ -186,13 +186,19 @@ check(
   'das Zeichen über Aurel wechselt',
 );
 
-// --- Der Laden -------------------------------------------------------------
+// --- Ein Anliegen, kein Menü ------------------------------------------------
 //
-// Iselda steht zwanzig Einheiten weiter; statt hinzulaufen wird geprüft, dass
-// Aurel keinen Ladenknopf hat. Das Handeln selbst prüft der Protokolltest.
+// Aurel führt keinen Laden und schmiedet nicht: bei ihm gibt es nur das
+// Gespräch. Dann soll die Auswahl gar nicht erst aufgehen — ein Menü mit einem
+// Eintrag ist keine Wahl, sondern ein Klick mehr. Iselda mit ihrem Laden steht
+// zwanzig Einheiten weiter; das Handeln selbst prüft der Protokolltest.
+check(
+  !(await page.locator('.npc-menu').isVisible()),
+  'bei nur einem Anliegen geht kein Auswahlmenü auf',
+);
 check(
   !((await dialog.textContent())?.includes('Waren ansehen') ?? true),
-  'Aurel bietet keinen Laden an',
+  'und im Gespräch steht kein Ladenknopf',
 );
 
 // --- Gegenstände: Name und Beschreibung auf Tippen -------------------------

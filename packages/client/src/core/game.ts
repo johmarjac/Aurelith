@@ -967,7 +967,7 @@ export class Game {
         this.equipped = angelegt;
       },
 
-      onNpcDialog: (msg) => this.ui.showDialog(msg),
+      onNpcDialog: (msg) => this.ui.showDialog(msg, this.npcKlickX, this.npcKlickY),
 
       onQuestLog: (rows) => this.ui.setQuests(rows),
 
@@ -1365,6 +1365,9 @@ export class Game {
     return Date.now() + this.clockOffset;
   }
 
+  /** Wo zuletzt ein NPC angetippt wurde — für die Lage seines Auswahlmenüs. */
+  private npcKlickX = 0;
+  private npcKlickY = 0;
   /** Was die Figur von selbst tut — siehe `Auftrag`. */
   private auftrag?: Auftrag;
   /** Schlägt die Figur in diesem Schritt zu? Ergebnis von `steuere`. */
@@ -1439,6 +1442,11 @@ export class Game {
       return;
     }
     if (bestNpc) {
+      // Wo geklickt wurde, wird gemerkt: die Antwort des Servers kommt einen
+      // Wimpernschlag später, und das Auswahlmenü soll dort aufgehen, wo man
+      // hingesehen hat — nicht in der Bildmitte.
+      this.npcKlickX = clickX;
+      this.npcKlickY = clickY;
       this.connection?.sendInteract(bestNpc.id);
       return;
     }

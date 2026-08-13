@@ -55,11 +55,25 @@ const DT = 1 / FPS;
 /**
  * Die Obergrenze eines ehrlichen Schritts.
  *
- * Die schnellste Schwingung im Humanoiden läuft mit 9 rad/s bei einem
- * Ausschlag von 0,65 rad. Pro Bild sind das höchstens 0,65 * 9 / 60 ≈ 0,10 —
- * plus etwas Luft für die überlagerte Wippbewegung.
+ * Zwei Anteile, beide gerechnet und nicht geraten:
+ *
+ *   **Die Schwingung.** Das Knie ist das schnellste Gelenk — Ausschlag 1,15
+ *   rad bei 9 rad/s. Pro Bild sind das 1,15 · 9 / 60 ≈ 0,17.
+ *
+ *   **Der Tempowechsel.** Der Ausschlag selbst hängt am Tempo, und das läuft
+ *   in 0,14 s von null auf voll an. Solange die Rampe läuft, kommen bis zu
+ *   1,15 / 0,14 / 60 ≈ 0,14 dazu — allerdings nie gleichzeitig mit dem vollen
+ *   Schwung, weil der Ausschlag dabei noch klein ist.
+ *
+ * Gemessen liegt der schlimmste Fall bei 0,15. Die Grenze steht auf 0,22:
+ * genug Luft für beides zusammen, und weit unter dem, was ein echter Sprung
+ * wäre — der Fehler, für den dieser Test geschrieben wurde, lag bei
+ * Vielfachen von 2π.
+ *
+ * Vorher stand hier 0,13, hergeleitet aus einem Bein ohne Knie mit 0,65 rad
+ * Ausschlag. Die Zahl war richtig, solange die Figur auf Stelzen lief.
  */
-const STEP_LIMIT = 0.13;
+const STEP_LIMIT = 0.22;
 
 /**
  * Fährt ein Tempoprofil ab und meldet den größten Sprung.

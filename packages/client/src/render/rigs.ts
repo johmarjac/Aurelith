@@ -172,6 +172,15 @@ interface Schlagpose {
   koerperX: number;
   /** Gewichtsverlagerung nach vorn, in Weltnenheiten. */
   schritt: number;
+  /**
+   * Wie stark der Schlagarm angewinkelt ist, 0 bis etwa 1,5.
+   *
+   * Der Teil, den man am meisten sieht und am wenigsten erwartet: beim
+   * Ausholen wird der Arm eingeklappt und beim Durchziehen gestreckt. Ein
+   * durchgestreckter Arm, der einen Bogen fährt, sieht aus wie ein Zeiger;
+   * erst das Strecken *im* Hieb gibt ihm Wucht.
+   */
+  ellbogen: number;
 }
 
 /** Weich anlaufen. */
@@ -219,6 +228,7 @@ function schlagpose(variante: number, p: number): Schlagpose {
         koerperY: bahn(0.75, -0.8),
         koerperX: bahn(-0.05, 0.12),
         schritt: bahn(-0.04, 0.1),
+        ellbogen: bahn(1.35, 0.12),
       };
     // Überkopf: gerade hoch, gerade herunter. Der wuchtigste der drei.
     case 2:
@@ -229,6 +239,7 @@ function schlagpose(variante: number, p: number): Schlagpose {
         koerperY: bahn(0.12, -0.12),
         koerperX: bahn(-0.22, 0.32),
         schritt: bahn(-0.06, 0.16),
+        ellbogen: bahn(1.15, 0.05),
       };
     // Schräghieb von oben aussen nach unten innen — der Grundhieb.
     default:
@@ -239,6 +250,7 @@ function schlagpose(variante: number, p: number): Schlagpose {
         koerperY: bahn(0.55, -0.65),
         koerperX: bahn(-0.14, 0.2),
         schritt: bahn(-0.05, 0.13),
+        ellbogen: bahn(1.25, 0.1),
       };
   }
 }
@@ -682,20 +694,52 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
   body.add(torso);
   disposables.push(torso.geometry);
 
-  const armGeo = () => box(0.16 * w, armLength, 0.16 * w);
-  const legGeo = () => box(0.18 * w, legLength, 0.2 * w);
+  /*
+   * Zwei Glieder je Arm und Bein, mit einem Gelenk dazwischen.
+   *
+   * Vorher war jedes Bein ein einziger langer Kasten. Der konnte pendeln, und
+   * das war der ganze Lauf — eine Figur auf Stelzen. Ein Knie kostet einen
+   * Knoten und macht aus dem Pendeln einen Schritt: das hintere Bein zieht
+   * sich beim Nachholen an, statt wie ein Brett durchzuschwingen.
+   *
+   * Die Glieder überlappen sich um ein Zehntel ihrer Länge. Ohne das klafft
+   * beim Beugen ein Spalt am Gelenk — zwei Kästen, die genau aneinander
+   * enden, treffen sich nur, solange sie in einer Linie stehen.
+   */
+  const OBERSCHENKEL = legLength * 0.5;
+  const SCHIENBEIN = legLength * 0.5;
+  const OBERARM = armLength * 0.5;
+  const UNTERARM = armLength * 0.5;
+  const UEBERLAPP = 1.1;
+
+  const oberarmGeo = () => box(0.16 * w, OBERARM * UEBERLAPP, 0.16 * w);
+  const unterarmGeo = () => box(0.145 * w, UNTERARM * UEBERLAPP, 0.145 * w);
+  const oberschenkelGeo = () => box(0.19 * w, OBERSCHENKEL * UEBERLAPP, 0.21 * w);
+  const schienbeinGeo = () => box(0.165 * w, SCHIENBEIN * UEBERLAPP, 0.185 * w);
 
   // Ärmel in Hemdfarbe, Hosenbeine in Hosenfarbe — beides stand schon in der
   // Beschreibung, wurde aber nie gezeichnet.
   const sleeve = armFarbe;
-  const armL = joint(armGeo(), material, sleeve, [-0.34 * w * s, shoulderY * s, 0], [0, -armLength / 2, 0], disposables);
-  const armR = joint(armGeo(), material, sleeve, [0.34 * w * s, shoulderY * s, 0], [0, -armLength / 2, 0], disposables);
-  const legL = joint(legGeo(), material, beinFarbe, [-0.14 * w * s, hipY * s, 0], [0, -legLength / 2, 0], disposables);
-  const legR = joint(legGeo(), material, beinFarbe, [0.14 * w * s, hipY * s, 0], [0, -legLength / 2, 0], disposables);
+  const armL = joint(oberarmGeo(), material, sleeve, [-0.34 * w * s, shoulderY * s, 0], [0, -OBERARM / 2, 0], disposables);
+  const armR = joint(oberarmGeo(), material, sleeve, [0.34 * w * s, shoulderY * s, 0], [0, -OBERARM / 2, 0], disposables);
+  const legL = joint(oberschenkelGeo(), material, beinFarbe, [-0.14 * w * s, hipY * s, 0], [0, -OBERSCHENKEL / 2, 0], disposables);
+  const legR = joint(oberschenkelGeo(), material, beinFarbe, [0.14 * w * s, hipY * s, 0], [0, -OBERSCHENKEL / 2, 0], disposables);
   for (const j of [armL, armR, legL, legR]) {
     j.scale.setScalar(s);
     body.add(j);
   }
+
+  // Die unteren Glieder hängen am Ende der oberen. Sie werden **nicht**
+  // nochmals skaliert: der Massstab steckt schon im Elternknoten, und zweimal
+  // angewandt wäre der Unterarm eines Gruftwärters länger als sein Oberarm.
+  const ellbogenL = joint(unterarmGeo(), material, sleeve, [0, -OBERARM, 0], [0, -UNTERARM / 2, 0], disposables);
+  const ellbogenR = joint(unterarmGeo(), material, sleeve, [0, -OBERARM, 0], [0, -UNTERARM / 2, 0], disposables);
+  const knieL = joint(schienbeinGeo(), material, beinFarbe, [0, -OBERSCHENKEL, 0], [0, -SCHIENBEIN / 2, 0], disposables);
+  const knieR = joint(schienbeinGeo(), material, beinFarbe, [0, -OBERSCHENKEL, 0], [0, -SCHIENBEIN / 2, 0], disposables);
+  armL.add(ellbogenL);
+  armR.add(ellbogenR);
+  legL.add(knieL);
+  legR.add(knieR);
 
   // Hände und Füße.
   //
@@ -748,14 +792,14 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
     return teile;
   };
 
-  for (const [arm, thumbSide] of [
-    [armR, -1],
-    [armL, 1],
+  for (const [unterarm, thumbSide] of [
+    [ellbogenR, -1],
+    [ellbogenL, 1],
   ] as const) {
     const geo = assemble(handParts(thumbSide));
     const hand = new THREE.Mesh(geo, material);
-    hand.position.set(0, -armLength, 0);
-    arm.add(hand);
+    hand.position.set(0, -UNTERARM, 0);
+    unterarm.add(hand);
     disposables.push(geo);
   }
 
@@ -787,13 +831,16 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
         ]
       : []),
   ];
-  for (const leg of [legL, legR]) {
+  const stiefel: THREE.Mesh[] = [];
+  for (const schienbein of [knieL, knieR]) {
     const geo = assemble(bootParts);
     const boot = new THREE.Mesh(geo, material);
-    boot.position.set(0, -legLength, 0);
-    leg.add(boot);
+    boot.position.set(0, -SCHIENBEIN, 0);
+    schienbein.add(boot);
+    stiefel.push(boot);
     disposables.push(geo);
   }
+  const [stiefelL, stiefelR] = stiefel as [THREE.Mesh, THREE.Mesh];
 
   // Die Waffe haengt an der Hand. Nicht mitskalieren: der Arm ist bereits mit
   // `s` skaliert, und zweimal skaliert waere der Gruftwaerter-Knueppel dreimal
@@ -813,9 +860,9 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
 
   if (spec) {
     weaponMount = new THREE.Object3D();
-    weaponMount.position.set(spec.position[0], -armLength + spec.position[1], spec.position[2]);
+    weaponMount.position.set(spec.position[0], -UNTERARM + spec.position[1], spec.position[2]);
     weaponMount.rotation.set(spec.rotation[0], spec.rotation[1], spec.rotation[2]);
-    armR.add(weaponMount);
+    ellbogenR.add(weaponMount);
 
     const weaponGeo = spec.build();
     placeholder = new THREE.Mesh(weaponGeo, material);
@@ -865,53 +912,103 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
 
       const gait = Math.min(1, state.speed / 6);
       gaitPhase += state.dt * 9 * Math.max(0.35, gait);
-      const swing = Math.sin(gaitPhase) * 0.65 * gait;
+      const schritt = Math.sin(gaitPhase);
+      const swing = schritt * 0.65 * gait;
 
-      armL.rotation.x = -swing * 0.8;
-      // Aus dem Schlag zurück: was der Hieb verstellt hat, gilt sonst nicht.
-      armR.rotation.z = 0;
-      armL.rotation.z = 0;
-      body.position.z = 0;
+      /*
+       * Der Laufzyklus.
+       *
+       * Hüfte und Knie laufen um eine Viertelperiode versetzt, und das ist der
+       * ganze Unterschied zwischen Gehen und Staksen: das Bein pendelt nicht
+       * als Stange, sondern zieht sich beim Nachholen an und streckt sich, um
+       * aufzusetzen. Der Scheitel der Beugung liegt dort, wo der Fuss hinten
+       * ist und nach vorn kommt — bei `-cos` für das eine, bei `+cos` für das
+       * andere Bein.
+       *
+       * Ein Knie beugt nur in eine Richtung. Deshalb `max(0, …)`: die
+       * Gegenhälfte der Schwingung wird abgeschnitten statt gespiegelt, sonst
+       * knickte das Bein beim Aufsetzen nach vorn durch.
+       */
+      const KNIE_RUHE = 0.07;
+      const knieHub = 1.15 * gait;
+      let knieLinks = KNIE_RUHE + Math.max(0, -Math.cos(gaitPhase)) * knieHub;
+      let knieRechts = KNIE_RUHE + Math.max(0, Math.cos(gaitPhase)) * knieHub;
+
+      // Der Ellbogen bleibt immer etwas angewinkelt und schwingt mit. Negativ,
+      // weil ein Ellbogen die Hand nach **vorn** klappt — die Gegenrichtung
+      // zum Knie.
+      const armBeuge = 0.16 + gait * 0.5;
+      let ellbogenLinks = -(armBeuge + gait * 0.22 * Math.max(0, -schritt));
+      let ellbogenRechts = -(armBeuge + gait * 0.22 * Math.max(0, schritt));
+
+      let armLinks = -swing * 0.8;
+      let armRechts = swing * 0.8;
+      let koerperDrehung = 0;
+      let koerperKippung = 0;
+      let koerperVor = 0;
+      let armRechtsSeite = 0;
 
       // Bücken. Hin und zurück in einer Bewegung: `sin(p·π)` ist bei null und
       // eins genau null, die Figur steht also am Anfang und am Ende ohne
       // Übergang wieder gerade.
       const beugung = state.pickupPhase >= 0 ? Math.sin(state.pickupPhase * Math.PI) : 0;
 
-      let schlagKippung = 0;
       if (state.attackPhase >= 0) {
+        // Der Hieb wird auf die Laufhaltung **addiert** und ersetzt sie nicht.
+        //
+        // Beide Enden der Hiebkurve sind null, also stimmt die Haltung am
+        // Anfang und am Ende genau mit der überein, die ohne Hieb gälte — und
+        // wer im Laufen zuschlägt, bekommt keinen Sprung an den Übergängen.
+        // Ersetzend gerechnet schnappte allein schon der Ellbogen: er ist im
+        // Stand angewinkelt, die Hiebkurve beginnt aber bei null.
         const hieb = schlagpose(state.attackVariant ?? 0, state.attackPhase);
-        armR.rotation.x = hieb.armX;
-        armR.rotation.z = hieb.armZ;
-        armL.rotation.x = hieb.armLX;
-        body.rotation.y = hieb.koerperY;
-        body.position.z = hieb.schritt;
-        schlagKippung = hieb.koerperX;
+        armRechts += hieb.armX;
+        armRechtsSeite = hieb.armZ;
+        armLinks += hieb.armLX;
+        ellbogenRechts -= hieb.ellbogen;
+        koerperDrehung = hieb.koerperY;
+        koerperKippung = hieb.koerperX;
+        koerperVor = hieb.schritt;
+        // Das vordere Bein geht mit, das hintere stemmt sich dagegen — ohne
+        // das steht die Figur beim Schwung auf zwei angenagelten Füssen.
+        knieLinks += Math.max(0, hieb.koerperX) * 0.9;
       } else if (beugung > 0) {
         // Der rechte Arm greift nach unten, der linke geht zum Ausgleich nach
-        // hinten — so, wie man sich tatsächlich nach etwas bückt.
-        armR.rotation.x = beugung * 1.5;
-        armL.rotation.x = -beugung * 0.5;
-        body.rotation.y = 0;
-      } else {
-        armR.rotation.x = swing * 0.8;
-        body.rotation.y = 0;
+        // hinten — so, wie man sich tatsächlich nach etwas bückt. In die Knie
+        // geht man dabei ebenfalls, sonst klappt die Figur nur im Rumpf.
+        armRechts = beugung * 1.5;
+        armLinks = -beugung * 0.5;
+        ellbogenRechts = -0.1 - beugung * 0.25;
+        ellbogenLinks = -0.1 - beugung * 0.15;
+        knieLinks += beugung * 0.75;
+        knieRechts += beugung * 0.75;
       }
+
+      armL.rotation.x = armLinks;
+      armR.rotation.x = armRechts;
+      armR.rotation.z = armRechtsSeite;
+      armL.rotation.z = 0;
+      ellbogenL.rotation.x = ellbogenLinks;
+      ellbogenR.rotation.x = ellbogenRechts;
+      body.rotation.y = koerperDrehung;
+      body.position.z = koerperVor;
 
       // Der Oberkörper kippt nach vorn. Die Beine hängen am selben Knoten und
       // würden mitkippen — die ganze Figur fiele wie ein Brett nach vorn —,
-      // deshalb halten sie dagegen und bleiben fast senkrecht.
-      body.rotation.x = beugung * 0.95 + schlagKippung;
-      // Beim Hieb geht das vordere Bein mit, das hintere stemmt sich dagegen —
-      // ohne das steht die Figur beim Schwung auf zwei angenagelten Füssen.
-      legL.rotation.x = swing - beugung * 0.8 - schlagKippung * 0.8;
-      legR.rotation.x = -swing - beugung * 0.8 + schlagKippung * 0.45;
+      // deshalb halten sie dagegen und bleiben fast senkrecht. Beim Laufen
+      // kommt eine leichte Neigung in die Bewegungsrichtung dazu.
+      body.rotation.x = beugung * 0.95 + koerperKippung + gait * 0.07;
+      legL.rotation.x = swing - beugung * 0.8 - koerperKippung * 0.8 - gait * 0.07;
+      legR.rotation.x = -swing - beugung * 0.8 + koerperKippung * 0.45 - gait * 0.07;
 
       // Leichtes Wippen — ohne das wirkt eine stehende Figur wie ein Möbelstück.
-      // Beim Bücken geht die Figur zusätzlich in die Knie.
+      // Beim Bücken geht die Figur zusätzlich in die Knie. Der Lauf senkt sie
+      // zusätzlich, solange beide Beine gebeugt sind: das ist der Moment, in
+      // dem das Gewicht auf einem Bein hängt.
       body.position.y = Math.abs(Math.sin(gaitPhase)) * 0.05 * gait +
         Math.sin(state.time * 1.8) * 0.012 -
-        beugung * 0.18;
+        beugung * 0.18 -
+        Math.min(knieLinks, knieRechts) * 0.12;
 
       // --- Sprung ---------------------------------------------------------
       //
@@ -930,16 +1027,26 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
         const misch = (jetzt: number, sprung: number): number =>
           jetzt * (1 - luft) + sprung * luft;
 
-        // Beim Fallen stehen die Beine fast senkrecht unter dem Körper — so
-        // kommt man auf. Nur leicht gespreizt, damit die Haltung nicht wie
-        // stramme Habachtstellung aussieht.
         legL.rotation.x = misch(legL.rotation.x, steigt ? -1.0 : 0.18);
         legR.rotation.x = misch(legR.rotation.x, steigt ? -0.7 : -0.12);
+        // Erst mit dem Knie wird aus „Bein hoch" ein angezogenes Bein.
+        knieLinks = misch(knieLinks, steigt ? 1.35 : 0.12);
+        knieRechts = misch(knieRechts, steigt ? 0.95 : 0.1);
         armL.rotation.x = misch(armL.rotation.x, steigt ? -1.25 : -0.55);
         armR.rotation.x = misch(armR.rotation.x, steigt ? -1.05 : -0.45);
+        ellbogenL.rotation.x = misch(ellbogenL.rotation.x, steigt ? -0.75 : -0.3);
+        ellbogenR.rotation.x = misch(ellbogenR.rotation.x, steigt ? -0.7 : -0.28);
         body.rotation.x = misch(body.rotation.x, steigt ? -0.14 : 0.1);
         body.position.y = misch(body.position.y, steigt ? 0.07 : -0.05);
       }
+
+      knieL.rotation.x = knieLinks;
+      knieR.rotation.x = knieRechts;
+      // Der Knöchel hält den Fuss flacher, als das Schienbein ihn stellen
+      // würde. Ohne ihn zeigt die Sohle bei jedem angezogenen Knie nach
+      // hinten, und die Figur läuft wie eine Marionette.
+      stiefelL.rotation.x = -knieLinks * 0.55;
+      stiefelR.rotation.x = -knieRechts * 0.55;
     },
     dispose() {
       for (const g of disposables) g.dispose();

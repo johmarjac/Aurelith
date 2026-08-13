@@ -14,6 +14,7 @@ import * as THREE from 'three';
 import {
   ChatChannel,
   QUESTS,
+  getNpc,
   QuestStatus,
   clockText,
   attributeDef,
@@ -39,7 +40,14 @@ import type { EntityVisual } from '../render/worldView.ts';
 import type { ModelRegistry } from '../render/modelRegistry.ts';
 import { GameWindow } from './windows.ts';
 import { Konsole, type LogArt } from './konsole.ts';
-import { DialogWindow, QuestLogWindow, ShopWindow, UpgradeWindow } from './npcWindows.ts';
+import {
+  DialogWindow,
+  NpcMenu,
+  QuestLogWindow,
+  ShopWindow,
+  UpgradeWindow,
+  type NpcOption,
+} from './npcWindows.ts';
 import { Overlay } from './overlay.ts';
 import { DollView } from './dollView.ts';
 import {
@@ -270,6 +278,8 @@ export class UI {
   readonly konsole: Konsole;
 
   private readonly dialogWindow: DialogWindow;
+  /** Die Frage vor dem Gespräch: worum geht es hier? */
+  private readonly npcMenu: NpcMenu;
   private readonly questWindow: QuestLogWindow;
   private readonly shopWindow: ShopWindow;
   private readonly upgradeWindow: UpgradeWindow;
@@ -412,21 +422,13 @@ export class UI {
 
     // --- NPC-Fenster ------------------------------------------------------
     this.dialogWindow = new DialogWindow(host);
+    this.npcMenu = new NpcMenu(host);
     this.questWindow = new QuestLogWindow(host);
     this.shopWindow = new ShopWindow(host);
     this.upgradeWindow = new UpgradeWindow(host);
     this.upgradeWindow.onUpgrade = (slot) => this.onUpgradeItem?.(slot);
-    this.dialogWindow.onOpenUpgrade = () => {
-      this.upgradeWindow.setInventory(this.inventory, this.lastStats?.gold ?? 0);
-      this.upgradeWindow.open();
-    };
-
     this.dialogWindow.onQuestAction = (id, action) => this.onQuestAction?.(id, action);
     this.questWindow.onQuestAction = (id, action) => this.onQuestAction?.(id, action);
-    this.dialogWindow.onOpenShop = (npcDefId) => {
-      this.shopWindow.setInventory(this.sellableItems(), this.lastStats?.gold ?? 0);
-      this.shopWindow.open(npcDefId);
-    };
     this.shopWindow.onBuy = (itemId, count) => this.onBuy?.(itemId, count);
     this.shopWindow.onSell = (itemId, count, slot) => this.onSell?.(itemId, count, slot);
 
@@ -1111,12 +1113,81 @@ export class UI {
     if (this.clockLabel.textContent !== text) this.clockLabel.textContent = text;
   }
 
-  /** Zeigt das Gespräch mit einem NPC. */
-  showDialog(msg: NpcDialogMsg): void {
-    this.dialogWindow.show(msg);
+  /**
+   * Ein NPC ist angesprochen — was hier möglich ist, steht zur Wahl.
+   *
+   * Bei genau einem Anliegen geht es sofort auf. Ein Menü mit einem einzigen
+   * Eintrag ist keine Wahl, sondern ein Klick mehr.
+   *
+   * `x`/`y` ist die Stelle, an der angetippt wurde. Das Menü erscheint dort
+   * und nicht in der Bildmitte: man hat gerade dorthin gesehen.
+   */
+  showDialog(msg: NpcDialogMsg, x = window.innerWidth / 2, y = window.innerHeight / 2): void {
+    // Steht das Gespräch schon offen, ist das hier eine **Auffrischung** —
+    // der Server schickt es nach jeder Auftragshandlung neu. Wer eben
+    // „Annehmen" gedrückt hat, will den neuen Text sehen und nicht wieder
+    // gefragt werden, worum es geht.
+    if (this.dialogWindow.isOpen) {
+      this.dialogWindow.show(msg);
+      return;
+    }
+
+    const def = getNpc(msg.npcDefId);
+    const optionen: NpcOption[] = [
+      {
+        label: 'Gespräch',
+        hinweis: this.auftragsHinweis(msg),
+        oeffne: () => this.dialogWindow.show(msg),
+      },
+    ];
+
+    if (msg.shop) {
+      optionen.push({
+        label: 'Handel',
+        hinweis: 'Kaufen und verkaufen',
+        oeffne: () => {
+          this.shopWindow.setInventory(this.sellableItems(), this.lastStats?.gold ?? 0);
+          this.shopWindow.open(msg.npcDefId);
+        },
+      });
+    }
+
+    // Aufwerten kann nur der Schmied. Die Rolle steht in der Content-Tabelle,
+    // also weiss der Client das ohne ein weiteres Feld im Paket.
+    if (def?.role === 'smith') {
+      optionen.push({
+        label: 'Waffe verstärken',
+        hinweis: 'Aufwerten gegen Gold',
+        oeffne: () => {
+          this.upgradeWindow.setInventory(this.inventory, this.lastStats?.gold ?? 0);
+          this.upgradeWindow.open();
+        },
+      });
+    }
+
+    if (optionen.length === 1) {
+      optionen[0]!.oeffne();
+      return;
+    }
+    this.npcMenu.zeige(def?.name ?? msg.npcDefId, optionen, x, y);
+  }
+
+  /** Was am Gespräch dranhängt — „ein Auftrag wartet" statt einer leeren Zeile. */
+  private auftragsHinweis(msg: NpcDialogMsg): string | undefined {
+    let offen = 0;
+    let fertig = 0;
+    for (const q of msg.quests) {
+      if (q.status === QuestStatus.Verfuegbar) offen++;
+      else if (q.status === QuestStatus.Erfuellt) fertig++;
+    }
+    const teile: string[] = [];
+    if (offen > 0) teile.push(offen === 1 ? 'ein Auftrag zu haben' : `${offen} Aufträge zu haben`);
+    if (fertig > 0) teile.push(fertig === 1 ? 'einer abzugeben' : `${fertig} abzugeben`);
+    return teile.length > 0 ? teile.join(', ') : undefined;
   }
 
   closeDialog(): void {
+    this.npcMenu.schliesse();
     this.dialogWindow.close();
     this.shopWindow.close();
     this.upgradeWindow.close();
