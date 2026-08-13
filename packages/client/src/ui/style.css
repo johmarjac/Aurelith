@@ -1368,6 +1368,18 @@ body {
    deckend — man sieht, worauf man sich anmeldet.
 */
 
+/*
+ * Alles, was vor der Welt kommt — und davor liegt nichts.
+ *
+ * Der Grund ist undurchsichtig. Vorher schimmerte das Gelände durch einen
+ * dunklen Schleier, und dafür musste es geladen sein: ein Landstrich samt
+ * Kacheln und Props als Tapete hinter einem Passwortfeld. Jetzt wird die
+ * Karte erst geholt, wenn jemand sie betritt, und hier steht dieselbe Farbe,
+ * die auch die Tafeln tragen.
+ *
+ * Kein `backdrop-filter` mehr: es gibt nichts mehr zu verwischen, und auf dem
+ * Telefon kostet eine bildfüllende Weichzeichnung jedes Bild aufs Neue.
+ */
 .lobby {
   position: fixed;
   inset: 0;
@@ -1375,8 +1387,9 @@ body {
   display: grid;
   place-items: center;
   padding: 1rem;
-  background: rgba(10, 8, 6, 0.72);
-  backdrop-filter: blur(3px);
+  background:
+    radial-gradient(120% 90% at 50% 15%, rgba(78, 56, 34, 0.55), transparent 70%),
+    linear-gradient(180deg, #17110c 0%, #0d0a07 55%, #060504 100%);
   overflow: auto;
 }
 

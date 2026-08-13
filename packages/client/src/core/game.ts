@@ -49,7 +49,6 @@ import {
 } from '@aurelith/shared';
 import { DayCycle } from '../render/daycycle.ts';
 import {
-  BOOTSTRAP_MAP,
   BUILD_STAMP,
   QUALITY,
   checkServerUrl,
@@ -701,7 +700,19 @@ export class Game {
       void this.mixer.preload(SOUNDS[id].path, (path) => this.streamer.request(path));
     }
 
-    await this.ensureMap(BOOTSTRAP_MAP);
+    /*
+     * Keine Karte vor der Anmeldung.
+     *
+     * Hier stand einmal eine: die Welt wurde geladen, während jemand sein
+     * Passwort tippte, und lag als Bild hinter der Maske. Wer sich anmeldete,
+     * war ohne Ladebalken drin.
+     *
+     * Der Preis dafür war ein Gelände samt Kacheln, Textur und Props, das
+     * niemand betritt — geholt auf jedem Gerät, das die Seite aufruft, und
+     * bezahlt von jedem Telefon, das darüber warm wird. Geladen wird jetzt
+     * die Karte, in die man wirklich geht, und erst dann, wenn der Server
+     * gesagt hat, welche das ist.
+     */
     this.connect();
   }
 
@@ -1112,8 +1123,11 @@ export class Game {
 
       onWelcome: async (msg) => {
         this.localId = msg.entityId;
-        // Die Maske hat ihren Dienst getan.
-        this.lobby.verbergen();
+        // Die Maske bleibt noch stehen — sie geht erst, wenn es etwas zu
+        // sehen gibt. Vorher stand hier ein `verbergen()`, und weil die Karte
+        // damals längst geladen war, fiel nicht auf, dass es zu früh kam. Ohne
+        // Vorladen wäre es eine leere Fläche für ein, zwei Sekunden.
+        this.lobby.zeigeHinweis(`Die Welt wird geladen — ${msg.mapId} …`);
         this.syncClock(msg.serverTimeMs);
         this.pending = [];
         this.targetId = 0;
@@ -1136,7 +1150,20 @@ export class Game {
         //
         // Zurückgesetzt wird er in `resetSession`, also genau dann, wenn die
         // Gegenseite wirklich neu anfängt.
-        await this.ensureMap(msg.mapId);
+        try {
+          await this.ensureMap(msg.mapId);
+        } catch (err) {
+          // Die Maske bleibt stehen — mit einem Grund. Sie wegzunehmen hiesse,
+          // jemanden vor einer leeren Fläche stehen zu lassen, die aussieht
+          // wie ein Absturz und keine ist.
+          const grund = err instanceof Error ? err.message : String(err);
+          this.lobby.zeigeFehler(`Die Karte ${msg.mapId} lässt sich nicht laden: ${grund}`);
+          this.lobby.notiere(`Karte ${msg.mapId} nicht ladbar — ${grund}`, 'fehler');
+          return;
+        }
+        // Jetzt steht das Gelände. Die Maske hat ihren Dienst getan.
+        this.lobby.zeigeHinweis('');
+        this.lobby.verbergen();
       },
 
       onMapChange: async (msg) => {
