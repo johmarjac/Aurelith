@@ -14,6 +14,7 @@
  */
 
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocket } from 'ws';
@@ -36,17 +37,20 @@ import {
   decodeWelcome,
   encodeFrame,
   encodeHello,
+  encodeEquipItem,
   encodeInteract,
   encodePickupLoot,
   encodeQuestAction,
   encodeShopTrade,
   encodeUpgradeItem,
   encodeInput,
+  decodeOutfit,
   nullCipher,
   readPacket,
   type InventoryRow,
   type LootRow,
   type NpcDialogMsg,
+  type Outfit,
   type QuestLogRow,
   type StatsMsg,
 } from '@aurelith/shared';
@@ -115,7 +119,10 @@ let inventory: InventoryRow[] = [];
 let stats: StatsMsg | undefined;
 let localId = 0;
 /** Alles, was der Server als sichtbar meldet: Kennung → Art, Lage, Leben. */
-const seen = new Map<number, { type: number; defId: string; hp: number; x: number; z: number }>();
+const seen = new Map<
+  number,
+  { type: number; defId: string; hp: number; x: number; z: number; outfit: string }
+>();
 /**
  * Was gerade auf dem Boden liegt.
  *
@@ -143,7 +150,14 @@ socket.on('message', (data: ArrayBuffer | Buffer) => {
       case ServerOp.Snapshot: {
         const snap = decodeSnapshot(reader);
         for (const s of snap.spawns) {
-          seen.set(s.id, { type: s.type, defId: s.defId, hp: s.hp, x: s.x, z: s.z });
+          seen.set(s.id, {
+            type: s.type,
+            defId: s.defId,
+            hp: s.hp,
+            x: s.x,
+            z: s.z,
+            outfit: s.outfit,
+          });
         }
         for (const u of snap.updates) {
           const row = seen.get(u.id);
@@ -207,6 +221,56 @@ check(questLog.length === 0, 'ein frischer Charakter hat keine Aufträge');
 
 const zaehle = (itemId: string): number =>
   inventory.filter((i) => i.itemId === itemId).reduce((s, i) => s + i.count, 0);
+
+// Angezogen von der ersten Sekunde an.
+//
+// Die Übungsweste liegt angelegt im Startbeutel. Sie war trotzdem unsichtbar,
+// bis man sie einmal ab- und wieder anlegte: die Erscheinungszeile setzte nur
+// Name und Waffe, das Outfit kam erst beim nächsten Ausrüstungswechsel dazu.
+// Im Inventar stand „angelegt", in der Welt lief die Figur ohne — zwei
+// Auskünfte über dieselbe Weste.
+const eigenesOutfit = (): Outfit => decodeOutfit(seen.get(localId)?.outfit ?? '');
+const weste = inventory.find((i) => i.itemId === 'training_vest');
+check(weste?.equipped === true, 'die Übungsweste liegt angelegt im Beutel');
+check(
+  eigenesOutfit().chest !== undefined,
+  'und die Figur trägt sie ohne weiteres Zutun',
+  seen.get(localId)?.outfit || '(nichts)',
+);
+
+// Und sie nimmt keine Kachel im Beutel weg: der Beutel hat die Nummern 0 bis
+// 29, was am Körper hängt liegt darüber. Vorher lag Angelegtes mitten im
+// Raster, und wer vollständig ausgerüstet war, hatte ein Drittel weniger
+// Beutel als jemand in Unterhose.
+const beutelPlaetze = (
+  JSON.parse(readFileSync(join(root, 'assets', 'content', 'tuning.json'), 'utf8')) as {
+    economy: { inventorySlots: number };
+  }
+).economy.inventorySlots;
+check(
+  inventory.filter((i) => i.equipped).every((i) => i.slot >= beutelPlaetze),
+  'Angelegtes liegt ausserhalb des Beutels',
+  inventory
+    .filter((i) => i.equipped)
+    .map((i) => `${i.itemId}@${i.slot}`)
+    .join(', '),
+);
+check(
+  inventory.filter((i) => !i.equipped).every((i) => i.slot < beutelPlaetze),
+  'und alles andere darin',
+  `${beutelPlaetze} Kacheln`,
+);
+
+// Gegenprobe: abgelegt verschwindet sie auch aus dem Bild. Ohne sie zeigte die
+// Prüfung oben nur, dass irgendein Text in der Zeile steht.
+if (weste) {
+  send(encodeEquipItem(weste.slot));
+  await sleep(600);
+  check(eigenesOutfit().chest === undefined, 'abgelegt ist sie auch aus dem Bild verschwunden');
+  send(encodeEquipItem(inventory.find((i) => i.itemId === 'training_vest')?.slot ?? weste.slot));
+  await sleep(600);
+  check(eigenesOutfit().chest !== undefined, 'und wieder angelegt ist sie wieder da');
+}
 
 // ---------------------------------------------------------------------------
 // Ansprechen

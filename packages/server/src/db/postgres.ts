@@ -3,7 +3,7 @@
  */
 
 import pg from 'pg';
-import { STARTER_INVENTORY } from '@aurelith/shared';
+import { starterRows } from '../inventory.ts';
 import type {
   CharacterRecord,
   GameStore,
@@ -76,12 +76,11 @@ export class PostgresStore implements GameStore {
         character = toCharacter(inserted.rows[0]);
         created = true;
 
-        for (let i = 0; i < STARTER_INVENTORY.length; i++) {
-          const s = STARTER_INVENTORY[i]!;
+        for (const row of starterRows()) {
           await client.query(
             `INSERT INTO character_items (character_id, item_id, count, slot, equipped)
              VALUES ($1, $2, $3, $4, $5)`,
-            [character.id, s.item, s.count, i, s.equipped],
+            [character.id, row.itemId, row.count, row.slot, row.equipped],
           );
         }
       } else {

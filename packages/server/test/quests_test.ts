@@ -14,7 +14,14 @@
  */
 
 import { QuestStatus, getQuest, sellPrice } from '@aurelith/shared';
-import { addItem, countItem, removeItem } from '../src/inventory.ts';
+import {
+  addItem,
+  countItem,
+  freeBagSlots,
+  inventorySlots,
+  normalizeSlots,
+  removeItem,
+} from '../src/inventory.ts';
 import { loadContentFromDisk } from '../src/content.ts';
 import { QuestBook } from '../src/quests.ts';
 import type { ItemRecord } from '../src/db/index.ts';
@@ -66,6 +73,56 @@ console.log('\nBeutel');
   for (let i = 0; i < 30; i++) addItem(voll, 'wooden_sword', 1);
   check(voll.length === 30, 'dreissig Plätze sind belegt', String(voll.length));
   check(addItem(voll, 'iron_blade', 1) === 0, 'in einen vollen Beutel geht nichts mehr');
+
+  // --- Angelegtes belegt keinen Platz ---------------------------------------
+  //
+  // Der Beutel hat die Nummern 0 bis 29, was am Körper hängt bekommt eine
+  // darüber. Vorher lag Angelegtes mitten im Raster: wer vollständig
+  // ausgerüstet war, hatte ein Drittel weniger Beutel als jemand in
+  // Unterhose.
+  const grenze = inventorySlots();
+  const getragenImBeutel: ItemRecord[] = [
+    { itemId: 'iron_blade', count: 1, slot: 3, equipped: true, upgrade: 0 },
+    { itemId: 'leather_cap', count: 1, slot: 7, equipped: true, upgrade: 0 },
+    { itemId: 'potion_hp_small', count: 1, slot: 4, equipped: false, upgrade: 0 },
+  ];
+  check(normalizeSlots(getragenImBeutel), 'ein alter Spielstand wird zurechtgerückt');
+  check(
+    getragenImBeutel.every((i) => (i.equipped ? i.slot >= grenze : i.slot < grenze)),
+    'Angelegtes liegt danach ausserhalb des Beutels',
+    getragenImBeutel.map((i) => `${i.itemId}@${i.slot}`).join(', '),
+  );
+  check(
+    new Set(getragenImBeutel.map((i) => i.slot)).size === getragenImBeutel.length,
+    'und keine zwei Stücke teilen sich eine Nummer',
+  );
+  check(
+    getragenImBeutel.find((i) => i.itemId === 'potion_hp_small')?.slot === 4,
+    'der Trank behält seinen Platz — umgezogen wird nur, wer muss',
+  );
+  // Gegenprobe: ein bereits stimmiger Beutel wird nicht angefasst. Ohne sie
+  // wüsste man nicht, ob `normalizeSlots` etwas erkennt oder immer umräumt.
+  check(!normalizeSlots(getragenImBeutel), 'ein zweiter Durchgang ändert nichts mehr');
+
+  // Und der freie Platz zählt nur den Beutel: dreissig Kacheln, eine belegt.
+  check(
+    freeBagSlots(getragenImBeutel) === grenze - 1,
+    'gezählt werden nur die Kacheln im Beutel',
+    String(freeBagSlots(getragenImBeutel)),
+  );
+
+  // Voller Beutel plus Angelegtes: das Angelegte darf nichts wegnehmen.
+  const vollMitRuestung: ItemRecord[] = [
+    { itemId: 'iron_blade', count: 1, slot: 0, equipped: true, upgrade: 0 },
+  ];
+  normalizeSlots(vollMitRuestung);
+  for (let i = 0; i < grenze; i++) addItem(vollMitRuestung, 'wooden_sword', 1);
+  check(
+    vollMitRuestung.filter((i) => !i.equipped).length === grenze,
+    'trotz angelegter Klinge passen dreissig Stücke in den Beutel',
+    String(vollMitRuestung.filter((i) => !i.equipped).length),
+  );
+  check(freeBagSlots(vollMitRuestung) === 0, 'und dann ist er voll');
 
   check(sellPrice({ value: 100 } as never) === 40, 'Verkaufspreis ist zwei Fünftel');
   check(sellPrice({ value: 1 } as never) === 1, 'und nie null');

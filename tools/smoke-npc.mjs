@@ -363,6 +363,18 @@ check(
 );
 
 
+// Die Erwartungen kommen aus derselben Inhaltsdatei, die der Server liest —
+// ein im Test eingetippter Name wäre beim nächsten Feilen an der Ausrüstung
+// falsch, ohne dass jemand es merkt.
+const inhalt = JSON.parse(readFileSync(join(root, 'assets', 'content', 'items.json'), 'utf8'));
+const satzDef = (inhalt.sets ?? []).find((s) => s.id === 'leder');
+const itemDef = (id) => inhalt.items.find((i) => i.id === id);
+
+// Was in der ersten Kachel liegt: der erste Starteintrag, der **nicht**
+// angelegt beginnt. Angelegtes liegt nicht mehr im Beutel — es hängt am
+// Körper und bekommt eine Platznummer oberhalb des Rasters.
+const erstesImBeutel = itemDef(inhalt.starter.find((s) => !s.equipped)?.item ?? '');
+
 const detail = page.locator('.item-detail');
 await belegte.first().click();
 check(
@@ -390,9 +402,25 @@ check(blase?.imBild === true, 'die Sprechblase liegt ganz im Bild');
 check((blase?.abstand ?? 999) < 40, 'und klebt an der angeklickten Kachel', `${blase?.abstand} px`);
 
 const detailText = (await detail.textContent()) ?? '';
-check(detailText.includes('Holzschwert'), 'mit dem Namen des Gegenstands', detailText.slice(0, 40));
-check(detailText.includes('Waffe'), 'und seiner Art');
-check(/Angriff \d/.test(detailText), 'samt Werten', detailText.match(/Angriff \d+/)?.[0] ?? '—');
+check(
+  detailText.includes(erstesImBeutel?.name ?? '\u0000'),
+  'mit dem Namen des Gegenstands',
+  `${erstesImBeutel?.name} — ${detailText.slice(0, 40)}`,
+);
+check(
+  ((await page.locator('.detail-kind').textContent()) ?? '').trim().length > 0,
+  'und seiner Art',
+  (await page.locator('.detail-kind').textContent()) ?? '(leer)',
+);
+check(
+  detailText.includes(
+    erstesImBeutel?.attackDamage > 0
+      ? `Angriff ${erstesImBeutel.attackDamage}`
+      : `Wert ${erstesImBeutel?.value} G`,
+  ),
+  'samt Werten',
+  detailText.match(/Angriff \d+|Wert \d+ G/)?.[0] ?? '—',
+);
 
 // Nochmal auf dieselbe Kachel klappt wieder zu — anders käme man auf einem
 // Telefon nicht heraus.
@@ -428,8 +456,10 @@ check(
 
 // Anlegen über den Knopf: der Doppelklick ist auf Touch unzuverlässig, und
 // vorher war er der einzige Weg.
-const bogen = inventar.locator('.item-slot', { hasText: '' }).nth(1);
-await bogen.click();
+// Dieselbe erste Kachel: sie trägt den ersten Gegenstand, der nicht angelegt
+// beginnt, und der lässt sich anlegen. Vorher stand hier `.nth(1)` — die
+// zweite Kachel —, weil die erste vom angelegten Schwert belegt war.
+await belegte.first().click();
 const anlegen = detail.getByRole('button', { name: 'Anlegen' });
 if (await anlegen.count()) {
   await anlegen.click();
@@ -452,10 +482,6 @@ if (await anlegen.count()) {
 // im Test eingetippte Zahl wäre beim nächsten Feilen an der Ausrüstung falsch,
 // ohne dass jemand es merkt.
 
-const inhalt = JSON.parse(readFileSync(join(root, 'assets', 'content', 'items.json'), 'utf8'));
-const satzDef = (inhalt.sets ?? []).find((s) => s.id === 'leder');
-const itemDef = (id) => inhalt.items.find((i) => i.id === id);
-
 /** Liest einen Wert aus der Werteliste im Charakterfenster. */
 async function wert(name) {
   return await page.evaluate((gesucht) => {
@@ -475,8 +501,6 @@ if (satzDef) {
   // Reihenfolge im Beutel ist keine Zusage, an die sich ein Test hängen sollte.
   const namen = satzDef.pieces.map((id) => itemDef(id)?.name);
   let angelegt = 0;
-  /** Eine Kachel, in der ein Teil des Satzes liegt — für die Sprechblase danach. */
-  let satzKachel;
 
   // Die Kacheln werden von Hand angetippt und nicht über `click()`: sobald eine
   // Sprechblase offen ist, liegt sie über dem Beutel, und Playwright verweigert
@@ -503,7 +527,6 @@ if (satzDef) {
     await waitUntil(async () => await detail.isVisible(), 3000);
     const name = ((await page.locator('.detail-name').textContent()) ?? '').trim();
     if (!namen.includes(name)) continue;
-    satzKachel = nummer;
     const knopf = detail.getByRole('button', { name: 'Anlegen' });
     if (!(await knopf.count())) continue;
     await knopf.click();
@@ -551,11 +574,16 @@ if (satzDef) {
   });
   await waitUntil(async () => !(await detail.isVisible()), 3000);
 
-  await page.evaluate((n) => {
-    document
-      .querySelector(`.item-slot[data-bag-slot="${n}"]`)
-      ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-  }, satzKachel ?? kacheln[0]);
+  // Das Satzteil hängt jetzt an der Figur und liegt nicht mehr im Beutel —
+  // angelegt heisst: keine Kachel im Raster. Angesehen wird es deshalb an
+  // seinem Kästchen um die Figur, und zwar mit der rechten Maustaste: die
+  // linke legt dort ab.
+  await page.evaluate((liste) => {
+    const zelle = [...document.querySelectorAll('.equip-slot[data-bag-slot]')].find((n) =>
+      liste.some((name) => (n.title ?? '').startsWith(name)),
+    );
+    zelle?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  }, namen);
   await waitUntil(async () => (await page.locator('.detail-set').count()) > 0, 3000);
   const satzText = await page.evaluate(() => {
     const block = document.querySelector('.detail-set');

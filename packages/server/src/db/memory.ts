@@ -4,7 +4,7 @@
  * Neustart weg, und der Server sagt das beim Hochfahren.
  */
 
-import { STARTER_INVENTORY } from '@aurelith/shared';
+import { starterRows } from '../inventory.ts';
 import type {
   CharacterRecord,
   GameStore,
@@ -60,13 +60,7 @@ export class MemoryStore implements GameStore {
       z: spawn.z,
       yaw: spawn.yaw,
     };
-    const items: ItemRecord[] = STARTER_INVENTORY.map((s, index) => ({
-      itemId: s.item,
-      count: s.count,
-      slot: index,
-      equipped: s.equipped,
-      upgrade: 0,
-    }));
+    const items: ItemRecord[] = starterRows();
 
     this.byAccount.set(accountName, { character, items, quests: [] });
     return {

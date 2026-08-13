@@ -1115,13 +1115,16 @@ export class UI {
 
     this.fillEquipSlots(entries);
 
-    const bySlot = new Map(entries.map((e) => [e.slot, e]));
+    // Nur der Beutel. Angelegtes trägt eine Platznummer oberhalb des Rasters
+    // — es hängt am Körper und nimmt hier keine Kachel weg. Wer voll
+    // ausgerüstet war, hatte sonst ein Drittel weniger Beutel als jemand in
+    // Unterhose.
+    const bySlot = new Map(entries.filter((e) => !e.equipped).map((e) => [e.slot, e]));
     const slots: HTMLElement[] = [];
     const plaetze = tuning().economy.inventorySlots;
     for (let i = 0; i < plaetze; i++) {
       const entry = bySlot.get(i);
       const slot = el('div', 'item-slot');
-      slot.dataset.equipped = String(entry?.equipped ?? false);
       if (entry) slot.dataset.bagSlot = String(entry.slot);
 
       if (!entry) {
@@ -1142,11 +1145,9 @@ export class UI {
       }
 
       const equippable = def !== undefined && def.slot !== 'none';
-      slot.title = def
-        ? `${upgradeName(def, entry.upgrade)}${entry.equipped ? ' (angelegt)' : ''}\n${def.description}`
-        : entry.itemId;
+      slot.title = def ? `${upgradeName(def, entry.upgrade)}\n${def.description}` : entry.itemId;
 
-      if (equippable && !entry.equipped) slot.classList.add('item-equippable');
+      if (equippable) slot.classList.add('item-equippable');
 
       // Ein **einfacher** Klick zeigt die Beschreibung. Vorher hing sie am
       // `title`-Attribut, und das gibt es auf einem Telefon nicht: dort liess
@@ -1154,7 +1155,7 @@ export class UI {
       slot.addEventListener('click', () => this.showItemDetail(entry.slot));
       // Der Doppelklick bleibt als Abkürzung am Schreibtisch. Auf Touch ist er
       // unzuverlässig — dort führt der Weg über den Knopf in der Beschreibung.
-      if (equippable && !entry.equipped) {
+      if (equippable) {
         slot.addEventListener('dblclick', () => this.onEquipItem?.(entry.slot));
       }
 

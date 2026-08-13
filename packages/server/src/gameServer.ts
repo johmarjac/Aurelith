@@ -85,9 +85,9 @@ import { CoreEventType, CoreButton } from '@aurelith/core';
 import { config } from './config.ts';
 import type { CoreBundle } from './core.ts';
 import type { MapStore } from './maps.ts';
-import { MapInstance } from './mapInstance.ts';
+import { MapInstance, type EntityMeta } from './mapInstance.ts';
 import { INPUT_QUEUE_DRAIN_AT, INPUT_QUEUE_DRAIN_MAX, Session } from './session.ts';
-import { addItem, removeItem, removeSlot } from './inventory.ts';
+import { addItem, freeBagSlots, normalizeSlots, removeItem, removeSlot } from './inventory.ts';
 import type { GameStore } from './db/index.ts';
 
 /** Wie nah man an einem NPC stehen muss — aus den Stellschrauben. */
@@ -351,6 +351,10 @@ export class GameServer {
     session.accountName = accountName;
     session.character = login.character;
     session.items = login.items;
+    // Plätze zurechtrücken: was angelegt ist, gehört aus dem Beutel heraus.
+    // Ältere Spielstände haben Angelegtes noch mitten im Raster liegen, und
+    // die Datenbank kennt Zeilen ohne Platz.
+    if (normalizeSlots(session.items)) session.itemsDirty = true;
     session.quests.load(login.quests);
     // Sammelziele einmal am Beutel messen: wer sich abgemeldet hat, während
     // die Essenzen im Beutel lagen, ist beim Anmelden abgabebereit.
@@ -382,13 +386,7 @@ export class GameServer {
       radius: playerProfile().radius,
       height: playerProfile().height,
     });
-    instance.meta.set(session.entityId, {
-      defId: 'player',
-      name: accountName,
-      type: EntityType.Player,
-      weapon: profile.rig,
-      weaponUpgrade: this.mainhandEntry(session)?.upgrade ?? 0,
-    });
+    instance.meta.set(session.entityId, this.playerMeta(session, accountName));
     instance.playerIds.add(session.entityId);
     this.sessionByEntity.set(session.entityId, session);
 
@@ -819,13 +817,7 @@ export class GameServer {
       radius: playerProfile().radius,
       height: playerProfile().height,
     });
-    to.meta.set(session.entityId, {
-      defId: 'player',
-      name: session.accountName,
-      type: EntityType.Player,
-      weapon: profile.rig,
-      weaponUpgrade: this.mainhandEntry(session)?.upgrade ?? 0,
-    });
+    to.meta.set(session.entityId, this.playerMeta(session, session.accountName));
     to.playerIds.add(session.entityId);
     this.sessionByEntity.set(session.entityId, session);
 
@@ -887,7 +879,15 @@ export class GameServer {
     if (!def || def.slot === 'none') return;
 
     if (entry.equipped) {
+      // Abgelegt heisst: zurück in den Beutel. Ist dort keine Kachel frei,
+      // bleibt es an. Sonst hätte das Stück nach dem Ablegen keinen Ort — und
+      // ein Gegenstand ohne Ort ist ein verlorener Gegenstand.
+      if (freeBagSlots(session.items) < 1) {
+        this.systemMessage(session, 'Der Beutel ist voll — dafür ist kein Platz.');
+        return;
+      }
       entry.equipped = false;
+      normalizeSlots(session.items);
       session.itemsDirty = true;
       this.applyLoadout(session);
       this.sendInventory(session);
@@ -915,12 +915,21 @@ export class GameServer {
       (other) => other !== entry && other.equipped && getItem(other.itemId)?.slot === def.slot,
     );
     const platz = slotCapacity(def.slot);
-    for (let i = 0; i <= getragen.length - platz; i++) {
-      const weichen = getragen[i];
-      if (weichen) weichen.equipped = false;
+    const weichende = getragen.slice(0, Math.max(0, getragen.length - platz + 1));
+
+    // Jedes verdrängte Stück braucht eine Kachel im Beutel. Eine wird gleich
+    // frei — die des Stücks, das angelegt wird —, der Rest muss vorhanden
+    // sein. Geprüft **bevor** irgendein Zustand kippt: eine halb ausgeführte
+    // Umkleide wäre schlimmer als eine, die gar nicht stattfindet.
+    if (weichende.length > freeBagSlots(session.items) + 1) {
+      this.systemMessage(session, 'Der Beutel ist voll — dafür ist kein Platz.');
+      return;
     }
 
+    for (const weichen of weichende) weichen.equipped = false;
+
     entry.equipped = true;
+    normalizeSlots(session.items);
     session.itemsDirty = true;
 
     this.applyLoadout(session);
@@ -1051,6 +1060,28 @@ export class GameServer {
    * Bild. Sie mitzuschicken hiesse, den Snapshot für eine Auskunft zu
    * verbreitern, die niemand ablesen kann.
    */
+  /**
+   * Wie diese Figur für alle anderen aussieht.
+   *
+   * Eine Stelle für drei Anlässe: Anmelden, Kartenwechsel und jede Änderung an
+   * der Ausrüstung. Vorher stand sie dreimal da, und zweimal ohne Kleidung —
+   * beim Erscheinen wurden nur Waffe und Name gesetzt. Wer sich anmeldete, sah
+   * seine angelegte Rüstung deshalb erst, nachdem er sie einmal ab- und wieder
+   * angelegt hatte: dann lief `applyLoadout`, und erst dort stand das Outfit.
+   */
+  private playerMeta(session: Session, name: string): EntityMeta {
+    const profile = this.attackProfileOf(session);
+    return {
+      defId: 'player',
+      name,
+      type: EntityType.Player,
+      weapon: profile.rig,
+      weaponUpgrade: this.mainhandEntry(session)?.upgrade ?? 0,
+      outfit: encodeOutfit(this.outfitOf(session)),
+      setGlow: setGlowLevel(this.activeSetOf(session)),
+    };
+  }
+
   private outfitOf(session: Session): Outfit {
     const outfit: Outfit = {};
     for (const entry of session.items) {
@@ -1090,12 +1121,7 @@ export class GameServer {
     instance.world.setCritProfile(session.entityId, stats.critChance, stats.critMultiplier);
 
     const meta = instance.metaFor(session.entityId);
-    if (meta) {
-      meta.weapon = profile.rig;
-      meta.weaponUpgrade = this.mainhandEntry(session)?.upgrade ?? 0;
-      meta.outfit = encodeOutfit(this.outfitOf(session));
-      meta.setGlow = setGlowLevel(this.activeSetOf(session));
-    }
+    if (meta) Object.assign(meta, this.playerMeta(session, meta.name));
 
     // Der Snapshot schickt eine volle Zeile nur für Unbekanntes. Damit die
     // neue Waffe bei allen ankommt, muss die Figur einmal als neu gelten.
