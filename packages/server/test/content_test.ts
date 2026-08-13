@@ -19,6 +19,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  ARMOR_SETS,
   ITEMS,
   MOBS,
   NPCS,
@@ -104,6 +105,33 @@ for (const datei of kartenDateien) {
 
 check(fehlendeMobs.length === 0, 'jeder Spawner nennt ein bekanntes Monster', fehlendeMobs.join(', '));
 check(fehlendeNpcs.length === 0, 'jeder NPC auf der Karte ist definiert', fehlendeNpcs.join(', '));
+
+// Jedes Teil eines Rüstungssatzes muss irgendwo zu haben sein.
+//
+// Ein Satz, dessen Handschuhe niemand verkauft und die auch niemand fallen
+// lässt, ist als Satz nicht zu erreichen: der Bonus und das Leuchten hängen an
+// der Vollständigkeit, und dann steht in der Sprechblase auf ewig „4/5". Genau
+// das war der Fall — den Ledersatz gibt es fünfteilig, Bregan führte vier
+// davon.
+const imLaden = new Set<string>();
+for (const npc of NPCS.values()) {
+  for (const angebot of npc.shop ?? []) imLaden.add(angebot.item);
+}
+const ausBeute = new Set<string>();
+for (const mob of MOBS.values()) {
+  for (const eintrag of mob.drops ?? []) ausBeute.add(eintrag.item);
+}
+const unerreichbar: string[] = [];
+for (const satz of ARMOR_SETS.values()) {
+  for (const teil of satz.pieces) {
+    if (!imLaden.has(teil) && !ausBeute.has(teil)) unerreichbar.push(`${satz.id}: ${teil}`);
+  }
+}
+check(
+  unerreichbar.length === 0,
+  'jedes Satzteil ist zu kaufen oder zu erbeuten',
+  unerreichbar.join(', '),
+);
 
 // ---------------------------------------------------------------------------
 // Gegenprobe
