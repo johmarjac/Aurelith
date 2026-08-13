@@ -22,6 +22,7 @@
  *   für diesen Lauf entschärft.
  */
 
+import { anmeldenUndBetreten, beobachteLobby, gruss } from './lib/anmelden.ts';
 import { spawn } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -184,15 +185,9 @@ await new Promise<void>((resolve_, reject) => {
   socket.on('error', reject);
 });
 
-send(
-  encodeHello({
-    protocolVersion: PROTOCOL_VERSION,
-    clientBuild: 'test',
-    accountName: `Satz${Math.floor(Date.now() % 100000)}`,
-    token: '',
-    supportedCiphers: [0],
-  }),
-);
+const anmeldung = beobachteLobby(socket, suite);
+gruss(send);
+await anmeldenUndBetreten(send, anmeldung, `Satz${Math.floor(Date.now() % 100000)}`);
 
 const eingeloggt = Date.now() + 15000;
 while (Date.now() < eingeloggt && localId === 0) await sleep(100);

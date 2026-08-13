@@ -17,6 +17,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { anmeldenUndBetreten } from './lib/spielstart.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const procs = [];
@@ -78,7 +79,8 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 1200, height: 520 } });
 // Die Seite nur als Hülle: sie bringt Vite mit, und über Vite lassen sich die
 // TypeScript-Module des Clients direkt laden.
-await page.goto('http://127.0.0.1:5197/?name=Aura', { waitUntil: 'domcontentloaded' });
+await page.goto('http://127.0.0.1:5197/', { waitUntil: 'domcontentloaded' });
+await anmeldenUndBetreten(page, `Aura${Date.now() % 100000}`);
 await page.waitForTimeout(1500);
 
 const STUFEN = [3, 4, 6, 8, 10];

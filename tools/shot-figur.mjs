@@ -16,6 +16,7 @@ import { mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { anmeldenUndBetreten } from './lib/spielstart.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const shotDir = join(root, 'artefakte');
@@ -90,9 +91,9 @@ const messages = [];
 page.on('console', (m) => messages.push(`[${m.type()}] ${m.text()}`));
 page.on('pageerror', (e) => messages.push(`! ${String(e)}`));
 
-await page.goto('http://127.0.0.1:5196/?name=Modell', { waitUntil: 'domcontentloaded' });
+await page.goto('http://127.0.0.1:5196/', { waitUntil: 'domcontentloaded' });
 try {
-  await page.waitForFunction(() => window.aurelith?.localId > 0, { timeout: 30000 });
+  await anmeldenUndBetreten(page, `Modell${Date.now() % 100000}`);
 } catch (err) {
   console.error('\nBrowser-Konsole:');
   for (const m of messages) console.error(`  ${m}`);

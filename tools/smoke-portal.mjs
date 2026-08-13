@@ -20,6 +20,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { anmeldenUndBetreten } from './lib/spielstart.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const procs = [];
@@ -124,8 +125,8 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 900, height: 600 } });
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log(`  [seite] ${m.text()}`); });
 page.on('pageerror', (e) => console.log(`  [seite] ${String(e)}`));
-await page.goto('http://127.0.0.1:5195/?name=Torgaenger', { waitUntil: 'domcontentloaded' });
-await page.waitForFunction(() => window.aurelith?.localId > 0, { timeout: 30000 });
+await page.goto('http://127.0.0.1:5195/', { waitUntil: 'domcontentloaded' });
+await anmeldenUndBetreten(page, `Tor${Date.now() % 100000}`);
 /**
  * Wartet, bis die Vorhersage die eigene Figur traegt.
  *

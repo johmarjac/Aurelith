@@ -228,10 +228,31 @@ legt Bilder in `artefakte/himmel-*.png`.
 Helligkeit lässt sich rechnen, und `npm run test:tag` tut das. Ob eine Nacht
 *benutzbar* ist, sieht man nur — dafür sind die Bilder da.
 
+### Konten, Figuren und Zugriffsstufen
+
+Wer spielen will, meldet sich an: Kontoname und Passwort, danach die
+Figurenverwaltung. Ein Konto kann `AURELITH_MAX_CHARACTERS` Figuren haben
+(Standard vier), sie anlegen, löschen und mit einer davon die Welt betreten.
+Passwörter liegen als `scrypt`-Zeile in der Datenbank, nie im Klartext.
+
+Konten aus der Zeit ohne Passwort kommen nicht mehr hinein — ein leerer Hash
+passt zu keiner Eingabe. Das ist Absicht: ein Konto ohne Nachweis darf sich
+nicht anmelden, nur weil es alt ist.
+
+Jedes Konto hat eine Zugriffsstufe: `player`, `gamemaster`, `developer`,
+`admin`. Sie entscheidet über die Chatbefehle, die der **Server** ausführt —
+`/gg <menge>` schreibt Gold gut und steht ab `gamemaster` zu. `/help` im Spiel
+zeigt jedem genau die Befehle, die ihm zustehen.
+
+Auf einem frischen Server gibt es niemanden, der jemandem etwas geben könnte.
+Deshalb `AURELITH_ADMINS="name1,name2"`: diese Konten bekommen bei jeder
+Anmeldung die Stufe `admin`. Der Weg gilt in beide Richtungen — wer aus der
+Liste verschwindet, ist beim nächsten Anmelden wieder gewöhnlicher Spieler.
+
 ### Startpunkt für Prüfungen
 
-`AURELITH_START_POS="x,z"` (oder `"x,z,blickrichtung"`) setzt, wo ein **neu
-angelegter** Charakter erscheint, statt am Startpunkt der Karte. Zusammen mit
+`AURELITH_START_POS="x,z"` (oder `"x,z,blickrichtung"`) setzt, wo eine **neu
+angelegte** Figur erscheint, statt am Startpunkt der Karte. Zusammen mit
 `AURELITH_START_MAP` steht die Figur damit sofort dort, wo geprüft werden soll.
 
 Der Portaltest hat das von 43 auf 21 Sekunden gebracht — er lief vorher acht

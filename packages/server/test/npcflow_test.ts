@@ -18,6 +18,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocket } from 'ws';
+import { anmeldenUndBetreten, beobachteLobby, gruss } from './lib/anmelden.ts';
 import {
   ClientOp,
   CipherSuite,
@@ -199,15 +200,9 @@ await new Promise<void>((resolve_, reject) => {
 });
 
 const name = `Pruefer${Math.floor(Date.now() % 100000)}`;
-send(
-  encodeHello({
-    protocolVersion: PROTOCOL_VERSION,
-    clientBuild: 'test',
-    accountName: name,
-    token: '',
-    supportedCiphers: [0],
-  }),
-);
+const anmeldung = beobachteLobby(socket, suite);
+gruss(send);
+await anmeldenUndBetreten(send, anmeldung, name);
 
 const eingeloggt = Date.now() + 15000;
 while (Date.now() < eingeloggt && localId === 0) await sleep(100);

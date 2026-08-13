@@ -25,11 +25,17 @@ import {
   decodePong,
   decodeQuestLog,
   decodeServerChat,
+  decodeLobby,
+  decodeLobbyError,
   decodeServerVersion,
   decodeSnapshot,
   decodeStats,
   decodeWelcome,
   encodeClientChat,
+  encodeCreateAccount,
+  encodeCreateCharacter,
+  encodeDeleteCharacter,
+  encodeEnterWorld,
   encodeFrame,
   encodeHello,
   encodeInput,
@@ -37,6 +43,7 @@ import {
   encodeRespawn,
   encodeEquipItem,
   encodeInteract,
+  encodeLogin,
   encodeMoveItem,
   encodePickupLoot,
   encodeUseItem,
@@ -53,6 +60,7 @@ import {
   type CombatEventMsg,
   type InputMsg,
   type InventoryRow,
+  type LobbyMsg,
   type MapChangeMsg,
   type NpcDialogMsg,
   type QuestLogRow,
@@ -78,6 +86,10 @@ export interface ConnectionHandlers {
   onKick?: (reason: number, message: string) => void;
   /** Antwort auf `sendVersionRequest`. */
   onVersion?: (stamp: BuildStamp) => void;
+  /** Der Stand der Charakterverwaltung — nach dem Anmelden und nach jeder Änderung. */
+  onLobby?: (msg: LobbyMsg) => void;
+  /** Was an einer Anmeldung oder einer Figurenänderung nicht ging. */
+  onLobbyError?: (text: string) => void;
 }
 
 /** Wartezeiten zwischen Verbindungsversuchen, in Millisekunden. */
@@ -109,7 +121,6 @@ export class Connection {
 
   constructor(
     private readonly url: string,
-    private readonly accountName: string,
     private readonly handlers: ConnectionHandlers,
   ) {}
 
@@ -129,8 +140,6 @@ export class Connection {
         encodeHello({
           protocolVersion: PROTOCOL_VERSION,
           clientBuild: BUILD,
-          accountName: this.accountName,
-          token: '',
           // Heute beherrschen wir nur Klartext. Die Liste existiert, damit die
           // Aushandlung später keine Protokolländerung braucht.
           supportedCiphers: [0],
@@ -214,6 +223,12 @@ export class Connection {
         case ServerOp.Version:
           this.handlers.onVersion?.(decodeServerVersion(reader));
           break;
+        case ServerOp.Lobby:
+          this.handlers.onLobby?.(decodeLobby(reader));
+          break;
+        case ServerOp.LobbyError:
+          this.handlers.onLobbyError?.(decodeLobbyError(reader).text);
+          break;
         case ServerOp.Stats:
           this.handlers.onStats?.(decodeStats(reader));
           break;
@@ -272,6 +287,28 @@ export class Connection {
 
   sendChat(text: string, channel = 1): void {
     this.send(encodeClientChat(channel, text));
+  }
+
+  /** Anmelden. Die Antwort kommt über `onLobby` oder `onLobbyError`. */
+  sendLogin(name: string, password: string): void {
+    this.send(encodeLogin({ name, password }));
+  }
+
+  /** Konto anlegen. Bei Erfolg ist man damit auch angemeldet. */
+  sendCreateAccount(name: string, password: string): void {
+    this.send(encodeCreateAccount({ name, password }));
+  }
+
+  sendCreateCharacter(name: string): void {
+    this.send(encodeCreateCharacter(name));
+  }
+
+  sendDeleteCharacter(characterId: number): void {
+    this.send(encodeDeleteCharacter(characterId));
+  }
+
+  sendEnterWorld(characterId: number): void {
+    this.send(encodeEnterWorld(characterId));
   }
 
   sendMoveItem(from: number, to: number): void {

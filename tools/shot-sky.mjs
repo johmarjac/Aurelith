@@ -18,6 +18,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { anmeldenUndBetreten } from './lib/spielstart.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const procs = [];
@@ -156,10 +157,8 @@ for (const [name, anteil, drehen] of ZEITEN) {
   }
 
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-  await page.goto(`http://127.0.0.1:5199/?name=Himmel${name}${Date.now() % 10000}`, {
-    waitUntil: 'domcontentloaded',
-  });
-  await page.waitForFunction(() => window.aurelith?.localId > 0, { timeout: 40000 });
+  await page.goto('http://127.0.0.1:5199/', { waitUntil: 'domcontentloaded' });
+  await anmeldenUndBetreten(page, `Himmel${name}${Date.now() % 10000}`);
   // Die Kamera anheben, damit Himmel und Boden beide im Bild sind — und,
   // wo nötig, waagerecht drehen.
   await page.mouse.move(640, 360);

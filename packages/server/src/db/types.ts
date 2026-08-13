@@ -38,12 +38,20 @@ export interface QuestRecord {
   progress: number[];
 }
 
-export interface LoginResult {
+export interface AccountRecord {
+  id: number;
+  name: string;
+  /** `scrypt$…` — siehe `passwords.ts`. Leer heisst: passt zu nichts. */
+  passwordHash: string;
+  /** Wort aus `ACCESS_NAMES`. Übersetzt wird im geteilten Paket. */
+  accessLevel: string;
+}
+
+/** Ein Charakter samt allem, was zum Betreten der Welt gebraucht wird. */
+export interface LoadedCharacter {
   character: CharacterRecord;
   items: ItemRecord[];
   quests: QuestRecord[];
-  /** Wahr, wenn der Charakter in diesem Aufruf neu angelegt wurde. */
-  created: boolean;
 }
 
 export interface SpawnPoint {
@@ -57,12 +65,41 @@ export interface GameStore {
   readonly kind: 'postgres' | 'memory';
   init(): Promise<void>;
   close(): Promise<void>;
+  /** Konto zum Namen, oder nichts. Der Vergleich ist unabhängig von Gross-
+   * und Kleinschreibung: `Held` und `held` sind dieselbe Person. */
+  findAccount(name: string): Promise<AccountRecord | undefined>;
   /**
-   * Meldet ein Konto an und legt es samt Startcharakter an, falls es noch
-   * nicht existiert. Ein Konto hat vorerst genau einen Charakter — die
-   * Charakterauswahl kommt später und ändert nur diese Methode.
+   * Legt ein Konto an. Gibt nichts zurück, wenn der Name schon vergeben ist —
+   * geprüft wird in der Datenbank und nicht davor, sonst gewinnt bei zwei
+   * gleichzeitigen Anmeldungen die Zufälligkeit.
    */
-  loginOrCreate(accountName: string, spawn: SpawnPoint): Promise<LoginResult>;
+  createAccount(
+    name: string,
+    passwordHash: string,
+    accessLevel: string,
+  ): Promise<AccountRecord | undefined>;
+  /** Setzt die Zugriffsstufe — für die Liste der Verwalter in der Konfiguration. */
+  setAccessLevel(accountId: number, accessLevel: string): Promise<void>;
+  /** Merkt sich, wann zuletzt angemeldet wurde. Reine Buchführung. */
+  touchLogin(accountId: number): Promise<void>;
+
+  /** Die Figuren eines Kontos, in der Reihenfolge ihrer Entstehung. */
+  listCharacters(accountId: number): Promise<CharacterRecord[]>;
+  /**
+   * Legt eine Figur an. Nichts, wenn der Name schon vergeben ist.
+   *
+   * Der Startbeutel entsteht mit — eine Figur ohne Ausrüstung wäre ein
+   * halbfertiger Zustand, den jeder Aufrufer selbst vollenden müsste.
+   */
+  createCharacter(
+    accountId: number,
+    name: string,
+    spawn: SpawnPoint,
+  ): Promise<CharacterRecord | undefined>;
+  /** Löscht eine Figur — nur, wenn sie dem Konto gehört. */
+  deleteCharacter(accountId: number, characterId: number): Promise<boolean>;
+  /** Lädt eine Figur samt Beutel und Aufträgen — nur, wenn sie dem Konto gehört. */
+  loadCharacter(accountId: number, characterId: number): Promise<LoadedCharacter | undefined>;
   saveCharacter(character: CharacterRecord): Promise<void>;
   saveInventory(characterId: number, items: ItemRecord[]): Promise<void>;
   /**

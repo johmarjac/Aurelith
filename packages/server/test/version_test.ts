@@ -18,6 +18,7 @@ import { spawn } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocket } from 'ws';
+import { anmeldenUndBetreten, beobachteLobby, gruss } from './lib/anmelden.ts';
 import {
   CipherSuite,
   FrameSequencer,
@@ -157,7 +158,8 @@ console.log('\nÜber das Protokoll');
 
 // Zuerst ohne Anmeldung: die Fassung ist keine Auskunft über die Welt, und
 // gerade wer nicht ins Spiel kommt, will wissen, gegen welchen Server er
-// läuft.
+// läuft. Nur der Gruss muss durch sein — davor nimmt der Server nichts an.
+gruss(send);
 send(encodeVersionRequest());
 const bisAntwort = Date.now() + 5000;
 while (Date.now() < bisAntwort && !antwort) await sleep(50);
@@ -171,15 +173,8 @@ check(
 // Und danach ein zweites Mal — der Befehl ist kein Einmalgruss beim Verbinden,
 // sondern eine Frage, die man mitten im Spiel stellen kann.
 antwort = undefined;
-send(
-  encodeHello({
-    protocolVersion: PROTOCOL_VERSION,
-    clientBuild: 'test',
-    accountName: `Fassung${Math.floor(Date.now() % 100000)}`,
-    token: '',
-    supportedCiphers: [0],
-  }),
-);
+const anmeldung = beobachteLobby(socket, suite);
+await anmeldenUndBetreten(send, anmeldung, `Fassung${Math.floor(Date.now() % 100000)}`);
 await sleep(1200);
 send(encodeVersionRequest());
 const bisZweite = Date.now() + 5000;

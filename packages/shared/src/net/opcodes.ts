@@ -7,7 +7,7 @@
  * ändert, zählt PROTOCOL_VERSION hoch.
  */
 
-export const PROTOCOL_VERSION = 8;
+export const PROTOCOL_VERSION = 9;
 
 export const ClientOp = {
   Hello: 0x01,
@@ -35,6 +35,16 @@ export const ClientOp = {
   VersionRequest: 0x0f,
   /** Einen Gegenstand im Beutel auf einen anderen Platz legen. */
   MoveItem: 0x10,
+  /** Anmeldung mit Name und Passwort. Antwort: `Lobby` oder `LobbyError`. */
+  Login: 0x11,
+  /** Neues Konto anlegen. Bei Erfolg ist man damit auch angemeldet. */
+  CreateAccount: 0x12,
+  /** Einen Charakter anlegen. */
+  CreateCharacter: 0x13,
+  /** Einen Charakter löschen. */
+  DeleteCharacter: 0x14,
+  /** Mit einem Charakter in die Welt. */
+  EnterWorld: 0x15,
 } as const;
 export type ClientOp = (typeof ClientOp)[keyof typeof ClientOp];
 
@@ -54,6 +64,17 @@ export const ServerOp = {
   QuestLog: 0x8b,
   /** Antwort auf `VersionRequest`: Buildnummer und Bauzeitpunkt. */
   Version: 0x8c,
+  /** Kontostand der Verwaltung: wer man ist und welche Figuren es gibt. */
+  Lobby: 0x8d,
+  /**
+   * Was an einer Anmeldung oder einer Figurenänderung nicht ging.
+   *
+   * Kein Kick: eine falsche Eingabe beendet keine Verbindung, sie wird
+   * korrigiert. Der Text ist für Menschen und benennt bewusst nicht, ob Name
+   * oder Passwort falsch war — sonst liesse sich damit prüfen, welche Konten
+   * es gibt.
+   */
+  LobbyError: 0x8e,
 } as const;
 export type ServerOp = (typeof ServerOp)[keyof typeof ServerOp];
 

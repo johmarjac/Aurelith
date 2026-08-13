@@ -14,20 +14,24 @@ import type { EntityState, EntityType } from '../sim/types.ts';
 // Client → Server
 // ---------------------------------------------------------------------------
 
+/**
+ * Der erste Gruss: welche Protokollfassung, welcher Bau, welche Ciphers.
+ *
+ * **Ohne Namen.** Wer man ist, sagt `Login` — ein eigener Schritt mit
+ * Passwort. Solange der Gruss den Namen mitbrachte, war er die Anmeldung, und
+ * eine Anmeldung ohne Nachweis ist keine.
+ */
 export interface HelloMsg {
   protocolVersion: number;
   /** Build-Kennung des Clients, dient nur der Diagnose. */
   clientBuild: string;
-  accountName: string;
-  /** Später ein echtes Sitzungstoken. Heute leer. */
-  token: string;
   /** Cipher-IDs, die der Client beherrscht — Grundlage der Aushandlung. */
   supportedCiphers: number[];
 }
 
 export function encodeHello(m: HelloMsg): Uint8Array {
   const w = packet(ClientOp.Hello, 128);
-  w.u16(m.protocolVersion).str(m.clientBuild).str(m.accountName).str(m.token);
+  w.u16(m.protocolVersion).str(m.clientBuild);
   w.u8(m.supportedCiphers.length);
   for (const c of m.supportedCiphers) w.u8(c);
   return w.finish();
@@ -36,12 +40,56 @@ export function encodeHello(m: HelloMsg): Uint8Array {
 export function decodeHello(r: ByteReader): HelloMsg {
   const protocolVersion = r.u16();
   const clientBuild = r.str();
-  const accountName = r.str();
-  const token = r.str();
   const count = r.u8();
   const supportedCiphers: number[] = [];
   for (let i = 0; i < count; i++) supportedCiphers.push(r.u8());
-  return { protocolVersion, clientBuild, accountName, token, supportedCiphers };
+  return { protocolVersion, clientBuild, supportedCiphers };
+}
+
+/**
+ * Anmelden oder Konto anlegen — dasselbe Paar Felder, zwei Opcodes.
+ *
+ * Das Passwort geht im Klartext durch die Leitung und wird erst auf dem Server
+ * gehasht. Das ist kein Versehen: die Leitung selbst gehört mit TLS gesichert
+ * (`wss://`), und ein im Client gehashtes Passwort wäre nur ein längeres
+ * Passwort — wer den Hash mitliest, meldet sich damit an.
+ */
+export interface CredentialsMsg {
+  name: string;
+  password: string;
+}
+
+export function encodeLogin(m: CredentialsMsg): Uint8Array {
+  return packet(ClientOp.Login, 128).str(m.name).str(m.password).finish();
+}
+
+export function encodeCreateAccount(m: CredentialsMsg): Uint8Array {
+  return packet(ClientOp.CreateAccount, 128).str(m.name).str(m.password).finish();
+}
+
+export function decodeCredentials(r: ByteReader): CredentialsMsg {
+  return { name: r.str(), password: r.str() };
+}
+
+export function encodeCreateCharacter(name: string): Uint8Array {
+  return packet(ClientOp.CreateCharacter, 64).str(name).finish();
+}
+
+export function decodeCreateCharacter(r: ByteReader): { name: string } {
+  return { name: r.str() };
+}
+
+export function encodeDeleteCharacter(characterId: number): Uint8Array {
+  return packet(ClientOp.DeleteCharacter, 16).u32(characterId).finish();
+}
+
+export function encodeEnterWorld(characterId: number): Uint8Array {
+  return packet(ClientOp.EnterWorld, 16).u32(characterId).finish();
+}
+
+/** Beide nennen nur eine Figur — gelesen wird für beide gleich. */
+export function decodeCharacterRef(r: ByteReader): { characterId: number } {
+  return { characterId: r.u32() };
 }
 
 export interface InputMsg {
@@ -642,6 +690,58 @@ export function encodeServerVersion(m: BuildStamp): Uint8Array {
 
 export function decodeServerVersion(r: ByteReader): BuildStamp {
   return { nummer: r.str(), zeit: r.f64() };
+}
+
+/**
+ * Was in der Verwaltung steht: wer man ist und welche Figuren es gibt.
+ *
+ * Eine Nachricht für den ganzen Stand und nicht drei kleine für Konto, Zahl
+ * und Liste: sie kommt nach dem Anmelden und nach jeder Änderung, und ein
+ * Stand, der in Teilen ankommt, ist zwischendurch keiner.
+ */
+export interface LobbyMsg {
+  accountName: string;
+  /** `AccessLevel` — was dieses Konto darf. */
+  accessLevel: number;
+  /** Wie viele Figuren dieses Konto haben darf. */
+  maxCharacters: number;
+  characters: LobbyCharacter[];
+}
+
+export interface LobbyCharacter {
+  id: number;
+  name: string;
+  level: number;
+  mapId: string;
+}
+
+export function encodeLobby(m: LobbyMsg): Uint8Array {
+  const w = packet(ServerOp.Lobby, 512);
+  w.str(m.accountName).u8(m.accessLevel).u8(m.maxCharacters).u8(m.characters.length);
+  for (const c of m.characters) {
+    w.u32(c.id).str(c.name).u16(c.level).str(c.mapId);
+  }
+  return w.finish();
+}
+
+export function decodeLobby(r: ByteReader): LobbyMsg {
+  const accountName = r.str();
+  const accessLevel = r.u8();
+  const maxCharacters = r.u8();
+  const count = r.u8();
+  const characters: LobbyCharacter[] = [];
+  for (let i = 0; i < count; i++) {
+    characters.push({ id: r.u32(), name: r.str(), level: r.u16(), mapId: r.str() });
+  }
+  return { accountName, accessLevel, maxCharacters, characters };
+}
+
+export function encodeLobbyError(text: string): Uint8Array {
+  return packet(ServerOp.LobbyError, 256).str(text).finish();
+}
+
+export function decodeLobbyError(r: ByteReader): { text: string } {
+  return { text: r.str() };
 }
 
 export function encodeKick(reason: number, message: string): Uint8Array {

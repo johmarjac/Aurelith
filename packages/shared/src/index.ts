@@ -38,4 +38,6 @@ export * from './assets/manifest.ts';
 // `git` auf und gehört damit nicht in ein Browserbündel.
 export * from './build/stamp.ts';
 
+export * from './account/access.ts';
+
 export const ENGINE_NAME = 'Aurelith';

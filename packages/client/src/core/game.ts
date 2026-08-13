@@ -69,6 +69,7 @@ import { Mixer } from '../audio/mixer.ts';
 import { PRELOAD, SOUNDS, WEAPON_SWING, type SoundDef } from '../audio/sounds.ts';
 import { Connection } from '../net/connection.ts';
 import { UI } from '../ui/index.ts';
+import { LobbyView } from '../ui/lobby.ts';
 
 /** Ab dieser Abweichung wird die Vorhersage hart korrigiert. */
 const RECONCILE_THRESHOLD = 1.2;
@@ -262,6 +263,8 @@ export class Game {
   private readonly registry = new ModelRegistry();
   private readonly view: WorldView;
   private readonly ui: UI;
+  /** Anmeldung und Figurenauswahl. Liegt über der Welt, bis eine Figur drin ist. */
+  private readonly lobby: LobbyView;
   private readonly input: InputManager;
   private readonly streamer = new AssetStreamer();
   private readonly textures: TextureLoader;
@@ -287,7 +290,10 @@ export class Game {
   private mapDoc?: MapDocument;
 
   private localId = 0;
+  /** Name der Figur, mit der man spielt — kommt aus der Verwaltung. */
   private playerName = '';
+  /** Was das angemeldete Konto darf. Nur für die Anzeige; geprüft wird am Server. */
+  private accessLevel = 0;
   private inputSeq = 0;
   private pending: PendingInput[] = [];
   private targetId = 0;
@@ -395,6 +401,21 @@ export class Game {
     this.ui = new UI(uiHost, touch, this.registry);
     this.input = new InputManager(canvas, this.scene, touch, uiHost);
 
+    // Anmeldung und Figurenauswahl. Sie schickt nur Pakete — was daraus wird,
+    // entscheidet der Server, und die Antwort kommt über `onLobby`.
+    this.lobby = new LobbyView(uiHost);
+    this.lobby.onLogin = (name, pass) => this.connection?.sendLogin(name, pass);
+    this.lobby.onCreateAccount = (name, pass) => this.connection?.sendCreateAccount(name, pass);
+    this.lobby.onCreateCharacter = (name) => this.connection?.sendCreateCharacter(name);
+    this.lobby.onDeleteCharacter = (id) => this.connection?.sendDeleteCharacter(id);
+    this.lobby.onEnterWorld = (id) => {
+      // Der Name für den Kasten oben links steht in der Liste, nicht im
+      // Willkommen: der Server nennt dort die Karte, nicht die Figur.
+      this.playerName = this.lobby.nameVon(id) ?? this.playerName;
+      this.ui.setPlayerName(this.playerName);
+      this.connection?.sendEnterWorld(id);
+    };
+
     this.ui.onChatSubmit = (text) => this.onChatInput(text);
     this.ui.onRespawn = () => this.connection?.sendRespawn();
     this.ui.onEquipItem = (slot) => this.connection?.sendEquipItem(slot);
@@ -482,9 +503,7 @@ export class Game {
    * Ladebildschirm: der Blueprint stellt „spielbar im ersten Frame" gegen
    * Flyffs 9-MB-Schranke, und unser Kern ist klein genug, dass das trägt.
    */
-  async start(accountName: string): Promise<void> {
-    this.playerName = accountName;
-    this.ui.setPlayerName(accountName);
+  async start(): Promise<void> {
     this.ui.setConnection('verbindet');
 
     // Das Manifest darf fehlschlagen — ohne es lädt der Streamer direkt, nur
@@ -537,7 +556,7 @@ export class Game {
     }
 
     await this.ensureMap(BOOTSTRAP_MAP);
-    this.connect(accountName);
+    this.connect();
   }
 
   /**
@@ -711,7 +730,7 @@ export class Game {
   // Verbindung
   // -------------------------------------------------------------------------
 
-  private connect(accountName: string): void {
+  private connect(): void {
     // Eine bestehende Verbindung zuerst abraeumen: nach `close()` meldet sie
     // nichts mehr nach oben, also kann kein Paket im Flug die frische Sitzung
     // durcheinanderbringen.
@@ -721,9 +740,18 @@ export class Game {
     let explainedMissingServer = false;
     const url = serverUrl();
 
-    this.connection = new Connection(url, accountName, {
+    this.connection = new Connection(url, {
       onStatus: (status, detail) => {
         this.ui.setConnection(status, detail);
+
+        // Steht die Leitung, ist als Nächstes die Anmeldung dran. Sie erscheint
+        // auch nach einem Verbindungsabriss wieder: es gibt kein Sitzungspapier,
+        // das eine neue Verbindung ausweisen könnte, also wird neu angemeldet.
+        if (status === 'verbunden' && this.localId === 0) this.lobby.zeigeAnmeldung();
+        if (status === 'getrennt') {
+          this.resetSession();
+          this.lobby.zuruecksetzen();
+        }
 
         // Eine statisch ausgelieferte Seite hat keinen WebSocket-Endpunkt.
         // Ohne Erklärung sieht man nur „getrennt" und rätselt, ob etwas kaputt
@@ -741,8 +769,20 @@ export class Game {
         }
       },
 
+      onLobby: (msg) => {
+        // Angemeldet, aber noch nicht in der Welt: die Maske zeigt die
+        // Figuren. Wer schon spielt, sieht sie nicht wieder — der Server
+        // schickt sie dann auch nicht.
+        this.lobby.setStand(msg);
+        this.accessLevel = msg.accessLevel;
+      },
+
+      onLobbyError: (text) => this.lobby.zeigeFehler(text),
+
       onWelcome: async (msg) => {
         this.localId = msg.entityId;
+        // Die Maske hat ihren Dienst getan.
+        this.lobby.verbergen();
         this.syncClock(msg.serverTimeMs);
         this.pending = [];
         this.targetId = 0;
@@ -898,9 +938,16 @@ export class Game {
         this.systemLine('/disconnect — gespeicherte Adresse loeschen und trennen');
         this.systemLine('/server — aktuelle Adresse anzeigen');
         this.systemLine('/version — Fassung von Server und Client anzeigen');
+        // Und was der Server noch kann, sagt der Server: seine Liste hängt an
+        // der Zugriffsstufe des Kontos.
+        this.connection?.sendChat('/help');
         break;
       default:
-        this.systemLine(`Unbekannter Befehl: /${command}. /help zeigt die Liste.`);
+        // Was der Client nicht kennt, kennt vielleicht der Server: dort liegen
+        // die Befehle, die am Spielstand rühren. Er antwortet selbst, auch mit
+        // „unbekannt" — sonst müsste der Client eine zweite Liste derselben
+        // Befehle führen, und zwar eine, die veraltet.
+        this.connection?.sendChat(text);
         break;
     }
   }
@@ -953,7 +1000,7 @@ export class Game {
 
     setStoredServerUrl(checked.url);
     this.systemLine(`Verbinde mit ${checked.url} …`);
-    this.connect(this.playerName);
+    this.connect();
   }
 
   private commandDisconnect(): void {

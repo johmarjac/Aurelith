@@ -11,6 +11,7 @@
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { Server } from 'node:http';
 import {
+  AccessLevel,
   ChatChannel,
   EntityState,
   EntityType,
@@ -19,6 +20,7 @@ import {
   KickReason,
   MOBS,
   playerProfile,
+  MIN_PASSWORD_LENGTH,
   PROTOCOL_VERSION,
   QuestAction,
   SNAPSHOT_TICK_DIVISOR,
@@ -39,12 +41,17 @@ import {
   decodeSetTarget,
   decodeShopTrade,
   decodeUpgradeItem,
+  decodeCharacterRef,
+  decodeCreateCharacter,
+  decodeCredentials,
   decodeMoveItem,
   decodeUseItem,
   decodeUsePortal,
   encodeCombatEvent,
   encodeInventory,
   encodeKick,
+  encodeLobby,
+  encodeLobbyError,
   encodeServerVersion,
   encodeMapChange,
   encodeNpcDialog,
@@ -81,8 +88,13 @@ import {
   tuning,
   turnInOf,
   type UpdateRow,
+  accessFromName,
+  accessName,
+  isValidName,
 } from '@aurelith/shared';
 import { CoreEventType, CoreButton } from '@aurelith/core';
+import { hashPassword, verifyPassword } from './passwords.ts';
+import { runCommand } from './commands.ts';
 import { config } from './config.ts';
 import type { CoreBundle } from './core.ts';
 import type { MapStore } from './maps.ts';
@@ -97,6 +109,15 @@ import {
   removeSlot,
 } from './inventory.ts';
 import type { GameStore } from './db/index.ts';
+
+/**
+ * So viele Fehlversuche verträgt eine Verbindung, dann fliegt sie.
+ *
+ * Grosszügig gegenüber einem vertippten Passwort und eng genug, dass eine
+ * Liste durchzuprobieren teuer wird: wer weitermachen will, muss jedes Mal neu
+ * verbinden, und das kostet Zeit und fällt im Protokoll auf.
+ */
+const MAX_LOGIN_ATTEMPTS = 6;
 
 /** Wie nah man an einem NPC stehen muss — aus den Stellschrauben. */
 const interactRange = (): number => tuning().world.interactRange;
@@ -209,7 +230,7 @@ export class GameServer {
       const { opcode, reader } = readPacket(raw);
       switch (opcode) {
         case ClientOp.Hello:
-          void this.onHello(session, decodeHello(reader));
+          this.onHello(session, decodeHello(reader));
           break;
         case ClientOp.Input: {
           if (session.state !== 'playing') break;
@@ -291,6 +312,21 @@ export class GameServer {
         case ClientOp.Respawn:
           if (session.state === 'playing') this.respawn(session);
           break;
+        case ClientOp.Login:
+          void this.onLogin(session, decodeCredentials(reader), false);
+          break;
+        case ClientOp.CreateAccount:
+          void this.onLogin(session, decodeCredentials(reader), true);
+          break;
+        case ClientOp.CreateCharacter:
+          void this.onCreateCharacter(session, decodeCreateCharacter(reader).name);
+          break;
+        case ClientOp.DeleteCharacter:
+          void this.onDeleteCharacter(session, decodeCharacterRef(reader).characterId);
+          break;
+        case ClientOp.EnterWorld:
+          void this.onEnterWorld(session, decodeCharacterRef(reader).characterId);
+          break;
         case ClientOp.VersionRequest:
           // Ohne Zustandsprüfung: die Fassung ist keine Auskunft über die
           // Welt, und gerade wenn eine Sitzung nicht ins Spiel kommt, will
@@ -309,7 +345,7 @@ export class GameServer {
   // Anmeldung
   // -------------------------------------------------------------------------
 
-  private async onHello(session: Session, hello: ReturnType<typeof decodeHello>): Promise<void> {
+  private onHello(session: Session, hello: ReturnType<typeof decodeHello>): void {
     if (session.state !== 'handshake') return;
 
     if (hello.protocolVersion !== PROTOCOL_VERSION) {
@@ -324,55 +360,224 @@ export class GameServer {
       return;
     }
 
-    const accountName = sanitizeName(hello.accountName);
-    if (accountName.length < 2) {
-      session.send(encodeKick(KickReason.AuthFailed, 'Name ist zu kurz.'));
+    // Ab hier darf geredet werden — aber noch nichts über eine Figur. Wer man
+    // ist, sagt `Login`.
+    session.state = 'anonym';
+  }
+
+  /**
+   * Anmelden oder Konto anlegen.
+   *
+   * Beide Wege enden an derselben Stelle, und sie scheitern mit demselben
+   * Satz. „Kein solches Konto" gegen „falsches Passwort" zu unterscheiden
+   * verrät, welche Namen es gibt — und das ist die Hälfte der Arbeit für den,
+   * der sie durchprobiert.
+   */
+  private async onLogin(
+    session: Session,
+    daten: ReturnType<typeof decodeCredentials>,
+    anlegen: boolean,
+  ): Promise<void> {
+    if (session.state !== 'anonym') return;
+
+    // Fehlversuche kosten. Nach ein paar davon ist die Verbindung zu Ende —
+    // wer wirklich sein Passwort sucht, verbindet neu; wer eine Liste
+    // durchprobiert, fängt jedes Mal von vorn an.
+    if (session.loginAttempts >= MAX_LOGIN_ATTEMPTS) {
+      session.send(encodeKick(KickReason.AuthFailed, 'Zu viele Fehlversuche.'));
       session.flush();
       session.close(1008, 'auth');
       return;
     }
+    session.loginAttempts++;
+
+    const name = daten.name.trim();
+    const passwort = daten.password;
+
+    if (!isValidName(name)) {
+      session.send(
+        encodeLobbyError(
+          'Der Name darf drei bis sechzehn Buchstaben, Ziffern, Strich oder Unterstrich haben.',
+        ),
+      );
+      session.flush();
+      return;
+    }
+    if (anlegen && passwort.length < MIN_PASSWORD_LENGTH) {
+      session.send(
+        encodeLobbyError(`Das Passwort braucht mindestens ${MIN_PASSWORD_LENGTH} Zeichen.`),
+      );
+      session.flush();
+      return;
+    }
+
+    let account = await this.store.findAccount(name);
+
+    if (anlegen) {
+      if (account) {
+        session.send(encodeLobbyError('Diesen Namen gibt es schon.'));
+        session.flush();
+        return;
+      }
+      account = await this.store.createAccount(
+        name,
+        await hashPassword(passwort),
+        accessName(config.admins.includes(name.toLowerCase()) ? AccessLevel.Admin : AccessLevel.Player),
+      );
+      if (!account) {
+        // Zwischen Nachsehen und Anlegen war jemand schneller.
+        session.send(encodeLobbyError('Diesen Namen gibt es schon.'));
+        session.flush();
+        return;
+      }
+    } else {
+      const passt = account ? await verifyPassword(passwort, account.passwordHash) : false;
+      if (!account || !passt) {
+        session.send(encodeLobbyError('Name oder Passwort stimmt nicht.'));
+        session.flush();
+        return;
+      }
+    }
+
+    // Die Liste der Verwalter steht in der Konfiguration und gilt bei jeder
+    // Anmeldung: so lässt sich eine Stufe vergeben, ohne in der Datenbank zu
+    // schreiben, und sie lässt sich genauso wieder entziehen.
+    const gewuenscht = config.admins.includes(name.toLowerCase())
+      ? accessName(AccessLevel.Admin)
+      : account.accessLevel;
+    if (gewuenscht !== account.accessLevel) {
+      await this.store.setAccessLevel(account.id, gewuenscht);
+      account = { ...account, accessLevel: gewuenscht };
+    }
 
     // Doppelte Anmeldung desselben Kontos: die ältere Sitzung fliegt.
     for (const other of this.sessions) {
-      if (other !== session && other.accountName === accountName) {
+      if (other !== session && other.accountId === account.id) {
         other.send(encodeKick(KickReason.AuthFailed, 'An anderer Stelle angemeldet.'));
         other.flush();
         other.close(1000, 'replaced');
       }
     }
 
+    session.accountId = account.id;
+    session.accountName = account.name;
+    session.access = accessFromName(account.accessLevel);
+    session.state = 'lobby';
+    session.loginAttempts = 0;
+    await this.store.touchLogin(account.id);
+
+    await this.sendLobby(session);
+    console.log(`[konto] ${account.name} angemeldet (${account.accessLevel})`);
+  }
+
+  /** Schickt den Stand der Verwaltung: wer man ist, welche Figuren es gibt. */
+  private async sendLobby(session: Session): Promise<void> {
+    if (session.accountId === 0) return;
+    const figuren = await this.store.listCharacters(session.accountId);
+    session.send(
+      encodeLobby({
+        accountName: session.accountName,
+        accessLevel: session.access,
+        maxCharacters: config.maxCharacters,
+        characters: figuren.map((c) => ({
+          id: c.id,
+          name: c.name,
+          level: c.level,
+          mapId: c.mapId,
+        })),
+      }),
+    );
+    session.flush();
+  }
+
+  private async onCreateCharacter(session: Session, name: string): Promise<void> {
+    if (session.state !== 'lobby') return;
+
+    const sauber = name.trim();
+    if (!isValidName(sauber)) {
+      session.send(
+        encodeLobbyError(
+          'Der Name darf drei bis sechzehn Buchstaben, Ziffern, Strich oder Unterstrich haben.',
+        ),
+      );
+      session.flush();
+      return;
+    }
+
+    const vorhanden = await this.store.listCharacters(session.accountId);
+    if (vorhanden.length >= config.maxCharacters) {
+      session.send(
+        encodeLobbyError(`Mehr als ${config.maxCharacters} Figuren gehen nicht.`),
+      );
+      session.flush();
+      return;
+    }
+
     const startMap = this.maps.require(config.startMap);
     // `startPos` übersteuert den Startpunkt der Karte — nur für Prüfungen
-    // gedacht, und nur beim Anlegen eines Charakters.
+    // gedacht, und nur beim Anlegen einer Figur.
     const spawn = config.startPos ?? startMap.spawn;
-    const login = await this.store.loginOrCreate(accountName, {
+    const figur = await this.store.createCharacter(session.accountId, sauber, {
       mapId: startMap.id,
       x: spawn.x,
       z: spawn.z,
       yaw: spawn.yaw,
     });
-
-    // Eine Map, die es nicht mehr gibt, darf keinen Login blockieren.
-    const instance =
-      this.instances.get(login.character.mapId) ?? this.instances.get(config.startMap);
-    if (!instance) {
-      session.send(encodeKick(KickReason.AuthFailed, 'Keine Map verfügbar.'));
+    if (!figur) {
+      session.send(encodeLobbyError('Diesen Namen trägt schon jemand.'));
       session.flush();
-      session.close(1011, 'no-map');
       return;
     }
 
-    session.accountName = accountName;
-    session.character = login.character;
-    session.items = login.items;
+    await this.sendLobby(session);
+  }
+
+  private async onDeleteCharacter(session: Session, characterId: number): Promise<void> {
+    if (session.state !== 'lobby') return;
+    const weg = await this.store.deleteCharacter(session.accountId, characterId);
+    if (!weg) {
+      session.send(encodeLobbyError('Diese Figur gibt es nicht.'));
+      session.flush();
+      return;
+    }
+    await this.sendLobby(session);
+  }
+
+  /**
+   * Mit einer Figur in die Welt.
+   *
+   * Erst hier entsteht ein Entity. Alles davor — Konto, Liste, Anlegen — ist
+   * Verwaltung und rührt die Simulation nicht an.
+   */
+  private async onEnterWorld(session: Session, characterId: number): Promise<void> {
+    if (session.state !== 'lobby') return;
+
+    const geladen = await this.store.loadCharacter(session.accountId, characterId);
+    if (!geladen) {
+      session.send(encodeLobbyError('Diese Figur gibt es nicht.'));
+      session.flush();
+      return;
+    }
+
+    // Eine Map, die es nicht mehr gibt, darf keinen Eintritt blockieren.
+    const instance =
+      this.instances.get(geladen.character.mapId) ?? this.instances.get(config.startMap);
+    if (!instance) {
+      session.send(encodeLobbyError('Keine Karte verfügbar.'));
+      session.flush();
+      return;
+    }
+
+    session.character = geladen.character;
+    session.items = geladen.items;
+    session.quests.load(geladen.quests);
+    // Sammelziele einmal am Beutel messen: wer sich abgemeldet hat, während
+    // die Essenzen im Beutel lagen, ist beim Anmelden abgabebereit.
+    session.quests.syncCollect(session.items);
     // Plätze zurechtrücken: was angelegt ist, gehört aus dem Beutel heraus.
     // Ältere Spielstände haben Angelegtes noch mitten im Raster liegen, und
     // die Datenbank kennt Zeilen ohne Platz.
     if (normalizeSlots(session.items)) session.itemsDirty = true;
-    session.quests.load(login.quests);
-    // Sammelziele einmal am Beutel messen: wer sich abgemeldet hat, während
-    // die Essenzen im Beutel lagen, ist beim Anmelden abgabebereit.
-    session.quests.syncCollect(session.items);
     session.entityId = this.nextEntityId++;
     session.mapId = instance.doc.id;
     session.state = 'playing';
@@ -381,13 +586,13 @@ export class GameServer {
     const profile = this.attackProfileOf(session);
     instance.world.spawnPlayer({
       id: session.entityId,
-      level: login.character.level,
-      x: login.character.x,
-      z: login.character.z,
-      yaw: login.character.yaw,
-      hp: login.character.hp,
+      level: geladen.character.level,
+      x: geladen.character.x,
+      z: geladen.character.z,
+      yaw: geladen.character.yaw,
+      hp: geladen.character.hp,
       maxHp: stats.maxHp,
-      mp: login.character.mp,
+      mp: geladen.character.mp,
       maxMp: stats.maxMp,
       attackDamage: stats.attackDamage,
       defense: stats.defense,
@@ -400,7 +605,7 @@ export class GameServer {
       radius: playerProfile().radius,
       height: playerProfile().height,
     });
-    instance.meta.set(session.entityId, this.playerMeta(session, accountName));
+    instance.meta.set(session.entityId, this.playerMeta(session, geladen.character.name));
     instance.playerIds.add(session.entityId);
     this.sessionByEntity.set(session.entityId, session);
 
@@ -421,15 +626,13 @@ export class GameServer {
     this.sendStats(session);
     this.sendInventory(session);
     this.sendQuestLog(session);
-    this.systemMessage(
-      session,
-      login.created
-        ? `Willkommen in ${instance.doc.name}, ${accountName}. Du beginnst mit einem Holzschwert.`
-        : `Willkommen zurück, ${accountName}.`,
-    );
+    this.systemMessage(session, `Willkommen in ${instance.doc.name}, ${geladen.character.name}.`);
     session.flush();
 
-    console.log(`[sitzung] ${accountName} betritt ${instance.doc.id} (Entity ${session.entityId})`);
+    console.log(
+      `[sitzung] ${session.accountName}/${geladen.character.name} betritt ${instance.doc.id} ` +
+        `(Entity ${session.entityId})`,
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -1619,6 +1822,10 @@ export class GameServer {
     const trimmed = text.trim().slice(0, 200);
     if (trimmed.length === 0) return;
 
+    // Ein Schrägstrich ist ein Befehl und keine Nachricht. Auch der abgelehnte
+    // — sonst stünde „/gg 5000" im Chat der ganzen Wiese.
+    if (runCommand(this, session, trimmed)) return;
+
     const instance = this.instances.get(session.mapId);
     if (!instance) return;
 
@@ -1640,7 +1847,22 @@ export class GameServer {
     if (row) this.broadcastNear(instance, row.x, row.z, packet);
   }
 
-  private systemMessage(session: Session, text: string): void {
+  /**
+   * Schreibt Gold gut — für Befehle, die das dürfen.
+   *
+   * Über dieselbe Stelle wie jeder andere Goldzugang: der Wert steht am
+   * Charakter, die Anzeige kommt aus `sendStats`. Ein Befehl, der die Zahl
+   * selbst setzte und die Anzeige selbst schickte, wäre der zweite Weg zu
+   * derselben Sache.
+   */
+  giveGold(session: Session, amount: number): void {
+    const character = session.character;
+    if (!character) return;
+    character.gold += amount;
+    this.sendStats(session);
+  }
+
+  systemMessage(session: Session, text: string): void {
     session.send(encodeServerChat({ channel: ChatChannel.System, from: '', text }));
   }
 

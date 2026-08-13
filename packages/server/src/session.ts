@@ -5,6 +5,7 @@
 
 import type { WebSocket } from 'ws';
 import {
+  AccessLevel,
   CipherSuite,
   FrameSequencer,
   encodeFrame,
@@ -15,7 +16,15 @@ import {
 import type { CharacterRecord, ItemRecord } from './db/index.ts';
 import { QuestBook } from './quests.ts';
 
-export type SessionState = 'handshake' | 'playing' | 'closed';
+/**
+ * Wo eine Verbindung gerade steht.
+ *
+ * `handshake` bis zum Gruss, `anonym` bis zur Anmeldung, `lobby` in der
+ * Charakterverwaltung, `playing` in der Welt. Jeder Opcode gehört zu genau
+ * einem dieser Zustände — das ist die Stelle, an der ein Paket zur falschen
+ * Zeit auffällt.
+ */
+export type SessionState = 'handshake' | 'anonym' | 'lobby' | 'playing' | 'closed';
 
 /**
  * Wie viele unverarbeitete Eingaben höchstens gepuffert werden.
@@ -41,10 +50,21 @@ export const INPUT_QUEUE_DRAIN_MAX = 3;
 export class Session {
   state: SessionState = 'handshake';
 
-  /** Kennung des Entities im Kern. Null, solange nicht eingeloggt. */
+  /** Kennung des Entities im Kern. Null, solange nicht in der Welt. */
   entityId = 0;
   mapId = '';
+  /** Kennung des angemeldeten Kontos. Null, solange niemand angemeldet ist. */
+  accountId = 0;
   accountName = '';
+  /** Was dieses Konto darf — `AccessLevel`. */
+  access: AccessLevel = AccessLevel.Player;
+  /**
+   * Fehlversuche bei der Anmeldung auf dieser Verbindung.
+   *
+   * Zählt je Verbindung und nicht je Konto: eine Sperre am Konto liesse sich
+   * missbrauchen, um jemand anderen auszusperren.
+   */
+  loginAttempts = 0;
   character?: CharacterRecord;
   items: ItemRecord[] = [];
   /** Auftragsstand. Leer, solange nicht eingeloggt. */

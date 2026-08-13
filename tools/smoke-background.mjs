@@ -24,6 +24,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { anmeldenUndBetreten } from './lib/spielstart.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -113,8 +114,8 @@ const browser = await chromium.launch({
   ],
 });
 const page = await browser.newPage({ viewport: { width: 800, height: 600 } });
-await page.goto('http://127.0.0.1:5193/?name=Hintergrund', { waitUntil: 'domcontentloaded' });
-await page.waitForFunction(() => window.aurelith?.localId > 0, { timeout: 30000 });
+await page.goto('http://127.0.0.1:5193/', { waitUntil: 'domcontentloaded' });
+await anmeldenUndBetreten(page, `Hinter${Date.now() % 100000}`);
 await page.waitForTimeout(1500);
 
 console.log(`Prüfungen (Zeitfenster des Servers: ${TIMEOUT_SECONDS} s)`);

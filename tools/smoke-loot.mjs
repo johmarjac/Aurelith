@@ -18,6 +18,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { anmeldenUndBetreten } from './lib/spielstart.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const procs = [];
@@ -136,8 +137,8 @@ const fehler = [];
 page.on('pageerror', (err) => fehler.push(String(err)));
 
 const name = `Beute${Date.now() % 100000}`;
-await page.goto(`http://127.0.0.1:5198/?name=${name}`, { waitUntil: 'domcontentloaded' });
-await page.waitForFunction(() => window.aurelith?.localId > 0, { timeout: 40000 });
+await page.goto('http://127.0.0.1:5198/', { waitUntil: 'domcontentloaded' });
+await anmeldenUndBetreten(page, name);
 await page.waitForTimeout(2500);
 
 const beginn = Date.now();

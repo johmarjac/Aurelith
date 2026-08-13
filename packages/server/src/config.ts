@@ -125,6 +125,22 @@ export const config = {
   /** Obergrenze der Eingabepakete pro Sekunde und Sitzung. */
   maxInputsPerSecond: envNum('AURELITH_MAX_INPUT_RATE', 60),
 
+  /** Wie viele Figuren ein Konto haben darf. */
+  maxCharacters: envNum('AURELITH_MAX_CHARACTERS', 4),
+
+  /**
+   * Konten, die als Verwalter gelten — durch Komma getrennt.
+   *
+   * Die Stufe wird bei jeder Anmeldung nachgezogen: so lässt sie sich vergeben
+   * und wieder entziehen, ohne in der Datenbank zu schreiben. Ohne diesen Weg
+   * gäbe es auf einem frischen Server niemanden, der jemandem etwas geben
+   * könnte — das erste Konto muss von aussen benannt werden.
+   */
+  admins: env('AURELITH_ADMINS', '')
+    .split(',')
+    .map((n) => n.trim().toLowerCase())
+    .filter((n) => n.length > 0),
+
   /**
    * Aus welchem Stand dieser Server gebaut wurde.
    *

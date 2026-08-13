@@ -4,45 +4,13 @@
  * Der Blueprint weist ihr genau vier Aufgaben zu: Boot, Canvas, Fehler,
  * Storage. Mehr steht hier deshalb nicht. Alles Spielbezogene beginnt in
  * `core/game.ts`.
+ *
+ * Wer man ist, steht hier nicht mehr: das entscheidet die Anmeldung im Spiel.
+ * Ein Name aus dem Speicher der Seite war eine Behauptung, kein Nachweis.
  */
 
 import { Game } from './core/game.ts';
 import { BUILD } from './config.ts';
-
-const STORAGE_KEY = 'aurelith.account';
-
-/**
- * Ein Name ohne Anmeldemaske. Wer schon einen hat, behält ihn; wer keinen hat,
- * bekommt einen und kann später umbenennen. Eine Login-Schranke vor dem ersten
- * Bild wäre genau die Ladeschranke, die wir nicht wollen.
- */
-function accountName(): string {
-  const fromUrl = new URLSearchParams(location.search).get('name');
-  if (fromUrl) {
-    try {
-      localStorage.setItem(STORAGE_KEY, fromUrl);
-    } catch {
-      // Privater Modus ohne Storage — der Name gilt dann nur diese Sitzung.
-    }
-    return fromUrl;
-  }
-
-  let stored: string | null = null;
-  try {
-    stored = localStorage.getItem(STORAGE_KEY);
-  } catch {
-    stored = null;
-  }
-  if (stored) return stored;
-
-  const generated = `Held${Math.floor(1000 + Math.random() * 9000)}`;
-  try {
-    localStorage.setItem(STORAGE_KEY, generated);
-  } catch {
-    // Ebenfalls kein Grund, nicht zu spielen.
-  }
-  return generated;
-}
 
 function fatal(message: string, detail: unknown): void {
   console.error(message, detail);
@@ -72,7 +40,7 @@ if (!canvas || !uiRoot) {
   window.addEventListener('error', (e) => fatal('Unerwarteter Fehler', e.error ?? e.message));
   window.addEventListener('unhandledrejection', (e) => fatal('Unerwarteter Fehler', e.reason));
 
-  game.start(accountName()).catch((err) => fatal('Start fehlgeschlagen', err));
+  game.start().catch((err) => fatal('Start fehlgeschlagen', err));
 
   // Beim Verlassen sauber trennen, damit der Server die Sitzung sofort räumt
   // statt auf den Zeitablauf zu warten.

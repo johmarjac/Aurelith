@@ -22,6 +22,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { anmeldenUndBetreten } from './lib/spielstart.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const itemsFile = join(root, 'assets', 'content', 'items.json');
@@ -90,7 +91,8 @@ const browser = await chromium.launch({
 });
 
 const page = await browser.newPage({ viewport: { width: 400, height: 400 } });
-await page.goto('http://127.0.0.1:5198/?name=Icons', { waitUntil: 'domcontentloaded' });
+await page.goto('http://127.0.0.1:5198/', { waitUntil: 'domcontentloaded' });
+await anmeldenUndBetreten(page, `Icons${Date.now() % 100000}`);
 await page.waitForTimeout(1500);
 
 const gerendert = await page.evaluate(

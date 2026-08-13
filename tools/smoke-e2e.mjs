@@ -17,6 +17,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { anmeldenBestehend, anmeldenUndBetreten } from './lib/spielstart.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const shotDir = join(root, 'artefakte');
@@ -155,7 +156,9 @@ const pageErrors = [];
 page.on('console', (msg) => consoleLines.push(`[${msg.type()}] ${msg.text()}`));
 page.on('pageerror', (err) => pageErrors.push(String(err)));
 
-await page.goto('http://127.0.0.1:5199/?name=Rauchtest', { waitUntil: 'domcontentloaded' });
+const spielerName = `Rauch${Date.now() % 100000}`;
+await page.goto('http://127.0.0.1:5199/', { waitUntil: 'domcontentloaded' });
+await anmeldenUndBetreten(page, spielerName);
 
 // Der Statusanzeiger ist die ehrlichste Auskunft darüber, wie weit der Client
 // gekommen ist — er hängt am tatsächlichen WebSocket-Zustand.
@@ -479,6 +482,13 @@ check(
 // Jetzt die echte: direkt auf den Spielserver, nicht ueber den Vite-Proxy.
 await chat('/connect ws://127.0.0.1:8787/ws');
 
+// Und danach wieder anmelden. Eine neue Verbindung weist niemanden aus: es
+// gibt kein Sitzungspapier, das den alten Namen belegen würde, und ein
+// Client, der sich einfach wieder als derselbe ausgäbe, wäre genau die Lücke,
+// die das Passwort schliessen soll. Dasselbe Konto, dieselbe Figur — der Weg
+// dorthin führt noch einmal über die Maske.
+await anmeldenBestehend(page, spielerName);
+
 let reconnected = true;
 try {
   // Auf die Figur *und* die Welt warten: nach dem Neuverbinden kommen die
@@ -558,9 +568,10 @@ mobilePage.on('console', (m) => mobileConsole.push(`[${m.type()}] ${m.text()}`))
 await mobilePage.bringToFront();
 // Ein Name in üblicher Länge, nicht der kürzestmögliche: die Kopfzeile oben
 // links ist genau dann eng, wenn jemand nicht „Ada" heisst.
-await mobilePage.goto('http://127.0.0.1:5199/?name=Mobilheld123', {
-  waitUntil: 'domcontentloaded',
-});
+await mobilePage.goto('http://127.0.0.1:5199/', { waitUntil: 'domcontentloaded' });
+// Ein Name in üblicher Länge, nicht der kürzestmögliche: die Kopfzeile oben
+// links ist genau dann eng, wenn jemand nicht „Ada" heisst.
+await anmeldenUndBetreten(mobilePage, `Mobilheld${Date.now() % 1000}`).catch(() => undefined);
 // Auf „verbunden" zu warten reicht nicht: die Figur entsteht erst, wenn der
 // erste Snapshot sie meldet. Wer vorher misst, misst eine Figur, die es noch
 // nicht gibt — und bekommt einen Test, der mal durchgeht und mal nicht.
@@ -789,7 +800,8 @@ const tabletContext = await browser.newContext({
 });
 const tabletPage = await tabletContext.newPage();
 await tabletPage.bringToFront();
-await tabletPage.goto('http://127.0.0.1:5199/?name=Tablet', { waitUntil: 'domcontentloaded' });
+await tabletPage.goto('http://127.0.0.1:5199/', { waitUntil: 'domcontentloaded' });
+await anmeldenUndBetreten(tabletPage, `Tablet${Date.now() % 1000}`).catch(() => undefined);
 
 let tabletReady = true;
 try {
