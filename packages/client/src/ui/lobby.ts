@@ -46,6 +46,18 @@ export interface LobbyStand {
   characters: LobbyCharacter[];
 }
 
+/**
+ * Ist dieser Kanal voll?
+ *
+ * An einer Stelle, weil die Antwort an zwei Stellen gebraucht wird — beim
+ * Sperren einer Zeile und beim Vorwählen. Zwei Abschriften wären zwei
+ * Vorstellungen von „voll", und die Vorwahl liefe irgendwann auf einen Kanal,
+ * den man nicht betreten kann.
+ */
+function istVoll(r: RealmRow): boolean {
+  return r.capacity > 0 && r.online >= r.capacity;
+}
+
 /** Welche der Masken gerade gilt. */
 type Seite = 'anmeldung' | 'kanaele' | 'figuren' | 'neu';
 
@@ -408,6 +420,23 @@ export class LobbyView {
     );
 
     const kanaele = this.realms.filter((r) => r.server === this.gewaehlterServer);
+
+    /*
+     * Den ersten freien Kanal vorwählen.
+     *
+     * Ohne das steht die Maske mit einem Knopf da, der nichts tut: „Betreten"
+     * ist gesperrt, solange nichts gewählt ist, und ein gesperrter Knopf, den
+     * man drückt, meldet nichts — er tut einfach nichts. Genau so ist es
+     * gewesen, und niemand konnte daran erkennen, dass noch eine Wahl fehlt.
+     *
+     * Der erste **freie**: einen vollen vorzuwählen führte auf denselben
+     * toten Knopf.
+     */
+    if (!kanaele.some((r) => r.channel === this.gewaehlterKanal)) {
+      const frei = kanaele.find((r) => !istVoll(r)) ?? kanaele[0];
+      this.gewaehlterKanal = frei?.channel ?? '';
+    }
+
     if (kanaele.length === 0) {
       this.kanalListe.replaceChildren(
         el('p', 'lobby-leer', 'Kein Kanal ist gerade erreichbar.'),
@@ -421,7 +450,7 @@ export class LobbyView {
           // Voll heisst voll: der Knopf bleibt lesbar, lässt sich aber nicht
           // drücken. Ihn wegzulassen wäre schlechter — dann fehlte der Kanal
           // in der Liste, und niemand wüsste, dass es ihn gibt.
-          const voll = r.capacity > 0 && r.online >= r.capacity;
+          const voll = istVoll(r);
           knopf.disabled = voll;
           knopf.append(
             el('span', 'kanal-name', r.channel),
@@ -451,7 +480,18 @@ export class LobbyView {
     const kanal = this.realms.find(
       (r) => r.server === this.gewaehlterServer && r.channel === this.gewaehlterKanal,
     );
-    if (!kanal || this.ticket === '') return;
+
+    // Beides sollte nicht vorkommen — der Knopf ist dann gesperrt. Trotzdem
+    // eine Meldung statt eines stillen `return`: ein Knopf, der nichts tut und
+    // nichts sagt, ist das Schlimmste, was eine Maske anbieten kann.
+    if (!kanal) {
+      this.zeigeFehler('Wähle zuerst einen Kanal.');
+      return;
+    }
+    if (this.ticket === '') {
+      this.zeigeFehler('Die Eintrittskarte ist verbraucht. Lade die Liste neu.');
+      return;
+    }
 
     // Die Karte gilt nur einmal. Sie hier zu vergessen ist keine Vorsicht,
     // sondern Ehrlichkeit: ein zweiter Druck auf denselben Knopf würde sonst

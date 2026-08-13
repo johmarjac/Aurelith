@@ -221,6 +221,30 @@ body {
   filter: brightness(1.1);
 }
 
+/*
+ * Ein gesperrter Knopf muss gesperrt **aussehen**.
+ *
+ * Diese Regel fehlte, und das war teurer als es klingt: „Betreten" ist
+ * gesperrt, solange kein Kanal gewählt ist, sah aber aus wie jeder andere
+ * Knopf. Wer ihn drückte, bekam nichts — keine Wirkung, keine Meldung, keinen
+ * Anhaltspunkt. Ein Knopf, der nicht kann, was er verspricht, ist schlimmer
+ * als gar keiner.
+ *
+ * Gilt für alle Knöpfe der Oberfläche, nicht nur für diesen einen: die Lücke
+ * war allgemein, und eine Ausnahme für eine Maske hiesse, sie beim nächsten
+ * gesperrten Knopf wieder zu haben.
+ */
+.btn:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.65) brightness(0.75);
+  opacity: 0.6;
+  box-shadow: none;
+}
+
+.btn:disabled:hover {
+  filter: grayscale(0.65) brightness(0.75);
+}
+
 .btn:active,
 .btn[aria-pressed='true'] {
   background: linear-gradient(180deg, #a95f18, #d9973c);
