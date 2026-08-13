@@ -660,6 +660,11 @@ export class UI {
       // Die Nummer am Element ist die Trefferfläche beim Ziehen: wer einen
       // Gegenstand aus dem Beutel hierher zieht, landet auf genau diesem Platz.
       platz.dataset.aktion = String(i);
+      // Die Nummer als Rechengrösse für den Stil: auf dem Telefon liegen die
+      // Plätze nicht in einer Reihe, sondern auf einem Winkel — rechte Kante
+      // hinauf, untere Kante nach innen. Wo genau, rechnet das Stylesheet
+      // daraus aus; hier steht nur, der wievielte es ist.
+      platz.style.setProperty('--platz', String(i));
       // Das Bild oder Zeichen, die Anzahl, die Abklingzeit, die Taste. Alle
       // vier sind immer da und werden nur gefüllt — ein Platz, der seine
       // Kinder wechselt, verliert bei jedem Wechsel die Mausverfolgung und

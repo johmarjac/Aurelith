@@ -504,6 +504,109 @@ body.aktion-zuweisen .window[data-window='inventory'] {
   pointer-events: none;
 }
 
+/* ---------------------------------------------------------------------------
+ * Die Leiste auf dem Telefon.
+ *
+ * Dort ist sie keine Leiste, sondern ein Winkel: die rechte Kante hinauf und
+ * die untere Kante nach innen bis zur Mitte. Der Grund ist nicht Geschmack,
+ * sondern Platz — eine Reihe aus zehn Kacheln quer über den unteren Rand
+ * verdeckt den Chat und nimmt ein Viertel des Bildes weg, und genau dort
+ * passiert das Spiel.
+ *
+ * Und leere Plätze sind unsichtbar. Ein Raster aus zehn leeren Kästen ist eine
+ * Ankündigung von etwas, das man vielleicht nie hinlegt; was man hingelegt
+ * hat, soll man sehen, und sonst nichts. Beim Zuweisen kommen sie alle zum
+ * Vorschein — dann sind sie Ziele und müssen sichtbar sein.
+ * ------------------------------------------------------------------------ */
+
+[data-touch='true'] .actionbar {
+  /* Kein Kasten mehr, sondern eine Fläche, auf der die Plätze liegen. Sie
+     fängt keine Berührungen ab — das tun nur die Plätze selbst, sonst läge
+     eine unsichtbare Scheibe über der halben Welt. */
+  position: fixed;
+  inset: 0;
+  display: block;
+  max-width: none;
+  transform: none;
+  padding: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
+  /* **Wichtig.** Die Leiste ist ein `.panel`, und ein Panel verwischt, was
+     hinter ihm liegt. Über die ganze Fläche gezogen hiesse das: die ganze Welt
+     durch Milchglas. Sichtbar war es sofort, erklärlich nicht — die Leiste ist
+     unsichtbar, ihr Nebeneffekt nicht. */
+  backdrop-filter: none;
+  pointer-events: none;
+}
+
+[data-touch='true'] .action-slot {
+  position: absolute;
+  pointer-events: auto;
+  width: 3rem;
+  height: 3rem;
+  /* Rund wie ein Knopf und nicht eckig wie ein Fach: hier liegt nichts, hier
+     drückt man. */
+  border-radius: 50%;
+  background: rgba(12, 9, 6, 0.55);
+  border: 2px solid var(--gold-hell);
+  box-shadow: 0 0 10px rgba(230, 192, 121, 0.35);
+  transition: opacity 120ms ease-out;
+}
+
+/*
+ * Die rechte Säule — die Plätze 1 bis 6, von unten nach oben.
+ *
+ * Sie beginnt über dem Angriffsknopf und endet weit unterhalb des oberen
+ * Viertels. Der erste Platz liegt unten, wo der Daumen ohnehin ist.
+ */
+[data-touch='true'] .action-slot {
+  right: calc(var(--safe-r) + 0.6rem);
+  bottom: calc(var(--safe-b) + 11.5rem + var(--platz) * 3.4rem);
+}
+
+/*
+ * Die untere Kante — die Plätze 7 bis 10, von rechts zur Mitte.
+ *
+ * Unterhalb des Angriffsknopfes, und nur bis zur Bildmitte: die linke Hälfte
+ * gehört dem Chat.
+ */
+[data-touch='true'] .action-slot:nth-child(n + 7) {
+  bottom: calc(var(--safe-b) + 0.6rem);
+  right: calc(var(--safe-r) + 0.6rem + (var(--platz) - 6) * 3.4rem);
+}
+
+/* Leer heisst weg. Nicht `display: none` — ein Platz, den es im Umbruch nicht
+   gibt, verschöbe beim Belegen alle anderen. */
+[data-touch='true'] .action-slot[data-belegt='0'] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Beim Zuweisen sind auch die leeren da: sie sind das Ziel. */
+body.aktion-zuweisen [data-touch='true'] .action-slot[data-belegt='0'] {
+  opacity: 1;
+  pointer-events: auto;
+  background: rgba(12, 9, 6, 0.35);
+}
+
+/* Ohne Tastatur keine Tastenbeschriftung. */
+[data-touch='true'] .action-slot .key {
+  display: none;
+}
+
+/* In einem Kreis ist unten links draussen. Die Anzahl rückt in die Mitte und
+   bekommt einen dunklen Grund, damit sie auf jedem Symbol lesbar bleibt. */
+[data-touch='true'] .action-menge {
+  left: 50%;
+  bottom: -0.15rem;
+  transform: translateX(-50%);
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: rgba(8, 6, 4, 0.85);
+  font-size: 0.68rem;
+}
+
 /*
  * Eine Zeile, die sagt, was gerade gilt.
  *
@@ -531,6 +634,25 @@ body.aktion-zuweisen .actionbar {
   transform: translateX(-50%) scale(1.12);
   background: rgba(12, 9, 6, 0.85);
   box-shadow: 0 0 0 2px var(--gold-hell), 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+/* Auf dem Telefon ist die Leiste kein Kasten, den man hervorheben könnte —
+   dort leuchten die Plätze selbst, und der Rahmen darum wäre eine Scheibe
+   über dem halben Bild. */
+[data-touch='true'] body.aktion-zuweisen .actionbar,
+body.aktion-zuweisen [data-touch='true'] .actionbar {
+  transform: none;
+  background: none;
+  box-shadow: none;
+}
+
+body.aktion-zuweisen [data-touch='true'] .actionbar::before {
+  /* Über der untersten Reihe statt über der Mitte — dort steht sonst nichts. */
+  left: auto;
+  right: calc(var(--safe-r) + 0.6rem);
+  top: auto;
+  bottom: calc(var(--safe-b) + 4rem);
+  transform: none;
 }
 
 body.aktion-zuweisen .action-slot {
