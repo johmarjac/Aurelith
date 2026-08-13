@@ -1615,12 +1615,18 @@ export class UI {
     this.itemDetail.style.top = `${Math.round(oben)}px`;
   }
 
-  /** Namensschilder, Beuteschilder und Zahlen weiterschieben. */
+  /**
+   * Namensschilder, Auswahlrahmen, Beuteschilder und Zahlen weiterschieben.
+   *
+   * `ziel` ist das anvisierte Wesen selbst und nicht nur seine Kennung: der
+   * Rahmen braucht Lage und Höhe, und eine zweite Suche danach in der Liste
+   * wäre eine zweite Gelegenheit, ein anderes zu finden als das Spiel meint.
+   */
   updateOverlay(
     camera: THREE.PerspectiveCamera,
     entities: Iterable<EntityVisual>,
     localId: number,
-    targetId: number,
+    ziel: { entity: EntityVisual | undefined; kampf: boolean },
     dt: number,
     loot?: { piles: Iterable<{ row: LootRow }>; label: (row: LootRow) => string },
   ): void {
@@ -1630,11 +1636,12 @@ export class UI {
       camera,
       entities,
       localId,
-      targetId,
+      ziel.entity?.id ?? 0,
       width,
       height,
       this.questMarks,
     );
+    this.overlay.updateZielrahmen(camera, ziel.entity, ziel.kampf, width, height);
     if (loot) {
       this.overlay.updateLootLabels(camera, loot.piles, loot.label, width, height);
     }

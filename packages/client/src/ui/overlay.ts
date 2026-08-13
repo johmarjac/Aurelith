@@ -56,6 +56,8 @@ export class Overlay {
 
   private readonly plates: HTMLDivElement[] = [];
   private readonly lootLabels: HTMLDivElement[] = [];
+  /** Der Auswahlrahmen. Genau einer — es gibt genau ein Ziel. */
+  private zielRahmen?: HTMLDivElement;
   private readonly numbers: FloatingNumber[] = [];
   private readonly numberPool: HTMLDivElement[] = [];
 
@@ -163,6 +165,80 @@ export class Overlay {
     }
   }
 
+  /**
+   * Legt den Auswahlrahmen an: vier Ecken, die auf das Ziel zeigen.
+   *
+   * Vier Kinder und kein Bild: die Ecken sollen mit dem Ziel wachsen und
+   * schrumpfen, und eine Grafik dafür wäre entweder unscharf oder ein Satz
+   * Dateien für jede Grösse.
+   */
+  private rahmen(): HTMLDivElement {
+    if (this.zielRahmen) return this.zielRahmen;
+    const el = document.createElement('div');
+    el.className = 'ziel-rahmen';
+    el.innerHTML = '<i></i><i></i><i></i><i></i>';
+    el.style.display = 'none';
+    // Vor die Schilder, damit ein Namensschild darüber lesbar bleibt.
+    this.element.insertBefore(el, this.element.firstChild);
+    this.zielRahmen = el;
+    return el;
+  }
+
+  /**
+   * Setzt den Auswahlrahmen um das anvisierte Wesen.
+   *
+   * Hell heisst anvisiert, rot heisst angegriffen — dieselbe Auskunft, die
+   * auch der Auftrag der Figur trägt, nur sichtbar. `kampf` kommt deshalb von
+   * aussen und wird hier nicht erraten: das Overlay weiss nichts davon, was
+   * die Figur vorhat.
+   *
+   * Die Grösse wird aus der **projizierten** Höhe des Wesens genommen und
+   * nicht aus einer festen Zahl: ein Rahmen in fester Pixelgrösse liegt in der
+   * Ferne um das halbe Bild und in der Nähe im Bauch des Monsters.
+   */
+  updateZielrahmen(
+    camera: THREE.PerspectiveCamera,
+    ziel: EntityVisual | undefined,
+    kampf: boolean,
+    width: number,
+    height: number,
+  ): void {
+    const el = this.rahmen();
+    if (!ziel || ziel.state === EntityState.Dead) {
+      el.style.display = 'none';
+      return;
+    }
+
+    // Fusspunkt und Scheitel getrennt projizieren — daraus ergibt sich die
+    // Höhe im Bild, und die stimmt auch bei geneigter Kamera ungefähr.
+    this.projected.set(ziel.x, ziel.y, ziel.z).project(camera);
+    if (this.projected.z > 1) {
+      el.style.display = 'none';
+      return;
+    }
+    const fussY = (-this.projected.y * 0.5 + 0.5) * height;
+    const mitteX = (this.projected.x * 0.5 + 0.5) * width;
+
+    this.projected.set(ziel.x, ziel.y + ziel.height, ziel.z).project(camera);
+    const kopfY = (-this.projected.y * 0.5 + 0.5) * height;
+
+    // Etwas Luft rundherum, sonst klebt der Rahmen am Modell.
+    const hoehe = Math.max(28, Math.min(420, Math.abs(fussY - kopfY) * 1.35));
+    const breite = hoehe * 0.85;
+    // Die Ecken wachsen mit, aber gedeckelt: sonst füllen sie bei einem Wesen
+    // direkt vor der Nase den halben Bildschirm.
+    const ecke = Math.max(7, Math.min(22, hoehe * 0.2));
+
+    el.style.display = '';
+    el.style.width = `${Math.round(breite)}px`;
+    el.style.height = `${Math.round(hoehe)}px`;
+    el.style.setProperty('--ecke', `${Math.round(ecke)}px`);
+    el.style.transform =
+      `translate(${Math.round(mitteX)}px, ${Math.round((fussY + kopfY) / 2)}px) ` +
+      'translate(-50%, -50%)';
+    el.dataset.kampf = String(kampf);
+  }
+
   private lootLabel(index: number): HTMLDivElement {
     let el = this.lootLabels[index];
     if (el) return el;
@@ -267,7 +343,7 @@ export class Overlay {
       age: 0,
       lifetime: kind === 'crit' ? 1.3 : 1.0,
       // Leichte Streuung zur Seite, damit mehrere Treffer nicht übereinander
-      // liegen — bei einem Flächenschlag ist das der Normalfall.
+      // liegen — bei mehreren Angreifern auf einem Ziel ist das der Normalfall.
       driftX: (Math.random() - 0.5) * 0.9,
     });
   }

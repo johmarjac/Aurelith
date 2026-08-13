@@ -25,7 +25,6 @@
   },
   "player": {
     "attackRange": 3,
-    "attackArc": 2.670353755551324,
     "attackCooldownSec": 0.62,
     "attackWindupSec": 0.15,
     "radius": 0.45,

@@ -440,17 +440,24 @@ check(
     `(${smoothness.interpolated} von ${smoothness.total} Bildern, ${smoothness.fps.toFixed(0)} fps)`,
 );
 
-// Angriff ausloesen — der Flaechenschlag soll Treffer melden.
-await page.keyboard.down('Space');
-await page.waitForTimeout(2500);
-await page.keyboard.up('Space');
+// Angriffstaste ohne Ziel: sie darf nichts auslösen.
+//
+// Seit dem Zielsystem heisst die Leertaste „greif das Gewählte an", und ohne
+// Auswahl gibt es nichts zu greifen. Ein Kern, der wieder von selbst ein Ziel
+// suchte, fiele genau hier auf.
+await page.keyboard.press('Space');
 await page.waitForTimeout(600);
 
 const after = await page.evaluate(() => ({
-  damageNumbers: document.querySelectorAll('.damage').length,
+  auftrag: { ...window.aurelith.auftrag },
   status: document.querySelector('.status')?.textContent ?? '',
 }));
 
+check(
+  after.auftrag.art === 'nichts' && after.auftrag.angriff === false,
+  'ohne Ziel loest die Angriffstaste nichts aus',
+  `${after.auftrag.art}, angriff=${after.auftrag.angriff}`,
+);
 check(after.status.length > 0, 'Statusanzeige bleibt lesbar');
 
 // --- Chatbefehl /connect --------------------------------------------------

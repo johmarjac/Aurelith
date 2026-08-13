@@ -67,8 +67,14 @@ void World::resolveOverlaps() {
 void World::regenerate(float dt) {
   for (Entity& e : entities_) {
     if (!isAlive(e) || e.type == kEntityNpc) continue;
-    const bool inCombat =
-        e.hitStun > 0.0f || e.swingTimer >= 0.0f || e.attackCooldown > 0.0f || e.targetId != 0;
+    // Im Kampf heilt niemand. Was „im Kampf" heisst, unterscheidet sich seit
+    // dem Zielsystem nach Art des Wesens: ein Monster mit Ziel *jagt*, ein
+    // Spieler mit Ziel hat nur jemanden angeklickt. Die Auswahl bleibt nach
+    // dem Kampf stehen — hinge die Regeneration daran, heilte ein Spieler
+    // nie wieder, bis er irgendwo ins Leere klickt.
+    const bool inCombat = e.hitStun > 0.0f || e.swingTimer >= 0.0f ||
+                          e.attackCooldown > 0.0f ||
+                          (e.type == kEntityMonster && e.targetId != 0);
     if (inCombat) continue;
 
     if (e.hp < e.maxHp) e.hp = std::min(e.maxHp, e.hp + e.maxHp * kOutOfCombatRegen * dt);

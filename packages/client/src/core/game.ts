@@ -36,6 +36,7 @@ import {
   clockText,
   formatBuild,
   getItem,
+  getMob,
   loadContent,
   tuning,
   type AttackProfile,
@@ -86,6 +87,49 @@ const MAX_QUEUED_SNAPSHOTS = 20;
 
 /** Ein Klick trifft ein Entity, wenn es näher als das am Zeiger liegt. */
 const PICK_RADIUS_PX = 70;
+/**
+ * So nah gilt eine angeklickte Stelle als erreicht.
+ *
+ * Grosszügiger als es aussieht, und das mit Absicht: der Boden ist uneben, und
+ * eine Figur, die den letzten halben Meter noch aushandelt, zappelt auf der
+ * Stelle, statt anzukommen.
+ */
+const GEH_ANKUNFT = 0.7;
+/**
+ * Wie viel näher als nötig die Figur an ihr Ziel läuft, um zuzuschlagen.
+ *
+ * Der Kern prüft `Abstand − Zielradius ≤ Reichweite`, und zwar mit **seiner**
+ * Lage der Figur; die Vorhersage ist ihm um die Laufzeit voraus. Wer die
+ * Reichweite ausreizt, steht aus Sicht des Servers einen Wimpernschlag zu weit
+ * weg — die Figur schlägt dann sichtbar zu, und nichts passiert.
+ *
+ * Dieselbe Zahl benutzt die Monster-KI im Kern (`kPreferredGap`), aus
+ * demselben Grund: wer genau am Rand stehenbleibt, fällt bei der kleinsten
+ * Bewegung wieder heraus.
+ */
+const KAMPF_LUFT = 0.4;
+/** Ohne bekannten Zielradius: der Vorgabewert der Inhaltstabelle. */
+const MOB_RADIUS_FALLBACK = 0.6;
+/** Schrittweite und Weite der Bodensuche für den Klick ins Gelände. */
+const BODEN_SCHRITT = 0.5;
+const BODEN_WEITE = 260;
+
+/**
+ * Was die Figur gerade von selbst tut.
+ *
+ * Drei Sorten, ein Feld: hingehen, aufheben, angreifen. Als getrennte Felder —
+ * ein Beuteziel hier, ein Kampfziel dort — gäbe es Zustände, in denen zwei
+ * Absichten gleichzeitig gelten, und die Figur liefe zum Haufen, während sie
+ * ein Monster schlagen will. Ein neuer Auftrag löst den alten ab, jede
+ * eigene Bewegung wirft ihn weg.
+ *
+ * Die **Auswahl** (`targetId`) ist davon unabhängig und überlebt das Ende
+ * eines Auftrags: wer wegläuft, hat sein Monster immer noch anvisiert.
+ */
+type Auftrag =
+  | { art: 'gehen'; x: number; z: number }
+  | { art: 'beute'; lootId: number }
+  | { art: 'kampf'; entityId: number };
 /**
  * So lange wartet `/version` auf die Antwort des Servers.
  *
@@ -154,7 +198,16 @@ export interface Diagnostics {
    */
   playerSim: { x: number; y: number; z: number; yaw: number };
   /** Zuletzt gelesene Eingabe. Zeigt, ob Tastatur oder Joystick ankommen. */
-  input: { moveX: number; moveZ: number; yaw: number; attack: boolean };
+  input: { moveX: number; moveZ: number; yaw: number };
+  /**
+   * Was die Figur von sich aus tut — Auftrag, Ziel, Schlag.
+   *
+   * Die Angriffstaste taugt seit dem Zielsystem nicht mehr als Auskunft: sie
+   * ist ein Druck und kein Zustand. Was man von aussen sehen will, ist, ob
+   * gerade ein Kampf läuft und ob in diesem Schritt zugeschlagen wird — und
+   * das steht nirgends sonst.
+   */
+  auftrag: { art: string; zielId: number; angriff: boolean };
   /** Simulationsschritte seit dem Start. */
   ticks: number;
   /**
@@ -352,12 +405,16 @@ export class Game {
   private poseValid = false;
 
   private readonly projection = new THREE.Vector3();
+  /** Für den Klick ins Gelände — siehe `bodenPunkt`. */
+  private readonly strahl = new THREE.Raycaster();
+  private readonly zeiger = new THREE.Vector2();
 
   private readonly diagnostics: Diagnostics = {
     camera: { yaw: 0, pitch: 0, distance: 0 },
     player: { x: 0, y: 0, z: 0, yaw: 0, speed: 0 },
     playerSim: { x: 0, y: 0, z: 0, yaw: 0 },
-    input: { moveX: 0, moveZ: 0, yaw: 0, attack: false },
+    input: { moveX: 0, moveZ: 0, yaw: 0 },
+    auftrag: { art: 'nichts', zielId: 0, angriff: false },
     ticks: 0,
     weaponModels: [],
     audio: { state: 'wartet', contextState: 'kein Kontext', sampleRate: 0, geladen: [], dekodiert: [] },
@@ -434,14 +491,15 @@ export class Game {
       this.connection?.sendShopTrade(1, itemId, count, slot);
     this.ui.onAttackHold = (held) => this.input.setAttackButton(held);
     this.input.onPick = (x, y) => this.pickTarget(x, y);
-    // Über einem Haufen zeigt die Maus eine Hand, und ein Klick dorthin
-    // schlägt nicht zu — beides aus derselben Abfrage.
-    this.input.attackBlocked = (x, y) => this.lootUnderPointer(x, y).id !== 0;
+    // Über einem Haufen zeigt die Maus eine Hand.
+    this.input.zeigerFasstAn = (x, y) => this.lootUnderPointer(x, y).id !== 0;
     // Das Beuteschild im Overlay ist die verlässliche Trefferfläche — vor
     // allem auf dem Telefon, wo der Haufen am Boden ein paar Bildpunkte gross
     // ist. Der Klick auf das Modell selbst geht durch `pickTarget`.
     this.ui.overlay.onPickup = (lootId) => this.pickupLoot(lootId);
-    this.input.onAttackPressed = () => this.view.triggerAttack(this.localId);
+    // Die Angriffstaste greift an, was ausgewählt ist. Die Animation hängt
+    // nicht daran, sondern am vorhergesagten Schwung — siehe `simulate`.
+    this.input.onAttackPressed = () => this.angriffTaste();
 
     // --- Ton --------------------------------------------------------------
     //
@@ -1034,6 +1092,10 @@ export class Game {
     this.inputSeq = 0;
     this.localId = 0;
     this.targetId = 0;
+    this.auftrag = undefined;
+    this.schlaegtZu = false;
+    this.schwungLief = false;
+    this.input.setAutoWish(0, 0);
     this.poseValid = false;
     this.serverSeen = false;
     this.dead = false;
@@ -1136,7 +1198,6 @@ export class Game {
       defense: 0,
       moveSpeed: this.stats ? 6.2 : 6.2,
       attackRange: playerProfile().attackRange,
-      attackArc: playerProfile().attackArc,
       attackCooldownSec: playerProfile().attackCooldownSec,
       attackWindupSec: playerProfile().attackWindupSec,
       attackStyle: 0,
@@ -1281,8 +1342,12 @@ export class Game {
     return Date.now() + this.clockOffset;
   }
 
-  /** Der Haufen, zu dem die Figur gerade von selbst läuft. 0 heisst: keiner. */
-  private lootZiel = 0;
+  /** Was die Figur von selbst tut — siehe `Auftrag`. */
+  private auftrag?: Auftrag;
+  /** Schlägt die Figur in diesem Schritt zu? Ergebnis von `steuere`. */
+  private schlaegtZu = false;
+  /** Lief im letzten Schritt schon ein Schwung? Für die Flanke der Animation. */
+  private schwungLief = false;
 
   private pickTarget(ndcX: number, ndcY: number): void {
     const width = window.innerWidth;
@@ -1344,7 +1409,10 @@ export class Game {
     }
 
     if (best) {
-      this.setTarget(best.id);
+      // Erster Klick visiert an, zweiter greift an. Wer schon anvisiert hat,
+      // will beim nächsten Klick nicht dasselbe noch einmal — er will los.
+      if (this.targetId === best.id) this.greifeAn(best.id);
+      else this.setTarget(best.id);
       return;
     }
     if (bestNpc) {
@@ -1352,7 +1420,97 @@ export class Game {
       return;
     }
 
-    this.setTarget(0);
+    // Ins Leere geklickt heisst: dorthin laufen. Die Auswahl bleibt stehen —
+    // sie ist keine Absicht, sondern eine Ansicht. Der laufende Auftrag endet
+    // trotzdem, und genau das ist der Ausstieg aus dem Kampf: man klickt
+    // irgendwohin, die Figur löst sich und das Monster bleibt anvisiert.
+    const boden = this.bodenPunkt(ndcX, ndcY);
+    if (boden) this.auftrag = { art: 'gehen', x: boden.x, z: boden.z };
+    else this.brichAuftragAb();
+  }
+
+  /**
+   * Wo der Strahl durch diese Bildstelle den Boden trifft.
+   *
+   * Gesucht wird am **Höhenfeld** und nicht am gezeichneten Gelände: der Boden
+   * ist in Kacheln zerlegt, die je nach Sichtweite da sind oder nicht, und ein
+   * Klick auf eine nicht geladene Kachel fände nichts. Das Höhenfeld kennt
+   * dieselbe Rechnung wie der Server — es gibt keine zweite Vorstellung davon,
+   * wo der Boden liegt.
+   *
+   * Erst grob abschreiten, dann halbieren: das Gelände ist nicht monoton, ein
+   * reines Halbieren über die ganze Strecke könnte einen Hügel überspringen.
+   */
+  private bodenPunkt(ndcX: number, ndcY: number): { x: number; z: number } | undefined {
+    const welt = this.prediction;
+    if (!welt) return undefined;
+
+    this.zeiger.set(ndcX, ndcY);
+    this.strahl.setFromCamera(this.zeiger, this.scene.camera);
+    const o = this.strahl.ray.origin;
+    const d = this.strahl.ray.direction;
+    // Waagerecht oder in den Himmel: da liegt kein Boden.
+    if (d.y > -1e-3) return undefined;
+
+    let ueber = 0;
+    for (let t = BODEN_SCHRITT; t <= BODEN_WEITE; t += BODEN_SCHRITT) {
+      const x = o.x + d.x * t;
+      const y = o.y + d.y * t;
+      const z = o.z + d.z * t;
+      if (y > welt.heightAt(x, z)) {
+        ueber = t;
+        continue;
+      }
+
+      let hoch = t;
+      let tief = ueber;
+      for (let i = 0; i < 12; i++) {
+        const m = (tief + hoch) * 0.5;
+        const mx = o.x + d.x * m;
+        const my = o.y + d.y * m;
+        const mz = o.z + d.z * m;
+        if (my > welt.heightAt(mx, mz)) tief = m;
+        else hoch = m;
+      }
+      return { x: o.x + d.x * hoch, z: o.z + d.z * hoch };
+    }
+    return undefined;
+  }
+
+  /**
+   * Nimmt den Kampf gegen dieses Wesen auf.
+   *
+   * Angegriffen wird nur, was sich angreifen lässt: ein NPC ist zum Reden da,
+   * ein anderer Spieler zurzeit unantastbar. Ohne diese Prüfung liefe die
+   * Figur zu einem Händler und schlüge ins Leere, weil der Server den Schlag
+   * folgerichtig verwirft.
+   */
+  private greifeAn(entityId: number): void {
+    if (this.dead) return;
+    const ziel = this.view.entities.get(entityId);
+    if (!ziel || ziel.type !== EntityType.Monster || ziel.state === EntityState.Dead) return;
+
+    this.setTarget(entityId);
+    this.auftrag = { art: 'kampf', entityId };
+  }
+
+  /** Beendet den laufenden Auftrag. Die Auswahl bleibt, wie sie ist. */
+  private brichAuftragAb(): void {
+    if (!this.auftrag) return;
+    this.auftrag = undefined;
+    this.input.setAutoWish(0, 0);
+  }
+
+  /**
+   * Die Angriffstaste — Leertaste am Schreibtisch, Knopf auf dem Telefon.
+   *
+   * Sie greift an, was ausgewählt ist, und tut sonst nichts. Ein zweiter Weg
+   * ins Gefecht, aber kein zweites Regelwerk: derselbe Auftrag wie beim
+   * zweiten Klick.
+   */
+  private angriffTaste(): void {
+    if (this.targetId === 0) return;
+    this.greifeAn(this.targetId);
   }
 
   /**
@@ -1403,12 +1561,11 @@ export class Game {
     // liegt. Hinlaufen ist die Antwort, die er meint.
     const haufen = this.view.loot.piles.get(lootId);
     if (haufen && !this.inPickupRange(haufen.row.x, haufen.row.z)) {
-      this.lootZiel = lootId;
+      this.auftrag = { art: 'beute', lootId };
       return;
     }
 
-    this.lootZiel = 0;
-    this.input.setAutoWish(0, 0);
+    this.brichAuftragAb();
     this.connection?.sendPickupLoot(lootId);
   }
 
@@ -1432,33 +1589,98 @@ export class Game {
   }
 
   /**
-   * Führt die Figur zum angeklickten Haufen und hebt ihn dort auf.
+   * Wie nah die Figur an dieses Ziel heran muss, um es zu treffen.
    *
-   * Läuft **vor** dem Einlesen der Eingabe: der Wunsch geht durch dieselbe
-   * Glättung wie die Hand am Joystick, und die liest ihn im selben Takt.
-   * Danach entscheidet `manual`, ob der Spieler das Steuer übernommen hat —
-   * dann ist der automatische Lauf zu Ende, ohne dass er es abbrechen müsste.
+   * Reichweite der Waffe plus die Hülle des Ziels, abzüglich etwas Luft — die
+   * Rechnung des Kerns, um `KAMPF_LUFT` verschärft. Der Radius kommt aus
+   * derselben Inhaltstabelle, aus der ihn auch der Server in den Kern gibt;
+   * ein hier angenommener Wert wäre eine zweite Wahrheit über die Grösse eines
+   * Monsters.
    */
-  private steerToLoot(): void {
-    if (this.lootZiel === 0) return;
+  private kampfReichweite(ziel: EntityVisual): number {
+    const radius = getMob(ziel.defId)?.radius ?? MOB_RADIUS_FALLBACK;
+    return Math.max(0.9, this.profile.range + radius - KAMPF_LUFT);
+  }
 
-    const haufen = this.view.loot.piles.get(this.lootZiel);
-    if (!haufen || this.dead) {
-      this.lootZiel = 0;
-      this.input.setAutoWish(0, 0);
+  /**
+   * Führt den laufenden Auftrag einen Schritt weiter.
+   *
+   * Läuft **vor** dem Einlesen der Eingabe: der Bewegungswunsch geht durch
+   * dieselbe Glättung wie die Hand am Joystick, und die liest ihn im selben
+   * Takt. Danach entscheidet `manual`, ob der Spieler das Steuer übernommen
+   * hat — dann ist der Auftrag zu Ende, ohne dass er ihn abbrechen müsste.
+   *
+   * Eine Stelle für alle drei Sorten, und eine Antwort für den Schritt:
+   * `schlaegtZu`. Stünde der Angriff woanders, gäbe es einen Zustand, in dem
+   * die Figur zuschlägt und gleichzeitig irgendwohin läuft.
+   */
+  private steuere(): void {
+    this.schlaegtZu = false;
+
+    const auftrag = this.auftrag;
+    if (!auftrag) return;
+    if (this.dead) {
+      this.brichAuftragAb();
       return;
     }
 
-    const { x, z } = haufen.row;
-    if (this.inPickupRange(x, z)) {
-      this.lootZiel = 0;
-      this.input.setAutoWish(0, 0);
-      this.connection?.sendPickupLoot(haufen.row.id);
+    if (auftrag.art === 'gehen') {
+      const dx = auftrag.x - this.poseCurr.x;
+      const dz = auftrag.z - this.poseCurr.z;
+      if (Math.hypot(dx, dz) <= GEH_ANKUNFT) this.brichAuftragAb();
+      else this.laufeNach(dx, dz);
       return;
     }
 
-    const dx = x - this.poseCurr.x;
-    const dz = z - this.poseCurr.z;
+    if (auftrag.art === 'beute') {
+      const haufen = this.view.loot.piles.get(auftrag.lootId);
+      if (!haufen) {
+        this.brichAuftragAb();
+        return;
+      }
+      const { x, z, id } = haufen.row;
+      if (this.inPickupRange(x, z)) {
+        this.brichAuftragAb();
+        this.connection?.sendPickupLoot(id);
+        return;
+      }
+      this.laufeNach(x - this.poseCurr.x, z - this.poseCurr.z);
+      return;
+    }
+
+    // Kampf: hinlaufen, bis es reicht, dann stehen bleiben und schlagen.
+    const ziel = this.view.entities.get(auftrag.entityId);
+    if (!ziel || ziel.state === EntityState.Dead) {
+      // Erledigt oder verschwunden. Die Auswahl räumt der Snapshot weg, wenn
+      // das Wesen tatsächlich aus der Welt geht — bis dahin bleibt der
+      // Kadaver anvisiert, so wie man ihn zuletzt gesehen hat.
+      this.brichAuftragAb();
+      return;
+    }
+
+    // Gerechnet wird mit der zuletzt **gemeldeten** Lage und nicht mit der
+    // gezeichneten: die läuft der Meldung um einige Zehntel hinterher, und der
+    // Server prüft gegen die gemeldete.
+    const dx = ziel.targetX - this.poseCurr.x;
+    const dz = ziel.targetZ - this.poseCurr.z;
+
+    if (Math.hypot(dx, dz) > this.kampfReichweite(ziel)) {
+      // Beim Anlaufen dreht die Steuerung ohnehin in die Laufrichtung, und die
+      // zeigt zum Ziel. Ein zweiter Drehwunsch daneben wäre ohne Wirkung —
+      // oder schlimmer: `setFacing` stellt den Betrag der Bewegung auf null,
+      // und die Figur käme im Schneckentempo an.
+      this.laufeNach(dx, dz);
+      return;
+    }
+
+    this.input.setAutoWish(0, 0);
+    // In Reichweite steht die Figur still — jetzt zählt, wohin sie schaut.
+    this.input.richteAus(Math.atan2(dx, dz));
+    this.schlaegtZu = true;
+  }
+
+  /** Setzt den Bewegungswunsch in diese Richtung. Länge egal, Richtung zählt. */
+  private laufeNach(dx: number, dz: number): void {
     const laenge = Math.hypot(dx, dz);
     if (laenge < 1e-3) return;
     this.input.setAutoWish(dx / laenge, dz / laenge);
@@ -1500,42 +1722,9 @@ export class Game {
       this.localId,
       this.profile.style,
       this.profile.range,
-      this.profile.arc,
       this.profile.cooldownSec,
       this.profile.windupSec,
     );
-  }
-
-  /**
-   * Sucht ein Ziel für einen Fernkampfangriff.
-   *
-   * Der Client zielt, der Server trifft. Das ist kein Widerspruch: die
-   * Blickrichtung geht als Teil der Eingabe mit, und der Server sucht sein
-   * Ziel selbst. Im Normalfall ist es dasselbe. Weicht es ab, hat der Server
-   * recht — und die Figur schaut für einen Schuss knapp daneben.
-   *
-   * Gesucht wird in der **Ansicht**, nicht in der Vorhersagewelt: die enthält
-   * nur die eigene Figur. Was es zu treffen gibt, weiß der Client aus den
-   * Snapshots.
-   */
-  private aimAtNearest(x: number, z: number): number | undefined {
-    let bestYaw: number | undefined;
-    let bestDist = this.profile.range;
-
-    for (const e of this.view.entities.values()) {
-      if (e.id === this.localId) continue;
-      if (e.type !== EntityType.Monster) continue;
-      if (e.state === EntityState.Dead) continue;
-
-      const dx = e.targetX - x;
-      const dz = e.targetZ - z;
-      const dist = Math.hypot(dx, dz);
-      if (dist > bestDist) continue;
-
-      bestDist = dist;
-      bestYaw = Math.atan2(dx, dz);
-    }
-    return bestYaw;
   }
 
   /** Schickt die Bitte, das Tor zu benutzen, in dem die Figur steht. */
@@ -1544,8 +1733,17 @@ export class Game {
     this.connection?.sendUsePortal(this.nearbyPortalId);
   }
 
+  /**
+   * Visiert etwas an — oder nichts, bei 0.
+   *
+   * Die Auswahl geht an den Server, weil er den Schaden austeilt: getroffen
+   * wird ausschliesslich, was anvisiert ist. Ein Wechsel beendet einen
+   * laufenden Kampf; wer auf ein anderes Wesen klickt, will nicht, dass das
+   * alte weiter geschlagen wird.
+   */
   private setTarget(id: number): void {
     if (this.targetId === id) return;
+    if (this.auftrag?.art === 'kampf') this.brichAuftragAb();
     this.targetId = id;
     this.connection?.sendTarget(id);
     this.ui.setTarget(id ? this.view.entities.get(id) : undefined);
@@ -1568,42 +1766,36 @@ export class Game {
     const connection = this.connection;
     if (!world || !connection || this.localId === 0) return;
 
-    // Der Weg zu einem angeklickten Haufen, bevor die Eingabe gelesen wird —
-    // er ist ein Bewegungswunsch wie jeder andere.
-    this.steerToLoot();
+    // Der laufende Auftrag, bevor die Eingabe gelesen wird — sein
+    // Bewegungswunsch ist einer wie jeder andere.
+    this.steuere();
 
     // Solange der Chat den Fokus hat, nimmt die Eingabe nichts mehr an — sie
     // läuft aber weiter, damit die Figur ausläuft statt stehenzubleiben.
     const snapshot = this.input.read(TICK_SECONDS, this.ui.chatHasFocus);
 
-    // Wer selbst steuert, will nicht mehr zum Haufen. Gefragt ist die
-    // Absicht und nicht die Bewegung: die Glättung lässt die Figur auch dann
-    // noch laufen, wenn niemand mehr etwas drückt.
-    if (this.lootZiel !== 0 && (snapshot.manual || snapshot.attack)) {
-      this.lootZiel = 0;
-      this.input.setAutoWish(0, 0);
+    // Wer selbst steuert, hat den Auftrag übernommen — und damit beendet.
+    // Das ist der Ausstieg aus dem Kampf, den man mit WASD oder dem Joystick
+    // nimmt: die Figur läuft los und hört auf zu schlagen, das Monster bleibt
+    // anvisiert. Gefragt ist die **Absicht** und nicht die Bewegung: die
+    // Glättung lässt die Figur auch dann noch laufen, wenn niemand mehr etwas
+    // drückt.
+    if (snapshot.manual && this.auftrag) {
+      this.brichAuftragAb();
+      this.schlaegtZu = false;
     }
 
-    const buttons = snapshot.attack && !this.dead ? CoreButton.Attack : 0;
-
-    // Beim Fernkampf richtet sich die Figur auf das nächste Ziel aus, sobald
-    // die Angriffstaste gedrückt ist. Das geht über die Eingabe und nicht über
-    // den Kern: so drehen sich die eigene Figur, ihre Vorhersage und — über
-    // den Server — die Figur auf den Bildschirmen der Mitspieler gemeinsam.
-    if (buttons !== 0 && this.profile.style === 1) {
-      const aim = this.aimAtNearest(this.poseCurr.x, this.poseCurr.z);
-      if (aim !== undefined) {
-        this.input.setFacing(aim);
-        snapshot.yaw = aim;
-      }
-    }
+    const buttons = this.schlaegtZu && !this.dead ? CoreButton.Attack : 0;
 
     const seq = ++this.inputSeq;
 
     this.diagnostics.input.moveX = snapshot.moveX;
     this.diagnostics.input.moveZ = snapshot.moveZ;
     this.diagnostics.input.yaw = snapshot.yaw;
-    this.diagnostics.input.attack = snapshot.attack;
+    this.diagnostics.auftrag.art = this.auftrag?.art ?? 'nichts';
+    this.diagnostics.auftrag.zielId =
+      this.auftrag?.art === 'kampf' ? this.auftrag.entityId : 0;
+    this.diagnostics.auftrag.angriff = buttons !== 0;
     this.diagnostics.ticks++;
 
     world.applyInput(
@@ -1621,6 +1813,15 @@ export class Game {
 
     const row = this.localRow();
     if (row) {
+      // Die Schlaganimation folgt dem **vorhergesagten** Schwung und nicht dem
+      // Tastendruck: bei einem Angriff schlägt die Figur immer weiter, solange
+      // der Auftrag steht, und jeder dieser Schwünge will gesehen werden. Der
+      // Zustandswechsel nach `Attack` ist der Anfang eines Schwungs — genau
+      // einer je Schlag, weil der Kern am Ende des Vorlaufs zurückschaltet.
+      const schwingt = row.state === EntityState.Attack;
+      if (schwingt && !this.schwungLief) this.view.triggerAttack(this.localId);
+      this.schwungLief = schwingt;
+
       // Der Stand vor diesem Schritt wird zum Anfangswert der Zwischenwerte,
       // der neue zum Endwert.
       if (this.poseValid) copyPose(this.poseCurr, this.posePrev);
@@ -1719,7 +1920,10 @@ export class Game {
       this.scene.camera,
       this.view.entities.values(),
       this.localId,
-      this.targetId,
+      {
+        entity: this.targetId ? this.view.entities.get(this.targetId) : undefined,
+        kampf: this.auftrag?.art === 'kampf',
+      },
       dt,
       {
         piles: this.view.loot.piles.values(),

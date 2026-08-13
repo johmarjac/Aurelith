@@ -8,7 +8,7 @@
  *
  * Alles läuft über **eine** Punktewolke mit fester Größe. Kein Objekt je
  * Funken, keine Geometrie je Treffer, kein Speicher, der zur Laufzeit wächst:
- * ein Flächenschlag trifft bis zu zwölf Ziele gleichzeitig, und wenn dabei
+ * in einem Getümmel schlagen ein Dutzend Wesen gleichzeitig zu, und wenn dabei
  * zwölfmal etwas angelegt wird, merkt man das auf einem Telefon sofort. Die
  * Wolke ist ein Ringpuffer — sind alle Plätze belegt, überschreibt der neueste
  * Funken den ältesten. Ein Treffer, den man nicht sieht, ist besser als ein

@@ -72,7 +72,6 @@ bool World::spawnPlayer(const PlayerSpawn& seed) {
   e.defense = seed.defense;
   e.moveSpeed = seed.moveSpeed;
   e.attackRange = seed.attackRange;
-  e.attackArc = seed.attackArc;
   e.attackCooldownSec = seed.attackCooldownSec;
   e.attackWindupSec = seed.attackWindupSec;
   e.attackStyle = seed.attackStyle == 0u ? kAttackMelee : kAttackRanged;
@@ -116,7 +115,6 @@ bool World::spawnMob(uint32_t id, uint32_t mobIndex, float x, float z, int32_t l
   e.defense = def->defense * scale;
   e.moveSpeed = def->moveSpeed;
   e.attackRange = def->attackRange;
-  e.attackArc = def->attackArc;
   e.attackCooldownSec = def->attackCooldownSec;
   e.attackWindupSec = def->attackWindupSec;
   e.attackStyle = def->attackStyle == 0u ? kAttackMelee : kAttackRanged;
@@ -254,13 +252,12 @@ void World::setTarget(uint32_t id, uint32_t targetId) {
   if (e != nullptr) e->targetId = targetId;
 }
 
-void World::setAttackProfile(uint32_t id, uint32_t style, float range, float arc,
+void World::setAttackProfile(uint32_t id, uint32_t style, float range,
                              float cooldownSec, float windupSec) {
   Entity* e = find(id);
   if (e == nullptr) return;
   e->attackStyle = style == 0u ? kAttackMelee : kAttackRanged;
   e->attackRange = range;
-  e->attackArc = arc;
   e->attackCooldownSec = cooldownSec;
   e->attackWindupSec = windupSec;
 }

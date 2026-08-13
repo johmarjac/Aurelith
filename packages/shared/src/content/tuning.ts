@@ -65,7 +65,6 @@ export interface ProgressionTuning {
 
 export interface PlayerTuning {
   attackRange: number;
-  attackArc: number;
   attackCooldownSec: number;
   attackWindupSec: number;
   radius: number;

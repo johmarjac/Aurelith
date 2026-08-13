@@ -29,7 +29,6 @@ function toCoreMob(id: string): CoreMobDef {
     aggroRange: def.aggroRange,
     leashRange: def.leashRange,
     attackRange: def.attackRange,
-    attackArc: def.attackArc,
     // Der Kern rechnet in Sekunden, die Content-Tabelle notiert Millisekunden.
     attackCooldownSec: def.attackCooldownMs / 1000,
     attackStyle: 0,

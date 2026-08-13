@@ -28,7 +28,6 @@ export interface MobDef {
   aggroRange: number;
   leashRange: number;
   attackRange: number;
-  attackArc: number;
   attackCooldownMs: number;
   /** Vorlaufzeit des Schlags, bevor Schaden entsteht. */
   attackWindupMs: number;
@@ -130,9 +129,9 @@ export type EquipSlot =
 /**
  * Wie eine Waffe zuschlägt.
  *
- * `melee` trifft alles im Kegel vor der Figur — das Metin2-Gefühl, um das es
- * geht. `ranged` trifft genau ein Ziel innerhalb `attackRange`, ohne Rücksicht
- * auf die Blickrichtung; die Figur dreht sich beim Schuss dorthin.
+ * Getroffen wird in beiden Fällen genau das anvisierte Ziel. Unterschieden
+ * werden sie durch die Reichweite — und dadurch, dass ein `ranged`-Treffer als
+ * solcher gemeldet wird, damit ein Pfeil zu sehen ist.
  */
 export type AttackStyle = 'melee' | 'ranged';
 
@@ -196,8 +195,6 @@ export interface ItemDef {
    * gefunden wird — der Radius, in dem gesucht wird.
    */
   attackRange?: number;
-  /** Öffnungswinkel des Nahkampfkegels. Fehlt er, gilt der des Grundprofils. */
-  attackArc?: number;
   /** Sekunden zwischen zwei Angriffen. Fehlt es, gilt das Grundprofil. */
   attackCooldownSec?: number;
   /** Vorlaufzeit bis zum Schaden. Fehlt sie, gilt das Grundprofil. */

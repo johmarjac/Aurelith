@@ -80,10 +80,9 @@ export function expGain(baseExp: number, playerLevel: number, mobLevel: number):
  * an drei Stellen, würde die Vorhersage bei jedem Waffenwechsel driften.
  */
 export interface AttackProfile {
-  /** 0 = Nahkampf im Kegel, 1 = Fernkampf auf ein Ziel. */
+  /** 0 = Nahkampf, 1 = Fernkampf. Unterscheidet nur Reichweite und Bild. */
   style: number;
   range: number;
-  arc: number;
   cooldownSec: number;
   windupSec: number;
   /** Was die Figur in der Hand hält. */
@@ -95,7 +94,6 @@ export function attackProfileFor(weapon: ItemDef | undefined): AttackProfile {
   return {
     style: weapon?.attackStyle === 'ranged' ? 1 : 0,
     range: weapon?.attackRange ?? p.attackRange,
-    arc: weapon?.attackArc ?? p.attackArc,
     cooldownSec: weapon?.attackCooldownSec ?? p.attackCooldownSec,
     windupSec: weapon?.attackWindupSec ?? p.attackWindupSec,
     // Ohne Waffe schlägt man mit der Faust — und hält nichts.
@@ -110,12 +108,12 @@ export function attackProfileFor(weapon: ItemDef | undefined): AttackProfile {
  * die Vorhersage mit einem anderen Tempo als die Autorität, und die Figur
  * zuckt bei jedem Snapshot. Deshalb kommt es aus einer Quelle.
  *
- * Der weite Kegel bei kurzer Reichweite ist die zentrale Kampfentscheidung des
- * Projekts: ein Schlag trifft alles davor, nicht ein ausgewähltes Ziel.
+ * Die Reichweite ist die zentrale Kampfzahl: getroffen wird ausschliesslich
+ * das anvisierte Ziel, und zwar nur, solange es innerhalb dieser Entfernung
+ * steht. Der Client läuft von selbst so weit heran.
  */
 export function playerProfile(): {
   attackRange: number;
-  attackArc: number;
   attackCooldownSec: number;
   attackWindupSec: number;
   radius: number;

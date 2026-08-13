@@ -24,9 +24,6 @@ constexpr float kTickSeconds = 1.0f / static_cast<float>(kTickRate);
 // Steiler als das wird nicht mehr begangen.
 constexpr float kMaxWalkableSlopeDeg = 52.0f;
 
-// Höchstzahl der Ziele eines Schlags. Deckelt den schlimmsten Fall.
-constexpr int kMaxTargetsPerSwing = 12;
-
 // Trefferpause des Opfers in Sekunden.
 constexpr float kHitStunSeconds = 0.18f;
 
@@ -151,10 +148,9 @@ struct MobDef {
   float aggroRange = 0.0f;
   float leashRange = 40.0f;
   float attackRange = 2.0f;
-  float attackArc = 2.0f;
   float attackCooldownSec = 1.5f;
   float attackWindupSec = 0.3f;
-  /** 0 = Nahkampf im Kegel, 1 = Fernkampf auf ein Ziel. */
+  /** 0 = Nahkampf, 1 = Fernkampf. Unterscheidet nur Reichweite und Bild. */
   uint32_t attackStyle = 0u;
   float radius = 0.6f;
   float height = 1.6f;
@@ -187,10 +183,9 @@ struct Entity {
   /**
    * Wie zugeschlagen wird.
    *
-   * Nahkampf trifft alles im Kegel vor der Figur — das ist das Spielgefühl aus
-   * Metin2, und daran ändert sich nichts. Fernkampf trifft genau eines: das
-   * nächste Ziel in Reichweite, ohne Rücksicht auf die Blickrichtung. Zielen
-   * ist Sache des Clients, Treffen Sache des Servers.
+   * Getroffen wird in beiden Fällen genau das anvisierte Ziel. Der Unterschied
+   * liegt in der Reichweite — und darin, dass ein Fernkampftreffer als solcher
+   * gemeldet wird, damit der Client einen Pfeil zeichnet.
    */
   uint8_t attackStyle = kAttackMelee;
 
@@ -217,7 +212,6 @@ struct Entity {
   float critChance = 0.12f;
   float critMultiplier = 1.75f;
   float attackRange = 2.0f;
-  float attackArc = 2.2f;
   float attackCooldownSec = 0.9f;
   float attackWindupSec = 0.2f;
 

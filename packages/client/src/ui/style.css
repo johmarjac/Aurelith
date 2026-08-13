@@ -1561,6 +1561,66 @@ body {
   transform-origin: left center;
 }
 
+/*
+ * Auswahlrahmen: vier Keile, die auf das Ziel zeigen.
+ *
+ * Hell heisst „anvisiert", rot heisst „wird angegriffen" — dieselbe
+ * Unterscheidung, die auch die Figur macht. Ohne die zweite Farbe sähe man dem
+ * Bild nicht an, ob der nächste Klick noch etwas auslöst oder ob der Kampf
+ * längst läuft.
+ *
+ * Grösse und Lage kommen aus JavaScript (projizierte Höhe des Wesens), die
+ * Form aus dieser Datei. Ein festes Bild wäre entweder unscharf oder ein Satz
+ * Dateien für jede Entfernung.
+ */
+.ziel-rahmen {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  will-change: transform;
+  --ecke: 14px;
+  --ziel-farbe: #dceeff;
+}
+
+.ziel-rahmen[data-kampf='true'] {
+  --ziel-farbe: #ff5a4a;
+}
+
+.ziel-rahmen i {
+  position: absolute;
+  width: var(--ecke);
+  height: var(--ecke);
+  background: var(--ziel-farbe);
+  /* Ein dunkler Saum, damit die Keile auch auf hellem Boden stehen. */
+  filter: drop-shadow(0 0 1px #000) drop-shadow(0 1px 2px #0009);
+}
+
+/* Jeder Keil zeigt in die Mitte: die rechtwinklige Ecke liegt aussen. */
+.ziel-rahmen i:nth-child(1) {
+  left: 0;
+  top: 0;
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+
+.ziel-rahmen i:nth-child(2) {
+  right: 0;
+  top: 0;
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+}
+
+.ziel-rahmen i:nth-child(3) {
+  left: 0;
+  bottom: 0;
+  clip-path: polygon(0 0, 0 100%, 100% 100%);
+}
+
+.ziel-rahmen i:nth-child(4) {
+  right: 0;
+  bottom: 0;
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+
 .damage {
   position: absolute;
   transform: translate(-50%, -50%);

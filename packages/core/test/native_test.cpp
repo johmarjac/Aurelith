@@ -55,7 +55,6 @@ uint32_t registerTestMob(aur::MobRegistry& mobs, bool aggressive) {
   def.aggroRange = aggressive ? 15.0f : 0.0f;
   def.leashRange = 50.0f;
   def.attackRange = 2.0f;
-  def.attackArc = aur::kPi;
   def.attackCooldownSec = 1.0f;
   def.attackWindupSec = 0.2f;
   def.radius = 0.6f;
@@ -82,7 +81,6 @@ aur::PlayerSpawn testPlayer(uint32_t id, float x, float z) {
   p.defense = 5.0f;
   p.moveSpeed = 6.0f;
   p.attackRange = 3.0f;
-  p.attackArc = 2.67f;
   p.attackCooldownSec = 0.62f;
   p.attackWindupSec = 0.15f;
   p.radius = 0.45f;
@@ -136,32 +134,65 @@ void testCollider() {
   check(d >= 2.0f + 0.45f - 0.05f, "Spieler steckt nicht im Prop");
 }
 
-void testAreaSwingHitsEveryone() {
-  std::printf("Flächenschlag trifft alles in Reichweite\n");
+void testSwingHitsOnlyTarget() {
+  std::printf("Ein Schlag trifft das anvisierte Ziel — und nur das\n");
   aur::MobRegistry mobs;
   const uint32_t mobIndex = registerTestMob(mobs, false);
   aur::World world(7u, flatTerrain(), &mobs);
   world.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
 
-  // Drei Ziele vor der Figur, eines dahinter.
+  // Drei Ziele dicht vor der Figur — alle in Reichweite, alle im Blickfeld.
+  // Genau der Aufbau, der früher alle drei auf einmal getroffen hätte.
   world.spawnMob(10, mobIndex, -1.2f, 2.0f, -1, aur::kNoSpawner);
   world.spawnMob(11, mobIndex, 0.0f, 2.2f, -1, aur::kNoSpawner);
   world.spawnMob(12, mobIndex, 1.2f, 2.0f, -1, aur::kNoSpawner);
-  world.spawnMob(13, mobIndex, 0.0f, -2.5f, -1, aur::kNoSpawner);
 
-  // Blick nach +Z, Angriffstaste halten, bis der Schlag aufgelöst ist.
+  world.setTarget(1, 11);
   world.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonAttack, aur::kTickSeconds);
   for (int i = 0; i < 6; ++i) {
     world.step(aur::kTickSeconds);
   }
 
-  check(world.find(10)->hp < 100.0f, "linkes Ziel getroffen");
-  check(world.find(11)->hp < 100.0f, "mittleres Ziel getroffen");
-  check(world.find(12)->hp < 100.0f, "rechtes Ziel getroffen");
-  check(world.find(13)->hp == 100.0f, "Ziel hinter der Figur nicht getroffen");
+  check(world.find(11)->hp < 100.0f, "das anvisierte Ziel nimmt Schaden");
+  check(world.find(10)->hp == 100.0f, "der Nachbar links bleibt unversehrt");
+  check(world.find(12)->hp == 100.0f, "der Nachbar rechts auch");
 
   // Ein friedliches Monster schlägt nach einem Treffer zurück.
   check(world.find(11)->targetId == 1, "getroffenes Monster nimmt den Angreifer ins Visier");
+
+  // Die Blickrichtung entscheidet nichts mehr: wer sein Ziel anvisiert hat,
+  // trifft es auch mit dem Rücken zu ihm — der Kern dreht die Figur beim
+  // Auflösen dorthin. Ohne diese Prüfung wäre nicht zu sehen, ob der Kegel
+  // wirklich weg ist oder nur weit geworden.
+  aur::World hinten(8u, flatTerrain(), &mobs);
+  hinten.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+  hinten.spawnMob(10, mobIndex, 0.0f, 2.0f, -1, aur::kNoSpawner);
+  hinten.setTarget(1, 10);
+  hinten.applyInput(1, 0.0f, 0.0f, aur::kPi, aur::kButtonAttack, aur::kTickSeconds);
+  for (int i = 0; i < 6; ++i) hinten.step(aur::kTickSeconds);
+  check(hinten.find(10)->hp < 100.0f, "auch mit abgewandtem Blick");
+  checkNear(hinten.find(1)->yaw, 0.0f, 0.01f, "und die Figur dreht sich zum Ziel");
+
+  // Ohne Auswahl geht der Schlag ins Leere — der Vorlauf läuft trotzdem an,
+  // sonst rechnete die Vorhersage im Client ein anderes Tempo als der Server.
+  aur::World blind(9u, flatTerrain(), &mobs);
+  blind.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+  blind.spawnMob(10, mobIndex, 0.0f, 2.0f, -1, aur::kNoSpawner);
+  blind.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonAttack, aur::kTickSeconds);
+  check(blind.find(1)->swingTimer >= 0.0f, "der Schlag beginnt auch ohne Auswahl");
+  for (int i = 0; i < 6; ++i) blind.step(aur::kTickSeconds);
+  check(blind.find(10)->hp == 100.0f, "trifft aber niemanden");
+
+  // Und ausser Reichweite ebenfalls nicht: die Entfernung wird beim Auflösen
+  // geprüft und nicht beim Beginn — wer während des Vorlaufs wegläuft, ist
+  // davongekommen.
+  aur::World weit(10u, flatTerrain(), &mobs);
+  weit.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+  weit.spawnMob(10, mobIndex, 0.0f, 9.0f, -1, aur::kNoSpawner);
+  weit.setTarget(1, 10);
+  weit.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonAttack, aur::kTickSeconds);
+  for (int i = 0; i < 6; ++i) weit.step(aur::kTickSeconds);
+  check(weit.find(10)->hp == 100.0f, "ein Ziel ausser Reichweite bleibt unversehrt");
 }
 
 void testWindupDelaysDamage() {
@@ -171,6 +202,7 @@ void testWindupDelaysDamage() {
   aur::World world(3u, flatTerrain(), &mobs);
   world.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
   world.spawnMob(10, mobIndex, 0.0f, 2.0f, -1, aur::kNoSpawner);
+  world.setTarget(1, 10);
 
   world.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonAttack, aur::kTickSeconds);
   check(world.find(1)->swingTimer >= 0.0f, "Schlag läuft an");
@@ -222,6 +254,7 @@ void testDeathAndRespawn() {
   strong.attackDamage = 500.0f;
   world.spawnPlayer(strong);
   world.spawnMob(10, mobIndex, 0.0f, 2.0f, -1, spawnerIndex);
+  world.setTarget(1, 10);
 
   bool sawDeath = false;
   bool sawExp = false;
@@ -257,6 +290,7 @@ void testDeterminism() {
       world.spawnMob(100 + static_cast<uint32_t>(i), mobIndex, static_cast<float>(i) - 2.0f, 4.0f,
                      -1, aur::kNoSpawner);
     }
+    world.setTarget(1, 102);
     for (int i = 0; i < 200; ++i) {
       const float phase = static_cast<float>(i) * 0.05f;
       world.applyInput(1, std::sin(phase), std::cos(phase), phase, aur::kButtonAttack,
@@ -353,43 +387,60 @@ void testRangedAttack() {
   archer.attackRange = 18.0f;
   world.spawnPlayer(archer);
 
-  // Eines weit weg, eines noch weiter, eines hinter der Figur.
+  // Eines nah, eines weiter weg, eines weit ausserhalb der Reichweite.
   world.spawnMob(10, mobIndex, 0.0f, 12.0f, -1, aur::kNoSpawner);
   world.spawnMob(11, mobIndex, 0.0f, 16.0f, -1, aur::kNoSpawner);
   world.spawnMob(12, mobIndex, 0.0f, -30.0f, -1, aur::kNoSpawner);
 
+  // Anvisiert wird das **entferntere** der beiden. Ein Kern, der sich das
+  // nächste heraussucht, fiele hier auf — und genau das tat er einmal.
+  world.setTarget(1, 11);
   // Blick nach Sueden — die Richtung darf beim Fernkampf keine Rolle spielen.
   world.applyInput(1, 0.0f, 0.0f, aur::kPi, aur::kButtonAttack, aur::kTickSeconds);
   for (int i = 0; i < 6; ++i) world.step(aur::kTickSeconds);
 
-  check(world.find(10)->hp < 100.0f, "das naechste Ziel wird getroffen");
-  check(world.find(11)->hp == 100.0f, "nur eines, nicht alle in Reichweite");
+  check(world.find(11)->hp < 100.0f, "das anvisierte Ziel wird getroffen");
+  check(world.find(10)->hp == 100.0f, "das naehere bleibt unversehrt");
   check(world.find(12)->hp == 100.0f, "ausserhalb der Reichweite passiert nichts");
 
   // Und die Figur hat sich dorthin gedreht.
   checkNear(world.find(1)->yaw, 0.0f, 0.01f, "die Figur dreht sich zum Ziel");
 
-  // Ohne Ziel in Reichweite darf nichts passieren — aber der Schlag muss
-  // trotzdem beginnen, sonst rechnet der Client waehrend der Vorlaufzeit ein
-  // anderes Tempo als der Server.
-  aur::World empty(14u, flatTerrain(), &mobs);
-  aur::PlayerSpawn lonely = testPlayer(1, 0.0f, 0.0f);
-  lonely.attackStyle = 1u;
-  lonely.attackRange = 18.0f;
-  empty.spawnPlayer(lonely);
-  empty.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonAttack, aur::kTickSeconds);
-  check(empty.find(1)->swingTimer >= 0.0f, "der Schlag beginnt auch ohne Ziel");
+  // Ein Ziel jenseits der Reichweite bleibt unversehrt, auch wenn es
+  // anvisiert ist — sonst wäre die Reichweite einer Fernwaffe nur Zierde.
+  aur::World fern(14u, flatTerrain(), &mobs);
+  aur::PlayerSpawn kurz = testPlayer(1, 0.0f, 0.0f);
+  kurz.attackStyle = 1u;
+  kurz.attackRange = 18.0f;
+  fern.spawnPlayer(kurz);
+  fern.spawnMob(10, mobIndex, 0.0f, 25.0f, -1, aur::kNoSpawner);
+  fern.setTarget(1, 10);
+  fern.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonAttack, aur::kTickSeconds);
+  check(fern.find(1)->swingTimer >= 0.0f, "der Schlag beginnt auch ausser Reichweite");
+  for (int i = 0; i < 6; ++i) fern.step(aur::kTickSeconds);
+  check(fern.find(10)->hp == 100.0f, "trifft aber nicht");
 
-  // Nahkampf bleibt Nahkampf: derselbe Aufbau, aber im Kegel und mehrfach.
-  aur::World melee(15u, flatTerrain(), &mobs);
-  melee.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
-  melee.spawnMob(10, mobIndex, -1.0f, 2.0f, -1, aur::kNoSpawner);
-  melee.spawnMob(11, mobIndex, 1.0f, 2.0f, -1, aur::kNoSpawner);
-  melee.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonAttack, aur::kTickSeconds);
-  for (int i = 0; i < 6; ++i) melee.step(aur::kTickSeconds);
-  check(
-      melee.find(10)->hp < 100.0f && melee.find(11)->hp < 100.0f,
-      "Nahkampf trifft weiterhin alles im Kegel");
+  // Der Unterschied zum Nahkampf ist die Flagge am Treffer: der Client
+  // zeichnet daraufhin einen Pfeil. Ohne sie schlüge ein Bogen auf zwölf
+  // Metern ohne sichtbaren Grund zu.
+  aur::World pfeil(15u, flatTerrain(), &mobs);
+  aur::PlayerSpawn schuetze = testPlayer(1, 0.0f, 0.0f);
+  schuetze.attackStyle = 1u;
+  schuetze.attackRange = 18.0f;
+  pfeil.spawnPlayer(schuetze);
+  pfeil.spawnMob(10, mobIndex, 0.0f, 12.0f, -1, aur::kNoSpawner);
+  pfeil.setTarget(1, 10);
+  pfeil.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonAttack, aur::kTickSeconds);
+  bool geflogen = false;
+  for (int i = 0; i < 6; ++i) {
+    pfeil.step(aur::kTickSeconds);
+    for (size_t e = 0; e < pfeil.eventCount(); ++e) {
+      const aur::EventView& ev = pfeil.events()[e];
+      if (ev.type == aur::kEventHit && (ev.flags & aur::kCombatRanged) != 0) geflogen = true;
+    }
+    pfeil.clearEvents();
+  }
+  check(geflogen, "ein Fernkampftreffer wird als solcher gemeldet");
 }
 
 /**
@@ -466,6 +517,7 @@ void testCritProfile() {
     world.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
     world.setCritProfile(1, chance, mult);
     world.spawnMob(10, mobIndex, 0.0f, 2.0f, -1, aur::kNoSpawner);
+    world.setTarget(1, 10);
 
     int krits = 0;
     int treffer = 0;
@@ -592,7 +644,6 @@ void testWandering() {
   eng.aggroRange = 0.0f;
   eng.leashRange = 8.0f;
   eng.attackRange = 2.0f;
-  eng.attackArc = aur::kPi;
   eng.attackCooldownSec = 1.0f;
   eng.radius = 0.6f;
   eng.height = 1.6f;
@@ -632,7 +683,7 @@ int main() {
 
   testMovement();
   testCollider();
-  testAreaSwingHitsEveryone();
+  testSwingHitsOnlyTarget();
   testWindupDelaysDamage();
   testAggroAndLeash();
   testDeathAndRespawn();

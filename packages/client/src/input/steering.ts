@@ -105,6 +105,22 @@ export class Steering {
   }
 
   /**
+   * Dreht die Figur zu einem Winkel, ohne den Lauf anzuhalten.
+   *
+   * Für den Kampf: wer sein Ziel anschaut, soll sich dorthin **drehen** und
+   * nicht dorthin springen. `reset` täte beides falsch — es setzt den Winkel
+   * hart und stellt den Betrag der Bewegung auf null, was die Figur bei jedem
+   * Aufruf neu anlaufen liesse.
+   *
+   * Der Wunsch gilt nur, solange niemand steuert: `step` überschreibt ihn,
+   * sobald ein Bewegungswunsch anliegt. Genau so soll es sein — wer läuft,
+   * schaut, wohin er läuft.
+   */
+  ausrichten(yaw: number): void {
+    this.desired = normalizeAngle(yaw);
+  }
+
+  /**
    * Setzt die Blickrichtung hart — beim Einloggen und nach einem Kartenwechsel.
    *
    * Beide Winkel, sonst dreht sich die Figur nach dem Erscheinen erst gemächlich

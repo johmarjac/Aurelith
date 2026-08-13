@@ -204,7 +204,6 @@ export function parseItems(raw: unknown, source = 'items.json'): {
     // wäre etwas anderes.
     if (o.attackStyle !== undefined) def.attackStyle = oneOf<AttackStyle>(o, 'attackStyle', ATTACK_STYLES, path);
     if (o.attackRange !== undefined) def.attackRange = num(o, 'attackRange', path);
-    if (o.attackArc !== undefined) def.attackArc = num(o, 'attackArc', path);
     if (o.attackCooldownSec !== undefined) def.attackCooldownSec = num(o, 'attackCooldownSec', path);
     if (o.attackWindupSec !== undefined) def.attackWindupSec = num(o, 'attackWindupSec', path);
     if (o.armorStyle !== undefined) def.armorStyle = str(o, 'armorStyle', path);
@@ -288,7 +287,6 @@ export function parseMobs(raw: unknown, source = 'mobs.json'): MobDef[] {
       aggroRange: optNum(o, 'aggroRange', 10, path),
       leashRange: optNum(o, 'leashRange', 40, path),
       attackRange: optNum(o, 'attackRange', 2, path),
-      attackArc: optNum(o, 'attackArc', Math.PI * 0.7, path),
       attackCooldownMs: optNum(o, 'attackCooldownMs', 1500, path),
       attackWindupMs: optNum(o, 'attackWindupMs', 300, path),
       expReward: optNum(o, 'expReward', 1, path),
@@ -488,7 +486,6 @@ export function parseTuning(raw: unknown, source = 'tuning.json'): Tuning {
     },
     player: {
       attackRange: num(sp, 'attackRange', spPath),
-      attackArc: num(sp, 'attackArc', spPath),
       attackCooldownSec: num(sp, 'attackCooldownSec', spPath),
       attackWindupSec: num(sp, 'attackWindupSec', spPath),
       radius: num(sp, 'radius', spPath),

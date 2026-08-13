@@ -52,10 +52,9 @@ struct PlayerSpawn {
   float defense = 0.0f;
   float moveSpeed = 6.0f;
   float attackRange = 3.0f;
-  float attackArc = 2.67f;
   float attackCooldownSec = 0.62f;
   float attackWindupSec = 0.15f;
-  /** 0 = Nahkampf im Kegel, 1 = Fernkampf auf ein Ziel. */
+  /** 0 = Nahkampf, 1 = Fernkampf. Unterscheidet nur Reichweite und Bild. */
   uint32_t attackStyle = 0u;
   float radius = 0.45f;
   float height = 1.8f;
@@ -144,7 +143,7 @@ class World {
    * Getrennt von `setPlayerStats`, weil sich das nur beim Wechsel der Waffe
    * ändert — Stufe und Lebenspunkte dagegen dauernd.
    */
-  void setAttackProfile(uint32_t id, uint32_t style, float range, float arc, float cooldownSec,
+  void setAttackProfile(uint32_t id, uint32_t style, float range, float cooldownSec,
                         float windupSec);
 
   // --- Auslesen ----------------------------------------------------------
@@ -181,8 +180,6 @@ class World {
   // Kampf
   bool tryStartSwing(Entity& e);
   void resolveSwing(Entity& attacker);
-  void resolveRangedSwing(Entity& attacker);
-  Entity* nearestHostile(Entity& attacker, float range);
   void applyDamage(Entity& attacker, Entity& target, uint8_t extraFlags);
 
   // Tick-Abschnitte

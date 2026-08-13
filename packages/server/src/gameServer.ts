@@ -456,13 +456,33 @@ export class GameServer {
       account = { ...account, accessLevel: gewuenscht };
     }
 
-    // Doppelte Anmeldung desselben Kontos: die ältere Sitzung fliegt.
+    // Ein Konto, eine Sitzung.
+    //
+    // Die zweite Anmeldung wird abgewiesen, die bestehende bleibt. Andersherum
+    // — die ältere fliegt — war es einmal, und das ist die gefährlichere
+    // Richtung: wer das Passwort kennt, könnte den Spieler damit jederzeit aus
+    // der Welt werfen, mitten im Kampf. Abgewiesen zu werden kostet den
+    // Rechtmässigen dagegen nur eine Meldung.
+    //
+    // Eine abgerissene Verbindung sperrt nicht dauerhaft aus: sie fällt
+    // spätestens nach `sessionTimeoutSeconds` ohne Lebenszeichen heraus. Ein
+    // gewöhnlicher Seitenneuladen schliesst den Socket sofort und gibt das
+    // Konto damit im selben Moment frei.
     for (const other of this.sessions) {
-      if (other !== session && other.accountId === account.id) {
-        other.send(encodeKick(KickReason.AuthFailed, 'An anderer Stelle angemeldet.'));
-        other.flush();
-        other.close(1000, 'replaced');
-      }
+      if (other === session || other.accountId !== account.id) continue;
+      if (other.state === 'closed') continue;
+
+      session.send(
+        encodeLobbyError(
+          'Dieses Konto ist bereits angemeldet. Nach einem Verbindungsabbruch dauert ' +
+            `es bis zu ${config.sessionTimeoutSeconds} Sekunden, bis es wieder frei ist.`,
+        ),
+      );
+      session.flush();
+      // Kein Fehlversuch: das Passwort stimmte. Sonst käme, wer sein Konto
+      // sucht, nach sechs Versuchen ohne Grund vor die Tür.
+      session.loginAttempts--;
+      return;
     }
 
     session.accountId = account.id;
@@ -604,7 +624,6 @@ export class GameServer {
       defense: stats.defense,
       moveSpeed: stats.moveSpeed,
       attackRange: profile.range,
-      attackArc: profile.arc,
       attackCooldownSec: profile.cooldownSec,
       attackWindupSec: profile.windupSec,
       attackStyle: profile.style,
@@ -1062,7 +1081,6 @@ export class GameServer {
       defense: stats.defense,
       moveSpeed: stats.moveSpeed,
       attackRange: profile.range,
-      attackArc: profile.arc,
       attackCooldownSec: profile.cooldownSec,
       attackWindupSec: profile.windupSec,
       attackStyle: profile.style,
@@ -1396,7 +1414,6 @@ export class GameServer {
       session.entityId,
       profile.style,
       profile.range,
-      profile.arc,
       profile.cooldownSec,
       profile.windupSec,
     );

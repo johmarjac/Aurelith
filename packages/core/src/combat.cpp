@@ -1,10 +1,13 @@
-// Kampf. Zwei Arten, ein Ablauf.
+// Kampf. Ein Schlag, ein Ziel.
 //
-// Nahkampf im Stil von Metin2: ein Schlag ist kein Zielangriff, sondern ein
-// Bereich. Alles, was im Kegel vor der Figur und in Reichweite steht, wird
-// getroffen und nimmt Schaden — daraus ergibt sich das ganze Spielgefühl, weil
-// Positionierung und das Gruppieren von Gegnern zur eigentlichen Fertigkeit
-// werden.
+// Angegriffen wird, was anvisiert ist — `targetId`. Nichts anderes. Wer nicht
+// anvisiert ist, nimmt keinen Schaden, auch wenn er direkt daneben steht.
+//
+// Das war einmal anders: der Nahkampf traf alles im Kegel vor der Figur, wie
+// bei Metin2. Das Spielgefühl, das daraus entstand, war ein anderes als das
+// gewollte — bei Flyff sucht man sich einen Gegner aus, und der Kampf gilt
+// diesem einen. Ein Kegel und eine Zielauswahl nebeneinander wären zwei
+// Antworten auf dieselbe Frage: „wen trifft dieser Schlag?"
 //
 // Ablauf eines Schlags:
 //   1. `tryStartSwing` prüft die Abklingzeit und setzt `swingTimer` auf die
@@ -12,18 +15,17 @@
 //   2. Der Tick zählt `swingTimer` herunter.
 //   3. Bei Null ruft der Tick `resolveSwing` — erst jetzt entsteht Schaden.
 //
-// Die Vorlaufzeit ist der Grund, warum Ausweichen überhaupt möglich ist.
+// Die Vorlaufzeit ist der Grund, warum Ausweichen überhaupt möglich ist: wer
+// während des Vorlaufs aus der Reichweite läuft, wird nicht getroffen. Die
+// Entfernung wird deshalb erst beim Auflösen geprüft und nicht beim Beginn.
 //
-// Fernkampf geht denselben Weg, trifft aber genau eines: das nächste Ziel in
-// Reichweite, ohne Rücksicht auf die Blickrichtung. Das ist Absicht — wer
-// zielen muss, um überhaupt etwas zu treffen, spielt ein anderes Spiel. Die
-// Figur dreht sich trotzdem zum Ziel, aber das macht der Client: er kennt die
-// Welt aus den Snapshots und schickt die Blickrichtung als Teil der Eingabe
-// mit. Der Server prüft nur die Entfernung — Zielen ist keine Autoritätsfrage.
+// Nah- und Fernkampf unterscheiden sich nur noch in der Reichweite und im
+// Bild: der Fernkampftreffer bekommt eine Flagge, damit der Client einen Pfeil
+// zeichnet.
 //
-// Der Schlag beginnt in beiden Fällen ohne Bedingung. Das ist wichtig für die
-// Vorhersage: die Welt im Client enthält nur die eigene Figur, sie *kann* kein
-// Ziel finden. Hinge der Beginn an einem Ziel, würde der Client den Schlag nie
+// Der Schlag beginnt ohne jede Bedingung. Das ist wichtig für die Vorhersage:
+// die Welt im Client enthält nur die eigene Figur, sie *kann* kein Ziel
+// finden. Hinge der Beginn an einem Ziel, würde der Client den Schlag nie
 // beginnen, die Verlangsamung während der Vorlaufzeit nicht mitrechnen und bei
 // jedem Angriff gegen den Server driften.
 
@@ -40,74 +42,29 @@ bool World::tryStartSwing(Entity& e) {
   return true;
 }
 
-/** Nächstes lebendes Ziel in Reichweite, oder nichts. */
-Entity* World::nearestHostile(Entity& attacker, float range) {
-  Entity* best = nullptr;
-  float bestDist = range;
-
-  for (Entity& target : entities_) {
-    if (!isHostile(attacker, target) || !isAlive(target)) continue;
-
-    const float dx = target.x - attacker.x;
-    const float dz = target.z - attacker.z;
-    // Bis zur Hülle, nicht bis zum Mittelpunkt — ein dickes Monster ist eher
-    // getroffen als ein dünnes an derselben Stelle.
-    const float dist = std::sqrt(dx * dx + dz * dz) - target.radius;
-    if (dist > bestDist) continue;
-
-    bestDist = dist;
-    best = &target;
-  }
-  return best;
-}
-
-void World::resolveRangedSwing(Entity& attacker) {
-  Entity* target = nearestHostile(attacker, attacker.attackRange);
-  if (target == nullptr) return;
-
-  // Zum Ziel drehen. Auf dem Server ist das die Wahrheit, die per Snapshot bei
-  // allen anderen ankommt; die eigene Figur hat sich über die Eingabe schon
-  // gedreht. Ohne das schösse man auf dem Bildschirm der Mitspieler seitwärts.
-  attacker.yaw = std::atan2(target->x - attacker.x, target->z - attacker.z);
-
-  applyDamage(attacker, *target, kCombatRanged);
-}
-
 void World::resolveSwing(Entity& attacker) {
   if (!isAlive(attacker)) return;
 
-  if (attacker.attackStyle == kAttackRanged) {
-    resolveRangedSwing(attacker);
-    return;
-  }
+  // Ohne Ziel geht der Schlag ins Leere. Kein Ersatzziel in der Nähe: wer
+  // hilfsweise das nächstbeste träfe, hätte wieder zwei Wahrheiten darüber,
+  // wen man angreift — die Auswahl des Spielers und die Suche des Kerns.
+  Entity* target = attacker.targetId != 0 ? find(attacker.targetId) : nullptr;
+  if (target == nullptr || !isHostile(attacker, *target) || !isAlive(*target)) return;
 
-  const float halfArc = attacker.attackArc * 0.5f;
-  int hits = 0;
+  const float dx = target->x - attacker.x;
+  const float dz = target->z - attacker.z;
+  // Bis zur Hülle, nicht bis zum Mittelpunkt — ein dickes Monster ist eher
+  // getroffen als ein dünnes an derselben Stelle.
+  const float dist = std::sqrt(dx * dx + dz * dz) - target->radius;
+  if (dist > attacker.attackRange) return;
 
-  // Über Indizes statt Referenzen laufen: `applyDamage` verändert nur
-  // bestehende Einträge, aber die Absicht bleibt so auch dann klar, wenn
-  // später Entities im Treffer entstehen.
-  for (size_t i = 0; i < entities_.size() && hits < kMaxTargetsPerSwing; ++i) {
-    Entity& target = entities_[i];
-    if (!isHostile(attacker, target) || !isAlive(target)) continue;
+  // Zum Ziel drehen. Auf dem Server ist das die Wahrheit, die per Snapshot bei
+  // allen anderen ankommt; die eigene Figur hat sich über die Eingabe schon
+  // gedreht. Ohne das schlüge man auf dem Bildschirm der Mitspieler seitwärts.
+  attacker.yaw = std::atan2(dx, dz);
 
-    const float dx = target.x - attacker.x;
-    const float dz = target.z - attacker.z;
-    const float dist = std::sqrt(dx * dx + dz * dz);
-
-    // Reichweite gilt bis zur Hülle des Ziels, nicht bis zu seinem Mittelpunkt.
-    if (dist > attacker.attackRange + target.radius) continue;
-
-    // Direkt am Körper klebende Gegner werden immer getroffen, sonst müsste
-    // man sich exakt zu ihnen drehen, während sie einen bereits umringen.
-    if (dist > attacker.radius + target.radius + 0.2f) {
-      const float toTarget = std::atan2(dx, dz);
-      if (std::fabs(angleDelta(attacker.yaw, toTarget)) > halfArc) continue;
-    }
-
-    applyDamage(attacker, target, kCombatNone);
-    ++hits;
-  }
+  applyDamage(attacker, *target,
+              attacker.attackStyle == kAttackRanged ? kCombatRanged : kCombatNone);
 }
 
 void World::applyDamage(Entity& attacker, Entity& target, uint8_t extraFlags) {

@@ -37,7 +37,6 @@
       "description": "Trifft, was in Reichweite steht — auch ohne hinzusehen.",
       "attackStyle": "ranged",
       "attackRange": 18,
-      "attackArc": 6.283185307179586,
       "attackCooldownSec": 0.95,
       "attackWindupSec": 0.3,
       "weaponRig": "bow",

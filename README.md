@@ -1,8 +1,8 @@
 # Aurelith
 
-Browserbasiertes 3D-MMORPG. Klassisches Setting, Flächenkampf im Stil von
-Metin2, Kartenaufbau mit Gates und Dungeons im Stil von Flyff — mit eigener
-Grafik und eigenem Stack.
+Browserbasiertes 3D-MMORPG. Klassisches Setting, Kampf mit Zielauswahl und
+Kartenaufbau mit Gates und Dungeons im Stil von Flyff — mit eigener Grafik und
+eigenem Stack.
 
 Der Aufbau folgt dem Blueprint aus dem Flyff-Universe-Teardown, mit einer
 bewussten Abweichung, die weiter unten begründet ist.
@@ -22,6 +22,10 @@ bewussten Abweichung, die weiter unten begründet ist.
   Terrainnetz aus den Höhen des Kerns.
 - **Desktop und Mobil**: WASD und Maus am Rechner, virtueller Joystick und
   Angriffsknopf am Telefon.
+- **Kampf mit Zielauswahl**: ein Klick visiert an, der zweite greift an — die
+  Figur läuft von selbst in Reichweite und schlägt weiter, bis man sie mit
+  einem Klick in die Welt oder einem Schritt zur Seite wieder herausholt.
+  Getroffen wird ausschliesslich das anvisierte Wesen.
 - **UI im Flyff-Zuschnitt**: Werteleisten, Zielfenster, Chat, Inventar,
   Charakterblatt, ziehbare Fenster, Namensschilder, Schadenszahlen — in einem
   eigenen Theme aus Pergament, Holz und Messing, und mit einem Regler für die

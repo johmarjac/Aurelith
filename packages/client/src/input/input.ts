@@ -2,13 +2,17 @@
  * Eingabe für zwei Geräteklassen.
  *
  * Beide Wege erzeugen dasselbe Ergebnis — eine Bewegungsrichtung in
- * Weltachsen, eine Blickrichtung und den Zustand der Angriffstaste. Was
- * darüber liegt, unterscheidet sich:
+ * Weltachsen und eine Blickrichtung. Was darüber liegt, unterscheidet sich:
  *
  *   Desktop  WASD bewegt, rechte Maustaste dreht die Kamera, Rad zoomt,
- *            Leertaste oder Linksklick schlägt zu.
+ *            Linksklick wählt aus, Leertaste greift das Gewählte an.
  *   Mobil    Ein Daumen links ist der Joystick, ein Finger rechts dreht die
- *            Kamera, zwei Finger zoomen, ein Knopf schlägt zu.
+ *            Kamera, zwei Finger zoomen, ein Tipper wählt aus, ein Knopf
+ *            greift an.
+ *
+ * Der Angriff ist ein **Druck** und kein Halten: seit dem Zielsystem heisst
+ * er „greif das an, was ausgewählt ist", und das Weiterschlagen besorgt danach
+ * das Spiel. Eine gehaltene Taste hätte hier nichts mehr zu sagen.
  *
  * Die Bewegungsrichtung ist immer kamerarelativ: „vorwärts" heißt dorthin, wo
  * man hinsieht. Alles andere fühlt sich in der dritten Person falsch an.
@@ -24,7 +28,6 @@ export interface InputSnapshot {
   moveZ: number;
   /** Blickrichtung, die die Figur einnehmen soll. */
   yaw: number;
-  attack: boolean;
   interact: boolean;
   /**
    * Ob in diesem Takt tatsächlich jemand gesteuert hat.
@@ -44,43 +47,37 @@ const TOUCH_LOOK_SPEED = 0.0075;
 export class InputManager {
   readonly joystick?: VirtualJoystick;
 
-  /** Wird gesetzt, wenn der Spieler die Angriffstaste neu drückt. */
+  /**
+   * Der Spieler hat die Angriffstaste gedrückt.
+   *
+   * Nur die **Flanke**, kein Halten: was daraus wird — anlaufen, zuschlagen,
+   * weiterschlagen — entscheidet das Spiel anhand des gewählten Ziels.
+   */
   onAttackPressed?: () => void;
   /** Klick oder Tipper ins Bild, in normalisierten Gerätekoordinaten. */
   onPick?: (ndcX: number, ndcY: number) => void;
   /**
-   * Liegt an dieser Stelle etwas, das man anfasst statt anzugreifen?
+   * Liegt an dieser Stelle etwas, das man mit der Hand aufnimmt?
    *
-   * Beantwortet vom Spiel — hier ist nur bekannt, wo geklickt wurde, nicht
-   * was dort liegt. Zwei Dinge hängen an derselben Antwort, und das ist der
-   * Sinn der Sache: die Maus zeigt dort eine Hand, und ein Klick dorthin löst
-   * keinen Schlag aus. Wären es zwei Abfragen, zeigte irgendwann die eine
-   * eine Hand, während die andere zuschlägt.
+   * Beantwortet vom Spiel — hier ist nur bekannt, wo der Zeiger steht, nicht
+   * was dort liegt. Ausschliesslich für den Mauszeiger: über einem Beutehaufen
+   * zeigt er eine Hand.
    */
-  attackBlocked?: (ndcX: number, ndcY: number) => boolean;
+  zeigerFasstAn?: (ndcX: number, ndcY: number) => boolean;
 
   private readonly keys = new Set<string>();
   /** Macht aus dem sprunghaften Wunsch eine stetige Bewegung. */
   private readonly steering = new Steering();
   /**
-   * Wer den Schlag hält — getrennt nach Hand.
+   * Ob die Angriffstaste unten ist — getrennt nach Fläche.
    *
-   * Drei Flächen können angreifen: die Leertaste, die Maustaste und der Knopf
-   * auf dem Telefon. Sie teilten sich einmal ein einziges Feld, und damit
-   * beendete jedes Loslassen den Schlag der anderen: wer die Leertaste hielt
-   * und dabei ein Ziel anklickte, hörte beim Loslassen der Maustaste auf zu
-   * schlagen — die Leertaste war noch unten, die Figur stand still. Ein Feld
-   * je Fläche, und der Schlag gilt, solange **irgendeine** von ihnen hält.
+   * Gebraucht wird das nur, um die **Flanke** zu erkennen: `keydown`
+   * wiederholt sich, solange eine Taste gehalten wird, und jede Wiederholung
+   * wäre sonst ein neuer Angriffsbefehl. Der Zustand selbst geht nirgendwohin.
    */
   private attackKey = false;
-  private attackMouse = false;
   private attackButtonHeld = false;
   private interactPressed = false;
-
-  /** Hält gerade irgendeine Fläche den Schlag? */
-  private get attackHeld(): boolean {
-    return this.attackKey || this.attackMouse || this.attackButtonHeld;
-  }
 
   /** Zeiger, der gerade die Kamera dreht. */
   private lookPointer: number | null = null;
@@ -127,7 +124,7 @@ export class InputManager {
       this.keys.add(e.code);
       if (e.code === 'Space') {
         e.preventDefault();
-        if (!this.attackHeld) this.onAttackPressed?.();
+        if (!this.attackKey) this.onAttackPressed?.();
         this.attackKey = true;
       }
       if (e.code === 'KeyF') this.interactPressed = true;
@@ -139,7 +136,6 @@ export class InputManager {
     const blur = () => {
       this.keys.clear();
       this.attackKey = false;
-      this.attackMouse = false;
     };
 
     window.addEventListener('keydown', down);
@@ -162,22 +158,14 @@ export class InputManager {
         return;
       }
       if (e.button === 0) {
-        // Linke Taste schlägt zu und wählt aus. Sie dreht bewusst nicht mit:
-        // sonst zielt jeder Klick daneben, weil die Kamera dabei wegkippt.
+        // Die linke Taste wählt aus — anvisieren, angreifen, hingehen,
+        // aufheben. Was davon, entscheidet das Spiel beim Loslassen. Sie dreht
+        // bewusst nicht mit: sonst zielt jeder Klick daneben, weil die Kamera
+        // dabei wegkippt.
         this.pickPointer = e.pointerId;
         this.pickMoved = 0;
         this.pickX = e.clientX;
         this.pickY = e.clientY;
-
-        // Auf einen Beutehaufen geklickt heisst aufheben, nicht zuschlagen.
-        // Der Schlag beginnt beim Drücken und nicht beim Loslassen — wer erst
-        // beim Loslassen entscheidet, hat die Schwungphase schon angefangen
-        // und sieht die Figur ins Leere hauen.
-        const [nx, ny] = this.toNdc(e.clientX, e.clientY);
-        if (this.attackBlocked?.(nx, ny) === true) return;
-
-        if (!this.attackHeld) this.onAttackPressed?.();
-        this.attackMouse = true;
       }
     };
 
@@ -193,11 +181,10 @@ export class InputManager {
         return;
       }
 
-      // Freie Maus: eine Hand dort, wo ein Klick etwas anfasst. Dieselbe
-      // Frage wie beim Drücken — was die Hand zeigt, greift auch nicht an.
-      if (this.attackBlocked) {
+      // Freie Maus: eine Hand dort, wo ein Klick etwas aufhebt.
+      if (this.zeigerFasstAn) {
         const [nx, ny] = this.toNdc(e.clientX, e.clientY);
-        this.canvas.style.cursor = this.attackBlocked(nx, ny) ? 'pointer' : '';
+        this.canvas.style.cursor = this.zeigerFasstAn(nx, ny) ? 'pointer' : '';
       }
     };
 
@@ -212,7 +199,6 @@ export class InputManager {
         }
         this.pickPointer = null;
       }
-      if (e.button === 0) this.attackMouse = false;
     };
 
     const wheel = (e: WheelEvent) => {
@@ -347,7 +333,7 @@ export class InputManager {
 
   /** Der Angriffsknopf der Touch-Oberfläche meldet sich hierüber. */
   setAttackButton(held: boolean): void {
-    if (held && !this.attackHeld) this.onAttackPressed?.();
+    if (held && !this.attackButtonHeld) this.onAttackPressed?.();
     this.attackButtonHeld = held;
   }
 
@@ -436,7 +422,6 @@ export class InputManager {
       moveX: steered.moveX,
       moveZ: steered.moveZ,
       yaw: steered.yaw,
-      attack: !frozen && this.attackHeld,
       interact: !frozen && interact,
       manual: selbst,
     };
@@ -462,6 +447,16 @@ export class InputManager {
    */
   setFacing(yaw: number): void {
     this.steering.reset(yaw);
+  }
+
+  /**
+   * Dreht die Figur zu einem Winkel, ohne sie anzuhalten — für den Kampf.
+   *
+   * Eigene Steuerung schlägt ihn: sobald jemand drückt, gilt wieder die
+   * Laufrichtung.
+   */
+  richteAus(yaw: number): void {
+    this.steering.ausrichten(yaw);
   }
 
   /** Bildpunkte in normalisierte Gerätekoordinaten. */

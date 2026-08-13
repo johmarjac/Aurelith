@@ -29,7 +29,6 @@ function toCoreMob(id: string): CoreMobDef {
     aggroRange: def.aggroRange,
     leashRange: def.leashRange,
     attackRange: def.attackRange,
-    attackArc: def.attackArc,
     attackCooldownSec: def.attackCooldownMs / 1000,
     attackStyle: 0,
     attackWindupSec: def.attackWindupMs / 1000,

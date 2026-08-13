@@ -47,7 +47,6 @@ const mob: CoreMobDef = {
   aggroRange: 0,
   leashRange: 50,
   attackRange: 2,
-  attackArc: Math.PI,
   attackCooldownSec: 1,
   attackWindupSec: 0.2,
   attackStyle: 0,
@@ -83,7 +82,6 @@ world.spawnPlayer({
   defense: 5,
   moveSpeed: 6,
   attackRange: 3,
-  attackArc: 2.67,
   attackCooldownSec: 0.62,
   attackWindupSec: 0.15,
   attackStyle: 0,
@@ -115,19 +113,27 @@ world.readEntities(rows);
 const moved = rows.find((r) => r.id === 1)!;
 checkNear(moved.z, 6, 0.2, 'eine Sekunde Lauf ergibt sechs Einheiten');
 
-// --- Flächenschlag und Ereignisse ------------------------------------------
+// --- Schlag auf das Ziel und Ereignisse ------------------------------------
+//
+// Beide Monster stehen gleich weit vor der Figur; getroffen werden darf nur
+// das anvisierte. Zwei Treffer wären der alte Flächenschlag.
 
 world.teleport(1, 0, 0, 0);
+world.setTarget(1, 11);
 world.applyInput(1, 0, 0, 0, CoreButton.Attack, 1 / 20);
 
 let hits = 0;
+let getroffen = 0;
 for (let i = 0; i < 8; i++) {
   world.step(1 / 20);
   for (const ev of world.drainEvents()) {
-    if (ev.type === CoreEventType.Hit) hits++;
+    if (ev.type !== CoreEventType.Hit) continue;
+    hits++;
+    getroffen = ev.b;
   }
 }
-check(hits >= 2, `ein Schlag trifft beide Ziele (${hits} Treffer gemeldet)`);
+check(hits === 1, `ein Schlag trifft genau einmal (${hits} Treffer gemeldet)`);
+check(getroffen === 11, `und zwar das anvisierte Ziel (Entity ${getroffen})`);
 
 // --- Höhengitter ------------------------------------------------------------
 

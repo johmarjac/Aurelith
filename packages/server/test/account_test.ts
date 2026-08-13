@@ -299,15 +299,30 @@ c2.send(encodeLogin({ name, password: 'falsch' }));
 await warte(c2);
 check(c2.lobby() === undefined, 'mit falschem Passwort geht nichts');
 
+// Ein Konto, eine Sitzung: solange die erste Verbindung steht, kommt die
+// zweite nicht hinein — auch nicht mit richtigem Passwort. Andersherum (die
+// ältere fliegt) wäre es ein Werkzeug: wer das Passwort kennt, könnte den
+// Spieler jederzeit aus der Welt werfen.
 c2.vergiss();
 c2.send(encodeLogin({ name, password: 'geheimnis' }));
 await warte(c2);
-check(c2.lobby()?.accountName === name, 'mit richtigem schon');
+check(c2.lobby() === undefined, 'ein zweites Gerät kommt nicht auf dasselbe Konto');
+check(
+  (c2.fehler() ?? '').includes('bereits angemeldet'),
+  'und erfährt auch, warum',
+  c2.fehler() ?? '(stumm)',
+);
+await sleep(300);
+check(!c1.geschlossen(), 'die erste Verbindung bleibt dabei bestehen');
 
-// Zweimal dasselbe Konto: die ältere Verbindung fliegt. Sonst liefen zwei
-// Sitzungen auf einem Spielstand, und die zweite überschriebe die erste.
+// Gegenprobe: ist die erste weg, geht es sofort. Ohne sie prüfte das oben nur,
+// dass die zweite Anmeldung *irgendwie* scheitert — etwa am Passwort.
+c1.close();
 await sleep(500);
-check(c1.geschlossen(), 'und die ältere Verbindung wird dabei getrennt');
+c2.vergiss();
+c2.send(encodeLogin({ name, password: 'geheimnis' }));
+await warte(c2);
+check(c2.lobby()?.accountName === name, 'nach dem Trennen der ersten schon');
 
 console.log('\nFiguren');
 

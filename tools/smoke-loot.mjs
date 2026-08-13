@@ -333,34 +333,16 @@ let runde = 0;
  * wäre eine zweite Gelegenheit, ihn falsch zu machen.
  */
 async function kaempfeBisBeute() {
-  // Der Schlag bleibt die ganze Jagd über gedrückt: er kostet nichts, wenn
-  // niemand in Reichweite steht, und trifft sofort, wenn doch.
+  // Seit dem Zielsystem läuft der Bot nicht mehr selbst: ein Klick visiert an,
+  // der zweite greift an, und das Spiel bringt die Figur in Reichweite und
+  // hält sie dort. Wer hier noch W drückte, bräche den Kampf in jeder Runde
+  // wieder ab — eigene Bewegung beendet den Auftrag, genau dafür ist sie da.
   //
-  // Der Vorwärtsgang dagegen wird an- und ausgeschaltet, und zwar nach dem
-  // Lebensbalken des Ziels. Sinkt er, steht die Figur richtig — dann heisst
-  // Weiterlaufen, am Ziel vorbeizurennen und es hinter sich zu lassen. Sinkt
-  // er zwei Sekunden lang nicht, ist die Figur nicht (mehr) dran und muss
-  // wieder hin. Ohne diese Rückmeldung umkreist ein Bot sein Ziel: er läuft
-  // darauf zu, daran vorbei, dreht um, und wieder von vorn.
-  //
-  // Nebenbei ist dieser Ablauf — Leertaste halten und dabei anklicken — die
-  // Probe auf einen Fehler, der genau hier steckte: Tastatur und Maus teilten
-  // sich ein Feld für „Schlag gehalten", und das Loslassen der Maustaste nach
-  // dem Anpeilen beendete den Schlag der Leertaste mit. Der Bot lief dann
-  // minutenlang hinter Wesen her, die bei hundert Prozent Leben blieben.
-  await page.keyboard.down('Space');
-  let laeuft = false;
-  const gehe = async (an) => {
-    if (an === laeuft) return;
-    await page.keyboard[an ? 'down' : 'up']('KeyW');
-    laeuft = an;
-  };
-  await gehe(true);
-
+  // Gedreht wird trotzdem: ein Wesen ohne Namensschild im Bild ist für diesen
+  // Test nicht zu finden, und die Schilder gibt es nur für das, was die Kamera
+  // sieht.
   const frist = Date.now() + 240000;
   let fertig = false;
-  let letzteHp = 1;
-  let letzterTreffer = Date.now();
 
   while (Date.now() < frist) {
     runde++;
@@ -369,40 +351,33 @@ async function kaempfeBisBeute() {
       break;
     }
 
+    const auftrag = await page.evaluate(() => ({ ...window.aurelith.auftrag }));
     let ziel = await schildOrt(true);
 
-    // Kein angepeiltes Wesen mehr — erlegt, aus dem Bild gewandert oder noch
-    // keines gewählt. Dann das nächste anklicken; ein Klick ins Bild wählt,
-    // was dort steht.
     if (!ziel) {
-      await gehe(false);
+      // Kein angepeiltes Wesen mehr — erlegt, aus dem Bild gewandert oder noch
+      // keines gewählt. Das nächste anklicken; ein Klick ins Bild wählt, was
+      // dort steht.
       const naechstes = await schildOrt(false);
       if (naechstes) {
         // Etwas unter das Schild, auf den Körper: das Schild schwebt über dem
         // Wesen, und gewählt wird nach dem, was im Bild unter dem Zeiger liegt.
         await page.mouse.click(naechstes.x, naechstes.y + 18);
         ziel = await schildOrt(true);
-        letzteHp = 1;
-        letzterTreffer = Date.now();
-        if (ziel) await gehe(true);
       } else {
-        // Nichts im Bild: ein Vierteldrehung weiter suchen.
+        // Nichts im Bild: eine Achteldrehung weiter suchen.
         await drehe(80);
       }
+    } else if (auftrag.art !== 'kampf') {
+      // Anvisiert, aber kein Kampf: der zweite Klick schickt die Figur los.
+      // Auch der Weg dorthin gehört dem Spiel — der Bot wartet nur ab.
+      await page.mouse.click(ziel.x, ziel.y + 18);
     }
 
     if (ziel) {
-      if (ziel.hp < letzteHp - 0.001) {
-        letzteHp = ziel.hp;
-        letzterTreffer = Date.now();
-        await gehe(false);
-      } else if (Date.now() - letzterTreffer > 2000) {
-        await gehe(true);
-      }
-
-      // Nachführen statt Zielen: ein Bruchteil der Abweichung je Runde. Wer in
-      // einem Zug genau ausrichtet, überdreht, weil das Ziel weiterwandert,
-      // während die Maus noch zieht.
+      // Nachführen statt Zielen: ein Bruchteil der Abweichung je Runde. Die
+      // Kamera dreht sich nicht von selbst mit, und ein Ziel, das aus dem Bild
+      // läuft, verliert sein Schild — und damit seinen Lebensbalken.
       const abweichung = ziel.x - MITTE_X;
       if (Math.abs(abweichung) > 60) {
         // Etwas weniger als der gemessene Kehrwert (0,29): lieber zweimal
@@ -416,23 +391,17 @@ async function kaempfeBisBeute() {
       console.log(
         `  · Runde ${runde}: ${ziel ? `Ziel ${Math.round(ziel.x)} bei ` +
           `${Math.round(ziel.hp * 100)}% Leben` : 'kein Ziel im Bild'}, ` +
+          `Auftrag ${auftrag.art}${auftrag.angriff ? ' (schlägt)' : ''}, ` +
           `Figur bei ${p.x.toFixed(1)}/${p.z.toFixed(1)}`,
       );
     }
 
-    // Und dann laufen lassen — in **jeder** Runde, auch in denen ohne Ziel.
-    // Eine halbe Sekunde zwischen zwei Eingriffen ist kein Bummeln, sondern
-    // die Bedingung dafür, dass überhaupt etwas vorangeht: jede Drehung
-    // schwenkt die Laufrichtung mit, und wer alle fünfzig Millisekunden
-    // schwenkt, beschreibt Schlangenlinien statt eines Weges. Genau daran ist
-    // ein Lauf gescheitert, der in vier Minuten neuntausend Runden drehte und
-    // kein einziges Wesen erreichte — die Suchdrehung hatte die Wartezeit
-    // übersprungen und die Kamera in einen Kreisel geschickt.
+    // Eine halbe Sekunde zwischen zwei Eingriffen: jede Drehung schwenkt auch
+    // den Anmarsch mit, und wer alle fünfzig Millisekunden schwenkt,
+    // beschreibt Schlangenlinien statt eines Weges.
     await page.waitForTimeout(500);
   }
 
-  await gehe(false);
-  await page.keyboard.up('Space');
   return fertig;
 }
 
@@ -613,14 +582,14 @@ if (schild) {
     `${daneben || '(leer)'}, ${Math.round(freiAbstand)} px vom nächsten Schild`,
   );
 
-  // Drücken und dabei nachsehen, ob geschlagen wird. Der Schlag beginnt beim
-  // Drücken, nicht beim Loslassen — genau deshalb wird hier gemessen, solange
-  // die Taste unten ist.
+  // Drücken und dabei nachsehen, ob geschlagen wird. Gemessen wird, solange
+  // die Taste unten ist: ein Klick auf einen Haufen ist ein Aufheben und darf
+  // unter keinen Umständen einen Kampf beginnen.
   const aufgehobenVorher = await meldungen();
   await page.mouse.move(mx, my);
   await page.mouse.down();
   await page.waitForTimeout(150);
-  const schlaegt = await page.evaluate(() => window.aurelith.input.attack);
+  const schlaegt = await page.evaluate(() => window.aurelith.auftrag.angriff);
   await page.mouse.up();
   check(schlaegt === false, 'ein Klick auf den Haufen schlägt nicht zu', String(schlaegt));
 
