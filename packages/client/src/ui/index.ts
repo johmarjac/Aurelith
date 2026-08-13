@@ -1186,6 +1186,22 @@ export class UI {
     return teile.length > 0 ? teile.join(', ') : undefined;
   }
 
+  /**
+   * Steht gerade etwas offen, das zu einem NPC gehört?
+   *
+   * Für die Frage „schliessen, weil die Figur losläuft" — und nur dafür:
+   * Inventar und Charakterblatt gehören dem Spieler und bleiben stehen, wo sie
+   * stehen. Ein Gespräch führt man dagegen nicht im Weggehen.
+   */
+  get npcFensterOffen(): boolean {
+    return (
+      this.npcMenu.isOpen ||
+      this.dialogWindow.isOpen ||
+      this.shopWindow.isOpen ||
+      this.upgradeWindow.isOpen
+    );
+  }
+
   closeDialog(): void {
     this.npcMenu.schliesse();
     this.dialogWindow.close();

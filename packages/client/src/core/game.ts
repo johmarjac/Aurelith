@@ -1442,6 +1442,10 @@ export class Game {
       return;
     }
     if (bestNpc) {
+      // Ansprechen heisst stehenbleiben. Ohne das liefe ein Auftrag von vorhin
+      // weiter — und weil ein laufender Auftrag das Gespräch schliesst, ginge
+      // das Fenster im selben Moment wieder zu, in dem es aufgeht.
+      this.brichAuftragAb();
       // Wo geklickt wurde, wird gemerkt: die Antwort des Servers kommt einen
       // Wimpernschlag später, und das Auswahlmenü soll dort aufgehen, wo man
       // hingesehen hat — nicht in der Bildmitte.
@@ -1814,6 +1818,20 @@ export class Game {
     if (snapshot.manual && this.auftrag) {
       this.brichAuftragAb();
       this.schlaegtZu = false;
+    }
+
+    // Wer losgeht, ist mit dem Reden fertig.
+    //
+    // Gemeint ist jede Art von Losgehen: eigene Steuerung ebenso wie ein
+    // angeklicktes Ziel. Ein Gesprächsfenster, das an der Stelle stehen
+    // bleibt, an der man den NPC verlassen hat, verdeckt danach die halbe
+    // Welt — und der Laden zeigt Waren von jemandem, der zwanzig Meter weiter
+    // hinten steht.
+    //
+    // Die Abfrage kostet nur einen Blick auf vier Merker; geschlossen wird
+    // erst, wenn tatsächlich etwas offen ist.
+    if ((snapshot.manual || this.auftrag !== undefined) && this.ui.npcFensterOffen) {
+      this.ui.closeDialog();
     }
 
     // Angriff und Sprung sind unabhängig: man kann im Sprung weiterschlagen,

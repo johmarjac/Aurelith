@@ -271,6 +271,10 @@ export class ShopWindow {
     this.win.setOpen(true);
   }
 
+  get isOpen(): boolean {
+    return this.win.isOpen;
+  }
+
   close(): void {
     this.win.setOpen(false);
   }
@@ -370,6 +374,10 @@ export class UpgradeWindow {
   open(): void {
     this.render();
     this.win.setOpen(true);
+  }
+
+  get isOpen(): boolean {
+    return this.win.isOpen;
   }
 
   close(): void {
