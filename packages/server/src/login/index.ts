@@ -45,8 +45,13 @@ server.on('request', (req, res) => {
   void (async () => {
     if (await behandleIntern(req, res, register, karten)) return;
 
+    // Lesbar auch von einer anderen Herkunft — siehe die gleiche Stelle im
+    // Spielserver. `/intern/` ist davon ausgenommen: es wird oben schon
+    // behandelt und kommt hier gar nicht an.
+    const kopf = { 'access-control-allow-origin': '*' };
+
     if (req.url === '/health') {
-      res.writeHead(200, { 'content-type': 'application/json' });
+      res.writeHead(200, { ...kopf, 'content-type': 'application/json' });
       res.end(JSON.stringify({ ok: true, kanaele: register.liste().length, store: store.kind }));
       return;
     }
@@ -54,11 +59,11 @@ server.on('request', (req, res) => {
     // Blick von aussen: „welche Kanäle laufen gerade?" soll man beantworten
     // können, ohne einen WebSocket zu öffnen.
     if (req.url === '/kanaele') {
-      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+      res.writeHead(200, { ...kopf, 'content-type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify(register.liste()));
       return;
     }
-    res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+    res.writeHead(404, { ...kopf, 'content-type': 'text/plain; charset=utf-8' });
     res.end('Aurelith-Anmeldeserver. Spieler verbinden über /ws.\n');
   })();
 });

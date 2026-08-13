@@ -62,8 +62,21 @@ const { server, scheme } = buildHttpServer();
 // den WebSocket — der Spielserver liefert bewusst keine Assets aus, die
 // kommen vom CDN.
 server.on('request', (req, res) => {
+  // Für jeden lesbar, auch von einer anderen Herkunft.
+  //
+  // Der Client liegt auf einer ganz anderen Adresse als der Kanal, und ohne
+  // diese Kopfzeile darf er die Antwort nicht lesen — er erfährt nur, dass
+  // *irgendetwas* kam. Genau das braucht er aber, wenn eine Spielverbindung
+  // scheitert: erst die gelesene Antwort trennt „der Kanal ist gar nicht
+  // erreichbar" von „er ist erreichbar, nur der WebSocket kommt nicht durch".
+  //
+  // Preisgegeben wird dabei nichts, was nicht ohnehin öffentlich ist: der
+  // Kanalname und die Liste der Karten. Alles Weitere läuft über den
+  // WebSocket, und der prüft die Eintrittskarte.
+  const kopf = { 'access-control-allow-origin': '*' };
+
   if (req.url === '/health') {
-    res.writeHead(200, { 'content-type': 'application/json' });
+    res.writeHead(200, { ...kopf, 'content-type': 'application/json' });
     res.end(
       JSON.stringify({
         ok: true,
@@ -76,7 +89,7 @@ server.on('request', (req, res) => {
     );
     return;
   }
-  res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+  res.writeHead(404, { ...kopf, 'content-type': 'text/plain; charset=utf-8' });
   res.end('Aurelith-Spielserver. Spielverkehr läuft über /ws.\n');
 });
 

@@ -588,11 +588,29 @@ cp docker/swag/aurelith.subdomain.conf <swag-config>/nginx/proxy-confs/
 docker restart swag
 ```
 
-Die Endung muss `.conf` sein — `.sample` lädt SWAG nicht. Für die Unterdomain
-muss ein CNAME im DNS stehen, sonst bekommt SWAG kein Zertifikat dafür.
+Die Endung muss `.conf` sein — `.sample` lädt SWAG nicht.
 
-Danach ist der Server unter `aurelith-server:8787` erreichbar, und ein nach
-außen veröffentlichter Port wird gar nicht mehr gebraucht.
+**Drei** Unterdomains, nicht eine. Der Client verbindet sich nacheinander mit
+zwei Servern, und jeder Kanal ist eine eigene Anwendung:
+
+| Unterdomain | Ziel | wofür |
+|---|---|---|
+| `aurelith` | `aurelith-login:8790` | Anmeldung, Server- und Kanalliste |
+| `aurelith-01` | `aurelith-kanal1:8787` | Kanal 1 |
+| `aurelith-02` | `aurelith-kanal2:8788` | Kanal 2 |
+
+Für **jede** muss ein CNAME im DNS stehen und jede muss in SWAGs
+`SUBDOMAINS=` aufgeführt sein — sonst deckt das Zertifikat sie nicht ab, und
+der Browser bricht wortlos ab. Die Namen müssen zu dem passen, was in
+`AURELITH_KANAL1_URL` und `AURELITH_KANAL2_URL` steht: das ist die Adresse,
+die der Anmeldeserver dem Client nennt.
+
+Ein nach außen veröffentlichter Port wird danach gar nicht mehr gebraucht.
+
+Wenn `https://aurelith-01.<domain>/health` antwortet, die Spielverbindung
+aber nicht zustande kommt, fehlen dem Ort für diese Unterdomain die Zeilen
+`proxy_set_header Upgrade` und `Connection` — in der mitgelieferten Datei
+stehen sie ausdrücklich drin.
 
 ### Aktualisieren
 

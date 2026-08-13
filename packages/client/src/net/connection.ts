@@ -160,8 +160,16 @@ export class Connection {
      * warten müsste. Ohne Karte ist es eine Verbindung zum Anmeldeserver
      * (oder zu einem Spielserver im Alleinbetrieb), und dann kommt der Name
      * über die Anmeldemaske.
+     *
+     * Anzugeben ist sie **immer**, notfalls als `undefined`. Freiwillig war
+     * sie schon einmal, und dann fehlte sie an der einzigen Stelle, die sie
+     * braucht: der Client grüsste den Kanal und schwieg, der Kanal wartete
+     * auf eine Karte, die nie kam, und niemand bekam eine Fehlermeldung —
+     * denn beide taten genau das, was ihnen aufgetragen war. Ein Übersetzer,
+     * der ein vergessenes Argument bemängelt, ist billiger als ein Abend
+     * Suche im Proxy.
      */
-    private readonly ticket?: string,
+    private readonly ticket: string | undefined,
   ) {}
 
   connect(): void {

@@ -882,6 +882,31 @@ export class Game {
     this.lobby.notiere(
       `Verbinde mit ${url}${ticket === undefined ? '' : ' (mit Eintrittskarte)'}`,
     );
+    /*
+     * Eine Wache gegen die stumme Sitzung.
+     *
+     * Nur beim Betreten eines Kanals: dort reist die Karte gleich hinter dem
+     * Gruss mit, und der Kanal muss antworten — mit der Figurenliste oder mit
+     * einer Absage. Bleibt beides aus, steht die Leitung und trotzdem geht es
+     * nicht weiter, und genau dieser Fall sah bisher aus wie gar kein Fehler:
+     * die Maske wartete, der Spieler wartete, und niemand sagte worauf.
+     *
+     * Am Anmeldeserver gibt es diese Wache nicht — dort wartet der Server
+     * zurecht, nämlich darauf, dass jemand sein Passwort tippt.
+     *
+     * Fünfzehn Sekunden, weil der Kanal die Karte beim Anmeldeserver
+     * nachfragt und dafür bis zu fünf braucht.
+     */
+    window.clearTimeout(this.stilleWache);
+    if (ticket !== undefined) {
+      this.stilleWache = window.setTimeout(() => {
+        this.lobby.notiere(
+          `${url} hat die Verbindung angenommen, antwortet aber nicht. ` +
+            'Weder Figurenliste noch Absage — der Kanal bleibt hier stumm.',
+          'fehler',
+        );
+      }, 15_000);
+    }
 
     this.connection = new Connection(url, {
       onStatus: (status, detail) => {
@@ -1003,6 +1028,7 @@ export class Game {
       onLobby: (msg) => {
         // Die Karte ist eingelöst, die Sitzung steht.
         this.amKanal = false;
+        window.clearTimeout(this.stilleWache);
         // Angemeldet, aber nicht in der Welt: die Maske zeigt die Figuren.
         // Auch nach dem Abmelden aus dem Spiel — dann steht die Sitzung
         // wieder in der Verwaltung, und was von ihr im Bild war, gehört
@@ -1022,6 +1048,7 @@ export class Game {
        * nicht mehr gilt, und jeder weitere Versuch scheiterte gleich.
        */
       onLobbyError: (text) => {
+        window.clearTimeout(this.stilleWache);
         this.lobby.zeigeFehler(text);
         this.lobby.notiere(`Absage: ${text}`, 'fehler');
         if (this.amKanal) {
@@ -1150,7 +1177,13 @@ export class Game {
         this.ui.setConnection('getrennt', message);
         this.ui.addChat(0, '', `Verbindung beendet: ${message}`);
       },
-    });
+    },
+    // Die Eintrittskarte. Sie hat hier gefehlt, und weil sie freiwillig ist,
+    // hat kein Übersetzer etwas gesagt: der Client verband sich mit dem Kanal,
+    // grüsste und schwieg dann. Der Kanal wartete auf eine Karte, die nie kam,
+    // und der Spieler sah eine Maske, die nichts mehr tat — bis der Server die
+    // stumme Sitzung nach dreissig Sekunden schloss.
+    ticket);
 
     this.connection.connect();
   }
@@ -1170,10 +1203,16 @@ export class Game {
    *   Der Rechner kommt hin, und der Kanal weist ab. Dann antwortet `/health`,
    *   und der Fehler liegt hinter dem Handschlag.
    *
-   * Erst mit CORS, weil das die Antwort lesbar macht — der Kanal nennt darin
-   * Server und Kanalnamen, und damit ist auch gleich geklärt, ob hinter der
-   * Adresse der erwartete steht. Setzt er die Kopfzeilen nicht, ist die
-   * Antwort verschlossen; dann zählt nur noch, dass überhaupt eine kam.
+   * Gefragt wird zweimal, und die zweite Frage ist die wichtigere:
+   *
+   *   `/health` sagt, ob der Kanal überhaupt zu erreichen ist — und wer dort
+   *   steht. Der Kanal nennt in der Antwort seinen Namen; damit ist auch
+   *   geklärt, ob hinter der Adresse der erwartete hängt.
+   *
+   *   `/ws` ohne Aufwertung muss vom **Spielserver** beantwortet werden, mit
+   *   seinem eigenen 404-Text. Kommt stattdessen die Fehlerseite des Proxys
+   *   oder ein 502, endet der Weg vor dem Kanal — dann fehlt dem Proxy der
+   *   Ort für `/ws`, und die Spielverbindung kann gar nicht ankommen.
    */
   private async pruefeKanal(url: string): Promise<void> {
     let ziel: URL;
@@ -1184,51 +1223,58 @@ export class Game {
       return;
     }
     ziel.protocol = ziel.protocol === 'wss:' ? 'https:' : 'http:';
-    ziel.pathname = '/health';
     ziel.search = '';
+    const wsPfad = ziel.pathname || '/ws';
 
+    const gesund = await this.frageAb(new URL('/health', ziel).toString());
+    if (gesund.art === 'nichts') {
+      this.lobby.notiere(
+        `${ziel.host} ist von diesem Gerät aus gar nicht erreichbar (${gesund.text}). ` +
+          'Das trifft Adresse, Zertifikat oder Weg im Proxy — nicht den Kanal.',
+        'fehler',
+      );
+      return;
+    }
+    this.lobby.notiere(`${ziel.host}/health: ${gesund.text}`);
+
+    const ws = await this.frageAb(new URL(wsPfad, ziel).toString());
+    this.lobby.notiere(`${ziel.host}${wsPfad}: ${ws.text}`);
+    this.lobby.notiere(
+      ws.text.includes('Aurelith')
+        ? `${wsPfad} führt bis zum Kanal — es scheitert erst an der Aufwertung zum ` +
+            'WebSocket. Im Proxy fehlen dort die Kopfzeilen Upgrade und Connection.'
+        : `${wsPfad} kommt nicht beim Kanal an — die Antwort stammt nicht von ihm. ` +
+            'Im Proxy fehlt der Weg dorthin.',
+      'fehler',
+    );
+  }
+
+  /**
+   * Eine Adresse abfragen und in einem Satz beantworten, was zurückkam.
+   *
+   * Der zweite Versuch ohne CORS ist kein Ersatz, sondern eine schwächere
+   * Auskunft: eine verschlossene Antwort beweist immerhin, dass Adresse,
+   * Zertifikat und Weg stimmen — nur lesen darf man sie nicht. Nötig ist er
+   * für Gegenstellen, die die Kopfzeile nicht setzen; unsere tun es.
+   */
+  private async frageAb(
+    adresse: string,
+  ): Promise<{ art: 'gelesen' | 'verschlossen' | 'nichts'; text: string }> {
     // Ohne Frist hinge die Nachfrage genau dort fest, wo auch das WebSocket
     // hing, und meldete nie etwas.
     const abbruch = new AbortController();
     const frist = window.setTimeout(() => abbruch.abort(), 6000);
     try {
-      const antwort = await fetch(ziel.toString(), {
-        signal: abbruch.signal,
-        cache: 'no-store',
-      });
-      const text = (await antwort.text()).slice(0, 200);
-      this.lobby.notiere(`${ziel.host} antwortet auf HTTP (${antwort.status}): ${text}`);
-      this.lobby.notiere(
-        'Der Weg dorthin steht also — es scheitert erst am WebSocket-Handschlag. ' +
-          'Reicht der Proxy unter /ws die Upgrade-Kopfzeilen durch?',
-        'fehler',
-      );
+      const antwort = await fetch(adresse, { signal: abbruch.signal, cache: 'no-store' });
+      const text = (await antwort.text()).replace(/\s+/g, ' ').trim().slice(0, 160);
+      return { art: 'gelesen', text: `${antwort.status} ${text}` };
     } catch (err) {
-      if (abbruch.signal.aborted) {
-        this.lobby.notiere(`${ziel.host} antwortet nicht innerhalb von 6 s.`, 'fehler');
-      } else {
-        // Ein zweiter Versuch ohne CORS. Eine verschlossene Antwort ist immer
-        // noch eine Antwort: sie beweist, dass Adresse, Zertifikat und Weg
-        // stimmen — nur lesen darf man sie nicht.
-        try {
-          await fetch(ziel.toString(), {
-            mode: 'no-cors',
-            signal: abbruch.signal,
-            cache: 'no-store',
-          });
-          this.lobby.notiere(
-            `${ziel.host} ist erreichbar, verrät aber nichts (keine CORS-Kopfzeilen). ` +
-              'Adresse und Zertifikat stimmen — es scheitert am WebSocket selbst.',
-            'fehler',
-          );
-        } catch {
-          const grund = err instanceof Error ? err.message : String(err);
-          this.lobby.notiere(
-            `${ziel.host} ist von diesem Gerät aus gar nicht erreichbar (${grund}). ` +
-              'Das trifft Adresse, Zertifikat oder Weg im Proxy — nicht den Kanal.',
-            'fehler',
-          );
-        }
+      if (abbruch.signal.aborted) return { art: 'nichts', text: 'keine Antwort in 6 s' };
+      try {
+        await fetch(adresse, { mode: 'no-cors', signal: abbruch.signal, cache: 'no-store' });
+        return { art: 'verschlossen', text: 'antwortet, aber verschlossen (kein CORS)' };
+      } catch {
+        return { art: 'nichts', text: err instanceof Error ? err.message : String(err) };
       }
     } finally {
       window.clearTimeout(frist);
@@ -1327,6 +1373,8 @@ export class Game {
    * Anmeldeserver zurückzugehen.
    */
   private amKanal = false;
+  /** Läuft, solange ein Kanal noch keine Antwort auf die Eintrittskarte gab. */
+  private stilleWache = 0;
 
   private commandConnect(argument: string): void {
     if (!argument) {
