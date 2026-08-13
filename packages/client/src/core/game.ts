@@ -550,7 +550,13 @@ export class Game {
     this.ui.onBuy = (itemId, count) => this.connection?.sendShopTrade(0, itemId, count);
     this.ui.onSell = (itemId, count, slot) =>
       this.connection?.sendShopTrade(1, itemId, count, slot);
-    this.ui.onAttackHold = (held) => this.input.setAttackButton(held);
+    this.ui.onAttackHold = (held) => {
+      // Beim Drücken erst zielen, dann halten: der Knopf sagt „schlag zu",
+      // und worauf, soll er selbst herausfinden.
+      this.angriffGehalten = held;
+      if (held) this.angriffsknopf();
+      this.input.setAttackButton(held);
+    };
     this.ui.onJump = () => this.input.springe();
     this.ui.onUseSkill = (skillId) => this.connection?.sendUseSkill(skillId);
     this.input.onPick = (x, y) => this.pickTarget(x, y);
@@ -1465,6 +1471,8 @@ export class Game {
    * Einlösen gestellt, und die Antwort ist dieselbe: nein, die Karte ist weg.
    */
   private kanalUrl = '';
+  /** Liegt der Daumen gerade auf dem Angriffsknopf? Nur am Telefon. */
+  private angriffGehalten = false;
   /** Läuft, solange ein Kanal noch keine Antwort auf die Eintrittskarte gab. */
   private stilleWache = 0;
   /** Wir haben uns abgemeldet und warten darauf, dass der Kanal auflegt. */
@@ -2051,14 +2059,69 @@ export class Game {
    * hat, aber mitten in einer Gruppe steht, soll den Knopf trotzdem sehen —
    * der erste Druck sucht sich dann sein Ziel.
    */
-  private zielInReichweite(x: number, z: number): boolean {
+  /**
+   * Das nächste lebende Monster in Schlagweite — oder 0.
+   *
+   * Eine Frage, eine Antwort, zwei Verwender: der Angriffsknopf am Telefon
+   * erscheint genau dann, wenn hier etwas herauskommt, und beim Drücken wird
+   * genau das angegriffen. Zwei getrennte Rechnungen wären zwei Vorstellungen
+   * von „in Reichweite", und die eine liesse einen Knopf erscheinen, den die
+   * andere für gegenstandslos hielte.
+   *
+   * Die Reichweite hängt an der getragenen Waffe und am Umfang des Ziels —
+   * siehe `kampfReichweite`. Ein Bogen holt weiter aus als eine Faust.
+   *
+   * Gemessen wird mit den zuletzt **gemeldeten** Lagen, nicht mit den
+   * gezeichneten: genau das tut auch der Kampfauftrag, und der Server prüft
+   * ebenso. Mit der gezeichneten Lage wäre der Knopf ein paar Zehntel früher
+   * da als der Schlag — und man drückte ins Leere, während die Figur noch
+   * einen halben Schritt nachlaufen muss.
+   */
+  private naechstesZiel(): number {
+    let besterAbstand = Infinity;
+    let bestes = 0;
     for (const e of this.view.entities.values()) {
       if (e.type !== EntityType.Monster || e.state === EntityState.Dead) continue;
-      const dx = e.x - x;
-      const dz = e.z - z;
-      if (Math.hypot(dx, dz) <= this.kampfReichweite(e)) return true;
+      const abstand = this.kampfAbstand(e);
+      if (abstand > this.kampfReichweite(e)) continue;
+      if (abstand < besterAbstand) {
+        besterAbstand = abstand;
+        bestes = e.id;
+      }
     }
-    return false;
+    return bestes;
+  }
+
+  /** Wie weit die Figur von diesem Wesen entfernt ist — in Kampfrechnung. */
+  private kampfAbstand(ziel: EntityVisual): number {
+    return Math.hypot(ziel.targetX - this.poseCurr.x, ziel.targetZ - this.poseCurr.z);
+  }
+
+  /**
+   * Der Angriffsknopf am Telefon wurde gedrückt.
+   *
+   * Ohne Ziel geschah bisher nichts: der Knopf war zu sehen, weil etwas in
+   * Reichweite stand, und tat trotzdem nichts, weil niemand es angeklickt
+   * hatte. Am Telefon ist das Anklicken eines Monsters aber die mühsamere
+   * Geste von beiden — der Knopf ist da, um sie zu ersparen.
+   *
+   * Also: wer schon ein taugliches Ziel hat, schlägt darauf ein; wer keines
+   * hat oder dessen Ziel tot oder aus der Reichweite gelaufen ist, bekommt
+   * das nächststehende. Das ist dasselbe, das den Knopf hat erscheinen
+   * lassen.
+   */
+  private angriffsknopf(): void {
+    if (this.dead) return;
+
+    const bisher = this.view.entities.get(this.targetId);
+    const taugt =
+      bisher !== undefined &&
+      bisher.type === EntityType.Monster &&
+      bisher.state !== EntityState.Dead &&
+      this.kampfAbstand(bisher) <= this.kampfReichweite(bisher);
+
+    const ziel = taugt ? this.targetId : this.naechstesZiel();
+    if (ziel !== 0) this.greifeAn(ziel);
   }
 
   private kampfReichweite(ziel: EntityVisual): number {
@@ -2389,7 +2452,13 @@ export class Game {
       if (self) self.rig.root.visible = !this.scene.isFirstPerson;
 
       // Der Angriffsknopf am Telefon kommt nur, wenn etwas in Reichweite ist.
-      this.ui.setAttackReady(!this.dead && this.zielInReichweite(x, z));
+      this.ui.setAttackReady(!this.dead && this.naechstesZiel() !== 0);
+
+      // Der Daumen bleibt auf dem Knopf, das Monster fällt um. Ohne diese
+      // Zeile stünde man mit gedrücktem Knopf vor dem nächsten und müsste
+      // loslassen und neu drücken, um es zu bemerken — dieselbe Enttäuschung
+      // wie vorher, nur eine Leiche später.
+      if (this.angriffGehalten && this.auftrag?.art !== 'kampf') this.angriffsknopf();
     }
 
     // Tag und Nacht. Vor dem Zeichnen, damit Himmel und Licht zum Bild
