@@ -184,8 +184,24 @@ body {
  * nichts, kaputt ist alles.
  */
 #ui-root > .overlay,
-#ui-root > .joystick {
+#ui-root > .joystick,
+/*
+ * Und die Aktionsleiste. Am Telefon ist sie kein Kasten in der Mitte, sondern
+ * eine bildschirmfüllende Fläche, auf der die Plätze verteilt liegen — genau
+ * die Falle, vor der der Absatz darüber warnt, und ich bin hineingelaufen:
+ * Laufen und Joystick waren tot, zu sehen war nichts.
+ *
+ * Sie steht hier und nicht nur in der Telefon-Regel weiter unten, weil eine
+ * Klassenauswahl gegen `#ui-root > *` nicht ankommt. Was Zeiger fangen soll,
+ * sind die Plätze selbst — und die sagen es sich unten ausdrücklich.
+ */
+#ui-root > .actionbar {
   pointer-events: none;
+}
+
+/* Die Plätze schon: sie sind das, was man drückt. */
+.action-slot {
+  pointer-events: auto;
 }
 
 /* --- Grundformen ---------------------------------------------------------- */

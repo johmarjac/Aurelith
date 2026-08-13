@@ -225,6 +225,68 @@ check(
 );
 await page.screenshot({ path: join(shots, 'aktionsleiste-geraeumt.png') });
 
+// --- 4. Am Telefon: die Welt bleibt bedienbar ----------------------------
+//
+// Die Leiste liegt dort als bildschirmfüllende Fläche über der Welt, damit die
+// Plätze an den Rändern verteilt sein können. Fängt diese Fläche Zeiger ab,
+// ist das Spiel tot: kein Laufen, kein Joystick, keine Zielauswahl — und zu
+// sehen ist davon nichts, denn die Fläche ist unsichtbar. Genau das ist
+// passiert, und genau deshalb steht die Prüfung hier.
+// Die Schreibtischseite ist fertig — und sie muss weg, bevor die zweite
+// aufmacht. Chromium drosselt die Zeichenschleife jeder Seite ausser der
+// vordersten, und `window.aurelith` wird am Ende eines Bildes fortgeschrieben:
+// bei einer gedrosselten Seite steht dort Sekunden Altes, und ein Tipp sähe
+// aus, als sei er nie angekommen.
+await page.close();
+
+const handy = await browser.newContext({
+  viewport: { width: 390, height: 844 },
+  hasTouch: true,
+  isMobile: true,
+});
+const seite = await handy.newPage();
+await seite.goto('http://127.0.0.1:5198/', { waitUntil: 'domcontentloaded' });
+await anmeldenUndBetreten(seite, `Handy${Date.now() % 100000}`);
+await seite.waitForTimeout(1500);
+
+check(
+  (await seite.evaluate(() => document.querySelector('[data-touch]')?.dataset.touch)) === 'true',
+  'der Client hält sich für ein Telefon',
+);
+
+// Was unter der Bildmitte liegt: die Leinwand — oder eine unsichtbare Sperre.
+const drunter = await seite.evaluate(() => {
+  const e = document.elementFromPoint(195, 500);
+  return e ? `${e.tagName.toLowerCase()}.${e.className || ''}`.trim() : 'nichts';
+});
+check(drunter.startsWith('canvas'), `unter der Bildmitte liegt die Welt (${drunter})`);
+
+/*
+ * Wohin getippt wird, ist nicht beliebig: die untere linke Ecke gehört dem
+ * Joystick, die Figur selbst wählt ein Ziel statt zu laufen, und am rechten
+ * Rand wie ganz unten liegen die Plätze. Dazwischen liegt Welt.
+ *
+ * Gefragt wird gleich danach und nicht eine Sekunde später. Der Weg zu einem
+ * Punkt kurz vor den Füssen ist nach zwei Schritten zu Ende, und „steht wieder
+ * still" sähe dann aus wie „hat nie losgelaufen". Die Laufmarke ist der
+ * direkte Beleg: sie entsteht genau dann, wenn der Tipp einen Bodenpunkt
+ * gefunden hat.
+ */
+await seite.touchscreen.tap(300, 700);
+let losgelaufen = true;
+try {
+  // Gewartet und nicht nach fester Frist gefragt: die Marke entsteht beim
+  // Klick, sichtbar wird sie im nächsten Bild — und wie lang das dauert, hängt
+  // an der Bildrate. Auf einer Prüfmaschine ohne Grafikkarte sind das leicht
+  // ein paar Zehntel, und ein starrer Zeitpunkt läge mal davor, mal dahinter.
+  await seite.waitForFunction(() => window.aurelith.laufmarke.sichtbar, { timeout: 4000 });
+} catch {
+  losgelaufen = false;
+}
+check(losgelaufen, 'ein Tippen in die Welt setzt eine Laufmarke und schickt die Figur los');
+await seite.screenshot({ path: join(shots, 'aktionsleiste-handy.png') });
+await handy.close();
+
 console.log(`\n  Bilder: ${shots}/aktionsleiste-*.png`);
 
 await browser.close();
