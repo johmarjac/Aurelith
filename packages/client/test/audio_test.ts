@@ -13,7 +13,7 @@
  *   npx tsx packages/client/test/audio_test.ts
  */
 
-import { DEFAULT_LEVELS, loadLevels, spatial } from '../src/audio/mixer.ts';
+import { DEFAULT_LEVELS, Mixer, loadLevels, spatial } from '../src/audio/mixer.ts';
 
 let failures = 0;
 function check(ok: boolean, what: string, detail = ''): void {
@@ -152,6 +152,96 @@ console.log('\nEinstellungen');
     'fehlende Felder behalten ihre Vorgabe',
     String(echt.weapons),
   );
+}
+
+// --- Nach einer Unterbrechung -----------------------------------------------
+//
+// Der Fall vom Telefon: App gewechselt, zurueckgekommen, kein Ton mehr. Safari
+// stellt den Kontext dabei auf `interrupted`, und aus diesem Zustand kommt er
+// nicht verlaesslich zurueck — `resume()` meldet Erfolg, der Zustand steht auf
+// `running`, und es bleibt still. Geprueft wird deshalb nicht, ob `resume()
+// durchlaeuft, sondern ob danach ein **neuer** Kontext dasteht.
+
+console.log('\nUnterbrechung');
+{
+  class FakeGain {
+    gain = { value: 1, setTargetAtTime(): void {} };
+    connect(): void {}
+    disconnect(): void {}
+  }
+  class FakeSource {
+    buffer: unknown = null;
+    connect(): void {}
+    start(): void {}
+  }
+
+  let gebaut = 0;
+  let geschlossen = 0;
+
+  class FakeContext {
+    static letzter?: FakeContext;
+    state = 'running';
+    sampleRate = 48000;
+    destination = {};
+    currentTime = 0;
+    private zuhoerer: Array<() => void> = [];
+
+    constructor() {
+      gebaut++;
+      FakeContext.letzter = this;
+    }
+    createGain(): FakeGain {
+      return new FakeGain();
+    }
+    createBufferSource(): FakeSource {
+      return new FakeSource();
+    }
+    createBuffer(): unknown {
+      return {};
+    }
+    addEventListener(_: string, fn: () => void): void {
+      this.zuhoerer.push(fn);
+    }
+    async resume(): Promise<void> {
+      // Genau die Luege, um die es geht: der Zustand springt auf `running`,
+      // der Kontext bleibt aber taub.
+      this.state = 'running';
+    }
+    async close(): Promise<void> {
+      geschlossen++;
+      this.state = 'closed';
+    }
+    /** Was Safari beim App-Wechsel tut. */
+    unterbrechen(): void {
+      this.state = 'interrupted';
+      for (const fn of this.zuhoerer) fn();
+    }
+  }
+
+  (globalThis as { AudioContext?: unknown }).AudioContext = FakeContext;
+
+  const mixer = new Mixer({ ...DEFAULT_LEVELS });
+  mixer.resume();
+  check(gebaut === 1, 'die erste Geste baut einen Kontext', String(gebaut));
+
+  mixer.resume();
+  check(gebaut === 1, 'eine zweite Geste baut keinen zweiten', String(gebaut));
+
+  FakeContext.letzter!.unterbrechen();
+  check(mixer.state === 'unterbrochen', 'die Unterbrechung wird gemeldet', mixer.state);
+
+  mixer.resume();
+  check(gebaut === 2, 'nach der Unterbrechung steht ein neuer Kontext', String(gebaut));
+  check(geschlossen === 1, 'und der alte wurde zugemacht', String(geschlossen));
+  check(mixer.ready, 'und der neue laeuft');
+
+  mixer.resume();
+  check(gebaut === 2, 'danach wird nicht weiter neu gebaut', String(gebaut));
+
+  // Gegenprobe: ohne die Unterbrechung darf `resume()` nichts austauschen —
+  // sonst wuerde bei jeder Geste ein Kontext weggeworfen, und die Pruefung
+  // oben zeigte nur, dass ueberhaupt gebaut wird.
+  check(geschlossen === 1, 'und nichts weiter zugemacht', String(geschlossen));
 }
 
 console.log(

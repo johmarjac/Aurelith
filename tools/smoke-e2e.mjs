@@ -198,7 +198,10 @@ const state = await page.evaluate(() => {
 check(state.webgl2, 'WebGL 2 ist aktiv');
 check(state.canvasWidth > 0, `Leinwand hat Größe (${state.canvasWidth} px)`);
 check(/\d+ \/ \d+/.test(state.hpLabel), `Lebensanzeige gefüllt (${state.hpLabel})`);
-check(state.level.includes('Stufe'), `Stufe angezeigt (${state.level})`);
+// Im Medaillon steht die Zahl allein — das Wort „Stufe" trägt der Tooltip.
+// Vorher stand hier `includes('Stufe')`, und das prüfte die Beschriftung
+// statt der Auskunft.
+check(/^\d+$/.test(state.level.trim()), `Stufe angezeigt (${state.level})`);
 check(state.inventoryFilled >= 3, `Startausrüstung im Inventar (${state.inventoryFilled} Plätze)`);
 check(state.chatLines > 0, `Systemnachricht angekommen (${state.chatLines})`);
 check(state.nameplates > 0, `Namensschilder gezeichnet (${state.nameplates})`);
@@ -727,13 +730,19 @@ const kopfzeile = await mobilePage.evaluate(() => {
   const name = document.querySelector('.vitals-name')?.getBoundingClientRect();
   const uhr = document.querySelector('.vitals-clock')?.getBoundingClientRect();
   const stufe = document.querySelector('.vitals-level')?.getBoundingClientRect();
-  if (!kasten || !name || !uhr || !stufe) return undefined;
+  const medaillon = document.querySelector('.vitals-badge')?.getBoundingClientRect();
+  if (!kasten || !name || !uhr || !stufe || !medaillon) return undefined;
   return {
     kasten: { left: kasten.left, right: kasten.right, width: kasten.width },
     ueberstand: Math.max(name.right, uhr.right, stufe.right) - kasten.right,
     // Ganz eingeklappte Elemente sind genauso falsch wie ueberstehende: dann
-    // steht die Stufe zwar im Kasten, aber als Strich.
-    schmalstes: Math.min(name.width, uhr.width, stufe.width),
+    // steht der Name zwar im Kasten, aber als Strich.
+    //
+    // Die Stufe ist hier **nicht** dabei: sie ist eine einstellige Zahl im
+    // Medaillon und darf acht Bildpunkte breit sein. Gemessen wird stattdessen
+    // das Medaillon — das ist das Element, das nicht zusammenfallen darf.
+    schmalstes: Math.min(name.width, uhr.width),
+    medaillon: medaillon.width,
     fensterbreite: window.innerWidth,
   };
 });
@@ -746,7 +755,11 @@ if (kopfzeile) {
   );
   check(
     kopfzeile.schmalstes > 24,
-    `Mobil: nichts davon ist zusammengequetscht (schmalstes ${kopfzeile.schmalstes.toFixed(0)} px)`,
+    `Mobil: Name und Uhr sind nicht zusammengequetscht (schmalstes ${kopfzeile.schmalstes.toFixed(0)} px)`,
+  );
+  check(
+    kopfzeile.medaillon > 24,
+    `Mobil: das Medaillon behaelt seine Groesse (${kopfzeile.medaillon.toFixed(0)} px)`,
   );
   check(
     kopfzeile.kasten.right <= kopfzeile.fensterbreite,

@@ -95,6 +95,15 @@
  */
 html {
   font-size: calc(14px * var(--ui-scale, 1));
+  /*
+   * iOS vergrössert kleine Schrift von sich aus („text autosizing"), und zwar
+   * nur einzelne Elemente. In den Werte-Balken hiess das: die Zahl wurde
+   * grösser als der Balken, in dem sie steht, und war oben und unten
+   * abgeschnitten — am Schreibtisch war davon nichts zu sehen. Wer die Größe
+   * einstellen können soll, muss sie auch behalten dürfen.
+   */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 html,
@@ -225,8 +234,8 @@ body {
  */
 .vitals-badge {
   flex: 0 0 auto;
-  width: 2.1rem;
-  height: 2.1rem;
+  width: 2.4rem;
+  height: 2.4rem;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -239,7 +248,7 @@ body {
   flex: 1 1 auto;
   min-width: 0;
   display: grid;
-  gap: 0.14rem;
+  gap: 0.16rem;
 }
 
 .vitals-head {
@@ -284,10 +293,20 @@ body {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 
-/* Halb so hoch wie vorher: drei Balken übereinander sind sonst ein Block. */
+/*
+ * Flacher als vorher, aber nicht flacher als die Zahl darin.
+ *
+ * Bei 0,62 rem stand eine Beschriftung von 0,56 rem drin, und auf dem Telefon
+ * war sie damit angeschnitten. Ein Balken, dessen Inhalt nicht hineinpasst,
+ * ist keine kompakte Anzeige, sondern eine unleserliche.
+ *
+ * Die zwei Zehntel Luft sind Absicht: bei knapp bemessener Höhe stand im
+ * Rauchtest 10 von 10 — das geht auf, solange jeder Browser gleich rundet, und
+ * genau darauf beruhte der Fehler schon einmal.
+ */
 .bar {
   position: relative;
-  height: 0.62rem;
+  height: 0.92rem;
   background: #3a2716;
   border: 1px solid var(--panel-edge);
   border-radius: 2px;
@@ -307,7 +326,9 @@ body {
   display: grid;
   place-items: center;
   font-family: var(--font-mono);
-  font-size: 0.56rem;
+  font-size: 0.6rem;
+  /* Ohne das ist die Zeilenhöhe grösser als der Balken. */
+  line-height: 1;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
   color: var(--ink-hell);
 }
@@ -319,11 +340,11 @@ body {
   background: linear-gradient(180deg, #5b93d6, var(--mp));
 }
 .bar.exp {
-  height: 0.44rem;
+  height: 0.78rem;
 }
 
 .bar.exp .bar-label {
-  font-size: 0.5rem;
+  font-size: 0.52rem;
 }
 .bar.exp .bar-fill {
   background: linear-gradient(180deg, #9ad65c, var(--exp));

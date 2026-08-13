@@ -185,6 +185,21 @@ export class Mixer {
   private levels: MixerLevels;
   /** Letzter gemeldeter Zustandswechsel — nur für die Diagnose. */
   private lastStateChange = '';
+  /**
+   * Ob der Kontext seit dem letzten Aufwecken unterbrochen war.
+   *
+   * Safari kennt `interrupted` — dorthin fällt der Ton, wenn eine andere
+   * Anwendung ihn übernimmt oder man die App wechselt. Aus diesem Zustand
+   * kommt ein Kontext **nicht verlässlich zurück**: `resume()` meldet Erfolg,
+   * der Zustand steht auf `running`, und es bleibt trotzdem still. Genau
+   * dieses Muster hat auf dem Telefon nach jedem App-Wechsel den Ton
+   * abgeschaltet, bis die Seite neu geladen wurde.
+   *
+   * Deshalb wird hier gemerkt, dass es eine Unterbrechung gab, und beim
+   * nächsten Aufwecken ein frischer Kontext gebaut. Der kostet fast nichts:
+   * die Rohdaten liegen noch in `raw` und werden ohnehin neu dekodiert.
+   */
+  private unterbrochenGewesen = false;
 
   /** Wo der Zuhörer steht. Bestimmt Lautstärke und Seite eines Tons. */
   private listenerX = 0;
@@ -236,11 +251,21 @@ export class Mixer {
     // Ein geschlossener Kontext lässt sich nicht wiederbeleben — dann bleibt
     // nur, einen neuen zu bauen. Die Rohdaten liegen noch da und werden
     // gleich neu dekodiert.
-    if (this.context?.state === 'closed') {
+    //
+    // Ein unterbrochen gewesener genauso: siehe `unterbrochenGewesen`. Der
+    // alte wird zugemacht, damit das Gerät ihn nicht weiter mitschleppt;
+    // scheitert das Zumachen, ist es auch egal — er wird ohnehin losgelassen.
+    const zustand = this.context?.state as string | undefined;
+    const totgeglaubt =
+      zustand === 'closed' || (this.unterbrochenGewesen && zustand !== 'running');
+
+    if (this.context && totgeglaubt) {
+      if (zustand !== 'closed') void this.context.close?.().catch(() => undefined);
       this.context = undefined;
       this.masterGain = undefined;
       this.categoryGain.clear();
       this.buffers.clear();
+      this.unterbrochenGewesen = false;
     }
 
     if (!this.context) {
@@ -275,7 +300,13 @@ export class Mixer {
       for (const path of this.raw.keys()) void this.decode(path);
 
       this.context.addEventListener('statechange', () => {
-        this.lastStateChange = this.context?.state ?? '?';
+        const jetzt = (this.context?.state ?? '?') as string;
+        this.lastStateChange = jetzt;
+        // Einmal unterbrochen heisst: beim nächsten Aufwecken einen neuen
+        // bauen. Zurückgesetzt wird das nicht hier, sondern erst, wenn der
+        // Ersatz steht — ein zwischenzeitliches `running` ist genau die Lüge,
+        // um die es geht.
+        if (jetzt === 'interrupted') this.unterbrochenGewesen = true;
       });
     }
 
@@ -510,6 +541,7 @@ export class Mixer {
     state: string;
     contextState: string;
     letzterWechsel: string;
+    unterbrochenGewesen: boolean;
     sampleRate: number;
     geladen: string[];
     dekodiert: string[];
@@ -519,6 +551,7 @@ export class Mixer {
       state: this.state,
       contextState: this.context?.state ?? 'kein Kontext',
       letzterWechsel: this.lastStateChange,
+      unterbrochenGewesen: this.unterbrochenGewesen,
       sampleRate: this.context?.sampleRate ?? 0,
       geladen: [...this.raw.keys()],
       dekodiert: [...this.buffers.keys()],

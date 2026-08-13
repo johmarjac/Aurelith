@@ -583,6 +583,36 @@ await page.screenshot({ path: join(root, 'artefakte', 'inventar.png') });
 const uhr = await page.locator('.vitals-clock').textContent();
 check(/^[☀🌙] \d{2}:\d{2}$/u.test(uhr ?? ''), 'die Weltuhr läuft', uhr ?? '(leer)');
 
+// --- Die Zahlen in den Werte-Balken ----------------------------------------
+//
+// Gemessen und nicht angesehen: die Balken sind flach, und die Zahl darin
+// wurde auf dem Telefon abgeschnitten. Verglichen wird die Höhe, die die
+// Beschriftung **braucht**, mit der, die der Balken **hat** — „ist da" hätte
+// die ganze Zeit gestimmt.
+
+const balken = await page.evaluate(() =>
+  [...document.querySelectorAll('.vitals .bar')].map((b) => {
+    const label = b.querySelector('.bar-label');
+    return {
+      balken: b.clientHeight,
+      schrift: label?.scrollHeight ?? 0,
+      text: (label?.textContent ?? '').trim(),
+    };
+  }),
+);
+console.log('  · Werte-Balken:', JSON.stringify(balken));
+check(balken.length === 3, 'drei Balken im Werte-Kasten', String(balken.length));
+check(
+  balken.every((b) => b.schrift > 0 && b.schrift <= b.balken),
+  'die Zahlen passen in ihre Balken',
+  balken.map((b) => `${b.schrift}/${b.balken}`).join(' '),
+);
+check(
+  balken.every((b) => b.text.length > 0),
+  'und stehen tatsächlich darin',
+  balken.map((b) => b.text).join(' · '),
+);
+
 // --- Der Regler für die Größe der Oberfläche --------------------------------
 //
 // Gemessen wird die Wurzelschriftgröße, denn daran hängt alles andere: das
