@@ -64,6 +64,15 @@ export class LobbyView {
    * das Anmeldeformular — sichtbar als Knöpfe, die sich nicht drücken liessen.
    */
   private angemeldet = false;
+  /**
+   * Steht das Anmeldeformular schon?
+   *
+   * Ohne diese Merke baute sich die Maske jedes Mal neu auf, wenn die
+   * Verbindungsanzeige „verbunden" meldete — und das tut sie mit jedem Pong,
+   * also im Sekundentakt. Wer ins Passwortfeld tippte, verlor nach ein, zwei
+   * Sekunden den Fokus zurück ins Namensfeld.
+   */
+  private formularSteht = false;
 
   constructor(host: HTMLElement) {
     this.root = el('div', 'lobby');
@@ -140,13 +149,16 @@ export class LobbyView {
   /**
    * Zeigt die Maske.
    *
-   * Wer schon angemeldet ist, bleibt bei seinen Figuren — dieselbe Maske,
-   * dieselbe Seite. Zurück auf das Formular geht es erst nach `zuruecksetzen`,
-   * also wenn die Verbindung tatsächlich weg war.
+   * Darf beliebig oft gerufen werden und tut dann auch nichts weiter: der
+   * Aufrufer sieht nur „die Leitung steht" und nicht, ob das eine Neuigkeit
+   * ist. Wer schon angemeldet ist, bleibt bei seinen Figuren; wer schon vor
+   * dem Formular sitzt, behält Eingabe und Fokus. Zurück auf das Formular geht
+   * es erst nach `zuruecksetzen`, also wenn die Verbindung wirklich weg war.
    */
   zeigeAnmeldung(): void {
     this.root.hidden = false;
-    if (this.angemeldet) return;
+    if (this.angemeldet || this.formularSteht) return;
+    this.formularSteht = true;
     this.loginForm.hidden = false;
     this.figurenSeite.hidden = true;
     this.nameInput.focus();
@@ -160,6 +172,7 @@ export class LobbyView {
    */
   zuruecksetzen(): void {
     this.angemeldet = false;
+    this.formularSteht = false;
     this.stand = undefined;
   }
 
@@ -194,6 +207,7 @@ export class LobbyView {
   setStand(stand: LobbyStand): void {
     this.stand = stand;
     this.angemeldet = true;
+    this.formularSteht = false;
     this.root.hidden = false;
     this.loginForm.hidden = true;
     this.figurenSeite.hidden = false;

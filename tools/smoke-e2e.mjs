@@ -158,6 +158,25 @@ page.on('pageerror', (err) => pageErrors.push(String(err)));
 
 const spielerName = `Rauch${Date.now() % 100000}`;
 await page.goto('http://127.0.0.1:5199/', { waitUntil: 'domcontentloaded' });
+
+// --- Die Maske bleibt stehen, während man tippt ----------------------------
+//
+// Die Verbindungsanzeige meldet mit jedem Pong wieder „verbunden", also im
+// Sekundentakt. Baute sich die Maske daraufhin neu auf, sprang der Fokus aus
+// dem Passwortfeld zurück ins Namensfeld — nach ein, zwei Sekunden, mitten
+// im Tippen. Drei Sekunden Stillstand sind der Nachweis, dass sie das nicht
+// mehr tut.
+await page.waitForSelector('.lobby:not([hidden]) .lobby-input', { timeout: 40000 });
+await page.click('.lobby-form .lobby-input[type="password"]');
+await page.keyboard.type('geheim');
+await page.waitForTimeout(3000);
+const beimTippen = await page.evaluate(() => ({
+  feld: document.activeElement?.getAttribute('type') ?? '(keins)',
+  wert: document.querySelector('.lobby-form .lobby-input[type="password"]')?.value ?? '',
+}));
+check(beimTippen.feld === 'password', `Fokus bleibt im Passwortfeld (${beimTippen.feld})`);
+check(beimTippen.wert === 'geheim', `und das Getippte auch (${beimTippen.wert})`);
+
 await anmeldenUndBetreten(page, spielerName);
 
 // Der Statusanzeiger ist die ehrlichste Auskunft darüber, wie weit der Client
