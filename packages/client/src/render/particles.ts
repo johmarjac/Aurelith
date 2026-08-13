@@ -17,9 +17,55 @@
  * Gerechnet wird auf der CPU. Bei ein paar hundert Punkten ist das billiger als
  * jede Alternative, und es hält den Zustand an einer Stelle statt in einer
  * Textur.
+ *
+ * **Das erste Stück Bild, das ohne three.js entsteht.** Ein eigener Pass auf
+ * demselben WebGL-2-Kontext: ein Programm, ein verschränkter Puffer, ein
+ * Zeichenaufruf. Alles, was der Punkt braucht, steht in dieser Datei — genau
+ * die Eigenschaft, wegen der die Funken der erste Umzug sind.
  */
 
-import * as THREE from 'three';
+import { Gfx } from '../gfx/gfx.ts';
+import { Netz } from '../gfx/mesh.ts';
+import { PLATZ, Program } from '../gfx/program.ts';
+import type { Mat4 } from '../gfx/math.ts';
+
+/** Zahlen je Funken im Puffer: Ort, Farbe, Grösse. */
+const PRO_PUNKT = 7;
+
+const VERTEX = `#version 300 es
+layout(location = ${PLATZ.position}) in vec3 a_ort;
+layout(location = ${PLATZ.farbe}) in vec3 a_farbe;
+layout(location = ${PLATZ.extra0}) in float a_groesse;
+
+uniform mat4 u_sicht;
+uniform mat4 u_projektion;
+
+out vec3 v_farbe;
+
+void main() {
+  v_farbe = a_farbe;
+  vec4 mv = u_sicht * vec4(a_ort, 1.0);
+  // Perspektivisch kleiner werdend, sonst sind ferne Treffer so gross wie nahe.
+  gl_PointSize = a_groesse * (300.0 / max(0.001, -mv.z));
+  gl_Position = u_projektion * mv;
+}
+`;
+
+const FRAGMENT = `#version 300 es
+precision mediump float;
+
+in vec3 v_farbe;
+out vec4 farbe;
+
+void main() {
+  // Runder Funken mit weichem Rand statt eines Quadrats.
+  vec2 d = gl_PointCoord - vec2(0.5);
+  float r2 = dot(d, d);
+  if (r2 > 0.25) discard;
+  float rand = 1.0 - smoothstep(0.0, 0.25, r2);
+  farbe = vec4(v_farbe * rand, 1.0);
+}
+`;
 
 export interface BurstOptions {
   /** Wie viele Funken. Wird an der Kapazität gedeckelt. */
@@ -48,12 +94,15 @@ const GRAVITY = 9.0;
 const DRAG = 2.6;
 
 export class ParticleField {
-  readonly object: THREE.Points;
-
   private readonly capacity: number;
-  private readonly positions: Float32Array;
-  private readonly colors: Float32Array;
-  private readonly sizes: Float32Array;
+
+  /**
+   * Alles, was die Grafikkarte sieht — verschränkt: Ort, Farbe, Grösse.
+   *
+   * Ein Feld statt dreier, weil es je Bild hochgeladen wird: ein Aufruf statt
+   * drei, und die Karte liest einen Funken als einen Block.
+   */
+  private readonly ecken: Float32Array;
 
   /** Geschwindigkeit je Funken. Bleibt auf der CPU. */
   private readonly velocities: Float32Array;
@@ -69,75 +118,48 @@ export class ParticleField {
   /** Wie viele Plätze gerade belegt sind. Nur zur Auskunft. */
   private live = 0;
 
-  private readonly geometry: THREE.BufferGeometry;
-  private readonly material: THREE.ShaderMaterial;
+  /**
+   * Netz und Programm entstehen erst mit dem ersten Kontext.
+   *
+   * Die Wolke gehört der Weltansicht und wird angelegt, bevor irgendwo ein
+   * Bild gezeichnet wird. Ein Programm ohne Kontext wäre an dieser Stelle
+   * nicht zu übersetzen — und ein zweiter Ort, an dem die Wolke entsteht, wäre
+   * eine zweite Wahrheit darüber, wie viele Funken es gibt.
+   */
+  private netz?: Netz;
+  private programm?: Program;
+  private gfx?: Gfx;
 
   constructor(capacity = 512) {
     this.capacity = Math.max(1, capacity);
 
-    this.positions = new Float32Array(this.capacity * 3);
-    this.colors = new Float32Array(this.capacity * 3);
-    this.sizes = new Float32Array(this.capacity);
+    this.ecken = new Float32Array(this.capacity * PRO_PUNKT);
     this.velocities = new Float32Array(this.capacity * 3);
     this.life = new Float32Array(this.capacity);
     this.maxLife = new Float32Array(this.capacity);
     this.baseSize = new Float32Array(this.capacity);
     this.baseColor = new Float32Array(this.capacity * 3);
-
-    this.geometry = new THREE.BufferGeometry();
-    this.geometry.setAttribute('position', new THREE.BufferAttribute(this.positions, 3));
-    this.geometry.setAttribute('color', new THREE.BufferAttribute(this.colors, 3));
-    this.geometry.setAttribute('size', new THREE.BufferAttribute(this.sizes, 1));
-    // Die Wolke wandert über die ganze Karte; eine Hüllkugel dafür wäre so groß
-    // wie die Karte und würde nie aussortiert.
-    this.geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(), Infinity);
-
-    this.material = new THREE.ShaderMaterial({
-      // Additiv und ohne Tiefenschreiben: Funken sind Licht, kein Material.
-      // Damit blendet das Ausklingen von selbst aus — was gegen Schwarz geht,
-      // verschwindet additiv, ohne dass eine Alphastufe nötig wäre.
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      transparent: true,
-      vertexShader: `
-        attribute float size;
-        varying vec3 vColor;
-
-        void main() {
-          vColor = color;
-          vec4 mv = modelViewMatrix * vec4(position, 1.0);
-          // Perspektivisch kleiner werdend, sonst sind ferne Treffer so groß
-          // wie nahe.
-          gl_PointSize = size * (300.0 / max(0.001, -mv.z));
-          gl_Position = projectionMatrix * mv;
-        }
-      `,
-      fragmentShader: `
-        varying vec3 vColor;
-
-        void main() {
-          // Runder Funken mit weichem Rand statt eines Quadrats.
-          vec2 d = gl_PointCoord - vec2(0.5);
-          float r2 = dot(d, d);
-          if (r2 > 0.25) discard;
-          float falloff = 1.0 - smoothstep(0.0, 0.25, r2);
-          gl_FragColor = vec4(vColor * falloff, 1.0);
-        }
-      `,
-      vertexColors: true,
-    });
-
-    this.object = new THREE.Points(this.geometry, this.material);
-    this.object.name = 'partikel';
-    this.object.frustumCulled = false;
-    // Nach dem Gelände und den Figuren, damit additives Licht darüberliegt.
-    this.object.renderOrder = 5;
   }
 
   /** Belegte Plätze. Für Prüfungen und zum Nachsehen. */
   get liveCount(): number {
     return this.live;
   }
+
+  /**
+   * Die Eckdaten, wie sie zur Grafikkarte gehen — für Prüfungen.
+   *
+   * Sieben Zahlen je Funken: Ort, Farbe, Grösse. Nicht als Bequemlichkeit
+   * offengelegt, sondern weil die Alternative wäre, die Flugbahn an einer
+   * zweiten Stelle nachzurechnen — und ein Test, der seine eigene Rechnung
+   * prüft, misst nichts.
+   */
+  get eckdaten(): Readonly<Float32Array> {
+    return this.ecken;
+  }
+
+  /** Zahlen je Funken im Puffer. Der Test liest damit den richtigen Versatz. */
+  static readonly PRO_PUNKT = PRO_PUNKT;
 
   /**
    * Streut Funken an einer Stelle.
@@ -177,9 +199,10 @@ export class ParticleField {
       // fliegt, sieht aus wie eine Kugelschale.
       const speed = options.speed * (0.45 + Math.random() * 0.55);
 
-      this.positions[i * 3] = x;
-      this.positions[i * 3 + 1] = y;
-      this.positions[i * 3 + 2] = z;
+      const e = i * PRO_PUNKT;
+      this.ecken[e] = x;
+      this.ecken[e + 1] = y;
+      this.ecken[e + 2] = z;
 
       this.velocities[i * 3] = dx * speed;
       this.velocities[i * 3 + 1] = dy * speed;
@@ -204,10 +227,11 @@ export class ParticleField {
       const remaining = this.life[i]!;
       if (remaining <= 0) continue;
 
+      const e = i * PRO_PUNKT;
       const next = remaining - dt;
       if (next <= 0) {
         this.life[i] = 0;
-        this.sizes[i] = 0;
+        this.ecken[e + 6] = 0;
         this.live--;
         continue;
       }
@@ -224,38 +248,83 @@ export class ParticleField {
       this.velocities[i * 3 + 1] = vy;
       this.velocities[i * 3 + 2] = vz;
 
-      this.positions[i * 3] += vx * dt;
-      this.positions[i * 3 + 1] += vy * dt;
-      this.positions[i * 3 + 2] += vz * dt;
+      this.ecken[e] += vx * dt;
+      this.ecken[e + 1] += vy * dt;
+      this.ecken[e + 2] += vz * dt;
 
       // Ausklingen: quadratisch, damit der Funken hell aufblitzt und dann
       // schnell verschwindet, statt gleichmäßig zu verblassen.
       const t = next / this.maxLife[i]!;
       const fade = t * t;
-      this.colors[i * 3] = this.baseColor[i * 3]! * fade;
-      this.colors[i * 3 + 1] = this.baseColor[i * 3 + 1]! * fade;
-      this.colors[i * 3 + 2] = this.baseColor[i * 3 + 2]! * fade;
+      this.ecken[e + 3] = this.baseColor[i * 3]! * fade;
+      this.ecken[e + 4] = this.baseColor[i * 3 + 1]! * fade;
+      this.ecken[e + 5] = this.baseColor[i * 3 + 2]! * fade;
       // Etwas schrumpfen, aber nicht auf null — sonst flackert der letzte Frame.
-      this.sizes[i] = this.baseSize[i]! * (0.45 + 0.55 * t);
+      this.ecken[e + 6] = this.baseSize[i]! * (0.45 + 0.55 * t);
     }
+  }
 
-    this.geometry.attributes.position!.needsUpdate = true;
-    this.geometry.attributes.color!.needsUpdate = true;
-    this.geometry.attributes.size!.needsUpdate = true;
+  /**
+   * Zeichnet die Wolke — ein eigener Pass nach der Szene.
+   *
+   * Additiv und ohne Tiefenschreiben: Funken sind Licht, kein Material. Damit
+   * blendet das Ausklingen von selbst aus, ohne dass eine Alphastufe nötig
+   * wäre. Getestet wird die Tiefe trotzdem — ein Funken hinter einem Baum
+   * gehört hinter den Baum.
+   *
+   * Es wird **die ganze Wolke** gezeichnet, auch die freien Plätze: deren
+   * Grösse ist null, und ein Punkt der Grösse null erzeugt kein Fragment. Das
+   * ist billiger, als die belegten Plätze je Bild zusammenzuschieben.
+   */
+  zeichne(gfx: Gfx, sicht: Mat4, projektion: Mat4): void {
+    if (this.live === 0) return;
+    this.bereite(gfx);
+    if (!this.netz || !this.programm) return;
+
+    this.netz.schreibe(this.ecken, this.capacity);
+
+    gfx.setzeZustand({ mischung: 'additiv', tiefeSchreiben: false, seiten: 'beide' });
+    this.programm.nutze();
+    this.programm.mat4('u_sicht', sicht);
+    this.programm.mat4('u_projektion', projektion);
+    this.netz.zeichne('punkte');
+  }
+
+  /** Legt Programm und Netz beim ersten Zeichnen an. */
+  private bereite(gfx: Gfx): void {
+    if (this.gfx === gfx && this.netz) return;
+    this.netz?.dispose();
+    this.programm?.dispose();
+    this.gfx = gfx;
+
+    this.programm = new Program(gfx, 'funken', VERTEX, FRAGMENT);
+    this.netz = new Netz(
+      gfx,
+      this.ecken,
+      [
+        { platz: PLATZ.position, groesse: 3, versatz: 0 },
+        { platz: PLATZ.farbe, groesse: 3, versatz: 3 },
+        { platz: PLATZ.extra0, groesse: 1, versatz: 6 },
+      ],
+      PRO_PUNKT,
+      undefined,
+      true,
+    );
   }
 
   /** Löscht alle Funken — beim Kartenwechsel. */
   reset(): void {
+    this.ecken.fill(0);
     this.life.fill(0);
-    this.sizes.fill(0);
     this.live = 0;
     this.cursor = 0;
-    this.geometry.attributes.size!.needsUpdate = true;
   }
 
   dispose(): void {
-    this.geometry.dispose();
-    this.material.dispose();
+    this.netz?.dispose();
+    this.programm?.dispose();
+    this.netz = undefined;
+    this.programm = undefined;
   }
 }
 

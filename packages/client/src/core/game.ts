@@ -453,6 +453,11 @@ export class Game {
       this.quality.lanternLights,
     );
     this.scene.scene.add(this.view.root);
+    // Die Funken zeichnen wir selbst — der erste Pass ohne three.js. Er läuft
+    // nach der Szene, im selben Kontext und gegen denselben Tiefenpuffer.
+    this.scene.fuegePassHinzu((gfx, sicht, projektion) =>
+      this.view.particles.zeichne(gfx, sicht, projektion),
+    );
 
     // Dieselbe Modellablage wie die Welt: die Figur im Inventar soll die Waffe
     // tragen, die sie draussen trägt, und nicht deren Platzhalter.

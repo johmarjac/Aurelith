@@ -8,6 +8,8 @@
 
 import * as THREE from 'three';
 import type { CoreWorld } from '@aurelith/core';
+import { Gfx } from '../gfx/gfx.ts';
+import type { Mat4 } from '../gfx/math.ts';
 import type { EnvironmentDef, SkyState } from '@aurelith/shared';
 import type { QualitySettings } from '../config.ts';
 
@@ -55,6 +57,15 @@ export class Scene3D {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
+  /**
+   * Unser eigener Renderer auf demselben Kontext.
+   *
+   * Der Kontext kommt von three.js und wird nicht neu geholt: eine Leinwand
+   * hat genau einen, und wer ihn zweimal anfordert, bekommt ohnehin denselben
+   * zurück. Ihn beim Eigentümer zu erfragen sagt aber, wem er gehört —
+   * heute three.js, am Ende des Umbaus uns.
+   */
+  readonly gfx: Gfx;
 
   private readonly sun = new THREE.DirectionalLight(0xffffff, 1.5);
   private readonly ambient = new THREE.HemisphereLight(0xffffff, 0x444444, 0.9);
@@ -98,11 +109,14 @@ export class Scene3D {
       stencil: false,
     });
 
+    // Derselbe Kontext, zwei Nutzer. Ohne WebGL 2 gäbe es unsere eigenen Pässe
+    // gar nicht — deshalb ist das hier keine Warnung mehr, sondern die
+    // Bedingung, unter der der Client läuft.
     const gl = this.renderer.getContext();
-    const isWebGL2 = typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext;
-    if (!isWebGL2) {
-      console.warn('[render] Kein WebGL 2 — die Darstellung kann abweichen.');
+    if (typeof WebGL2RenderingContext === 'undefined' || !(gl instanceof WebGL2RenderingContext)) {
+      throw new Error('Aurelith braucht WebGL 2.');
     }
+    this.gfx = new Gfx(gl);
 
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.maxPixelRatio));
     this.renderer.shadowMap.enabled = quality.shadows;
@@ -341,8 +355,35 @@ export class Scene3D {
     this.camera.updateProjectionMatrix();
   }
 
+  /**
+   * Eigene Zeichenabschnitte, die nach der Szene laufen.
+   *
+   * Der Weg, auf dem three.js Stück für Stück verschwindet: ein Modul, das
+   * umgezogen ist, hängt sich hier ein und zeichnet mit unserem eigenen
+   * Renderer in **denselben** Kontext. Zwei Leinwände übereinander wären die
+   * Alternative gewesen — und mit ihnen zwei Tiefenpuffer, also keine
+   * Verdeckung zwischen altem und neuem Bild.
+   */
+  private readonly paesse: Array<(gfx: Gfx, sicht: Mat4, projektion: Mat4) => void> = [];
+
+  fuegePassHinzu(pass: (gfx: Gfx, sicht: Mat4, projektion: Mat4) => void): void {
+    this.paesse.push(pass);
+  }
+
   render(): void {
     this.renderer.render(this.scene, this.camera);
+    if (this.paesse.length === 0) return;
+
+    // Der Zustandsspeicher beider Seiten weiss nichts vom jeweils anderen:
+    // vorher vergisst unserer alles, hinterher vergisst three.js alles. Ohne
+    // das erbt der nächste Zeichenaufruf stillschweigend fremde Einstellungen
+    // — Mischung, Tiefe, Kulling —, und der Fehler zeigt sich als ein Bild,
+    // das nur bei bestimmter Reihenfolge kaputt ist.
+    this.gfx.beginnePass();
+    const sicht = this.camera.matrixWorldInverse.elements as unknown as Mat4;
+    const projektion = this.camera.projectionMatrix.elements as unknown as Mat4;
+    for (const pass of this.paesse) pass(this.gfx, sicht, projektion);
+    this.renderer.resetState();
   }
 
   dispose(): void {

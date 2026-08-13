@@ -71,24 +71,31 @@ console.log('\nUeberlast');
 console.log('\nBewegung');
 {
   const field = new ParticleField(16);
-  const attr = () => field.object.geometry.getAttribute('position');
+  // Gelesen wird der Puffer, der tatsächlich hochgeladen wird: Ort, Farbe,
+  // Grösse verschränkt. Eine zweite Sicht daneben wäre eine zweite Wahrheit
+  // darüber, wo ein Funken steht.
+  const N = ParticleField.PRO_PUNKT;
+  const ort = (i: number) => {
+    const e = field.eckdaten;
+    return { x: e[i * N]!, y: e[i * N + 1]!, z: e[i * N + 2]! };
+  };
 
   field.burst(5, 10, -3, { count: 8, color: 0xffffff, speed: 6, size: 3, life: 5, lift: 0.5 });
 
   // Direkt nach dem Ausbruch sitzen alle auf dem Ursprung.
-  const start = attr();
+  const start = ort(0);
   check(
-    start.getX(0) === 5 && start.getY(0) === 10 && start.getZ(0) === -3,
+    start.x === 5 && start.y === 10 && start.z === -3,
     'Funken starten am Einschlagpunkt',
   );
 
   run(field, 0.5);
-  const moved = attr();
   let anyMoved = false;
   let allFinite = true;
   for (let i = 0; i < 8; i++) {
-    if (Math.hypot(moved.getX(i) - 5, moved.getY(i) - 10, moved.getZ(i) + 3) > 0.1) anyMoved = true;
-    if (!Number.isFinite(moved.getX(i) + moved.getY(i) + moved.getZ(i))) allFinite = false;
+    const p = ort(i);
+    if (Math.hypot(p.x - 5, p.y - 10, p.z + 3) > 0.1) anyMoved = true;
+    if (!Number.isFinite(p.x + p.y + p.z)) allFinite = false;
   }
   check(anyMoved, 'sie fliegen auseinander');
   check(allFinite, 'und bleiben dabei endlich');
@@ -96,9 +103,8 @@ console.log('\nBewegung');
   // Nach unten: die Schwerkraft muss wirken. Mit Auftrieb 0,5 fliegen sie erst
   // hoch, aber nach zwei Sekunden ist der Mittelwert unter dem Ursprung.
   run(field, 2.0);
-  const later = attr();
   let sumY = 0;
-  for (let i = 0; i < 8; i++) sumY += later.getY(i);
+  for (let i = 0; i < 8; i++) sumY += ort(i).y;
   check(sumY / 8 < 10, 'und fallen am Ende', `mittlere Hoehe ${(sumY / 8).toFixed(2)} statt 10`);
 }
 

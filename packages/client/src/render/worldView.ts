@@ -184,10 +184,11 @@ export class WorldView {
     private readonly maxAnisotropy: number,
     lanternLights = 4,
   ) {
-    // Die Funkenwolke haengt dauerhaft in der Szene, nicht je Karte: sie hat
-    // feste Groesse, kostet nichts, solange sie leer ist, und ein Neuaufbau bei
-    // jedem Kartenwechsel waere Arbeit ohne Wirkung.
-    this.root.add(this.particles.object);
+    // Die Funkenwolke haengt nicht mehr im Szenengraph: sie zeichnet sich in
+    // einem eigenen Pass nach three.js, mit unserem eigenen Renderer. Angemeldet
+    // wird der Pass dort, wo Szene und Ansicht zusammenkommen — im Spiel.
+    // Bestehen bleibt sie trotzdem ueber Kartenwechsel hinweg: feste Groesse,
+    // kostet nichts, solange sie leer ist.
     this.lanterns = new Lanterns(lanternLights);
     this.root.add(this.lanterns.root);
 
