@@ -112,6 +112,21 @@ const KAMPF_LUFT = 0.4;
 /** Ohne bekannten Zielradius: der Vorgabewert der Inhaltstabelle. */
 const MOB_RADIUS_FALLBACK = 0.6;
 /** Schrittweite und Weite der Bodensuche für den Klick ins Gelände. */
+/**
+ * Schrittweite der Sichtprüfung, in Weltenheiten.
+ *
+ * Gröber als beim Suchen des Bodens: dort wird ein Punkt gesucht, hier nur
+ * beantwortet, ob etwas dazwischensteht. Ein Berg, der auf einen Meter genau
+ * verfehlt würde, ist kein Berg.
+ */
+const SICHT_SCHRITT = 1;
+/**
+ * Wie tief ein Punkt unter dem Gelände liegen darf, ohne als verdeckt zu
+ * gelten. Fängt die Ungenauigkeit zwischen zwei Schritten auf — ohne sie
+ * verdeckte jede Bodenwelle, über die man hinwegsieht.
+ */
+const SICHT_LUFT = 0.35;
+
 const BODEN_SCHRITT = 0.5;
 const BODEN_WEITE = 260;
 
@@ -1804,7 +1819,7 @@ export class Game {
         const nx = (this.projection.x * 0.5 + 0.5) * width;
         const ny = (-this.projection.y * 0.5 + 0.5) * height;
         const nd = Math.hypot(nx - clickX, ny - clickY);
-        if (nd < bestNpcDist) {
+        if (nd < bestNpcDist && this.sichtFrei(e.x, e.y + e.height * 0.5, e.z)) {
           bestNpcDist = nd;
           bestNpc = e;
         }
@@ -1817,7 +1832,11 @@ export class Game {
       const sx = (this.projection.x * 0.5 + 0.5) * width;
       const sy = (-this.projection.y * 0.5 + 0.5) * height;
       const d = Math.hypot(sx - clickX, sy - clickY);
-      if (d < bestDist) {
+      // Die Sichtprüfung erst hier, wo dieses Wesen das beste wäre: sie kostet
+      // einen Abstieg durchs Höhenfeld, und den für jedes Wesen der Karte zu
+      // bezahlen wäre Verschwendung. Fällt der Beste durch, gewinnt eben der
+      // Nächste — genau richtig, denn hinter dem Berg steht er ja nicht.
+      if (d < bestDist && this.sichtFrei(e.x, e.y + e.height * 0.5, e.z)) {
         bestDist = d;
         best = e;
       }
@@ -1870,12 +1889,58 @@ export class Game {
       // Die Marke steht auf der Höhe des Geländes an dieser Stelle — dieselbe
       // Rechnung wie für den Boden unter der Figur. Auf fester Höhe läge sie
       // an einem Hang in der Luft oder im Berg.
+      //
+      // Und weil ein Ring breiter ist als ein Punkt, bekommt er die Auskunft
+      // gleich mit: seine Punkte legen sich einzeln auf das Gelände. Eine
+      // waagerechte Scheibe verschwindet am Hang zur Hälfte im Boden.
+      const welt = this.prediction;
       this.view.laufmarke.setze(
         boden.x,
-        this.prediction?.heightAt(boden.x, boden.z) ?? 0,
+        welt?.heightAt(boden.x, boden.z) ?? 0,
         boden.z,
+        welt ? (x, z) => welt.heightAt(x, z) : undefined,
       );
     } else this.brichAuftragAb();
+  }
+
+  /**
+   * Steht zwischen der Kamera und diesem Punkt ein Berg?
+   *
+   * Anklicken soll man nur, was man auch sieht. Ohne diese Prüfung reichte es,
+   * dass ein Monster **irgendwo** in der Nähe des Zeigers steht — auch hinter
+   * einem Hügel, wo kein Bildpunkt von ihm zu sehen ist. Man visierte dann
+   * etwas an, das gar nicht da war, und die Figur lief los.
+   *
+   * Geprüft wird gegen das Höhenfeld und nicht gegen die gezeichneten Kacheln:
+   * das Höhenfeld ist überall da, auch wo die Sichtweite noch keine Kachel
+   * geladen hat, und es kennt dieselbe Rechnung wie der Server.
+   *
+   * Nur Gelände. Ein Haus verdeckt nicht — Props stehen nicht im Höhenfeld,
+   * und ein zweiter Satz Körper nur für diese Frage wäre eine zweite Wahrheit
+   * darüber, wo etwas steht.
+   */
+  private sichtFrei(zx: number, zy: number, zz: number): boolean {
+    const welt = this.prediction;
+    if (!welt) return true;
+
+    const kamera = this.scene.camera.position;
+    const dx = zx - kamera.x;
+    const dy = zy - kamera.y;
+    const dz = zz - kamera.z;
+    const weite = Math.hypot(dx, dz);
+    if (weite < 1e-3) return true;
+
+    // Die beiden Enden bleiben aussen vor: an der Kamera steht die Kamera, am
+    // Ziel das Ziel, und beide stünden sich sonst selbst im Weg.
+    const schritte = Math.min(64, Math.max(4, Math.ceil(weite / SICHT_SCHRITT)));
+    for (let i = 1; i < schritte; i++) {
+      const t = i / schritte;
+      const x = kamera.x + dx * t;
+      const y = kamera.y + dy * t;
+      const z = kamera.z + dz * t;
+      if (y < welt.heightAt(x, z) - SICHT_LUFT) return false;
+    }
+    return true;
   }
 
   /**
@@ -1983,7 +2048,7 @@ export class Game {
       const lx = (this.projection.x * 0.5 + 0.5) * width;
       const ly = (-this.projection.y * 0.5 + 0.5) * height;
       const d = Math.hypot(lx - px, ly - py);
-      if (d < dist) {
+      if (d < dist && this.sichtFrei(row.x, row.y + 0.5, row.z)) {
         dist = d;
         id = row.id;
       }

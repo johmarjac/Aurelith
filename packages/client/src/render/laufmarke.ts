@@ -25,6 +25,14 @@ export const MARKE_SEKUNDEN = 1.4;
 /** Aussenradius am Ende des Wachsens, in Weltnenheiten. */
 const RADIUS = 0.85;
 
+/**
+ * Wie hoch die Marke über dem Boden schwebt.
+ *
+ * Genau null hiesse, mit dem Gelände um dieselben Bildpunkte zu streiten —
+ * das flimmert. Viel mehr hiesse, an einer Kante in der Luft zu liegen.
+ */
+const LUFT = 0.05;
+
 export class Laufmarke {
   readonly root = new THREE.Group();
 
@@ -34,6 +42,15 @@ export class Laufmarke {
 
   /** Sekunden seit dem Setzen. Negativ heisst: keine Marke. */
   private zeit = -1;
+  /**
+   * Wo der Boden liegt — dieselbe Auskunft, die auch die Figur benutzt.
+   *
+   * Ohne sie wäre der Ring eine waagerechte Scheibe, und das ist er in einem
+   * Gelände fast nie: an einem Hang steckt die bergseitige Hälfte im Boden und
+   * die talseitige schwebt. Man sah dann einen halben Ring und hielt ihn für
+   * einen Fehler in der Anzeige.
+   */
+  private hoehe?: (x: number, z: number) => number;
 
   constructor(farbe = 0xffd98a) {
     this.root.visible = false;
@@ -52,9 +69,13 @@ export class Laufmarke {
         blending: THREE.AdditiveBlending,
       });
       const netz = new THREE.Mesh(geo, mat);
-      // Etwas über dem Boden, sonst streitet die Marke mit dem Gelände um
-      // dieselben Bildpunkte und flimmert.
-      netz.position.y = 0.05;
+      netz.position.y = LUFT;
+      // Nicht am Sichtkegel prüfen. Die Hülle, an der three.js das täte, ist
+      // beim Bauen des Netzes berechnet worden — mit flachen Punkten. Sobald
+      // sie am Hang nach oben wandern, liegen sie ausserhalb dieser Hülle, und
+      // die Marke verschwände genau dort, wo sie eben erst sichtbar wurde. Ein
+      // Ring für anderthalb Sekunden ist nichts, was man wegsortieren müsste.
+      netz.frustumCulled = false;
       netz.renderOrder = 2;
       this.root.add(netz);
       this.ringe.push(netz);
@@ -69,10 +90,13 @@ export class Laufmarke {
    * Kein Verblassen der vorherigen: wer zweimal hintereinander klickt, hat
    * genau ein Ziel, und zwei Marken behaupteten zwei.
    */
-  setze(x: number, y: number, z: number): void {
+  setze(x: number, y: number, z: number, hoehe?: (x: number, z: number) => number): void {
     this.root.position.set(x, y, z);
     this.root.visible = true;
     this.zeit = 0;
+    // Bei jedem Setzen neu: nach einem Kartenwechsel gehört die alte Auskunft
+    // zu einem Gelände, das es nicht mehr gibt.
+    this.hoehe = hoehe;
   }
 
   /** Nimmt die Marke weg — beim Kartenwechsel oder wenn der Auftrag endet. */
@@ -107,9 +131,34 @@ export class Laufmarke {
       // wie eine Animation; einer, der aufschnellt und ausklingt, wie ein
       // Aufschlag.
       const gross = 1 - (1 - p) * (1 - p);
-      netz.scale.setScalar(RADIUS * (0.35 + gross * 0.65));
+      const skala = RADIUS * (0.35 + gross * 0.65);
+      netz.scale.setScalar(skala);
       mat.opacity = (1 - p) * 0.75;
+      // Der Ring wächst, also wandern seine Punkte über den Boden — die Höhen
+      // von eben gelten für die Stellen von eben. Deshalb bei jedem Bild neu.
+      this.legeAufGelaende(this.geometrien[i]!, skala);
     }
+  }
+
+  /**
+   * Legt die Punkte des Rings auf das Gelände.
+   *
+   * Gerechnet wird in der Höhe **relativ** zum Mittelpunkt der Marke und durch
+   * die Skalierung geteilt: der Punkt liegt im Netz, und das Netz wird beim
+   * Wachsen gestreckt — auch nach oben. Ohne die Teilung wüchse der
+   * Höhenunterschied mit dem Ring, und am Hang stellte er sich auf.
+   */
+  private legeAufGelaende(geo: THREE.BufferGeometry, skala: number): void {
+    const hoehe = this.hoehe;
+    if (!hoehe || skala < 1e-3) return;
+    const punkte = geo.getAttribute('position') as THREE.BufferAttribute;
+    const mitte = this.root.position;
+    for (let i = 0; i < punkte.count; i++) {
+      const wx = mitte.x + punkte.getX(i) * skala;
+      const wz = mitte.z + punkte.getZ(i) * skala;
+      punkte.setY(i, (hoehe(wx, wz) - mitte.y) / skala);
+    }
+    punkte.needsUpdate = true;
   }
 
   dispose(): void {
