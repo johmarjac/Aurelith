@@ -1447,13 +1447,18 @@ body {
   border-color: #5e1b19;
 }
 
-/* Wo man spielt — Server und Kanal, über der Figurenliste. */
+/*
+ * Wo man spielt — Server und Kanal, über der Figurenliste.
+ *
+ * Dunkle Tinte und nicht Gold: diese Zeile steht auf dem Pergament und nicht
+ * auf einem Feld, und helles Gold verschwindet dort.
+ */
 .lobby-wo {
   margin: -0.3rem 0 0;
   text-align: center;
   font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--gold-hell);
+  font-weight: 700;
+  color: var(--ink-dim);
 }
 
 .lobby-konto {
@@ -1469,14 +1474,42 @@ body {
   gap: 0.45rem;
 }
 
+/*
+ * Eine Figurenzeile — dunkles Feld auf Pergament, wie die Eingabefelder und
+ * die Kanalliste.
+ *
+ * `--kachel` stand hier vorher, und das ist die Kachelfarbe der **dunklen**
+ * Spieloberfläche: über Pergament wird daraus ein blasses Beige, auf dem
+ * weder der goldene Name noch die Zeile darunter noch zu lesen waren.
+ */
 .lobby-figur {
   display: flex;
   align-items: center;
   gap: 0.6rem;
   padding: 0.5rem 0.6rem;
   border-radius: var(--radius);
-  background: var(--kachel);
-  border: 1px solid var(--kachel-rand);
+  background: var(--panel-dunkel);
+  border: 1px solid var(--panel-edge);
+}
+
+/*
+ * Auf einem schmalen Telefon untereinander.
+ *
+ * Nebeneinander bleiben für „Stufe 17 · Krieger · lichtmoor" keine dreissig
+ * Zeichen übrig, und die Zeile bricht mitten im Kartennamen um.
+ */
+@media (max-width: 30rem) {
+  .lobby-figur {
+    flex-wrap: wrap;
+  }
+
+  .lobby-figur-text {
+    flex: 1 1 100%;
+  }
+
+  .lobby-figur .lobby-knoepfe {
+    flex: 1 1 100%;
+  }
 }
 
 .lobby-figur-text {
@@ -1491,9 +1524,10 @@ body {
   color: var(--gold-hell);
 }
 
+/* Hell genug für das dunkle Feld: die Randfarbe war es nicht. */
 .lobby-figur-info {
-  font-size: 0.72rem;
-  color: var(--panel-edge-bright);
+  font-size: 0.74rem;
+  color: #d9c49a;
 }
 
 .lobby-leer {
@@ -1553,15 +1587,27 @@ body {
   overscroll-behavior: contain;
 }
 
+/*
+ * Eine Zeile — dunkles Feld auf Pergament, wie die Eingabefelder daneben.
+ *
+ * Das ist keine Geschmacksfrage, sondern die einzige Richtung, die hier
+ * funktioniert: die Maske ist hell, und die Farben der Spieloberfläche sind
+ * für dunkle Tafeln gemacht. Übernimmt man sie unbesehen, steht helles Gold
+ * auf hellem Pergament — genau das war hier, und man konnte den gewählten
+ * Server nicht lesen.
+ *
+ * `--panel-dunkel` ist derselbe Grund wie unter `.lobby-input`, also gibt es
+ * in dieser Maske genau eine Vorstellung davon, wie ein dunkles Feld aussieht.
+ */
 .kanal-zeile {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 0.1rem;
-  padding: 0.4rem 0.55rem;
+  padding: 0.45rem 0.6rem;
   border-radius: var(--radius);
-  border: 1px solid var(--kachel-rand);
-  background: var(--kachel);
+  border: 1px solid var(--panel-edge);
+  background: var(--panel-dunkel);
   color: var(--ink-hell);
   font: inherit;
   text-align: left;
@@ -1570,25 +1616,41 @@ body {
 
 .kanal-zeile:disabled {
   cursor: default;
-  opacity: 0.45;
+  opacity: 0.5;
 }
 
-/* Wie in der Berufsauswahl hängt die Wahl am Datenfeld: der Zustand steht an
-   genau einer Stelle, und das Umschalten kann keine halbe Wahrheit
-   hinterlassen, in der zwei Zeilen hell sind. */
+/*
+ * Die Wahl hängt am Datenfeld: der Zustand steht an genau einer Stelle, und
+ * das Umschalten kann keine halbe Wahrheit hinterlassen, in der zwei Zeilen
+ * hell sind.
+ *
+ * Gewählt wird **kräftiger**, nicht heller. Auf einem hellen Kasten ist das
+ * die einzige Richtung, in der noch Kontrast übrig bleibt.
+ */
 .kanal-zeile[data-gewaehlt='1'] {
   border-color: var(--gold-hell);
-  color: var(--gold-hell);
-  background: rgba(196, 158, 74, 0.16);
+  background: var(--holz);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.kanal-zeile[data-gewaehlt='1'] .kanal-name {
+  color: #fff6df;
+}
+
+.kanal-zeile[data-gewaehlt='1'] .kanal-info {
+  color: #f2dcae;
 }
 
 .kanal-name {
   font-weight: 600;
+  color: var(--gold-hell);
 }
 
+/* Auf dem dunklen Feld, nicht auf Pergament: heller als die Randfarbe, sonst
+   verschwindet die Zeile „0 online" im Untergrund. */
 .kanal-info {
-  font-size: 0.72rem;
-  color: var(--panel-edge-bright);
+  font-size: 0.74rem;
+  color: #d9c49a;
 }
 
 /* --- Umsortieren im Beutel ------------------------------------------------ */
