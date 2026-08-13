@@ -2499,6 +2499,15 @@ body {
   color: var(--accent);
 }
 
+/* Die Knopfreihe in der Beschreibung. Umbrechend, damit „Anlegen" und
+   „Fallen lassen" auf einem schmalen Telefon nicht aus der Blase laufen. */
+.detail-knoepfe {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+}
+
 .item-detail .btn {
   align-self: flex-start;
 }

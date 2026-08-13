@@ -33,6 +33,7 @@ import { SetAura } from './setAura.ts';
 import { stepAuras } from './auraClock.ts';
 import { ParticleField } from './particles.ts';
 import { WeaponTrail } from './weaponTrail.ts';
+import { Laufmarke } from './laufmarke.ts';
 import { buildTerrain, type TerrainMesh } from './terrain.ts';
 import type { TextureLoader } from './textures.ts';
 import type { CharacterRig } from './rigs.ts';
@@ -225,6 +226,8 @@ export class WorldView {
   readonly lanterns: Lanterns;
   /** Was gerade auf dem Boden liegt. Wird aus dem Snapshot abgeglichen. */
   readonly loot: LootView;
+  /** Der Ring am Wegziel. Eine Marke für alles — es gibt immer nur ein Ziel. */
+  readonly laufmarke = new Laufmarke();
   /** Zwei Punkte für die Klingenlage. Wiederverwendet, je Bild und Figur. */
   private readonly klingeA = new THREE.Vector3();
   private readonly klingeB = new THREE.Vector3();
@@ -259,6 +262,7 @@ export class WorldView {
     // Gruppe ist leer, solange nichts liegt, und `clear` räumt sie mit.
     this.loot = new LootView(registry.material);
     this.root.add(this.loot.root);
+    this.root.add(this.laufmarke.root);
   }
 
   get mapId(): string {
@@ -761,6 +765,7 @@ export class WorldView {
     this.stepArrows(dt);
     this.particles.step(dt);
     this.loot.step(dt);
+    this.laufmarke.step(dt);
     // Eine Uhr für alle Auren: sie pulsieren im Shader, und der braucht nur
     // die Zeit. Je Aura eine Schleife wäre dieselbe Zahl fünfzigmal.
     stepAuras(dt);

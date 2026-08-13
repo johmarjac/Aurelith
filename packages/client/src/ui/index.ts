@@ -277,6 +277,13 @@ export class UI {
   private readonly portalPrompt: HTMLButtonElement;
 
   private readonly inventoryWindow: GameWindow;
+  /**
+   * Der Angriffsknopf auf dem Telefon — nur dort gibt es ihn.
+   *
+   * Am Schreibtisch fehlt er ganz, und `setAttackReady` läuft dann ins Leere.
+   * Das ist billiger als eine Abfrage bei jedem Aufrufer.
+   */
+  private attackButton?: HTMLButtonElement;
   /** Der Goldstand in der Fussleiste des Inventars. */
   private readonly goldWert: HTMLSpanElement;
   /** Die Mülltonne daneben — Ziel beim Ziehen, sonst nur ein Bild. */
@@ -665,9 +672,15 @@ export class UI {
     });
 
     // --- Angriffsknopf (nur mobil) ---------------------------------------
+    //
+    // Er steht nur da, wenn es etwas zu schlagen gibt — siehe `setAttackReady`.
+    // Ein Knopf, der immer da ist und meistens nichts tut, nimmt den halben
+    // Daumen weg und sagt nichts über die Lage.
     if (touch) {
       const attack = el('button', 'attack-button', 'ANGRIFF');
       attack.type = 'button';
+      attack.hidden = true;
+      this.attackButton = attack;
       const press = (held: boolean) => (e: Event) => {
         e.preventDefault();
         this.onAttackHold?.(held);
@@ -994,6 +1007,26 @@ export class UI {
    */
   debug(text: string, art: LogArt = 'info'): void {
     this.konsole.schreibe(art, text);
+  }
+
+  /**
+   * Blendet den Angriffsknopf ein oder aus.
+   *
+   * Wird je Bild gerufen und fasst das DOM nur an, wenn sich etwas ändert:
+   * `hidden` bei jedem Bild neu zu setzen kostet nichts sichtbares, aber der
+   * Browser rechnet den Stil trotzdem jedes Mal neu.
+   *
+   * Ob überhaupt etwas in Reichweite ist, entscheidet das Spiel — es kennt
+   * die Waffe und die Entfernungen. Die Oberfläche zeigt nur an.
+   */
+  setAttackReady(bereit: boolean): void {
+    const knopf = this.attackButton;
+    if (!knopf) return;
+    if (knopf.hidden === !bereit) return;
+    knopf.hidden = !bereit;
+    // Losgelassen, wenn er verschwindet: sonst bliebe der Angriff gedrückt,
+    // weil das `pointerup` an einem Knopf ankäme, den es nicht mehr gibt.
+    if (!bereit) this.onAttackHold?.(false);
   }
 
   setPlayerName(name: string): void {
@@ -1515,18 +1548,24 @@ export class UI {
         zelle.appendChild(el('span', 'item-upgrade', `+${entry.upgrade}`));
       }
       zelle.title = def
-        ? `${upgradeName(def, entry.upgrade)} — klicken zum Ablegen`
+        ? `${upgradeName(def, entry.upgrade)} — klicken für Infos, doppelt zum Ablegen`
         : entry.itemId;
-      // Klick legt ab. Dasselbe Paket wie das Anlegen: der Server entscheidet
-      // anhand des Zustands, was gemeint ist.
-      // Klick legt ab. Wer nur nachsehen will, was daran hängt, bekommt die
-      // Beschreibung über die rechte Maustaste — dasselbe Fenster, an
-      // derselben Stelle.
-      zelle.onclick = () => this.onEquipItem?.(entry.slot);
-      zelle.oncontextmenu = (ev) => {
-        ev.preventDefault();
+      /*
+       * Einfacher Klick zeigt die Beschreibung, Doppelklick legt ab.
+       *
+       * Dieselbe Aufteilung wie im Beutel, und das ist der Punkt: dort legt
+       * ein Doppelklick an, hier ab — ein einfacher Klick zeigt in beiden
+       * Fällen dasselbe Fenster. Vorher legte hier schon der erste Klick ab,
+       * und wer nur nachsehen wollte, was an seinem Ring hängt, stand ihn los.
+       *
+       * Ablegen geht auch aus dem Fenster heraus; der Doppelklick ist die
+       * Abkürzung für die, die wissen, was sie anhaben.
+       */
+      zelle.onclick = () => {
+        if (this.zugGelaufen) return;
         this.showItemDetail(entry.slot, false, true);
       };
+      zelle.ondblclick = () => this.onEquipItem?.(entry.slot);
     }
   }
 
@@ -1889,23 +1928,47 @@ export class UI {
 
     teile.push(el('p', 'detail-text', def.description));
 
+    /*
+     * Die Knöpfe als Reihe.
+     *
+     * „Fallen lassen" steht hier und nicht nur am Ziehen, weil das Ziehen auf
+     * dem Telefon nicht geht: dort füllt das Inventar den ganzen Bildschirm,
+     * und es gibt keine Welt, auf die man etwas ziehen könnte.
+     */
+    const knopf = (text: string, klasse: string, tu: () => void): HTMLButtonElement => {
+      const b = el('button', klasse, text);
+      b.type = 'button';
+      b.addEventListener('click', tu);
+      return b;
+    };
+
+    const knoepfe: HTMLElement[] = [];
     if (def.kind === 'consumable') {
-      const benutzen = el('button', 'btn', 'Benutzen');
-      benutzen.type = 'button';
-      benutzen.addEventListener('click', () => this.onUseItem?.(entry.slot));
-      teile.push(benutzen);
+      knoepfe.push(knopf('Benutzen', 'btn', () => this.onUseItem?.(entry.slot)));
     } else if (entry.equipped) {
       // Ablegen steht dort, wo vorher nur „Angelegt" stand. Ein Zustand ohne
       // Ausweg ist keine Auskunft, sondern eine Sackgasse.
-      const ablegen = el('button', 'btn', 'Ablegen');
-      ablegen.type = 'button';
-      ablegen.addEventListener('click', () => this.onEquipItem?.(entry.slot));
-      teile.push(ablegen);
+      knoepfe.push(knopf('Ablegen', 'btn', () => this.onEquipItem?.(entry.slot)));
     } else if (def.slot !== 'none') {
-      const anlegen = el('button', 'btn', 'Anlegen');
-      anlegen.type = 'button';
-      anlegen.addEventListener('click', () => this.onEquipItem?.(entry.slot));
-      teile.push(anlegen);
+      knoepfe.push(knopf('Anlegen', 'btn', () => this.onEquipItem?.(entry.slot)));
+    }
+
+    // Angelegtes fällt nicht: erst ablegen. Auftragsgegenstände auch nicht —
+    // dieselbe Regel wie auf dem Server, hier nur als ausgelassener Knopf
+    // statt als Absage.
+    if (!entry.equipped && def.kind !== 'quest') {
+      knoepfe.push(
+        knopf('Fallen lassen', 'btn btn-warn', () => {
+          this.onDropItem?.(entry.slot);
+          this.hideItemDetail();
+        }),
+      );
+    }
+
+    if (knoepfe.length > 0) {
+      const reihe = el('div', 'detail-knoepfe');
+      reihe.append(...knoepfe);
+      teile.push(reihe);
     }
 
     this.itemDetail.replaceChildren(...teile);

@@ -1142,6 +1142,8 @@ export class Game {
   /** Alles verwerfen, was zur alten Sitzung gehoerte. Boden und Props bleiben. */
   private resetSession(): void {
     this.view.clearEntities();
+    // Die Marke gehört zu einem Weg, den es nicht mehr gibt.
+    this.view.laufmarke.loesche();
     this.pending = [];
     this.inputSeq = 0;
     this.localId = 0;
@@ -1491,8 +1493,17 @@ export class Game {
     // trotzdem, und genau das ist der Ausstieg aus dem Kampf: man klickt
     // irgendwohin, die Figur löst sich und das Monster bleibt anvisiert.
     const boden = this.bodenPunkt(ndcX, ndcY);
-    if (boden) this.auftrag = { art: 'gehen', x: boden.x, z: boden.z };
-    else this.brichAuftragAb();
+    if (boden) {
+      this.auftrag = { art: 'gehen', x: boden.x, z: boden.z };
+      // Die Marke steht auf der Höhe des Geländes an dieser Stelle — dieselbe
+      // Rechnung wie für den Boden unter der Figur. Auf fester Höhe läge sie
+      // an einem Hang in der Luft oder im Berg.
+      this.view.laufmarke.setze(
+        boden.x,
+        this.prediction?.heightAt(boden.x, boden.z) ?? 0,
+        boden.z,
+      );
+    } else this.brichAuftragAb();
   }
 
   /**
@@ -1663,6 +1674,29 @@ export class Game {
    * ein hier angenommener Wert wäre eine zweite Wahrheit über die Grösse eines
    * Monsters.
    */
+  /**
+   * Steht ein lebendes Monster in Schlagweite?
+   *
+   * Mit der **getragenen** Waffe gerechnet: `this.profile` kommt aus der
+   * angelegten Ausrüstung, ein Bogen reicht also weiter als eine Faust. Und
+   * bis zur Hülle des Monsters, wie überall — dieselbe Rechnung wie
+   * `kampfReichweite`, damit der Knopf nicht zu einem Schlag einlädt, den der
+   * Kern gleich verwirft.
+   *
+   * Über alle Monster und nicht nur über das anvisierte: wer nichts anvisiert
+   * hat, aber mitten in einer Gruppe steht, soll den Knopf trotzdem sehen —
+   * der erste Druck sucht sich dann sein Ziel.
+   */
+  private zielInReichweite(x: number, z: number): boolean {
+    for (const e of this.view.entities.values()) {
+      if (e.type !== EntityType.Monster || e.state === EntityState.Dead) continue;
+      const dx = e.x - x;
+      const dz = e.z - z;
+      if (Math.hypot(dx, dz) <= this.kampfReichweite(e)) return true;
+    }
+    return false;
+  }
+
   private kampfReichweite(ziel: EntityVisual): number {
     const radius = getMob(ziel.defId)?.radius ?? MOB_RADIUS_FALLBACK;
     return Math.max(0.9, this.profile.range + radius - KAMPF_LUFT);
@@ -1989,6 +2023,9 @@ export class Game {
 
       const self = this.view.entities.get(this.localId);
       if (self) self.rig.root.visible = !this.scene.isFirstPerson;
+
+      // Der Angriffsknopf am Telefon kommt nur, wenn etwas in Reichweite ist.
+      this.ui.setAttackReady(!this.dead && this.zielInReichweite(x, z));
     }
 
     // Tag und Nacht. Vor dem Zeichnen, damit Himmel und Licht zum Bild
