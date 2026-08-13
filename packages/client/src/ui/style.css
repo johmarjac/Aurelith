@@ -1430,6 +1430,54 @@ body {
   font-weight: 600;
 }
 
+/*
+ * Das Verbindungsprotokoll unter der Maske.
+ *
+ * Zugeklappt eine Zeile, aufgeklappt ein dunkles Feld mit fester Höhe. Die
+ * Konsole der Spieloberfläche gibt es hier noch nicht, und auf dem Telefon
+ * kommt niemand an die des Browsers — ohne dieses Feld ist der Schliesscode
+ * eines gescheiterten Kanals nirgends zu sehen.
+ */
+.lobby-protokoll {
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  color: var(--ink-dim);
+}
+
+.lobby-protokoll-kopf {
+  cursor: pointer;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  /* Der Dreieckszeiger des Browsers bleibt: er sagt „hier ist mehr". */
+  padding: 0.15rem 0;
+}
+
+.lobby-protokoll-text {
+  margin: 0.35rem 0 0;
+  padding: 0.45rem 0.55rem;
+  max-height: 9rem;
+  overflow: auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--panel-dunkel-rand);
+  background: var(--panel-dunkel);
+  color: var(--ink-hell);
+  /* Umbrechen statt seitlich scrollen: die Adressen sind länger als die
+     Maske breit ist, und waagerechtes Scrollen auf dem Telefon versteckt
+     genau die Hälfte, auf die es ankommt. */
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
+.lobby-protokoll-kopie {
+  margin-top: 0.35rem;
+  width: 100%;
+  font-size: 0.72rem;
+  padding: 0.3rem 0.5rem;
+}
+
 .lobby-form {
   display: flex;
   flex-direction: column;

@@ -107,6 +107,24 @@ export class LobbyView {
   private readonly kanalKnopf: HTMLButtonElement;
   private readonly kanalWechsel: HTMLButtonElement;
   private readonly woZeile: HTMLParagraphElement;
+  private readonly protokoll: HTMLDetailsElement;
+  private readonly protokollKopf: HTMLElement;
+  private readonly protokollText: HTMLPreElement;
+  private readonly kopierKnopf: HTMLButtonElement;
+
+  /**
+   * Was die Verbindung bisher gemeldet hat — als Text, für Menschen.
+   *
+   * Die Konsole (🐞) hängt an der Spieloberfläche und ist von hier aus nicht
+   * zu öffnen: wer vor der Anmeldung oder der Kanalauswahl steht, hat sie
+   * nicht. Auf dem Telefon kommt man auch an die Browserkonsole nicht heran.
+   * Genau dort aber entscheidet sich, ob ein Kanal nicht erreichbar war
+   * (1006) oder abgewiesen hat (1002, 1008) — und ohne diese Zeilen bleibt
+   * beides „geht nicht".
+   */
+  private readonly protokollZeilen: string[] = [];
+  /** Womit die letzte Zeile begann — gegen dieselbe Meldung im Sekundentakt. */
+  private letzteMarke = '';
 
   /** Was der Anmeldeserver zuletzt gemeldet hat. */
   private realms: RealmRow[] = [];
@@ -159,6 +177,37 @@ export class LobbyView {
     // kann — und zwei davon wären beim Lesen die falsche.
     this.meldung = el('p', 'lobby-meldung', '');
     this.meldung.hidden = true;
+
+    // Das Protokoll wandert genauso mit wie die Meldung — nur ans Ende der
+    // Maske statt an den Anfang: es ist Beiwerk, solange nichts schiefgeht.
+    this.protokoll = el('details', 'lobby-protokoll');
+    this.protokoll.hidden = true;
+    this.protokollKopf = el('summary', 'lobby-protokoll-kopf', 'Verbindungsprotokoll');
+    this.protokollText = el('pre', 'lobby-protokoll-text', '');
+    this.kopierKnopf = el('button', 'btn lobby-protokoll-kopie', 'Kopieren');
+    this.kopierKnopf.type = 'button';
+    this.kopierKnopf.addEventListener('click', () => {
+      const text = this.protokollZeilen.join('\n');
+      // Die Zwischenablage gibt es nur über HTTPS und nur nach einem Klick.
+      // Fehlt sie, wird der Text markiert — dann kopiert man ihn von Hand,
+      // statt vor einem Knopf zu stehen, der nichts tut.
+      const abgelegt = navigator.clipboard?.writeText(text);
+      if (!abgelegt) {
+        this.markiereProtokoll();
+        this.kopierKnopf.textContent = 'Markiert — von Hand kopieren';
+        return;
+      }
+      void abgelegt.then(
+        () => {
+          this.kopierKnopf.textContent = 'Kopiert';
+        },
+        () => {
+          this.markiereProtokoll();
+          this.kopierKnopf.textContent = 'Markiert — von Hand kopieren';
+        },
+      );
+    });
+    this.protokoll.append(this.protokollKopf, this.protokollText, this.kopierKnopf);
 
     // --- Maske 1: Anmelden -------------------------------------------------
     this.anmeldungSeite = el('div', 'lobby-box panel lobby-anmeldung');
@@ -344,8 +393,49 @@ export class LobbyView {
             : this.neuSeite;
     // Nach der Überschrift, vor allem anderen.
     kasten.insertBefore(this.meldung, kasten.children[1] ?? null);
+    // Und das Protokoll ganz unten, unter den Knöpfen.
+    kasten.appendChild(this.protokoll);
 
     if (seite === 'neu') this.neuInput.focus();
+  }
+
+  /**
+   * Eine Zeile fürs Verbindungsprotokoll.
+   *
+   * `marke` ist das, was diese Meldung von der vorigen unterscheidet: kommt
+   * zweimal hintereinander dieselbe, wird die zweite verworfen. Ohne das
+   * schriebe der Zustand „verbunden" mit jedem Pong eine neue Zeile, und die
+   * eine, auf die es ankommt, wäre nach zehn Sekunden aus dem Fenster
+   * gescrollt.
+   */
+  notiere(text: string, art: 'info' | 'fehler' = 'info', marke = text): void {
+    if (marke === this.letzteMarke) return;
+    this.letzteMarke = marke;
+
+    const zeit = new Date().toLocaleTimeString('de-DE', { hour12: false });
+    this.protokollZeilen.push(`${zeit}  ${text}`);
+    // Ein Deckel, damit ein Kanal, der endlos neu versucht, die Maske nicht
+    // über den Bildschirmrand schiebt.
+    if (this.protokollZeilen.length > 60) this.protokollZeilen.shift();
+
+    this.protokollText.textContent = this.protokollZeilen.join('\n');
+    this.protokollKopf.textContent = `Verbindungsprotokoll (${this.protokollZeilen.length})`;
+    this.protokoll.hidden = false;
+    this.kopierKnopf.textContent = 'Kopieren';
+    // Bei einem Fehler klappt es von selbst auf: dann ist es keine Beigabe
+    // mehr, sondern das Einzige, woran man sieht, was los war.
+    if (art === 'fehler') this.protokoll.open = true;
+    this.protokollText.scrollTop = this.protokollText.scrollHeight;
+  }
+
+  /** Den Protokolltext markieren — der Weg zurück, wenn die Ablage fehlt. */
+  private markiereProtokoll(): void {
+    this.protokoll.open = true;
+    const bereich = document.createRange();
+    bereich.selectNodeContents(this.protokollText);
+    const auswahl = window.getSelection();
+    auswahl?.removeAllRanges();
+    auswahl?.addRange(bereich);
   }
 
   /**

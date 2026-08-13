@@ -506,9 +506,13 @@ export class Game {
           `Dieser Kanal ist nicht erreichbar: ${geprueft.error ?? 'Adresse unbrauchbar.'}`,
         );
         this.ui.debug(`[kanal] Adresse vom Anmeldeserver unbrauchbar: ${url}`, 'fehler');
+        this.lobby.notiere(`Adresse unbrauchbar: ${url}`, 'fehler');
         return;
       }
-      if (geprueft.warning) this.ui.debug(`[kanal] ${geprueft.warning}`, 'warnung');
+      if (geprueft.warning) {
+        this.ui.debug(`[kanal] ${geprueft.warning}`, 'warnung');
+        this.lobby.notiere(geprueft.warning, 'fehler');
+      }
       this.connect(geprueft.url, ticket);
     };
     this.lobby.onRefreshRealms = () => this.connection?.sendRealmList();
@@ -875,10 +879,30 @@ export class Game {
     // die Sitzung am Kanal. Scheitert sie, geht es zurück zum Anmeldeserver —
     // dort und nur dort gibt es eine neue Karte.
     this.amKanal = ticket !== undefined;
+    this.lobby.notiere(
+      `Verbinde mit ${url}${ticket === undefined ? '' : ' (mit Eintrittskarte)'}`,
+    );
 
     this.connection = new Connection(url, {
       onStatus: (status, detail) => {
         this.ui.setConnection(status, detail);
+        /*
+         * Denselben Stand auch in die Maske schreiben.
+         *
+         * Die Konsole ist von der Anmeldung und der Kanalauswahl aus nicht zu
+         * öffnen — sie gehört zur Spieloberfläche, und die gibt es dort noch
+         * nicht. Alles, was hier in die Konsole ginge, wäre also genau so
+         * lange unsichtbar, wie es gebraucht wird.
+         *
+         * Die Marke lässt „verbunden" die Laufzeit weg: die kommt mit jedem
+         * Pong neu und wäre eine Zeile je Sekunde. Bei „getrennt" gehört der
+         * Grund dazu — er ist der ganze Inhalt der Meldung.
+         */
+        this.lobby.notiere(
+          `${status}${detail ? ` — ${detail}` : ''} · ${url}`,
+          status === 'getrennt' ? 'fehler' : 'info',
+          `${status}|${status === 'verbunden' ? '' : (detail ?? '')}|${url}`,
+        );
 
         /*
          * Ein Kanal, der nicht antwortet.
@@ -908,6 +932,14 @@ export class Game {
               'Prüfe, ob er von aussen erreichbar ist, und melde dich neu an.',
           );
           this.ui.debug(`[kanal] ${url} nicht erreichbar${detail ? ` — ${detail}` : ''}`, 'fehler');
+          this.lobby.notiere(
+            'Kanal nicht erreichbar — zurück zum Anmeldeserver, die Eintrittskarte ist verbraucht.',
+            'fehler',
+          );
+          // Der Schliesscode allein reicht nicht: 1006 heisst nur „gar nicht
+          // zustande gekommen" und nennt keinen Grund. Die Nachfrage über HTTP
+          // trennt die beiden Fälle, die dahinterstecken — siehe `pruefeKanal`.
+          void this.pruefeKanal(url);
           this.connect();
           return;
         }
@@ -991,6 +1023,7 @@ export class Game {
        */
       onLobbyError: (text) => {
         this.lobby.zeigeFehler(text);
+        this.lobby.notiere(`Absage: ${text}`, 'fehler');
         if (this.amKanal) {
           this.amKanal = false;
           this.connect();
@@ -1120,6 +1153,86 @@ export class Game {
     });
 
     this.connection.connect();
+  }
+
+  /**
+   * Nachfragen, warum ein Kanal nicht erreichbar war.
+   *
+   * Ein gescheitertes WebSocket gibt dem Browser aus Sicherheitsgründen keinen
+   * Grund heraus — nur `1006`, „gar nicht zustande gekommen". Darunter liegen
+   * zwei völlig verschiedene Ursachen, und ohne sie zu trennen sucht man an
+   * der falschen Stelle:
+   *
+   *   Der Rechner kommt gar nicht hin — kein Weg im Proxy, ein Zertifikat,
+   *   dem **dieses Gerät** nicht traut, ein Netz, das `wss` blockt. Dann
+   *   scheitert auch die Anfrage unten.
+   *
+   *   Der Rechner kommt hin, und der Kanal weist ab. Dann antwortet `/health`,
+   *   und der Fehler liegt hinter dem Handschlag.
+   *
+   * Erst mit CORS, weil das die Antwort lesbar macht — der Kanal nennt darin
+   * Server und Kanalnamen, und damit ist auch gleich geklärt, ob hinter der
+   * Adresse der erwartete steht. Setzt er die Kopfzeilen nicht, ist die
+   * Antwort verschlossen; dann zählt nur noch, dass überhaupt eine kam.
+   */
+  private async pruefeKanal(url: string): Promise<void> {
+    let ziel: URL;
+    try {
+      ziel = new URL(url);
+    } catch {
+      this.lobby.notiere(`Adresse nicht lesbar: ${url}`, 'fehler');
+      return;
+    }
+    ziel.protocol = ziel.protocol === 'wss:' ? 'https:' : 'http:';
+    ziel.pathname = '/health';
+    ziel.search = '';
+
+    // Ohne Frist hinge die Nachfrage genau dort fest, wo auch das WebSocket
+    // hing, und meldete nie etwas.
+    const abbruch = new AbortController();
+    const frist = window.setTimeout(() => abbruch.abort(), 6000);
+    try {
+      const antwort = await fetch(ziel.toString(), {
+        signal: abbruch.signal,
+        cache: 'no-store',
+      });
+      const text = (await antwort.text()).slice(0, 200);
+      this.lobby.notiere(`${ziel.host} antwortet auf HTTP (${antwort.status}): ${text}`);
+      this.lobby.notiere(
+        'Der Weg dorthin steht also — es scheitert erst am WebSocket-Handschlag. ' +
+          'Reicht der Proxy unter /ws die Upgrade-Kopfzeilen durch?',
+        'fehler',
+      );
+    } catch (err) {
+      if (abbruch.signal.aborted) {
+        this.lobby.notiere(`${ziel.host} antwortet nicht innerhalb von 6 s.`, 'fehler');
+      } else {
+        // Ein zweiter Versuch ohne CORS. Eine verschlossene Antwort ist immer
+        // noch eine Antwort: sie beweist, dass Adresse, Zertifikat und Weg
+        // stimmen — nur lesen darf man sie nicht.
+        try {
+          await fetch(ziel.toString(), {
+            mode: 'no-cors',
+            signal: abbruch.signal,
+            cache: 'no-store',
+          });
+          this.lobby.notiere(
+            `${ziel.host} ist erreichbar, verrät aber nichts (keine CORS-Kopfzeilen). ` +
+              'Adresse und Zertifikat stimmen — es scheitert am WebSocket selbst.',
+            'fehler',
+          );
+        } catch {
+          const grund = err instanceof Error ? err.message : String(err);
+          this.lobby.notiere(
+            `${ziel.host} ist von diesem Gerät aus gar nicht erreichbar (${grund}). ` +
+              'Das trifft Adresse, Zertifikat oder Weg im Proxy — nicht den Kanal.',
+            'fehler',
+          );
+        }
+      }
+    } finally {
+      window.clearTimeout(frist);
+    }
   }
 
   /**
