@@ -13,6 +13,7 @@ import type { Server } from 'node:http';
 import {
   AccessLevel,
   ByteReader,
+  canUseSkill,
   ChatChannel,
   EntityState,
   EntityType,
@@ -48,12 +49,14 @@ import {
   decodeCredentials,
   decodeMoveItem,
   decodeUseItem,
+  decodeUseSkill,
   decodeUsePortal,
   encodeCombatEvent,
   encodeInventory,
   encodeKick,
   EmoteKind,
   encodeEmote,
+  encodeSkillCast,
   encodeLobby,
   encodeLobbyError,
   encodeServerVersion,
@@ -69,7 +72,10 @@ import {
   expGain,
   maxUpgrade,
   getItem,
+  getClass,
+  KEIN_BERUF,
   getNpc,
+  getSkill,
   getQuest,
   isUpgradable,
   type ItemDef,
@@ -367,7 +373,10 @@ export class GameServer {
           void this.onLogin(session, decodeCredentials(reader), true);
           break;
         case ClientOp.CreateCharacter:
-          void this.onCreateCharacter(session, decodeCreateCharacter(reader).name);
+          void (() => {
+            const { name } = decodeCreateCharacter(reader);
+            return this.onCreateCharacter(session, name);
+          })();
           break;
         case ClientOp.DeleteCharacter:
           void this.onDeleteCharacter(session, decodeCharacterRef(reader).characterId);
@@ -378,6 +387,11 @@ export class GameServer {
         case ClientOp.LeaveWorld:
           if (session.state === 'playing') void this.onLeaveWorld(session);
           break;
+        case ClientOp.UseSkill: {
+          if (session.state !== 'playing') break;
+          this.useSkill(session, decodeUseSkill(reader).skillId);
+          break;
+        }
         case ClientOp.VersionRequest:
           // Ohne Zustandsprüfung: die Fassung ist keine Auskunft über die
           // Welt, und gerade wenn eine Sitzung nicht ins Spiel kommt, will
@@ -555,6 +569,7 @@ export class GameServer {
           name: c.name,
           level: c.level,
           mapId: c.mapId,
+          beruf: c.beruf,
         })),
       }),
     );
@@ -588,7 +603,8 @@ export class GameServer {
     // `startPos` übersteuert den Startpunkt der Karte — nur für Prüfungen
     // gedacht, und nur beim Anlegen einer Figur.
     const spawn = config.startPos ?? startMap.spawn;
-    const figur = await this.store.createCharacter(session.accountId, sauber, {
+    // Ohne Beruf: den lehrt der Kampfmeister ab Stufe 15.
+    const figur = await this.store.createCharacter(session.accountId, sauber, KEIN_BERUF, {
       mapId: startMap.id,
       x: spawn.x,
       z: spawn.z,
@@ -1486,6 +1502,66 @@ export class GameServer {
     );
   }
 
+  /**
+   * Eine Fertigkeit wirken.
+   *
+   * Der Server entscheidet **alles**: ob die Figur den Beruf hat, ob die Stufe
+   * reicht, ob die Abklingzeit abgelaufen ist, ob das Mana reicht. Der Client
+   * zeigt dieselben Regeln an — aber als Vorschau. Was tatsächlich gilt, steht
+   * hier, und wer eine Fertigkeit ohne Leiste schickt, kommt genauso wenig
+   * durch wie jemand, der zu früh drückt.
+   *
+   * Die Wirkung selbst macht der Kern (`areaAttack`): Schaden, Tod, Beute und
+   * Erfahrung laufen damit über denselben Weg wie ein gewöhnlicher Treffer.
+   * Eine zweite Schadensrechnung neben der des Kerns wäre die Sorte Fehler,
+   * die man erst beim Ausbalancieren bemerkt.
+   */
+  private useSkill(session: Session, skillId: string): void {
+    const character = session.character;
+    const instance = this.instances.get(session.mapId);
+    const row = instance?.entity(session.entityId);
+    if (!character || !instance || !row) return;
+    if (row.state === EntityState.Dead) return;
+
+    const def = getSkill(skillId);
+    if (!def || !canUseSkill(character.beruf, character.level, skillId)) {
+      this.systemMessage(session, 'Diese Fertigkeit beherrschst du nicht.');
+      return;
+    }
+
+    const jetzt = Date.now();
+    const frei = session.skillReady.get(skillId) ?? 0;
+    if (jetzt < frei) {
+      // Auf ein Zehntel gerundet: „noch 2,4 Sekunden" ist eine Auskunft,
+      // „noch 2437 Millisekunden" ist eine Zahl.
+      const rest = ((frei - jetzt) / 1000).toFixed(1);
+      this.systemMessage(session, `${def.name} ist noch nicht bereit (${rest} s).`);
+      return;
+    }
+
+    if (character.mp < def.manaCost) {
+      this.systemMessage(session, `Zu wenig Mana für ${def.name}.`);
+      return;
+    }
+
+    character.mp -= def.manaCost;
+    session.skillReady.set(skillId, jetzt + def.cooldownMs);
+
+    if (def.art === 'flaeche') {
+      instance.world.areaAttack(session.entityId, def.radius, def.damageFactor);
+    }
+
+    // Das Bild geht an alle in der Nähe — auch an den Wirkenden selbst. Der
+    // Client spielt es nicht von sich aus: eine Fertigkeit, die im eigenen
+    // Bild anders aussieht als im fremden, ist zwei Fertigkeiten.
+    this.broadcastNear(instance, row.x, row.z, encodeSkillCast(session.entityId, skillId));
+
+    // Die Werte haben sich geändert (Mana), und die Treffer sind gefallen —
+    // beides gehört in denselben Tick hinaus.
+    this.sendStats(session);
+    session.flush();
+  }
+
   private respawn(session: Session): void {
     const instance = this.instances.get(session.mapId);
     const row = instance?.entity(session.entityId);
@@ -1597,6 +1673,18 @@ export class GameServer {
           if (angekommen < geschenk.count) {
             this.systemMessage(session, 'Der Beutel ist voll — ein Teil der Belohnung blieb liegen.');
           }
+        }
+
+        // Der Beruf, falls dieser Auftrag einer lehrt.
+        //
+        // Nur, wenn die Figur noch keinen hat: umlernen ist eine eigene
+        // Entscheidung mit eigenem Preis, und sie stillschweigend in eine
+        // Auftragsabgabe zu legen hiesse, jemandem seine Fertigkeiten zu
+        // nehmen, weil er einen Text weggeklickt hat.
+        const lehrt = def.reward.beruf;
+        if (lehrt !== undefined && getClass(lehrt) && character.beruf === KEIN_BERUF) {
+          character.beruf = lehrt;
+          this.systemMessage(session, `Du bist jetzt ${getClass(lehrt)!.name}.`);
         }
 
         this.levelUpIfNeeded(session);
@@ -2095,6 +2183,7 @@ export class GameServer {
 
     session.send(
       encodeStats({
+        beruf: character.beruf,
         level: character.level,
         exp: character.exp,
         expForNext: expForLevel(character.level),

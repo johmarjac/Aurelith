@@ -1,0 +1,30 @@
+{
+  "format": "aurelith.content",
+  "version": 1,
+  "_hinweis": "Berufe und ihre Fertigkeiten. Ein Beruf entscheidet, welche Fertigkeiten eine Figur überhaupt lernen kann — die Zuordnung steht an der Fertigkeit, nicht am Beruf, damit sie an genau einer Stelle steht.",
+  "classes": [
+    {
+      "id": "krieger",
+      "name": "Krieger",
+      "beschreibung": "Steht vorn, hält aus, schlägt zu. Kämpft mit Klingen und wirbelnden Hieben, die alles um ihn herum treffen.",
+      "glyph": "🛡",
+      "waffe": "sword"
+    }
+  ],
+  "skills": [
+    {
+      "id": "wirbelklinge",
+      "name": "Wirbelklinge",
+      "class": "krieger",
+      "level": 1,
+      "beschreibung": "Eine volle Drehung mit ausgestreckter Klinge. Trifft alles im Umkreis, ohne dass jemand anvisiert sein muss.",
+      "glyph": "🌀",
+      "art": "flaeche",
+      "radius": 3.6,
+      "damageFactor": 1.4,
+      "cooldownMs": 6000,
+      "manaCost": 12,
+      "wirkung": "wirbel"
+    }
+  ]
+}

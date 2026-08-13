@@ -72,12 +72,34 @@ export function decodeCredentials(r: ByteReader): CredentialsMsg {
   return { name: r.str(), password: r.str() };
 }
 
+/**
+ * Eine Figur anlegen — nur der Name.
+ *
+ * Kein Beruf: den lernt man im Spiel, ab Stufe 15 bei einem Lehrer, und nicht
+ * an einer Maske, an der man noch nichts über ihn wissen kann. Bis dahin ist
+ * die Figur beruflos, und das ist kein Fehlwert, sondern ein Zustand.
+ */
 export function encodeCreateCharacter(name: string): Uint8Array {
   return packet(ClientOp.CreateCharacter, 64).str(name).finish();
 }
 
 export function decodeCreateCharacter(r: ByteReader): { name: string } {
   return { name: r.str() };
+}
+
+/**
+ * Eine Fertigkeit wirken.
+ *
+ * Nur die Kennung — kein Ziel, keine Stelle, keine Richtung. Wohin sie wirkt,
+ * steht in der Fertigkeit selbst, und wo die Figur dabei steht, weiss der
+ * Server ohnehin besser als der Client.
+ */
+export function encodeUseSkill(skillId: string): Uint8Array {
+  return packet(ClientOp.UseSkill, 64).str(skillId).finish();
+}
+
+export function decodeUseSkill(r: ByteReader): { skillId: string } {
+  return { skillId: r.str() };
 }
 
 export function encodeDeleteCharacter(characterId: number): Uint8Array {
@@ -722,13 +744,15 @@ export interface LobbyCharacter {
   name: string;
   level: number;
   mapId: string;
+  /** Kennung des Berufs. Steht in der Liste neben Stufe und Karte. */
+  beruf: string;
 }
 
 export function encodeLobby(m: LobbyMsg): Uint8Array {
   const w = packet(ServerOp.Lobby, 512);
   w.str(m.accountName).u8(m.accessLevel).u8(m.maxCharacters).u8(m.characters.length);
   for (const c of m.characters) {
-    w.u32(c.id).str(c.name).u16(c.level).str(c.mapId);
+    w.u32(c.id).str(c.name).u16(c.level).str(c.mapId).str(c.beruf);
   }
   return w.finish();
 }
@@ -740,7 +764,13 @@ export function decodeLobby(r: ByteReader): LobbyMsg {
   const count = r.u8();
   const characters: LobbyCharacter[] = [];
   for (let i = 0; i < count; i++) {
-    characters.push({ id: r.u32(), name: r.str(), level: r.u16(), mapId: r.str() });
+    characters.push({
+      id: r.u32(),
+      name: r.str(),
+      level: r.u16(),
+      mapId: r.str(),
+      beruf: r.str(),
+    });
   }
   return { accountName, accessLevel, maxCharacters, characters };
 }
@@ -768,6 +798,22 @@ export function decodeEmote(r: ByteReader): { entityId: number; kind: number } {
   return { entityId: r.u32(), kind: r.u8() };
 }
 
+/**
+ * „Diese Figur hat diese Fertigkeit gewirkt."
+ *
+ * Die Kennung und keine Nummer: das Bild — Drehung, Funkenkreis, Radius —
+ * steht in `classes.json`, und der Client schlägt es dort nach. Eine Nummer im
+ * Protokoll wäre eine zweite Tabelle neben dem Inhalt, und beim nächsten
+ * Umbenennen stimmte eine von beiden nicht mehr.
+ */
+export function encodeSkillCast(entityId: number, skillId: string): Uint8Array {
+  return packet(ServerOp.SkillCast, 64).u32(entityId).str(skillId).finish();
+}
+
+export function decodeSkillCast(r: ByteReader): { entityId: number; skillId: string } {
+  return { entityId: r.u32(), skillId: r.str() };
+}
+
 export function encodeKick(reason: number, message: string): Uint8Array {
   return packet(ServerOp.Kick, 128).u8(reason).str(message).finish();
 }
@@ -788,6 +834,14 @@ export function decodeKick(r: ByteReader): { reason: number; message: string } {
  * sobald eine der beiden Stellen etwas dazurechnet.
  */
 export interface StatsMsg {
+  /**
+   * Kennung des Berufs.
+   *
+   * Steht hier und nicht im Willkommen, weil die Fertigkeitenleiste daran
+   * hängt — und die hängt ohnehin an Stufe und Werten, die hier stehen. Ein
+   * zweites Paket dafür wäre eines, das man beim Kartenwechsel vergisst.
+   */
+  beruf: string;
   level: number;
   exp: number;
   expForNext: number;
@@ -802,7 +856,8 @@ export interface StatsMsg {
 
 export function encodeStats(m: StatsMsg): Uint8Array {
   const w = packet(ServerOp.Stats, 2048);
-  w.u16(m.level)
+  w.str(m.beruf)
+    .u16(m.level)
     .u32(m.exp)
     .u32(Number.isFinite(m.expForNext) ? m.expForNext : 0xffffffff)
     .u32(Math.round(m.hp))
@@ -933,6 +988,7 @@ export function decodeQuestLog(r: ByteReader): QuestLogRow[] {
 
 export function decodeStats(r: ByteReader): StatsMsg {
   const kopf = {
+    beruf: r.str(),
     level: r.u16(),
     exp: r.u32(),
     expForNext: r.u32(),

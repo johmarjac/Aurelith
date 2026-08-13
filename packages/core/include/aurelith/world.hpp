@@ -113,6 +113,19 @@ class World {
   void teleport(uint32_t id, float x, float z, float yaw);
   void respawnPlayer(uint32_t id, float x, float z);
   void setTarget(uint32_t id, uint32_t targetId);
+
+  /**
+   * Ein Schlag, der alles ringsum trifft — die Wirkung einer Fertigkeit.
+   *
+   * Ohne Vorlauf und ohne Abklingzeit: beides gehört der Fertigkeit und liegt
+   * beim Server, der sie auslöst. Der Kern tut hier genau eine Sache, nämlich
+   * Schaden verteilen — und zwar über denselben Weg wie ein gewöhnlicher
+   * Treffer, damit Tod, Beute und Erfahrung nicht zweimal gebaut werden.
+   *
+   * `damageFactor` skaliert den Schaden dieses einen Vorgangs. Der Angriffswert
+   * der Figur bleibt unberührt.
+   */
+  void areaAttack(uint32_t id, float radius, float damageFactor);
   void setPlayerStats(uint32_t id, uint16_t level, float maxHp, float maxMp, float attackDamage,
                       float defense, float moveSpeed);
 
@@ -180,7 +193,8 @@ class World {
   // Kampf
   bool tryStartSwing(Entity& e);
   void resolveSwing(Entity& attacker);
-  void applyDamage(Entity& attacker, Entity& target, uint8_t extraFlags);
+  void applyDamage(Entity& attacker, Entity& target, uint8_t extraFlags,
+                   float damageFactor = 1.0f);
 
   // Tick-Abschnitte
   void advanceTimers(Entity& e, float dt);

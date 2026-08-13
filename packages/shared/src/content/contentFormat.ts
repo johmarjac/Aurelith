@@ -35,7 +35,19 @@ import {
   type ShopOffer,
   type StarterEntry,
 } from './database.ts';
-import { setQuests, type ObjectiveKind, type QuestDef } from './quests.ts';
+import {
+  setQuests,
+  type ObjectiveKind,
+  type QuestDef,
+  type QuestReward,
+} from './quests.ts';
+import {
+  setClasses,
+  setSkills,
+  type ClassDef,
+  type SkillArt,
+  type SkillDef,
+} from './classes.ts';
 import { setTuning, type Tuning } from './tuning.ts';
 
 export class ContentFormatError extends Error {
@@ -320,7 +332,7 @@ export function parseMobs(raw: unknown, source = 'mobs.json'): MobDef[] {
 // NPCs
 // ---------------------------------------------------------------------------
 
-const NPC_ROLES = ['guide', 'smith', 'merchant', 'gatekeeper', 'healer'] as const;
+const NPC_ROLES = ['guide', 'smith', 'merchant', 'gatekeeper', 'healer', 'trainer'] as const;
 
 export function parseNpcs(raw: unknown, source = 'npcs.json'): NpcDef[] {
   const { rows } = body(raw, 'npcs', source);
@@ -357,6 +369,52 @@ export function parseNpcs(raw: unknown, source = 'npcs.json'): NpcDef[] {
 }
 
 // ---------------------------------------------------------------------------
+// Berufe und Fertigkeiten
+// ---------------------------------------------------------------------------
+
+const SKILL_ARTEN = ['flaeche', 'ziel', 'selbst'] as const;
+
+export function parseClasses(raw: unknown, source = 'classes.json'): {
+  classes: ClassDef[];
+  skills: SkillDef[];
+} {
+  const { doc, rows } = body(raw, 'classes', source);
+
+  const classes = rows.map((row, i) => {
+    const path = `${source}.classes[${i}]`;
+    const o = obj(row, path);
+    return {
+      id: str(o, 'id', path),
+      name: str(o, 'name', path),
+      beschreibung: optStr(o, 'beschreibung', ''),
+      glyph: optStr(o, 'glyph', '•'),
+      waffe: optStr(o, 'waffe', 'none'),
+    };
+  });
+
+  const skills = list(doc, 'skills', source).map((row, i) => {
+    const path = `${source}.skills[${i}]`;
+    const o = obj(row, path);
+    return {
+      id: str(o, 'id', path),
+      name: str(o, 'name', path),
+      class: str(o, 'class', path),
+      level: optNum(o, 'level', 1, path),
+      beschreibung: optStr(o, 'beschreibung', ''),
+      glyph: optStr(o, 'glyph', '✳'),
+      art: oneOf<SkillArt>(o, 'art', SKILL_ARTEN, path),
+      radius: optNum(o, 'radius', 0, path),
+      damageFactor: optNum(o, 'damageFactor', 1, path),
+      cooldownMs: optNum(o, 'cooldownMs', 1000, path),
+      manaCost: optNum(o, 'manaCost', 0, path),
+      wirkung: optStr(o, 'wirkung', ''),
+    };
+  });
+
+  return { classes, skills };
+}
+
+// ---------------------------------------------------------------------------
 // Aufträge
 // ---------------------------------------------------------------------------
 
@@ -387,7 +445,7 @@ export function parseQuests(raw: unknown, source = 'quests.json'): QuestDef[] {
     }
 
     const rewardRaw = o.reward === undefined ? {} : obj(o.reward, `${path}.reward`);
-    const reward = {
+    const reward: QuestReward = {
       exp: optNum(rewardRaw, 'exp', 0, `${path}.reward`),
       gold: optNum(rewardRaw, 'gold', 0, `${path}.reward`),
       items: (rewardRaw.items === undefined
@@ -399,6 +457,9 @@ export function parseQuests(raw: unknown, source = 'quests.json'): QuestDef[] {
         return { item: str(gabe, 'item', gPath), count: optNum(gabe, 'count', 1, gPath) };
       }),
     };
+    // Nur eintragen, wenn er dasteht: ein leerer Beruf im Lohn hiesse
+    // „lehrt beruflos", und das ist etwas anderes als „lehrt nichts".
+    if (typeof rewardRaw.beruf === 'string') reward.beruf = rewardRaw.beruf;
 
     const def: QuestDef = {
       id: str(o, 'id', path),
@@ -544,6 +605,7 @@ export interface RawContent {
   npcs: unknown;
   quests: unknown;
   tuning: unknown;
+  classes: unknown;
 }
 
 /** Was `loadContent` eingelesen hat — nur zur Auskunft. */
@@ -552,6 +614,8 @@ export interface ContentSummary {
   mobs: number;
   npcs: number;
   quests: number;
+  classes: number;
+  skills: number;
 }
 
 /**
@@ -569,8 +633,24 @@ export function loadContent(raw: RawContent): ContentSummary {
   const npcs = parseNpcs(raw.npcs);
   const quests = parseQuests(raw.quests);
   const werte = parseTuning(raw.tuning);
+  const { classes, skills } = parseClasses(raw.classes);
 
   const probleme = checkReferences({ items, mobs, npcs, quests, starter, sets });
+  // Eine Fertigkeit ohne Beruf gehört niemandem: sie stünde in keiner Leiste
+  // und fiele erst auf, wenn jemand sie vermisst.
+  const berufe = new Set(classes.map((c) => c.id));
+  for (const s of skills) {
+    if (!berufe.has(s.class)) probleme.push(`skill ${s.id} → class ${s.class}`);
+  }
+  // Ein Auftrag, der einen Beruf lehrt, den es nicht gibt, ist eine Sackgasse
+  // mit Belohnung: er lässt sich abgeben, und danach hat die Figur eine
+  // Kennung, zu der keine Fertigkeit passt.
+  for (const q of quests) {
+    const lehrt = q.reward.beruf;
+    if (lehrt !== undefined && !berufe.has(lehrt)) {
+      probleme.push(`Auftrag "${q.id}" lehrt unbekannten Beruf "${lehrt}"`);
+    }
+  }
   if (probleme.length > 0) {
     throw new ContentFormatError(`Verweise gehen ins Leere:\n  - ${probleme.join('\n  - ')}`, 'content');
   }
@@ -582,8 +662,17 @@ export function loadContent(raw: RawContent): ContentSummary {
   setQuests(quests);
   setStarter(starter);
   setTuning(werte);
+  setClasses(classes);
+  setSkills(skills);
 
-  return { items: items.length, mobs: mobs.length, npcs: npcs.length, quests: quests.length };
+  return {
+    items: items.length,
+    mobs: mobs.length,
+    npcs: npcs.length,
+    quests: quests.length,
+    classes: classes.length,
+    skills: skills.length,
+  };
 }
 
 /**

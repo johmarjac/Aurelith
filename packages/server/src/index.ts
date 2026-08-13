@@ -35,7 +35,8 @@ try {
   const inhalt = await loadContentFromDisk(config.contentDir);
   console.log(
     `[inhalt] ${inhalt.items} Gegenstände, ${inhalt.mobs} Monster, ` +
-      `${inhalt.npcs} NPCs, ${inhalt.quests} Aufträge aus ${config.contentDir}`,
+      `${inhalt.npcs} NPCs, ${inhalt.quests} Aufträge, ` +
+        `${inhalt.classes} Berufe mit ${inhalt.skills} Fertigkeiten aus ${config.contentDir}`,
   );
 } catch (err) {
   console.error(String(err instanceof Error ? err.message : err));

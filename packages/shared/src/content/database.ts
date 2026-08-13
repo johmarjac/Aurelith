@@ -58,7 +58,15 @@ export function getMob(id: string): MobDef | undefined {
   return mobs.get(id);
 }
 
-export type NpcRole = 'guide' | 'smith' | 'merchant' | 'gatekeeper' | 'healer';
+/**
+ * Wofür ein NPC gut ist.
+ *
+ * Die Rolle sagt, welche Knöpfe sein Gespräch bekommt — handeln, aufwerten,
+ * heilen. `trainer` hat davon keinen: er lehrt über einen Auftrag wie jeder
+ * andere auch, und der steht in `quests.json`. Trotzdem eine eigene Rolle und
+ * nicht `guide`: wer die Tabelle liest, soll sehen, wozu Torvald dasteht.
+ */
+export type NpcRole = 'guide' | 'smith' | 'merchant' | 'gatekeeper' | 'healer' | 'trainer';
 
 export interface NpcDef {
   id: string;

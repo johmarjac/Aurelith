@@ -37,6 +37,7 @@ import {
   formatBuild,
   getItem,
   getMob,
+  getSkill,
   loadContent,
   tuning,
   type AttackProfile,
@@ -64,7 +65,7 @@ import { loadClientCore, type ClientCore } from './coreLoader.ts';
 import { Scene3D } from '../render/scene.ts';
 import { ModelRegistry } from '../render/modelRegistry.ts';
 import { ATTACK_ANIM_SECONDS, WorldView, type EntityVisual } from '../render/worldView.ts';
-import { burstHit } from '../render/particles.ts';
+import { burstHit, burstWirbel } from '../render/particles.ts';
 import { TextureLoader } from '../render/textures.ts';
 import { InputManager } from '../input/input.ts';
 import { Mixer } from '../audio/mixer.ts';
@@ -513,6 +514,7 @@ export class Game {
       this.connection?.sendShopTrade(1, itemId, count, slot);
     this.ui.onAttackHold = (held) => this.input.setAttackButton(held);
     this.ui.onJump = () => this.input.springe();
+    this.ui.onUseSkill = (skillId) => this.connection?.sendUseSkill(skillId);
     this.input.onPick = (x, y) => this.pickTarget(x, y);
     // Über einem Haufen zeigt die Maus eine Hand.
     this.input.zeigerFasstAn = (x, y) => this.lootUnderPointer(x, y).id !== 0;
@@ -653,17 +655,19 @@ export class Game {
    * geholt.
    */
   private async loadContentTables(): Promise<void> {
-    const [items, mobs, npcs, quests, tuning] = await Promise.all([
+    const [items, mobs, npcs, quests, tuning, classes] = await Promise.all([
       this.streamer.requestJson<unknown>('content/items.json'),
       this.streamer.requestJson<unknown>('content/mobs.json'),
       this.streamer.requestJson<unknown>('content/npcs.json'),
       this.streamer.requestJson<unknown>('content/quests.json'),
       this.streamer.requestJson<unknown>('content/tuning.json'),
+      this.streamer.requestJson<unknown>('content/classes.json'),
     ]);
-    const summe = loadContent({ items, mobs, npcs, quests, tuning });
+    const summe = loadContent({ items, mobs, npcs, quests, tuning, classes });
     console.log(
       `[inhalt] ${summe.items} Gegenstände, ${summe.mobs} Monster, ` +
-        `${summe.npcs} NPCs, ${summe.quests} Aufträge`,
+        `${summe.npcs} NPCs, ${summe.quests} Aufträge, ` +
+        `${summe.classes} Berufe mit ${summe.skills} Fertigkeiten`,
     );
   }
 
@@ -858,6 +862,31 @@ export class Game {
       // vom Server, damit auch die Umstehenden sie sehen.
       onEmote: (entityId, kind) => {
         if (kind === EmoteKind.Pickup) this.view.playPickup(entityId);
+      },
+
+      /**
+       * Eine gewirkte Fertigkeit — Bewegung, Funken und Ton.
+       *
+       * Was für ein Bild das ist, steht in der Fertigkeit selbst (`wirkung`)
+       * und nicht in einer Fallunterscheidung nach Kennung: eine zweite
+       * Fertigkeit mit demselben Wirbel bekäme sonst hier eine Zeile, obwohl
+       * sie in `classes.json` schon alles sagt, was nötig ist.
+       */
+      onSkillCast: (entityId, skillId) => {
+        const def = getSkill(skillId);
+        if (!def) return;
+        if (def.wirkung !== 'wirbel') return;
+
+        const ort = this.view.playWirbel(entityId);
+        if (!ort) return;
+        burstWirbel(
+          this.view.particles,
+          ort.x,
+          ort.y,
+          ort.z,
+          def.radius,
+          this.quality.particleBudget,
+        );
       },
 
       onLobby: (msg) => {

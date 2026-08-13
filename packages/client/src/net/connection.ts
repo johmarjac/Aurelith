@@ -18,6 +18,7 @@ import {
   ServerOp,
   decodeCombatEvent,
   decodeEmote,
+  decodeSkillCast,
   decodeFrame,
   FrameError,
   decodeInventory,
@@ -50,6 +51,7 @@ import {
   encodeMoveItem,
   encodePickupLoot,
   encodeUseItem,
+  encodeUseSkill,
   encodeUpgradeItem,
   encodeQuestAction,
   encodeSetTarget,
@@ -91,6 +93,14 @@ export interface ConnectionHandlers {
   onVersion?: (stamp: BuildStamp) => void;
   /** Eine Geste einer Figur — siehe `EmoteKind`. */
   onEmote?: (entityId: number, kind: number) => void;
+  /**
+   * Jemand hat eine Fertigkeit gewirkt.
+   *
+   * Auch die eigene Figur: was sie tut, meldet der Server, und nicht die
+   * Taste. Sonst sähe der Wirbel im eigenen Bild anders aus als im fremden —
+   * zum Beispiel dann, wenn der Server ihn gar nicht zugelassen hat.
+   */
+  onSkillCast?: (entityId: number, skillId: string) => void;
   /** Der Stand der Charakterverwaltung — nach dem Anmelden und nach jeder Änderung. */
   onLobby?: (msg: LobbyMsg) => void;
   /** Was an einer Anmeldung oder einer Figurenänderung nicht ging. */
@@ -243,6 +253,11 @@ export class Connection {
           this.handlers.onEmote?.(entityId, kind);
           break;
         }
+        case ServerOp.SkillCast: {
+          const { entityId, skillId } = decodeSkillCast(reader);
+          this.handlers.onSkillCast?.(entityId, skillId);
+          break;
+        }
         case ServerOp.Lobby:
           this.handlers.onLobby?.(decodeLobby(reader));
           break;
@@ -378,6 +393,16 @@ export class Connection {
   /** Einen Verbrauchsgegenstand benutzen. Über den Platz, wie beim Anlegen. */
   sendUseItem(slot: number): void {
     this.send(encodeUseItem(slot));
+    this.flush();
+  }
+
+  /**
+   * Eine Fertigkeit wirken. Sofort raus, nicht erst im nächsten Frame:
+   * Fertigkeiten haben Abklingzeiten, und ein halber Frame Verzug ist der
+   * Unterschied zwischen „gedrückt" und „zu früh gedrückt".
+   */
+  sendUseSkill(skillId: string): void {
+    this.send(encodeUseSkill(skillId));
     this.flush();
   }
 

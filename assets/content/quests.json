@@ -140,6 +140,30 @@
       "textOffer": "Du fragst nach Stahl. Gut: vier Distelkeiler oben am Weg zum Tor, und die Eisenklinge gehört dir. Sie liegt fertig unter der Bank.",
       "textProgress": "Vier Keiler. Sie stehen weiter oben, wo die Disteln wachsen.",
       "textDone": "Ein Wort ist ein Wort. Die Klinge ist geschmiedet, nicht gegossen — halt sie trocken."
+    },
+    {
+      "id": "q_beruf_krieger",
+      "name": "Der Weg des Kriegers",
+      "levelReq": 15,
+      "giver": "npc_master",
+      "objectives": [
+        {
+          "kind": "kill",
+          "target": "cave_crawler",
+          "count": 8,
+          "text": "Höhlenkriecher erschlagen"
+        }
+      ],
+      "reward": {
+        "exp": 900,
+        "gold": 300,
+        "items": [],
+        "beruf": "krieger"
+      },
+      "summary": "Torvald nimmt niemanden auf sein Wort. Acht Höhlenkriecher, dann redet er über den Beruf des Kriegers.",
+      "textOffer": "Krieger wirst du nicht, indem du es sagst. In den Höhlen hinter dem Tor sitzen Kriecher — bring acht davon zur Strecke, dann sehen wir weiter.",
+      "textProgress": "Acht. Nicht sieben. Die Höhlen liegen hinter dem Tor.",
+      "textDone": "Du hältst durch, und du hältst die Klinge richtig. Von heute an bist du Krieger — der erste Wirbel ist deiner, den Rest lernst du unterwegs."
     }
   ]
 }

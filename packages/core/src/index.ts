@@ -160,6 +160,7 @@ interface RawWorld {
   teleport(id: number, x: number, z: number, yaw: number): void;
   respawnPlayer(id: number, x: number, z: number): void;
   setTarget(id: number, targetId: number): void;
+  areaAttack(id: number, radius: number, damageFactor: number): void;
   setPlayerStats(
     id: number,
     level: number,
@@ -340,6 +341,16 @@ export class CoreWorld {
 
   setTarget(id: number, targetId: number): void {
     this.raw.setTarget(id, targetId);
+  }
+
+  /**
+   * Trifft alles Feindliche im Umkreis — die Wirkung einer Fertigkeit.
+   *
+   * Ohne Vorlauf und ohne Abklingzeit: beides gehört der Fertigkeit und wird
+   * vom Server geprüft, bevor er hier hereinruft.
+   */
+  areaAttack(id: number, radius: number, damageFactor: number): void {
+    this.raw.areaAttack(id, radius, damageFactor);
   }
 
   setPlayerStats(

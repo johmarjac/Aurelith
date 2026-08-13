@@ -99,6 +99,17 @@
       "radius": 0.6,
       "height": 2,
       "greeting": "Hinter dem Tor wird es ernst. Komm nicht unvorbereitet zurück."
+    },
+    {
+      "id": "npc_master",
+      "name": "Torvald",
+      "title": "Kampfmeister",
+      "role": "trainer",
+      "model": "npc_master",
+      "scale": 1.08,
+      "radius": 0.55,
+      "height": 1.95,
+      "greeting": "Wer einen Beruf will, muss ihn sich verdienen. Komm wieder, wenn du Stufe 15 erreicht hast."
     }
   ]
 }

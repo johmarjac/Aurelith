@@ -34,6 +34,10 @@ constexpr float kMaxWalkableSlopeDeg = 52.0f;
 constexpr float kGravity = 22.0f;
 constexpr float kJumpSpeed = 7.2f;
 
+// Höchstzahl der Ziele eines Flächenangriffs. Deckelt den schlimmsten Fall —
+// wer in einer Herde steht, soll sie treffen, aber nicht den Server aufhalten.
+constexpr int kMaxAreaTargets = 16;
+
 // Trefferpause des Opfers in Sekunden.
 constexpr float kHitStunSeconds = 0.18f;
 
@@ -109,6 +113,9 @@ enum CombatFlag : uint8_t {
   kCombatCritical = 1u << 0,
   kCombatKilling = 1u << 1,
   kCombatMiss = 1u << 2,
+  // Der Treffer kam aus einer Fertigkeit und nicht aus einem gewöhnlichen
+  // Schlag. Der Client zeigt daraufhin einen kräftigeren Funkenschlag.
+  kCombatSkill = 1u << 4,
   // Der Treffer kam aus der Ferne. Der Client zeichnet daraufhin einen Pfeil
   // vom Angreifer zum Ziel — die Flugbahn ist reine Anzeige, der Schaden ist
   // in dem Moment schon gefallen.

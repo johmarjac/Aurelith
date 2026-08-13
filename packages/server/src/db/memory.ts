@@ -77,6 +77,7 @@ export class MemoryStore implements GameStore {
   async createCharacter(
     accountId: number,
     name: string,
+    beruf: string,
     spawn: SpawnPoint,
   ): Promise<CharacterRecord | undefined> {
     for (const f of this.figuren.values()) {
@@ -87,6 +88,7 @@ export class MemoryStore implements GameStore {
       id: this.nextCharacterId++,
       accountId,
       name,
+      beruf,
       level: 1,
       exp: 0,
       gold: 0,

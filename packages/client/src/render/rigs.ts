@@ -40,6 +40,16 @@ export interface RigState {
    */
   pickupPhase: number;
   /**
+   * 0..1 während der Wirbelklinge, sonst negativ.
+   *
+   * Wie `pickupPhase` eine Geste vom Server und kein Zustand der Simulation:
+   * der Kern kennt nur den Flächenschaden, den er im selben Tick austeilt. Ein
+   * eigenes Feld und keine vierte Schlagvariante, weil hier die **ganze** Figur
+   * dreht und nicht nur ein Arm ausholt — als Variante gerechnet müsste jede
+   * Stelle, die `attackPhase` liest, die eine Ausnahme kennen.
+   */
+  wirbelPhase?: number;
+  /**
    * Wie weit die Figur vom Boden weg ist, 0 bis 1.
    *
    * Nicht die Höhe in Metern: die Pose soll beim Absprung weich einsetzen und
@@ -253,6 +263,86 @@ function schlagpose(variante: number, p: number): Schlagpose {
         ellbogen: bahn(1.25, 0.1),
       };
   }
+}
+
+/**
+ * Die Wirbelklinge — zwei volle Drehungen mit ausgestreckter Klinge.
+ *
+ * Aufbau in drei Abschnitten, wie beim Hieb, aber mit anderen Gewichten:
+ *
+ *   **Ausholen** (kurz). Die Figur geht leicht in die Knie und dreht ein
+ *   Stück *gegen* die Drehrichtung. Ohne dieses Gegenholen fängt die Drehung
+ *   aus dem Nichts an und sieht aus, als hätte jemand am Modell gedreht.
+ *
+ *   **Drehen** (lang). Zwei ganze Umdrehungen, schnell beginnend und weich
+ *   auslaufend. Zwei und nicht eine: bei einer sieht man die Figur einmal
+ *   vorbeikommen und hält es für einen Fehler in der Blickrichtung.
+ *
+ *   **Auslaufen.** Die Arme kommen herunter, die Drehung steht schon.
+ *
+ * Der Endwinkel ist ein ganzes Vielfaches von 2π. Das ist der Grund, warum
+ * die Pose danach ersatzlos wegfallen darf: 4π und 0 sind dieselbe Blickrichtung,
+ * und die Figur steht am Ende genau so, wie sie ohne den Wirbel stünde.
+ */
+interface Wirbelpose {
+  /** Zusätzliche Drehung um die Hochachse. Läuft von 0 bis 4π. */
+  drehung: number;
+  /** Beide Schultern heben — Arme in die Waagerechte. */
+  armX: number;
+  /** Beide Arme vom Körper weg. Der Betrag; die Seiten setzen das Vorzeichen. */
+  armZ: number;
+  /**
+   * Faktor auf die Ellbogenbeugung, 1 bis 0.
+   *
+   * Ein Faktor und kein Winkel: die Beugung, die gerade gilt, kommt aus dem
+   * Laufzyklus, und ein eigener Winkel wäre eine zweite Antwort darauf, wie
+   * krumm der Arm steht. Null heisst durchgestreckt — eine Wirbelklinge wird
+   * nicht angewinkelt geführt, sonst reicht sie nicht bis an den Rand.
+   */
+  ellbogen: number;
+  /** Anheben auf die Fussballen, in Weltnenheiten. Negativ ist das Ausholen. */
+  hoehe: number;
+  /** Neigung des Oberkörpers gegen die Drehung — die Fliehkraft. */
+  kippung: number;
+  /** Beugung des nachgezogenen Beins. Auf zwei Sohlen dreht sich niemand. */
+  knie: number;
+}
+
+function wirbelpose(p: number): Wirbelpose {
+  const AUSHOLEN = 0.16;
+  const DREHEN = 0.84;
+  const VOLL = Math.PI * 4;
+
+  let drehung: number;
+  if (p < AUSHOLEN) {
+    drehung = -0.7 * anlauf(p / AUSHOLEN);
+  } else if (p < DREHEN) {
+    drehung = -0.7 + (VOLL + 0.7) * durchzug((p - AUSHOLEN) / (DREHEN - AUSHOLEN));
+  } else {
+    drehung = VOLL;
+  }
+
+  // Die Arme gehen früh hoch und spät wieder herunter — sie sollen schon
+  // ausgestreckt sein, wenn die Drehung anfängt, sonst wirbelt die Figur
+  // erst und streckt sich dann.
+  const auf = anlauf(Math.min(1, p / 0.22));
+  const ab = anlauf(Math.max(0, (p - DREHEN) / (1 - DREHEN)));
+  const offen = auf * (1 - ab);
+
+  // Das Ausholen drückt die Figur nach unten, die Drehung hebt sie an. Beides
+  // in einer Zahl: sonst müsste die aufrufende Stelle wissen, in welchem
+  // Abschnitt sie gerade ist.
+  const ducken = p < AUSHOLEN ? -0.1 * anlauf(p / AUSHOLEN) : 0;
+
+  return {
+    drehung,
+    armX: -0.15 * offen,
+    armZ: 1.45 * offen,
+    ellbogen: 1 - offen,
+    hoehe: ducken + 0.11 * offen,
+    kippung: -0.12 * offen,
+    knie: 0.85 * offen,
+  };
 }
 
 function joint(
@@ -947,6 +1037,8 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
       let koerperKippung = 0;
       let koerperVor = 0;
       let armRechtsSeite = 0;
+      let armLinksSeite = 0;
+      let hochAuf = 0;
 
       // Bücken. Hin und zurück in einer Bewegung: `sin(p·π)` ist bei null und
       // eins genau null, die Figur steht also am Anfang und am Ende ohne
@@ -984,10 +1076,33 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
         knieRechts += beugung * 0.75;
       }
 
+      // --- Wirbelklinge -----------------------------------------------------
+      //
+      // Nach dem Hieb und dem Bücken, weil sie beides übersteuert: wer wirbelt,
+      // holt nicht nebenbei noch aus. Die Drehung kommt auf `koerperDrehung`
+      // **oben drauf** — sie soll auch dann gelten, wenn der Rumpf aus einem
+      // anderen Grund schon gedreht war.
+      const wirbelPhase = state.wirbelPhase ?? -1;
+      if (wirbelPhase >= 0) {
+        const wirbel = wirbelpose(wirbelPhase);
+        armLinks = wirbel.armX;
+        armRechts = wirbel.armX;
+        armRechtsSeite = wirbel.armZ;
+        // Der linke Arm geht zur anderen Seite: dieselbe Zahl, anderes
+        // Vorzeichen — die Schultern liegen spiegelbildlich zur Mitte.
+        armLinksSeite = -wirbel.armZ;
+        ellbogenLinks *= wirbel.ellbogen;
+        ellbogenRechts *= wirbel.ellbogen;
+        koerperDrehung += wirbel.drehung;
+        koerperKippung += wirbel.kippung;
+        knieRechts += wirbel.knie;
+        hochAuf = wirbel.hoehe;
+      }
+
       armL.rotation.x = armLinks;
       armR.rotation.x = armRechts;
       armR.rotation.z = armRechtsSeite;
-      armL.rotation.z = 0;
+      armL.rotation.z = armLinksSeite;
       ellbogenL.rotation.x = ellbogenLinks;
       ellbogenR.rotation.x = ellbogenRechts;
       body.rotation.y = koerperDrehung;
@@ -1008,7 +1123,8 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
       body.position.y = Math.abs(Math.sin(gaitPhase)) * 0.05 * gait +
         Math.sin(state.time * 1.8) * 0.012 -
         beugung * 0.18 -
-        Math.min(knieLinks, knieRechts) * 0.12;
+        Math.min(knieLinks, knieRechts) * 0.12 +
+        hochAuf;
 
       // --- Sprung ---------------------------------------------------------
       //
@@ -1320,6 +1436,19 @@ export const CHARACTER_CONFIGS: Record<string, CharacterConfig> = {
     hair: 0x5c3a2a,
     accent: 0xd8b84a,
     weapon: 'none',
+  },
+  // Der Kampfmeister: gross, dunkel gekleidet, Klinge am Gürtel. Er lehrt den
+  // Krieger, also trägt er, womit ein Krieger kämpft.
+  npc_master: {
+    kind: 'humanoid',
+    height: 1.95,
+    bulk: 1.2,
+    skin: 0xc08a62,
+    shirt: 0x4a3a3a,
+    pants: 0x2f2a2a,
+    hair: 0x8c8478,
+    accent: 0xb0342c,
+    weapon: 'sword',
   },
   npc_gatekeeper: {
     kind: 'humanoid',

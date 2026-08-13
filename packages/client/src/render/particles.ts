@@ -379,3 +379,55 @@ export function burstHit(
     lift: 0.55,
   });
 }
+
+/**
+ * Der Ring der Wirbelklinge.
+ *
+ * Ein Kranz aus kleinen Ausbrüchen auf dem Wirkkreis und nicht ein einzelner
+ * grosser in der Mitte: der Kreis ist die Aussage der Fertigkeit — wer darin
+ * steht, wird getroffen — und ein Ausbruch in der Mitte sagt genau das nicht.
+ *
+ * Der Radius ist derselbe, mit dem der Server rechnet. Er kommt deshalb von
+ * aussen herein und steht nicht hier: eine abgeschriebene Zahl wäre eine
+ * zweite Wahrheit über die Reichweite, und sie wäre falsch, sobald jemand die
+ * Fertigkeit in `classes.json` anfasst.
+ */
+export function burstWirbel(
+  field: ParticleField,
+  x: number,
+  y: number,
+  z: number,
+  radius: number,
+  budget: number,
+): void {
+  // Genug Stellen, dass der Kranz geschlossen wirkt, und nicht mehr: bei
+  // sechzehn Punkten auf dreieinhalb Metern liegen sie gut eine Handbreit
+  // auseinander, und das schliesst das Auge von selbst.
+  const stellen = Math.max(8, Math.min(24, Math.round(budget * 0.2)));
+  for (let i = 0; i < stellen; i++) {
+    const w = (i / stellen) * Math.PI * 2;
+    const px = x + Math.cos(w) * radius;
+    const pz = z + Math.sin(w) * radius;
+
+    // Kaltes Klingenweiss nach aussen …
+    field.burst(px, y + 0.35, pz, {
+      count: 2,
+      color: 0xdff0ff,
+      speed: 2.6,
+      size: 2.2,
+      life: 0.4,
+      lift: 0.3,
+    });
+  }
+
+  // … und ein Stoss aus der Mitte, der die Drehung selbst zeigt. Hoch genug
+  // angesetzt, dass er auf Höhe der Klinge sitzt und nicht an den Füssen.
+  field.burst(x, y + 0.9, z, {
+    count: Math.max(6, Math.round(budget * 0.25)),
+    color: 0x9ec8ff,
+    speed: 4.2,
+    size: 2.6,
+    life: 0.5,
+    lift: 0.15,
+  });
+}

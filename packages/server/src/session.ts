@@ -79,6 +79,15 @@ export class Session {
   itemsDirty = false;
   questsDirty = false;
 
+  /**
+   * Wann jede Fertigkeit wieder bereit ist, als Zeitstempel.
+   *
+   * An der Sitzung und nicht am Spielstand: eine Abklingzeit überlebt kein
+   * Abmelden, und sie soll es auch nicht — wer sich abmeldet, wartet ohnehin
+   * länger als jede Abklingzeit.
+   */
+  readonly skillReady = new Map<string, number>();
+
   /** Letzte verarbeitete Eingabesequenz — Anker der Reconciliation im Client. */
   lastInputSeq = 0;
   /**

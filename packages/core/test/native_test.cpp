@@ -580,6 +580,41 @@ void testMoveSpeedFromStats() {
   check(schnell > langsam * 2.0f, "höheres Tempo bringt die Figur deutlich weiter");
 }
 
+void testAreaAttack() {
+  std::printf("Flächenschlag einer Fertigkeit\n");
+  aur::MobRegistry mobs;
+  const uint32_t mobIndex = registerTestMob(mobs, false);
+  aur::World world(11u, flatTerrain(), &mobs);
+  world.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+
+  // Zwei im Kreis, einer weit draussen. Der Weite ist die Gegenprobe: ohne
+  // ihn liesse sich nicht unterscheiden, ob der Radius wirkt oder ob der
+  // Schlag einfach alles trifft, was auf der Karte steht.
+  world.spawnMob(10, mobIndex, 0.0f, 1.5f, -1, aur::kNoSpawner);
+  world.spawnMob(11, mobIndex, -2.0f, 0.5f, -1, aur::kNoSpawner);
+  world.spawnMob(12, mobIndex, 0.0f, 12.0f, -1, aur::kNoSpawner);
+
+  // Niemand ist anvisiert — genau das ist der Unterschied zum Schlag.
+  world.areaAttack(1, 3.6f, 1.0f);
+
+  check(world.find(10)->hp < 100.0f, "der Nahe nimmt Schaden");
+  check(world.find(11)->hp < 100.0f, "der Zweite im Kreis auch");
+  check(world.find(12)->hp == 100.0f, "der Weite bleibt unversehrt");
+  check(world.find(1)->targetId == 0, "und das ganz ohne Zielauswahl");
+
+  // Der Faktor rechnet auf den Angriffswert und nicht auf das Ergebnis: zwei
+  // Läufe mit demselben Zufall, einmal doppelt so stark.
+  auto schaden = [&](float faktor) {
+    aur::World w(12u, flatTerrain(), &mobs);
+    w.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+    w.setCritProfile(1, 0.0f, 1.0f);
+    w.spawnMob(10, mobIndex, 0.0f, 1.0f, -1, aur::kNoSpawner);
+    w.areaAttack(1, 3.6f, faktor);
+    return 100.0f - w.find(10)->hp;
+  };
+  check(schaden(2.0f) > schaden(1.0f), "ein höherer Faktor tut mehr weh");
+}
+
 void testCritProfile() {
   std::printf("Kritische Treffer\n");
   aur::MobRegistry mobs;
@@ -769,6 +804,7 @@ int main() {
   testRangedAttack();
   testHeal();
   testMoveSpeedFromStats();
+  testAreaAttack();
   testCritProfile();
   testWandering();
 

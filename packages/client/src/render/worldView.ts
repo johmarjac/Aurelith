@@ -49,6 +49,18 @@ export const ATTACK_ANIM_SECONDS = 0.45;
 export const PICKUP_ANIM_SECONDS = 0.7;
 
 /**
+ * Wie lange die Wirbelklinge dreht.
+ *
+ * Deutlich länger als ein Schlag — es sind zwei ganze Umdrehungen. Kürzer
+ * ginge, sähe aber nach Zappeln aus: unter etwa einer Sekunde nimmt das Auge
+ * die Figur nicht mehr als drehend wahr, sondern als flackernd.
+ *
+ * Ungebunden an die Abklingzeit der Fertigkeit, wie schon beim Schlag: die
+ * eine Zahl ist Spielregel und steht in `classes.json`, die andere ist Bild.
+ */
+export const WIRBEL_ANIM_SECONDS = 1.05;
+
+/**
  * Flugzeit eines Pfeils, unabhängig von der Entfernung.
  *
  * Feste Zeit statt fester Geschwindigkeit: bei achtzehn Metern Reichweite
@@ -150,6 +162,14 @@ export interface EntityVisual {
    * und nicht aus dem Zustand der Simulation.
    */
   pickupTimer: number;
+  /**
+   * Läuft während der Wirbelklinge — Sekunden seit ihrem Beginn, sonst negativ.
+   *
+   * Eine eigene Uhr neben `attackTimer`: die Drehung dauert doppelt so lange
+   * wie ein Hieb, und wer beides auf dieselbe Uhr legte, müsste bei jedem
+   * Blick darauf erst nachsehen, welche Bewegung gerade gemeint ist.
+   */
+  wirbelTimer: number;
   /** Geschätztes Tempo für die Laufanimation. */
   speed: number;
 
@@ -477,6 +497,7 @@ export class WorldView {
       attackTimer: -1,
       attackVariant: 0,
       pickupTimer: -1,
+      wirbelTimer: -1,
       speed: 0,
       rig,
       weapon: row.weapon,
@@ -770,6 +791,10 @@ export class WorldView {
         e.pickupTimer += dt;
         if (e.pickupTimer > PICKUP_ANIM_SECONDS) e.pickupTimer = -1;
       }
+      if (e.wirbelTimer >= 0) {
+        e.wirbelTimer += dt;
+        if (e.wirbelTimer > WIRBEL_ANIM_SECONDS) e.wirbelTimer = -1;
+      }
 
       // In der Luft? Gefragt wird nur bei Spielern — Monster springen nicht,
       // und ein Aufruf in den Kern je Wesen und Bild wäre für sie umsonst.
@@ -793,12 +818,16 @@ export class WorldView {
         attackPhase: e.attackTimer >= 0 ? e.attackTimer / ATTACK_ANIM_SECONDS : -1,
         attackVariant: e.attackVariant,
         pickupPhase: e.pickupTimer >= 0 ? e.pickupTimer / PICKUP_ANIM_SECONDS : -1,
+        wirbelPhase: e.wirbelTimer >= 0 ? e.wirbelTimer / WIRBEL_ANIM_SECONDS : -1,
         dead: e.state === EntityState.Dead,
         time: this.elapsed,
         dt,
       });
 
-      if (e.attackTimer >= 0) this.zeichneKlingenlage(e);
+      // Der Schweif gehört zu jeder Bewegung der Klinge, nicht nur zum Hieb:
+      // beim Wirbel zieht er den Kreis nach, und genau der ist die Aussage der
+      // Fertigkeit.
+      if (e.attackTimer >= 0 || e.wirbelTimer >= 0) this.zeichneKlingenlage(e);
     }
 
     this.spur.step(dt);
@@ -853,6 +882,25 @@ export class WorldView {
     const e = this.entities.get(entityId);
     if (!e || e.pickupTimer >= 0) return;
     e.pickupTimer = 0;
+  }
+
+  /**
+   * Lässt eine Figur die Wirbelklinge drehen.
+   *
+   * Gibt die Stelle zurück, an der es passiert — oder nichts, wenn die Figur
+   * gar nicht sichtbar ist. Der Aufrufer setzt die Funken dorthin: die Sicht
+   * weiss, wo jemand steht, und der Ruf über das Netz nennt nur die Kennung.
+   *
+   * Läuft die Drehung schon, beginnt sie nicht von vorn — wie beim Bücken.
+   * Anders als dort ist das hier keine Höflichkeit gegenüber dem Auge: der
+   * Server lässt die Fertigkeit ohnehin nur einmal je Abklingzeit zu, ein
+   * zweiter Ruf wäre also ein doppelt zugestelltes Ereignis.
+   */
+  playWirbel(entityId: number): { x: number; y: number; z: number } | undefined {
+    const e = this.entities.get(entityId);
+    if (!e) return undefined;
+    if (e.wirbelTimer < 0) e.wirbelTimer = 0;
+    return { x: e.x, y: e.y, z: e.z };
   }
 
   /** Entfernt alle Figuren, behält aber Boden und Props. Für Serverwechsel. */

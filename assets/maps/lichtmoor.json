@@ -9052,6 +9052,15 @@
         196
       ],
       "yaw": 3.14
+    },
+    {
+      "id": "n_master",
+      "def": "npc_master",
+      "position": [
+        -5,
+        -9
+      ],
+      "yaw": 0.6
     }
   ],
   "portals": [

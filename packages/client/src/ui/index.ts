@@ -26,6 +26,9 @@ import {
   slotCapacity,
   SLOT_NAMES,
   setOfItem,
+  skillsFor,
+  getClass,
+  type SkillDef,
   setProgress,
   glowFrom,
   type EquipSlot,
@@ -209,6 +212,14 @@ export class UI {
   onAttackHold?: (held: boolean) => void;
   /** Der Sprungknopf auf dem Telefon. Dasselbe wie die Leertaste. */
   onJump?: () => void;
+  /**
+   * Eine Fertigkeit aus der Leiste wirken.
+   *
+   * Nur die Kennung: ob sie erlaubt ist, entscheidet der Server. Die Leiste
+   * prüft davor dasselbe noch einmal — aber nur, um die Absage zu ersparen,
+   * nicht um sie zu ersetzen.
+   */
+  onUseSkill?: (skillId: string) => void;
   /** Der Spieler will das Tor benutzen, in dem er steht. */
   onUsePortal?: () => void;
   /**
@@ -320,6 +331,29 @@ export class UI {
     'wartet';
 
   private lastStats?: StatsMsg;
+
+  // --- Fertigkeitenleiste ----------------------------------------------------
+  //
+  // Drei gleich lange Reihen, indiziert über den Platz: das Feld, die
+  // Fertigkeit darin und der Zeitpunkt, ab dem sie wieder bereit ist. Ein
+  // Gegenstand je Platz mit allen dreien darin wäre hübscher und hätte den
+  // Nachteil, dass ein leerer Platz dann entweder `undefined` ist — und die
+  // Zuordnung zur Taste verliert — oder ein Blindobjekt braucht.
+  private readonly aktionsplaetze: HTMLDivElement[] = [];
+  private readonly leisteSkills: (SkillDef | undefined)[] = [];
+  /** `performance.now()`, ab dem der Platz wieder frei ist. Null heisst bereit. */
+  private readonly abklingBis: number[] = [];
+  /** Woraus die Leiste zuletzt gebaut wurde — damit sie nicht bei jedem Stats-Paket neu entsteht. */
+  private leisteAus = '';
+  /**
+   * Läuft, solange irgendwo eine Abklingzeit läuft.
+   *
+   * Eine eigene Uhr und nicht die Renderschleife: die Leiste soll auch dann
+   * herunterzählen, wenn nichts gezeichnet wird — und sie soll nicht in jedem
+   * der sechzig Bilder je Sekunde sechs Zahlen anfassen, von denen sich zehnmal
+   * je Sekunde eine ändert.
+   */
+  private abklingUhr?: number;
 
   constructor(
     host: HTMLElement,
@@ -545,7 +579,17 @@ export class UI {
     for (let i = 0; i < ACTION_SLOTS; i++) {
       const platz = el('div', 'action-slot');
       platz.title = `Fertigkeitenplatz ${i + 1} — noch leer`;
-      platz.append(el('span', 'key', String(i + 1)));
+      // Das Zeichen der Fertigkeit, die Abklingzeit darüber, die Taste unten
+      // rechts. Alle drei sind immer da und werden nur gefüllt — ein Platz,
+      // der seine Kinder wechselt, verliert bei jedem Wechsel die
+      // Mausverfolgung und damit die Anzeige beim Überfahren.
+      platz.append(
+        el('span', 'action-glyph', ''),
+        el('span', 'action-abkling', ''),
+        el('span', 'key', String(i + 1)),
+      );
+      platz.addEventListener('click', () => this.wirke(i));
+      this.aktionsplaetze.push(platz);
       actionbar.appendChild(platz);
     }
     host.appendChild(actionbar);
@@ -875,6 +919,19 @@ export class UI {
         if (e.key === 'Escape') (target as HTMLInputElement).blur();
         return;
       }
+      // Die Zifferntasten wirken die Fertigkeit auf dem gleichnamigen Platz.
+      // Über `code` und nicht über `key`: auf einer französischen Tastatur
+      // liegt auf derselben Taste ein „&", und die Leiste soll dort dieselbe
+      // sein wie überall.
+      if (e.code.startsWith('Digit')) {
+        const platz = Number(e.code.slice(5)) - 1;
+        if (platz >= 0 && platz < ACTION_SLOTS) {
+          e.preventDefault();
+          this.wirke(platz);
+          return;
+        }
+      }
+
       if (e.code === 'KeyI') this.inventoryWindow.toggle();
       else if (e.code === 'KeyC') this.characterWindow.toggle();
       else if (e.code === 'KeyJ') this.questWindow.toggle();
@@ -907,8 +964,107 @@ export class UI {
     this.nameLabel.textContent = name;
   }
 
+  // -------------------------------------------------------------------------
+  // Fertigkeiten
+  // -------------------------------------------------------------------------
+
+  /**
+   * Füllt die Leiste mit dem, was dieser Beruf auf dieser Stufe kann.
+   *
+   * Beruf **und** Stufe: eine Fertigkeit kommt mit einer Stufe dazu, und die
+   * Leiste soll das im selben Augenblick zeigen, in dem der Aufstieg im
+   * Medaillon steht. Gebaut wird nur, wenn sich eines von beidem geändert hat
+   * — sonst risse jedes Stats-Paket die Abklinganzeige mitten im Zählen ab.
+   */
+  private baueLeiste(beruf: string, level: number): void {
+    const schluessel = `${beruf}:${level}`;
+    if (this.leisteAus === schluessel) return;
+    this.leisteAus = schluessel;
+
+    const koennen = skillsFor(beruf, level);
+    for (let i = 0; i < this.aktionsplaetze.length; i++) {
+      const platz = this.aktionsplaetze[i]!;
+      const def = koennen[i];
+      this.leisteSkills[i] = def;
+
+      const glyph = platz.querySelector<HTMLElement>('.action-glyph')!;
+      glyph.textContent = def?.glyph ?? '';
+      platz.dataset.belegt = def ? '1' : '0';
+      platz.title = def
+        ? `${def.name} — ${def.beschreibung}\n` +
+          `${def.manaCost} Mana · ${(def.cooldownMs / 1000).toFixed(0)} s Abklingzeit`
+        : `Fertigkeitenplatz ${i + 1} — noch leer`;
+    }
+  }
+
+  /**
+   * Wirkt, was auf diesem Platz liegt.
+   *
+   * Die Prüfungen hier sind eine Höflichkeit und keine Regel: der Server
+   * entscheidet, und er tut es noch einmal. Was er absagt, kommt als
+   * Systemnachricht zurück — hier wird nur vermieden, sie für etwas zu
+   * kassieren, das man selbst schon sieht.
+   */
+  private wirke(index: number): void {
+    const def = this.leisteSkills[index];
+    if (!def) return;
+
+    const rest = (this.abklingBis[index] ?? 0) - performance.now();
+    if (rest > 0) return;
+
+    if (this.lastStats && this.lastStats.mp < def.manaCost) {
+      this.debug(`${def.name}: zu wenig Mana (${def.manaCost} nötig).`, 'warnung');
+      return;
+    }
+
+    this.abklingBis[index] = performance.now() + def.cooldownMs;
+    this.starteAbklingUhr();
+    this.onUseSkill?.(def.id);
+  }
+
+  private starteAbklingUhr(): void {
+    if (this.abklingUhr !== undefined) return;
+    // Zehnmal je Sekunde: die Anzeige geht auf ein Zehntel genau, alles
+    // Schnellere wäre eine Zahl, die niemand liest.
+    this.abklingUhr = window.setInterval(() => this.zeigeAbklingzeiten(), 100);
+    this.zeigeAbklingzeiten();
+  }
+
+  private zeigeAbklingzeiten(): void {
+    const jetzt = performance.now();
+    let laeuft = false;
+
+    for (let i = 0; i < this.aktionsplaetze.length; i++) {
+      const platz = this.aktionsplaetze[i]!;
+      const anzeige = platz.querySelector<HTMLElement>('.action-abkling')!;
+      const rest = (this.abklingBis[i] ?? 0) - jetzt;
+
+      if (rest <= 0) {
+        anzeige.textContent = '';
+        platz.dataset.abkling = '0';
+        continue;
+      }
+
+      laeuft = true;
+      // Unter zehn Sekunden mit einer Nachkommastelle, darüber ganze: bei
+      // einer Minute Abklingzeit ist das Zehntel keine Auskunft mehr.
+      const sek = rest / 1000;
+      anzeige.textContent = sek >= 10 ? String(Math.ceil(sek)) : sek.toFixed(1);
+      platz.dataset.abkling = '1';
+    }
+
+    // Die Uhr hält an, sobald nichts mehr zu zählen ist. Ein Intervall, das
+    // im Leerlauf weiterläuft, kostet nichts und ist genau deshalb schwer zu
+    // bemerken, wenn es doch einmal etwas kostet.
+    if (!laeuft && this.abklingUhr !== undefined) {
+      window.clearInterval(this.abklingUhr);
+      this.abklingUhr = undefined;
+    }
+  }
+
   setStats(stats: StatsMsg): void {
     this.lastStats = stats;
+    this.baueLeiste(stats.beruf, stats.level);
     // Das Gold steht im Laden — wer eben etwas verkauft hat, soll den neuen
     // Stand sehen, ohne das Fenster zu schliessen.
     this.shopWindow.setInventory(this.sellableItems(), stats.gold);
@@ -933,7 +1089,12 @@ export class UI {
     // Die Liste der Attribute steht nicht hier, sondern kommt vom Server:
     // eine abgeschriebene Aufzählung zeigt irgendwann sechs von acht Werten,
     // und die zwei fehlenden sind die, an denen das Gleichgewicht kippt.
+    // Der Beruf steht über allem anderen: er entscheidet, was die Figur kann.
+    // „Noch keiner" und nicht eine leere Zeile — die Zeile ist die Auskunft,
+    // dass hier noch etwas zu holen ist.
+    const beruf = getClass(stats.beruf);
     const zeilen: HTMLElement[] = [
+      ...this.statRow('Beruf', beruf ? `${beruf.glyph} ${beruf.name}` : 'Noch keiner'),
       ...this.statRow('Stufe', String(stats.level)),
       ...this.statRow('Erfahrung', next > 0 ? `${stats.exp} / ${next}` : 'Höchststufe'),
       ...this.statRow('Leben', `${Math.round(stats.hp)} / ${stats.maxHp}`),

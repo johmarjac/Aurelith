@@ -28,6 +28,18 @@ export interface QuestReward {
   exp: number;
   gold: number;
   items: ReadonlyArray<{ item: string; count: number }>;
+  /**
+   * Ein Beruf, den dieser Auftrag lehrt — Kennung aus `classes.json`.
+   *
+   * So und nicht über einen eigenen Auftragstyp: einen Beruf zu lernen ist von
+   * aussen dasselbe wie einen Gegenstand zu bekommen — man tut etwas für
+   * jemanden und hat danach etwas, das man vorher nicht hatte. Ein eigener Typ
+   * hätte dieselbe Annahme, dieselbe Abgabe und dieselben Texte, nur mit einer
+   * zweiten Codebahn daneben.
+   *
+   * Fehlt es, lehrt der Auftrag nichts. Das ist der Normalfall.
+   */
+  beruf?: string;
 }
 
 export interface QuestDef {

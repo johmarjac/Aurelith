@@ -7,7 +7,7 @@
  * ändert, zählt PROTOCOL_VERSION hoch.
  */
 
-export const PROTOCOL_VERSION = 10;
+export const PROTOCOL_VERSION = 11;
 
 export const ClientOp = {
   Hello: 0x01,
@@ -47,6 +47,8 @@ export const ClientOp = {
   EnterWorld: 0x15,
   /** Zurück in die Charakterverwaltung — die Figur verlässt die Welt. */
   LeaveWorld: 0x16,
+  /** Eine Fertigkeit wirken. Was daraus wird, entscheidet der Server. */
+  UseSkill: 0x17,
 } as const;
 export type ClientOp = (typeof ClientOp)[keyof typeof ClientOp];
 
@@ -86,6 +88,18 @@ export const ServerOp = {
    * sich jemand nach etwas bückt.
    */
   Emote: 0x8f,
+  /**
+   * Jemand hat eine Fertigkeit gewirkt.
+   *
+   * Getrennt von `Emote`, obwohl beides „sieh her" heisst: eine Geste ist für
+   * sich fertig, eine Fertigkeit steht in `classes.json` und bringt von dort
+   * ihren Radius, ihre Wirkung und ihren Namen mit. Über die Leitung geht
+   * darum die Kennung und nicht eine Nummer für ein Bild — welches Bild
+   * daraus wird, entscheidet der Inhalt und nicht das Protokoll.
+   *
+   * Was die Fertigkeit *anrichtet*, kommt wie immer als Trefferereignisse.
+   */
+  SkillCast: 0x90,
 } as const;
 export type ServerOp = (typeof ServerOp)[keyof typeof ServerOp];
 
@@ -128,4 +142,11 @@ export const CombatFlag = {
    * Anzeige — der Schaden ist in dem Moment schon gefallen.
    */
   Ranged: 1 << 3,
+  /**
+   * Der Treffer kam aus einer Fertigkeit.
+   *
+   * Der Client streut daraufhin mehr Funken. Wie beim Fernkampf reine
+   * Anzeige — der Schaden steht schon fest, wenn die Flagge ankommt.
+   */
+  Skill: 1 << 4,
 } as const;

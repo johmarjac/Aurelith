@@ -1,0 +1,15 @@
+-- Figuren bekommen einen Beruf.
+--
+-- Bis hierher war jede Figur dasselbe: dieselben Werte, dieselben Fertigkeiten
+-- (nämlich keine). Mit Berufen entscheidet sich, was eine Figur kann — und das
+-- ist eine Eigenschaft der Figur und nicht ihrer Ausrüstung.
+--
+-- Als Wort und nicht als Zahl, aus demselben Grund wie bei der Zugriffsstufe:
+-- wer in die Tabelle sieht, soll lesen können, womit er es zu tun hat. Die
+-- Kennung ist dieselbe wie in `assets/content/classes.json`.
+--
+-- Der Vorgabewert ist leer, und das ist der Normalfall und keine Notlösung:
+-- eine neue Figur hat keinen Beruf. Gelernt wird er im Spiel, ab Stufe 15 beim
+-- Kampfmeister, gegen einen Auftrag. Bestandsfiguren stehen damit dort, wo
+-- jede neue Figur auch anfängt — vor dieser Entscheidung.
+ALTER TABLE characters ADD COLUMN IF NOT EXISTS class TEXT NOT NULL DEFAULT '';

@@ -27,6 +27,7 @@ loadContent({
   npcs: datei('npcs.json'),
   quests: datei('quests.json'),
   tuning: datei('tuning.json'),
+  classes: datei('classes.json'),
 });
 
 let failures = 0;

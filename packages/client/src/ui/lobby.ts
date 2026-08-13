@@ -9,9 +9,21 @@
  * Die Maske liegt **über** der schon gezeichneten Welt. Der Client lädt Kern,
  * Inhalte und Karte, während hier jemand tippt — wer sich angemeldet hat, ist
  * damit sofort drin, statt erst einen Ladebalken zu sehen.
+ *
+ * Drei Masken, nicht eine.
+ *
+ *   `anmeldung` — Konto und Passwort. Schmal, mittig, sonst nichts.
+ *   `figuren`   — die Liste der Figuren dieses Kontos.
+ *   `neu`       — eine Figur anlegen.
+ *
+ * Immer genau eine davon ist sichtbar, und jede hat ihren eigenen Kasten mit
+ * eigener Überschrift. Untereinander in einem Kasten war es vorher, und dabei
+ * war nie klar, wo die eine Sache aufhört und die nächste anfängt: das
+ * Anlegeformular sah aus wie eine weitere Zeile der Liste, und der Kopf des
+ * Kastens sagte immer dasselbe.
  */
 
-import type { LobbyCharacter } from '@aurelith/shared';
+import { getClass, type LobbyCharacter } from '@aurelith/shared';
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -31,6 +43,9 @@ export interface LobbyStand {
   characters: LobbyCharacter[];
 }
 
+/** Welche der drei Masken gerade gilt. */
+type Seite = 'anmeldung' | 'figuren' | 'neu';
+
 export class LobbyView {
   /** Anmelden mit Name und Passwort. */
   onLogin?: (name: string, password: string) => void;
@@ -41,15 +56,22 @@ export class LobbyView {
   onEnterWorld?: (characterId: number) => void;
 
   private readonly root: HTMLDivElement;
+  private readonly anmeldungSeite: HTMLDivElement;
+  private readonly figurenSeite: HTMLDivElement;
+  private readonly neuSeite: HTMLDivElement;
+
   private readonly loginForm: HTMLFormElement;
   private readonly nameInput: HTMLInputElement;
   private readonly passInput: HTMLInputElement;
   private readonly liste: HTMLDivElement;
-  private readonly figurenSeite: HTMLDivElement;
   private readonly meldung: HTMLParagraphElement;
   private readonly kontoZeile: HTMLParagraphElement;
   private readonly neuForm: HTMLFormElement;
   private readonly neuInput: HTMLInputElement;
+  private readonly neuKnopf: HTMLButtonElement;
+
+  /** Welche Maske gerade offen ist. Die eine Wahrheit darüber. */
+  private seite: Seite = 'anmeldung';
 
   /** Welche Figur gerade zum Löschen bestätigt werden will. */
   private loeschKandidat = 0;
@@ -78,13 +100,19 @@ export class LobbyView {
     this.root = el('div', 'lobby');
     this.root.hidden = true;
 
-    const kasten = el('div', 'lobby-box panel');
-
-    kasten.appendChild(el('h1', 'lobby-titel', 'Aurelith'));
+    // Die Meldung gehört keiner Maske: sie wandert zu der, die gerade offen
+    // ist. Eine je Maske wären drei Stellen, an denen dieselbe Absage stehen
+    // kann — und zwei davon wären beim Lesen die falsche.
     this.meldung = el('p', 'lobby-meldung', '');
     this.meldung.hidden = true;
 
-    // --- Anmelden ---------------------------------------------------------
+    // --- Maske 1: Anmelden -------------------------------------------------
+    this.anmeldungSeite = el('div', 'lobby-box panel lobby-anmeldung');
+    this.anmeldungSeite.append(
+      el('h1', 'lobby-titel', 'Aurelith'),
+      el('p', 'lobby-unter', 'Melde dich an oder leg ein Konto an.'),
+    );
+
     this.loginForm = el('form', 'lobby-form');
     this.nameInput = el('input', 'lobby-input');
     this.nameInput.type = 'text';
@@ -116,34 +144,96 @@ export class LobbyView {
     anlegen.addEventListener('click', () => {
       this.onCreateAccount?.(this.nameInput.value.trim(), this.passInput.value);
     });
+    this.anmeldungSeite.appendChild(this.loginForm);
 
-    // --- Figuren ----------------------------------------------------------
-    this.figurenSeite = el('div', 'lobby-figuren');
+    // --- Maske 2: Figuren --------------------------------------------------
+    this.figurenSeite = el('div', 'lobby-box panel lobby-auswahl');
     this.figurenSeite.hidden = true;
     this.kontoZeile = el('p', 'lobby-konto', '');
     this.liste = el('div', 'lobby-liste');
 
-    this.neuForm = el('form', 'lobby-form lobby-neu');
+    const zurNeu = el('button', 'btn btn-gross', '＋ Neue Figur');
+    zurNeu.type = 'button';
+    zurNeu.addEventListener('click', () => this.zeigeSeite('neu'));
+
+    this.figurenSeite.append(
+      el('h1', 'lobby-titel', 'Deine Figuren'),
+      this.kontoZeile,
+      this.liste,
+      zurNeu,
+    );
+    // Der Knopf wird ausgeblendet, wenn das Konto voll ist — gemerkt, damit
+    // `setStand` ihn wiederfindet, ohne im DOM zu suchen.
+    this.neuKnopf = zurNeu;
+
+    // --- Maske 3: Figur anlegen -------------------------------------------
+    this.neuSeite = el('div', 'lobby-box panel lobby-neu');
+    this.neuSeite.hidden = true;
+
+    this.neuForm = el('form', 'lobby-form');
     this.neuInput = el('input', 'lobby-input');
     this.neuInput.type = 'text';
-    this.neuInput.placeholder = 'Name der neuen Figur';
+    this.neuInput.placeholder = 'Name der Figur';
     this.neuInput.maxLength = 16;
-    const neuKnopf = el('button', 'btn', 'Figur anlegen');
-    neuKnopf.type = 'submit';
-    this.neuForm.append(this.neuInput, neuKnopf);
+
+    const anlegenKnopf = el('button', 'btn btn-gross', 'Figur anlegen');
+    anlegenKnopf.type = 'submit';
+    const zurueck = el('button', 'btn', 'Zurück');
+    zurueck.type = 'button';
+    zurueck.addEventListener('click', () => this.zeigeSeite('figuren'));
+
+    const neuKnoepfe = el('div', 'lobby-knoepfe');
+    neuKnoepfe.append(anlegenKnopf, zurueck);
+
+    this.neuForm.append(
+      this.neuInput,
+      // Kein Beruf an dieser Stelle: den lernt man ab Stufe 15 beim
+      // Kampfmeister. Wer ihn hier wählte, entschiede über Fertigkeiten, von
+      // denen er noch keine gesehen hat.
+      el('p', 'lobby-unter', 'Deinen Beruf lernst du später im Spiel — ab Stufe 15.'),
+      neuKnoepfe,
+    );
     this.neuForm.addEventListener('submit', (ev) => {
       ev.preventDefault();
       const name = this.neuInput.value.trim();
       if (name.length === 0) return;
       this.onCreateCharacter?.(name);
       this.neuInput.value = '';
+      // Zurück zur Liste: die Antwort des Servers ist ein neuer Stand, und der
+      // gehört dorthin. Bleibt man stehen, sieht man den Erfolg nicht.
+      this.zeigeSeite('figuren');
     });
 
-    this.figurenSeite.append(this.kontoZeile, this.liste, this.neuForm);
+    this.neuSeite.append(el('h1', 'lobby-titel', 'Neue Figur'), this.neuForm);
 
-    kasten.append(this.meldung, this.loginForm, this.figurenSeite);
-    this.root.appendChild(kasten);
+    this.root.append(this.anmeldungSeite, this.figurenSeite, this.neuSeite);
     host.appendChild(this.root);
+    this.zeigeSeite('anmeldung');
+  }
+
+  /**
+   * Schaltet auf eine der drei Masken um.
+   *
+   * Genau eine ist sichtbar. Die Meldung wandert mit — sie steht unter der
+   * Überschrift der Maske, zu der sie gehört, und nicht in einer, die man
+   * gerade verlassen hat.
+   */
+  private zeigeSeite(seite: Seite): void {
+    this.seite = seite;
+    this.anmeldungSeite.hidden = seite !== 'anmeldung';
+    this.figurenSeite.hidden = seite !== 'figuren';
+    this.neuSeite.hidden = seite !== 'neu';
+
+    const kasten =
+      seite === 'anmeldung'
+        ? this.anmeldungSeite
+        : seite === 'figuren'
+          ? this.figurenSeite
+          : this.neuSeite;
+    // Nach der Überschrift, vor allem anderen.
+    kasten.insertBefore(this.meldung, kasten.children[1] ?? null);
+
+    if (seite === 'neu') this.neuInput.focus();
   }
 
   /**
@@ -159,8 +249,7 @@ export class LobbyView {
     this.root.hidden = false;
     if (this.angemeldet || this.formularSteht) return;
     this.formularSteht = true;
-    this.loginForm.hidden = false;
-    this.figurenSeite.hidden = true;
+    this.zeigeSeite('anmeldung');
     this.nameInput.focus();
   }
 
@@ -209,8 +298,6 @@ export class LobbyView {
     this.angemeldet = true;
     this.formularSteht = false;
     this.root.hidden = false;
-    this.loginForm.hidden = true;
-    this.figurenSeite.hidden = false;
     this.zeigeFehler('');
     this.loeschKandidat = 0;
 
@@ -224,10 +311,18 @@ export class LobbyView {
       const zeile = el('div', 'lobby-figur');
       zeile.dataset.characterId = String(figur.id);
 
+      // Der Beruf steht als Name da, wenn die Inhalte ihn kennen, sonst als
+      // Kennung: eine Figur mit einem Beruf, den dieser Client nicht kennt,
+      // soll trotzdem betretbar bleiben.
+      const beruf = getClass(figur.beruf);
       const text = el('div', 'lobby-figur-text');
       text.append(
-        el('span', 'lobby-figur-name', figur.name),
-        el('span', 'lobby-figur-info', `Stufe ${figur.level} · ${figur.mapId}`),
+        el('span', 'lobby-figur-name', `${beruf?.glyph ?? ''} ${figur.name}`.trim()),
+        el(
+          'span',
+          'lobby-figur-info',
+          `Stufe ${figur.level} · ${beruf?.name ?? figur.beruf} · ${figur.mapId}`,
+        ),
       );
 
       const betreten = el('button', 'btn', 'Betreten');
@@ -264,7 +359,14 @@ export class LobbyView {
     }
     this.liste.replaceChildren(...zeilen);
 
-    // Voll ist voll: das Formular verschwindet, statt eine Absage zu ernten.
-    this.neuForm.hidden = stand.characters.length >= stand.maxCharacters;
+    // Voll ist voll: der Weg zur Anlegemaske verschwindet, statt eine Absage
+    // zu ernten.
+    const voll = stand.characters.length >= stand.maxCharacters;
+    this.neuKnopf.hidden = voll;
+
+    // Wer gerade anlegt, bleibt beim Anlegen — ausser das Konto ist inzwischen
+    // voll. Sonst risse jede Antwort des Servers die Maske unter den Fingern
+    // weg, etwa die auf ein Löschen in einem zweiten Fenster.
+    if (this.seite !== 'neu' || voll) this.zeigeSeite('figuren');
   }
 }

@@ -3,6 +3,7 @@
  */
 
 import pg from 'pg';
+import { KEIN_BERUF } from '@aurelith/shared';
 import { starterRows } from '../inventory.ts';
 import type {
   AccountRecord,
@@ -82,7 +83,7 @@ export class PostgresStore implements GameStore {
 
   async listCharacters(accountId: number): Promise<CharacterRecord[]> {
     const res = await this.pool.query(
-      `SELECT id, account_id, name, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw
+      `SELECT id, account_id, name, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw
          FROM characters
         WHERE account_id = $1
         ORDER BY id`,
@@ -94,17 +95,18 @@ export class PostgresStore implements GameStore {
   async createCharacter(
     accountId: number,
     name: string,
+    beruf: string,
     spawn: SpawnPoint,
   ): Promise<CharacterRecord | undefined> {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
       const inserted = await client.query(
-        `INSERT INTO characters (account_id, name, map_id, pos_x, pos_z, yaw)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO characters (account_id, name, class, map_id, pos_x, pos_z, yaw)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT (name) DO NOTHING
-         RETURNING id, account_id, name, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw`,
-        [accountId, name, spawn.mapId, spawn.x, spawn.z, spawn.yaw],
+         RETURNING id, account_id, name, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw`,
+        [accountId, name, beruf, spawn.mapId, spawn.x, spawn.z, spawn.yaw],
       );
       if (inserted.rowCount === 0) {
         await client.query('ROLLBACK');
@@ -146,7 +148,7 @@ export class PostgresStore implements GameStore {
     characterId: number,
   ): Promise<LoadedCharacter | undefined> {
     const res = await this.pool.query(
-      `SELECT id, account_id, name, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw
+      `SELECT id, account_id, name, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw
          FROM characters
         WHERE id = $1 AND account_id = $2`,
       [characterId, accountId],
@@ -192,11 +194,14 @@ export class PostgresStore implements GameStore {
 
   async saveCharacter(c: CharacterRecord): Promise<void> {
     await this.pool.query(
+      // Der Beruf steht mit in der Zeile: er ändert sich nur einmal im Leben
+      // einer Figur, aber genau dann — beim Lehrer — und ein Speichern ohne
+      // ihn hiesse, dass der frisch gelernte Beruf beim Abmelden verfällt.
       `UPDATE characters
-          SET level = $2, exp = $3, gold = $4, hp = $5, mp = $6,
-              map_id = $7, pos_x = $8, pos_z = $9, yaw = $10, updated_at = now()
+          SET class = $2, level = $3, exp = $4, gold = $5, hp = $6, mp = $7,
+              map_id = $8, pos_x = $9, pos_z = $10, yaw = $11, updated_at = now()
         WHERE id = $1`,
-      [c.id, c.level, c.exp, c.gold, c.hp, c.mp, c.mapId, c.x, c.z, c.yaw],
+      [c.id, c.beruf, c.level, c.exp, c.gold, c.hp, c.mp, c.mapId, c.x, c.z, c.yaw],
     );
   }
 
@@ -264,6 +269,7 @@ function toCharacter(row: Record<string, unknown> | undefined): CharacterRecord 
     id: Number(row.id),
     accountId: Number(row.account_id),
     name: String(row.name),
+    beruf: String(row.class ?? KEIN_BERUF),
     level: Number(row.level),
     exp: Number(row.exp),
     gold: Number(row.gold),

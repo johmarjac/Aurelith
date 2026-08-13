@@ -448,6 +448,54 @@ body {
   box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45);
 }
 
+/* Ein belegter Platz ist anfassbar und hebt sich beim Überfahren — ein leerer
+   bleibt eine Vertiefung, damit man nicht auf ihn zielt. */
+.action-slot[data-belegt='1'] {
+  cursor: pointer;
+  border-color: var(--gold-dunkel, #6b5524);
+}
+
+.action-slot[data-belegt='1']:hover {
+  border-color: var(--gold-hell);
+}
+
+.action-glyph {
+  font-size: 1.5rem;
+  line-height: 1;
+  /* Ohne das verschiebt die Zifferntaste in der Ecke das Zeichen aus der
+     Mitte — sie liegt zwar absolut, wird aber beim Umbruch mitgezählt. */
+  pointer-events: none;
+}
+
+/*
+ * Die Abklingzeit.
+ *
+ * Über dem ganzen Platz und nicht als Zahl daneben: der Platz ist in dieser
+ * Zeit nicht benutzbar, und das soll man sehen, ohne die Zahl zu lesen. Der
+ * Schleier liegt über dem Zeichen und dämpft es.
+ */
+.action-abkling {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink-hell);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+
+.action-slot[data-abkling='1'] .action-abkling {
+  background: rgba(8, 10, 14, 0.66);
+}
+
+.action-slot[data-abkling='1'] .action-glyph {
+  opacity: 0.35;
+}
+
 .action-slot .key {
   position: absolute;
   right: 3px;
@@ -1236,12 +1284,34 @@ body {
   overflow: auto;
 }
 
+/*
+ * Eine der drei Masken.
+ *
+ * Sichtbar ist immer genau eine — die anderen tragen `hidden`. Sie liegen als
+ * Geschwister im selben Raster, also an derselben Stelle in der Mitte: der
+ * Wechsel von der Anmeldung zur Figurenliste tauscht den Kasten aus, statt
+ * einen zweiten darunter zu hängen.
+ */
 .lobby-box {
   width: min(26rem, 100%);
   padding: 1.1rem 1.2rem 1.3rem;
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
+}
+
+/* Die Figurenliste braucht mehr Breite als zwei Eingabefelder: in einer Zeile
+   stehen Name, Beruf, Karte und zwei Knöpfe. */
+.lobby-auswahl {
+  width: min(32rem, 100%);
+}
+
+/* Ein Satz unter der Überschrift — sagt, was diese Maske von einem will. */
+.lobby-unter {
+  margin: -0.3rem 0 0;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--ink-dim);
 }
 
 /* Auf Pergament, also dunkle Tinte — das Gold der Titelleisten säuft hier ab. */

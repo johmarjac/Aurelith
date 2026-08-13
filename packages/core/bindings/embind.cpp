@@ -212,6 +212,7 @@ EMSCRIPTEN_BINDINGS(aurelith_core) {
       .function("teleport", &aur::World::teleport)
       .function("respawnPlayer", &aur::World::respawnPlayer)
       .function("setTarget", &aur::World::setTarget)
+      .function("areaAttack", &aur::World::areaAttack)
       .function("setPlayerStats", &aur::World::setPlayerStats)
       .function("setCritProfile", &aur::World::setCritProfile)
       .function("heal", &aur::World::heal)

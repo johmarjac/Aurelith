@@ -37,6 +37,7 @@ loadContent({
   npcs: datei('npcs.json'),
   quests: datei('quests.json'),
   tuning: datei('tuning.json'),
+  classes: datei('classes.json'),
 });
 const DAY_MS = dayMs();
 

@@ -10,6 +10,8 @@ export interface CharacterRecord {
   id: number;
   accountId: number;
   name: string;
+  /** Kennung des Berufs — siehe `assets/content/classes.json`. */
+  beruf: string;
   level: number;
   exp: number;
   gold: number;
@@ -94,6 +96,7 @@ export interface GameStore {
   createCharacter(
     accountId: number,
     name: string,
+    beruf: string,
     spawn: SpawnPoint,
   ): Promise<CharacterRecord | undefined>;
   /** Löscht eine Figur — nur, wenn sie dem Konto gehört. */

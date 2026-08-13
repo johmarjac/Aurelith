@@ -67,8 +67,10 @@ void World::resolveSwing(Entity& attacker) {
               attacker.attackStyle == kAttackRanged ? kCombatRanged : kCombatNone);
 }
 
-void World::applyDamage(Entity& attacker, Entity& target, uint8_t extraFlags) {
-  float damage = computeDamage(attacker.attackDamage, target.defense, rng_.next());
+void World::applyDamage(Entity& attacker, Entity& target, uint8_t extraFlags,
+                        float damageFactor) {
+  float damage =
+      computeDamage(attacker.attackDamage * damageFactor, target.defense, rng_.next());
 
   uint8_t flags = extraFlags;
   // Die Aussicht gehört dem Angreifer, nicht dem Kampfcode. Die Vorgabewerte
@@ -128,6 +130,38 @@ void World::applyDamage(Entity& attacker, Entity& target, uint8_t extraFlags) {
     exp.value2 = std::floor(target.goldReward * (0.7f + rng_.next() * 0.6f) + 0.5f);
     if (exp.value2 < 1.0f) exp.value2 = 1.0f;
     events_.push_back(exp);
+  }
+}
+
+/**
+ * Der Flächenschlag einer Fertigkeit.
+ *
+ * Bewusst **ohne** Zielauswahl: das ist der ganze Unterschied zum
+ * gewöhnlichen Schlag. Wer wirbelt, trifft, was um ihn herum steht, und ob er
+ * jemanden anvisiert hat, spielt keine Rolle.
+ *
+ * Gemessen wird bis zur Hülle des Ziels, wie überall sonst — ein dickes
+ * Monster am Rand des Kreises ist getroffen, ein dünnes an derselben Stelle
+ * nicht.
+ */
+void World::areaAttack(uint32_t id, float radius, float damageFactor) {
+  Entity* attacker = find(id);
+  if (attacker == nullptr || !isAlive(*attacker)) return;
+
+  int hits = 0;
+  // Über Indizes: `applyDamage` legt keine Entities an, aber die Absicht
+  // bleibt so auch dann klar, wenn eines Tages etwas im Treffer entsteht.
+  for (size_t i = 0; i < entities_.size() && hits < kMaxAreaTargets; ++i) {
+    Entity& target = entities_[i];
+    if (!isHostile(*attacker, target) || !isAlive(target)) continue;
+
+    const float dx = target.x - attacker->x;
+    const float dz = target.z - attacker->z;
+    const float dist = std::sqrt(dx * dx + dz * dz) - target.radius;
+    if (dist > radius) continue;
+
+    applyDamage(*attacker, target, kCombatSkill, damageFactor);
+    ++hits;
   }
 }
 
