@@ -49,6 +49,22 @@ export const ClientOp = {
   LeaveWorld: 0x16,
   /** Eine Fertigkeit wirken. Was daraus wird, entscheidet der Server. */
   UseSkill: 0x17,
+  /**
+   * Einen Gegenstand aus dem Beutel in die Welt legen.
+   *
+   * Daraus wird ein gewöhnlicher Beutehaufen zu Füssen der Figur — derselbe,
+   * den ein erschlagenes Monster hinterlässt. Er verfällt auch wie einer:
+   * was man wegwirft, liegt nicht ewig herum.
+   */
+  DropItem: 0x18,
+  /**
+   * Einen Gegenstand vernichten — der Mülleimer im Inventar.
+   *
+   * Getrennt von `DropItem`, obwohl beides „weg damit" heisst: das eine legt
+   * ihn hin, das andere löscht ihn. Ein Paket mit einem Schalter dafür hiesse,
+   * dass ein verlorenes Bit aus dem Wegwerfen ein Vernichten macht.
+   */
+  DestroyItem: 0x19,
 } as const;
 export type ClientOp = (typeof ClientOp)[keyof typeof ClientOp];
 

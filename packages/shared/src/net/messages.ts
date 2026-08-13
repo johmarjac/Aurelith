@@ -328,6 +328,27 @@ export function decodeMoveItem(r: ByteReader): { from: number; to: number } {
 }
 
 /**
+ * Einen Gegenstand loswerden — in die Welt legen oder vernichten.
+ *
+ * Beide nennen nur den Platz und keine Menge: es geht immer der ganze Stapel.
+ * Eine Menge mitzuschicken hiesse, eine Abfrage danach zu bauen, und wer
+ * fünf von zwanzig Tränken wegwerfen will, kann sie vorher aufteilen — das
+ * Umsortieren gibt es schon.
+ */
+export function encodeDropItem(slot: number): Uint8Array {
+  return packet(ClientOp.DropItem, 16).u16(slot).finish();
+}
+
+export function encodeDestroyItem(slot: number): Uint8Array {
+  return packet(ClientOp.DestroyItem, 16).u16(slot).finish();
+}
+
+/** Beide nennen nur einen Platz — gelesen wird für beide gleich. */
+export function decodeItemSlot(r: ByteReader): { slot: number } {
+  return { slot: r.u16() };
+}
+
+/**
  * Frage nach der Fassung des Servers. Ohne Rumpf — die Frage ist die Nachricht.
  *
  * Sie steht bewusst nicht in der Willkommensnachricht: die kommt einmal beim

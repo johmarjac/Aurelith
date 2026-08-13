@@ -48,6 +48,8 @@ import {
   encodeEquipItem,
   encodeInteract,
   encodeLogin,
+  encodeDestroyItem,
+  encodeDropItem,
   encodeMoveItem,
   encodePickupLoot,
   encodeUseItem,
@@ -353,6 +355,18 @@ export class Connection {
 
   sendMoveItem(from: number, to: number): void {
     this.send(encodeMoveItem(from, to));
+  }
+
+  /** Einen Gegenstand vor die Füsse legen. Er wird zu Beute wie jede andere. */
+  sendDropItem(slot: number): void {
+    this.send(encodeDropItem(slot));
+    this.flush();
+  }
+
+  /** Einen Gegenstand vernichten. Sofort raus — der Mülleimer hat kein Zurück. */
+  sendDestroyItem(slot: number): void {
+    this.send(encodeDestroyItem(slot));
+    this.flush();
   }
 
   /** Fragt den Server nach seiner Fassung. Die Antwort kommt über `onVersion`. */

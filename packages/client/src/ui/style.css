@@ -706,6 +706,78 @@ body {
   flex: 1 1 auto;
 }
 
+/* --- Fussleiste des Inventars: Gold und Mülleimer ------------------------- */
+
+/*
+ * Sie steht **nach** dem rollenden Beutel und rollt selbst nicht mit.
+ * `flex: 0 0 auto` ist dabei die ganze Aussage: der Beutel bekommt den Rest
+ * der Höhe, die Leiste ihre eigene — und damit sieht man seinen Goldstand,
+ * ohne bis ans Ende des Beutels zu rollen.
+ */
+.inventory-fuss {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--panel-edge);
+}
+
+.gold-feld {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: var(--radius);
+  background: var(--kachel);
+  border: 1px solid var(--kachel-rand);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45);
+}
+
+.gold-muenze {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+/* Ziffernbreite fest, damit die Zahl beim Zählen nicht zappelt. */
+.gold-wert {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--gold-hell);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+/*
+ * Der Mülleimer.
+ *
+ * So gross wie eine Beutelkachel und mit demselben Rand: er ist ein Ziel zum
+ * Hinziehen, kein Knopf zum Drücken. Ein Klick darauf tut nichts — was
+ * vernichtet wird, entscheidet sich beim Loslassen.
+ */
+.muelleimer {
+  width: 3rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius);
+  background: var(--kachel);
+  border: 1px dashed var(--kachel-rand);
+  font-size: 1.2rem;
+  opacity: 0.75;
+}
+
+/* Beim Überziehen wird aus dem gestrichelten Rand ein roter — dieselbe
+   Rückmeldung wie bei einer Kachel, nur in der Farbe der Sache. */
+.muelleimer.item-ziel {
+  opacity: 1;
+  border-style: solid;
+  border-color: var(--hp-dim);
+  background: rgba(122, 37, 35, 0.22);
+}
+
 .window-title {
   display: flex;
   align-items: center;

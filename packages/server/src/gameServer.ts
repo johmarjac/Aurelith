@@ -47,6 +47,7 @@ import {
   decodeCharacterRef,
   decodeCreateCharacter,
   decodeCredentials,
+  decodeItemSlot,
   decodeMoveItem,
   decodeUseItem,
   decodeUseSkill,
@@ -123,7 +124,7 @@ import {
   removeItem,
   removeSlot,
 } from './inventory.ts';
-import type { GameStore } from './db/index.ts';
+import type { GameStore, ItemRecord } from './db/index.ts';
 
 /**
  * So viele Fehlversuche verträgt eine Verbindung, dann fliegt sie.
@@ -355,6 +356,16 @@ export class GameServer {
           if (session.state !== 'playing') break;
           const { slot } = decodeUseItem(reader);
           this.useItem(session, slot);
+          break;
+        }
+        case ClientOp.DropItem: {
+          if (session.state !== 'playing') break;
+          this.dropItem(session, decodeItemSlot(reader).slot);
+          break;
+        }
+        case ClientOp.DestroyItem: {
+          if (session.state !== 'playing') break;
+          this.destroyItem(session, decodeItemSlot(reader).slot);
           break;
         }
         case ClientOp.PickupLoot: {
@@ -1297,6 +1308,86 @@ export class GameServer {
 
     session.itemsDirty = true;
     this.sendInventory(session);
+  }
+
+  /**
+   * Prüft, ob ein Platz etwas enthält, das man loswerden darf.
+   *
+   * Eine Stelle für Wegwerfen und Vernichten: die Bedingungen sind dieselben,
+   * und zwei Abschriften davon wären zwei Stellen, an denen eines Tages die
+   * Auftragsgegenstände wieder in der Mülltonne landen.
+   */
+  private wegwerfbar(session: Session, slot: number): ItemRecord | undefined {
+    const entry = session.items.find((i) => i.slot === slot);
+    if (!entry) return undefined;
+
+    // Angelegtes bleibt an der Figur. Erst ablegen, dann wegwerfen — sonst
+    // steht die Figur nach einem Fehlgriff nackt da.
+    if (entry.equipped) {
+      this.systemMessage(session, 'Leg es erst ab.');
+      return undefined;
+    }
+
+    const def = getItem(entry.itemId);
+    if (def?.kind === 'quest') {
+      this.systemMessage(session, `${def.name} gehört zu einem Auftrag.`);
+      return undefined;
+    }
+    return entry;
+  }
+
+  /**
+   * Legt einen Gegenstand vor die Füsse der Figur.
+   *
+   * Daraus wird ein gewöhnlicher Beutehaufen — mit derselben Verfallszeit und
+   * derselben Reservierung wie die Beute eines Monsters. Ein eigener „liegt
+   * für immer"-Haufen wäre eine zweite Sorte Beute, und die erste Sorte
+   * räumt sich selbst auf.
+   */
+  private dropItem(session: Session, slot: number): void {
+    const instance = this.instances.get(session.mapId);
+    const self = instance?.entity(session.entityId);
+    const entry = this.wegwerfbar(session, slot);
+    if (!instance || !self || !entry) return;
+
+    const genommen = removeSlot(session.items, slot, entry.count);
+    if (!genommen) return;
+
+    instance.loot.drop({
+      x: self.x,
+      y: self.y,
+      z: self.z,
+      item: genommen.itemId,
+      count: genommen.count,
+      upgrade: genommen.upgrade,
+      gold: 0,
+      owner: session.entityId,
+    });
+
+    const def = getItem(genommen.itemId);
+    session.itemsDirty = true;
+    this.sendInventory(session);
+    this.systemMessage(
+      session,
+      `${def?.name ?? genommen.itemId} fallen gelassen${genommen.count > 1 ? ` (${genommen.count})` : ''}.`,
+    );
+  }
+
+  /** Vernichtet einen Gegenstand. Weg ist weg — es gibt kein Zurück. */
+  private destroyItem(session: Session, slot: number): void {
+    const entry = this.wegwerfbar(session, slot);
+    if (!entry) return;
+
+    const genommen = removeSlot(session.items, slot, entry.count);
+    if (!genommen) return;
+
+    const def = getItem(genommen.itemId);
+    session.itemsDirty = true;
+    this.sendInventory(session);
+    this.systemMessage(
+      session,
+      `${def?.name ?? genommen.itemId} vernichtet${genommen.count > 1 ? ` (${genommen.count})` : ''}.`,
+    );
   }
 
   /**

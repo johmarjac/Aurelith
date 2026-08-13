@@ -504,6 +504,8 @@ export class Game {
     this.ui.onUsePortal = () => this.usePortal();
     this.ui.onUseItem = (slot) => this.connection?.sendUseItem(slot);
     this.ui.onMoveItem = (from, to) => this.connection?.sendMoveItem(from, to);
+    this.ui.onDropItem = (slot) => this.connection?.sendDropItem(slot);
+    this.ui.onDestroyItem = (slot) => this.connection?.sendDestroyItem(slot);
     // Abmelden heisst hier: zurück in die Figurenauswahl. Die Verbindung
     // bleibt — der Server nimmt die Figur aus der Welt und schickt die Liste.
     this.ui.onLeaveWorld = () => this.connection?.sendLeaveWorld();

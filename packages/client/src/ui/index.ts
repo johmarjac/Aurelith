@@ -231,6 +231,13 @@ export class UI {
   onUseItem?: (slot: number) => void;
   /** Einen Gegenstand im Beutel auf einen anderen Platz legen. */
   onMoveItem?: (from: number, to: number) => void;
+  /**
+   * Einen Gegenstand in die Welt legen — aus dem Beutel herausgezogen und
+   * irgendwo ausserhalb der Oberfläche losgelassen.
+   */
+  onDropItem?: (slot: number) => void;
+  /** Einen Gegenstand vernichten — auf den Mülleimer gezogen. */
+  onDestroyItem?: (slot: number) => void;
   /** Zurück in die Charakterverwaltung. */
   onLeaveWorld?: () => void;
   /** Aufwerten beim Schmied. Ebenfalls über den Platz. */
@@ -270,6 +277,10 @@ export class UI {
   private readonly portalPrompt: HTMLButtonElement;
 
   private readonly inventoryWindow: GameWindow;
+  /** Der Goldstand in der Fussleiste des Inventars. */
+  private readonly goldWert: HTMLSpanElement;
+  /** Die Mülltonne daneben — Ziel beim Ziehen, sonst nur ein Bild. */
+  private readonly muelleimer: HTMLDivElement;
   private readonly inventoryGrid: HTMLElement;
   /** Die gedrehte Figur oben im Inventar. */
   private readonly doll: DollView;
@@ -505,7 +516,32 @@ export class UI {
     // ausgewählt ist.
     this.itemDetail = el('div', 'item-detail');
     this.itemDetail.hidden = true;
-    this.inventoryWindow.body.append(puppe, this.inventoryGrid);
+    /*
+     * Die Fussleiste: Gold links, Mülleimer rechts.
+     *
+     * **Hinter** dem Beutel und ausserhalb davon. Der Beutel rollt, die Leiste
+     * nicht — sie steht am unteren Rand des Fensters und bleibt dort, egal wie
+     * weit unten man im Beutel gerade ist. Im Beutel selbst wäre das Gold die
+     * letzte Zeile eines Rasters, und wer zwanzig Sachen trägt, sähe seinen
+     * Kontostand nur nach dem Scrollen.
+     */
+    this.goldWert = el('span', 'gold-wert', '0');
+    const goldFeld = el('div', 'gold-feld');
+    goldFeld.title = 'Dein Gold';
+    goldFeld.append(el('span', 'gold-muenze', '🪙'), this.goldWert);
+
+    this.muelleimer = el('div', 'muelleimer');
+    // Das Datenfeld ist die Trefferfläche fürs Ziehen — dieselbe Bauart wie
+    // `data-slot` am Beutel, damit das Loslassen an einer Stelle entscheidet,
+    // wohin ein Gegenstand geht.
+    this.muelleimer.dataset.muell = '1';
+    this.muelleimer.title = 'Zum Vernichten hierher ziehen. Weg ist weg.';
+    this.muelleimer.append(el('span', 'muelleimer-deckel', '🗑'));
+
+    const fussleiste = el('div', 'inventory-fuss');
+    fussleiste.append(goldFeld, this.muelleimer);
+
+    this.inventoryWindow.body.append(puppe, this.inventoryGrid, fussleiste);
     /*
      * Die Beschreibung schwebt und sitzt nicht mehr unter dem Raster.
      *
@@ -1069,6 +1105,10 @@ export class UI {
     // Stand sehen, ohne das Fenster zu schliessen.
     this.shopWindow.setInventory(this.sellableItems(), stats.gold);
     this.upgradeWindow.setInventory(this.inventory, stats.gold);
+
+    // Der Goldstand steht in der Fussleiste des Inventars — dort, wo er beim
+    // Aufräumen des Beutels gebraucht wird, ohne dass man dafür rollen muss.
+    this.goldWert.textContent = stats.gold.toLocaleString('de-DE');
 
     // Nur die Zahl: im Medaillon ist kein Platz für das Wort, und ein
     // Medaillon mit einer Zahl darin liest sich ohnehin als Stufe.
@@ -1656,7 +1696,8 @@ export class UI {
       };
 
       const markiere = (x: number, y: number): void => {
-        const ziel = this.kachelUnter(x, y);
+        // Der Mülleimer ist ein Ziel wie eine Kachel und leuchtet wie eine.
+        const ziel = this.muellUnter(x, y) ?? this.kachelUnter(x, y);
         if (ziel === markiert) return;
         markiert?.classList.remove('item-ziel');
         markiert = ziel ?? undefined;
@@ -1693,16 +1734,38 @@ export class UI {
         markiere(e.clientX, e.clientY);
       };
 
+      /*
+       * Wo der Gegenstand landet — drei Möglichkeiten, in dieser Reihenfolge.
+       *
+       *   1. Auf dem Mülleimer: vernichten.
+       *   2. Auf einer Kachel: umsortieren oder anlegen.
+       *   3. Sonst über der Welt: fallen lassen.
+       *
+       * Die dritte ist die einzige, die nicht an einem Ziel hängt, sondern am
+       * Fehlen eines Ziels — und darum steht sie zuletzt. „Über der Welt"
+       * heisst: unter dem Zeiger liegt kein Stück Oberfläche. Ein Zug, der auf
+       * einem Fenster endet, wirft nichts weg; man verschiebt gerade nur den
+       * Beutel und trifft daneben.
+       */
       const loslassen = (e: PointerEvent): void => {
         if (e.pointerId !== ev.pointerId) return;
         const zog = ghost !== undefined;
+        const muell = zog ? this.muellUnter(e.clientX, e.clientY) : undefined;
         const ziel = zog ? this.kachelUnter(e.clientX, e.clientY) : undefined;
+        const inDerWelt = zog && !muell && !ziel && this.ueberDerWelt(e.clientX, e.clientY);
         const nach = ziel?.getAttribute('data-slot');
         aufraeumen();
         this.zugGelaufen = zog;
+
+        if (muell) {
+          this.onDestroyItem?.(von);
+          return;
+        }
         if (nach !== null && nach !== undefined && Number(nach) !== von) {
           this.onMoveItem?.(von, Number(nach));
+          return;
         }
+        if (inDerWelt) this.onDropItem?.(von);
       };
 
       // Der Browser bricht den Zeiger ab, sobald er die Geste selbst
@@ -1719,6 +1782,30 @@ export class UI {
 
       if (!maus) halten = window.setTimeout(() => beginne(startX, startY), 300);
     });
+  }
+
+  /** Liegt an dieser Bildstelle der Mülleimer? */
+  private muellUnter(x: number, y: number): Element | undefined {
+    return document.elementFromPoint(x, y)?.closest('[data-muell]') ?? undefined;
+  }
+
+  /**
+   * Liegt an dieser Bildstelle die Welt und keine Oberfläche?
+   *
+   * Die Frage wird an genau einer Kante entschieden: liegt unter dem Zeiger
+   * etwas, das zum Wirt der Oberfläche gehört? Der Wirt selbst fängt keine
+   * Zeiger ab, seine Kinder schon — was also aus ihm zurückkommt, ist ein
+   * Fenster, eine Tafel, ein Knopf. Kommt etwas anderes zurück, ist es die
+   * Leinwand.
+   *
+   * Eine Aufzählung der Oberflächenklassen wäre dieselbe Frage in einer
+   * Liste, die beim nächsten neuen Fenster unvollständig ist.
+   *
+   * Der Ziehschatten steht nicht im Weg: er ist für Zeiger durchlässig.
+   */
+  private ueberDerWelt(x: number, y: number): boolean {
+    const treffer = document.elementFromPoint(x, y);
+    return treffer !== null && !this.host.contains(treffer);
   }
 
   /** Welche Beutelkachel liegt an dieser Bildstelle? */
