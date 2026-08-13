@@ -234,6 +234,21 @@ export function decodeUseItem(r: ByteReader): { slot: number } {
 }
 
 /**
+ * Legt einen Gegenstand im Beutel auf einen anderen Platz.
+ *
+ * Zwei Plätze und nichts weiter: was dort liegt, weiss der Server. Ein Paket,
+ * das auch noch die Kennung mitschickte, hätte zwei Angaben über dasselbe
+ * Stück — und die zweite wäre die, der man nicht trauen darf.
+ */
+export function encodeMoveItem(from: number, to: number): Uint8Array {
+  return packet(ClientOp.MoveItem, 16).u16(from).u16(to).finish();
+}
+
+export function decodeMoveItem(r: ByteReader): { from: number; to: number } {
+  return { from: r.u16(), to: r.u16() };
+}
+
+/**
  * Frage nach der Fassung des Servers. Ohne Rumpf — die Frage ist die Nachricht.
  *
  * Sie steht bewusst nicht in der Willkommensnachricht: die kommt einmal beim

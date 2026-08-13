@@ -39,6 +39,7 @@ import {
   encodeHello,
   encodeEquipItem,
   encodeInteract,
+  encodeMoveItem,
   encodePickupLoot,
   encodeQuestAction,
   encodeShopTrade,
@@ -259,6 +260,70 @@ check(
   inventory.filter((i) => !i.equipped).every((i) => i.slot < beutelPlaetze),
   'und alles andere darin',
   `${beutelPlaetze} Kacheln`,
+);
+
+// --- Umsortieren -----------------------------------------------------------
+//
+// Ein Stück auf eine freie Kachel und zurück, dann zwei belegte tauschen. Was
+// dabei nicht passieren darf, steht in den Gegenproben: ein angelegtes Stück
+// lässt sich nicht ins Raster schieben, und aus dem Beutel heraus schon gar
+// nicht.
+const beutelZeilen = () => inventory.filter((i) => !i.equipped);
+const belegteSlots = () => new Set(beutelZeilen().map((i) => i.slot));
+
+const erste = beutelZeilen()[0]!;
+const freieKachel = (() => {
+  const belegt = belegteSlots();
+  for (let i = 0; i < beutelPlaetze; i++) if (!belegt.has(i)) return i;
+  return -1;
+})();
+
+send(encodeMoveItem(erste.slot, freieKachel));
+await sleep(500);
+check(
+  inventory.some((i) => i.itemId === erste.itemId && i.slot === freieKachel),
+  'ein Gegenstand lässt sich auf eine freie Kachel legen',
+  `${erste.itemId}: ${erste.slot} → ${freieKachel}`,
+);
+
+// Tauschen: zwei belegte Kacheln wechseln die Plätze, und beide Stücke sind
+// hinterher noch da. Ein Zug, der eines davon verschluckt, wäre schlimmer als
+// einer, der gar nichts tut.
+const a = beutelZeilen()[0]!;
+const b = beutelZeilen().find((i) => i.slot !== a.slot)!;
+const vorTausch = { a: { id: a.itemId, slot: a.slot }, b: { id: b.itemId, slot: b.slot } };
+send(encodeMoveItem(vorTausch.a.slot, vorTausch.b.slot));
+await sleep(500);
+check(
+  inventory.some((i) => i.itemId === vorTausch.a.id && i.slot === vorTausch.b.slot) &&
+    inventory.some((i) => i.itemId === vorTausch.b.id && i.slot === vorTausch.a.slot),
+  'zwei belegte Kacheln tauschen ihre Plätze',
+  `${vorTausch.a.id}↔${vorTausch.b.id}`,
+);
+check(
+  inventory.length === 17,
+  'und dabei geht nichts verloren',
+  `${inventory.length} Zeilen`,
+);
+
+// Gegenprobe: das angelegte Schwert liegt ausserhalb des Beutels und bleibt
+// dort. Ginge das, könnte man sich per Paket ausziehen, ohne abzulegen.
+const schwertSlot = inventory.find((i) => i.equipped && i.itemId === 'wooden_sword')?.slot ?? -1;
+send(encodeMoveItem(schwertSlot, freieKachel));
+await sleep(500);
+check(
+  inventory.find((i) => i.itemId === 'wooden_sword' && i.equipped)?.slot === schwertSlot,
+  'ein angelegtes Stück lässt sich nicht ins Raster schieben',
+  `Platz ${schwertSlot}`,
+);
+
+// Gegenprobe: eine Nummer ausserhalb des Beutels ist kein Ziel.
+const vorherAussen = beutelZeilen()[0]!.slot;
+send(encodeMoveItem(vorherAussen, beutelPlaetze + 5));
+await sleep(500);
+check(
+  beutelZeilen().some((i) => i.slot === vorherAussen),
+  'und ausserhalb des Beutels lässt sich nichts hinlegen',
 );
 
 // Gegenprobe: abgelegt verschwindet sie auch aus dem Bild. Ohne sie zeigte die

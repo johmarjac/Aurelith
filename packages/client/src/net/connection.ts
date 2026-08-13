@@ -37,6 +37,7 @@ import {
   encodeRespawn,
   encodeEquipItem,
   encodeInteract,
+  encodeMoveItem,
   encodePickupLoot,
   encodeUseItem,
   encodeUpgradeItem,
@@ -271,6 +272,10 @@ export class Connection {
 
   sendChat(text: string, channel = 1): void {
     this.send(encodeClientChat(channel, text));
+  }
+
+  sendMoveItem(from: number, to: number): void {
+    this.send(encodeMoveItem(from, to));
   }
 
   /** Fragt den Server nach seiner Fassung. Die Antwort kommt über `onVersion`. */

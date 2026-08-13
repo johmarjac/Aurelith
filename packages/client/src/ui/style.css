@@ -863,6 +863,38 @@ body {
   padding: 0.25rem;
 }
 
+/* --- Umsortieren im Beutel ------------------------------------------------ */
+
+/* Die gezogene Kachel bleibt an ihrem Platz und tritt zurück — sonst weiss
+   man beim Ablegen nicht mehr, woher man kam. */
+.item-slot.item-zieht {
+  opacity: 0.3;
+}
+
+/* Wo es hinfällt. */
+.item-slot.item-ziel {
+  border-color: var(--gold-hell);
+  box-shadow:
+    inset 0 0 0 2px rgba(240, 207, 114, 0.55),
+    inset 0 2px 5px rgba(0, 0, 0, 0.45);
+}
+
+/* Das Stück am Zeiger. Ohne Zeigerereignisse, sonst liegt es sich beim
+   Ablegen selbst im Weg: die Suche nach der Kachel darunter fände es. */
+.item-ghost {
+  position: fixed;
+  z-index: 60;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  opacity: 0.9;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.55);
+}
+
+/* Solange gezogen wird, scrollt der Beutel nicht mit. */
+.inventory-grid.zieht .item-slot {
+  touch-action: none;
+}
+
 .item-icon {
   width: 70%;
   height: 70%;

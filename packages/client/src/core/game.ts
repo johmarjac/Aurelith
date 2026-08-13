@@ -401,6 +401,7 @@ export class Game {
     this.ui.onUpgradeItem = (slot) => this.connection?.sendUpgradeItem(slot);
     this.ui.onUsePortal = () => this.usePortal();
     this.ui.onUseItem = (slot) => this.connection?.sendUseItem(slot);
+    this.ui.onMoveItem = (from, to) => this.connection?.sendMoveItem(from, to);
     this.ui.onQuestAction = (questId, action) =>
       this.connection?.sendQuestAction(questId, action);
     this.ui.onBuy = (itemId, count) => this.connection?.sendShopTrade(0, itemId, count);

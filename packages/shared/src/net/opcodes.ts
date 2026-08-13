@@ -33,6 +33,8 @@ export const ClientOp = {
   UseItem: 0x0e,
   /** Frage nach der Fassung des Servers. Antwort: `ServerOp.Version`. */
   VersionRequest: 0x0f,
+  /** Einen Gegenstand im Beutel auf einen anderen Platz legen. */
+  MoveItem: 0x10,
 } as const;
 export type ClientOp = (typeof ClientOp)[keyof typeof ClientOp];
 

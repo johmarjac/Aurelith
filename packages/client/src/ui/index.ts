@@ -196,6 +196,8 @@ export class UI {
   onEquipItem?: (slot: number) => void;
   /** Einen Verbrauchsgegenstand benutzen. */
   onUseItem?: (slot: number) => void;
+  /** Einen Gegenstand im Beutel auf einen anderen Platz legen. */
+  onMoveItem?: (from: number, to: number) => void;
   /** Aufwerten beim Schmied. Ebenfalls über den Platz. */
   onUpgradeItem?: (slot: number) => void;
   /** Auftrag annehmen, abgeben oder aufgeben. */
@@ -1125,6 +1127,10 @@ export class UI {
     for (let i = 0; i < plaetze; i++) {
       const entry = bySlot.get(i);
       const slot = el('div', 'item-slot');
+      // Die Kachelnummer steht auf **jeder** Kachel, auch auf der leeren:
+      // sie ist das Ziel beim Umsortieren. `data-bag-slot` gibt es weiter nur
+      // dort, wo etwas liegt — daran hängen die Sprechblase und die Prüfungen.
+      slot.dataset.slot = String(i);
       if (entry) slot.dataset.bagSlot = String(entry.slot);
 
       if (!entry) {
@@ -1152,13 +1158,18 @@ export class UI {
       // Ein **einfacher** Klick zeigt die Beschreibung. Vorher hing sie am
       // `title`-Attribut, und das gibt es auf einem Telefon nicht: dort liess
       // sich der Name eines Gegenstands schlicht nicht herausfinden.
-      slot.addEventListener('click', () => this.showItemDetail(entry.slot));
+      slot.addEventListener('click', () => {
+        // Nach einem Zug ist der Klick nur das Nachspiel des Loslassens.
+        if (this.zugGelaufen) return;
+        this.showItemDetail(entry.slot);
+      });
       // Der Doppelklick bleibt als Abkürzung am Schreibtisch. Auf Touch ist er
       // unzuverlässig — dort führt der Weg über den Knopf in der Beschreibung.
       if (equippable) {
         slot.addEventListener('dblclick', () => this.onEquipItem?.(entry.slot));
       }
 
+      this.bindDrag(slot, entry.slot);
       slots.push(slot);
     }
 
@@ -1168,6 +1179,135 @@ export class UI {
     if (this.detailSlot !== undefined) {
       this.showItemDetail(this.detailSlot, true, this.detailFromDoll);
     }
+  }
+
+  /**
+   * Gerade ein Zug beendet? Dann ist der Klick danach keiner.
+   *
+   * Ein Zeiger, der losgelassen wird, löst hinterher ein `click` aus — auch
+   * dann, wenn er zwischendurch quer über das Raster gewandert ist. Ohne diese
+   * Merke klappte nach jedem Umsortieren die Sprechblase auf.
+   */
+  private zugGelaufen = false;
+
+  /**
+   * Macht eine Kachel ziehbar.
+   *
+   * Mit Zeigerereignissen und nicht mit der Ziehschnittstelle des Browsers:
+   * die gibt es auf dem Telefon nicht, und das Inventar wird dort mit dem
+   * Daumen bedient.
+   *
+   * Der Unterschied zwischen den Geräten ist der Auslöser. Am Schreibtisch
+   * beginnt der Zug, sobald die Maus ein paar Punkte weit gezogen hat. Auf dem
+   * Telefon ist Wischen aber schon vergeben — damit scrollt der Beutel. Dort
+   * beginnt er deshalb nach einem kurzen Halten, und wer vorher wischt, will
+   * scrollen und bekommt seinen Scroll.
+   */
+  private bindDrag(zelle: HTMLElement, von: number): void {
+    zelle.addEventListener('pointerdown', (ev) => {
+      if (ev.button !== 0) return;
+      this.zugGelaufen = false;
+
+      const maus = ev.pointerType === 'mouse';
+      const startX = ev.clientX;
+      const startY = ev.clientY;
+      let ghost: HTMLElement | undefined;
+      let halten: number | undefined;
+      let markiert: Element | undefined;
+
+      const setzeGhost = (x: number, y: number): void => {
+        if (!ghost) return;
+        ghost.style.left = `${x}px`;
+        ghost.style.top = `${y}px`;
+      };
+
+      const beginne = (x: number, y: number): void => {
+        if (ghost) return;
+        const kasten = zelle.getBoundingClientRect();
+        ghost = zelle.cloneNode(true) as HTMLElement;
+        ghost.className = 'item-slot item-ghost';
+        ghost.style.width = `${kasten.width}px`;
+        ghost.style.height = `${kasten.height}px`;
+        document.body.appendChild(ghost);
+        zelle.classList.add('item-zieht');
+        // Solange gezogen wird, scrollt der Beutel nicht mit. Danach schon —
+        // deshalb hängt es an einer Klasse und nicht fest im Stil.
+        this.inventoryGrid.classList.add('zieht');
+        setzeGhost(x, y);
+      };
+
+      const markiere = (x: number, y: number): void => {
+        const ziel = this.kachelUnter(x, y);
+        if (ziel === markiert) return;
+        markiert?.classList.remove('item-ziel');
+        markiert = ziel ?? undefined;
+        markiert?.classList.add('item-ziel');
+      };
+
+      const aufraeumen = (): void => {
+        if (halten !== undefined) window.clearTimeout(halten);
+        ghost?.remove();
+        ghost = undefined;
+        markiert?.classList.remove('item-ziel');
+        markiert = undefined;
+        zelle.classList.remove('item-zieht');
+        this.inventoryGrid.classList.remove('zieht');
+        window.removeEventListener('pointermove', bewegen);
+        window.removeEventListener('pointerup', loslassen);
+        window.removeEventListener('pointercancel', abbrechen);
+      };
+
+      const bewegen = (e: PointerEvent): void => {
+        if (e.pointerId !== ev.pointerId) return;
+        const weit = Math.hypot(e.clientX - startX, e.clientY - startY);
+
+        if (!ghost) {
+          if (maus && weit > 6) beginne(e.clientX, e.clientY);
+          // Auf dem Telefon: wer wischt, bevor gehalten wurde, scrollt.
+          else if (!maus && weit > 12) aufraeumen();
+          return;
+        }
+
+        // Erst ab hier gehört die Geste uns.
+        e.preventDefault();
+        setzeGhost(e.clientX, e.clientY);
+        markiere(e.clientX, e.clientY);
+      };
+
+      const loslassen = (e: PointerEvent): void => {
+        if (e.pointerId !== ev.pointerId) return;
+        const zog = ghost !== undefined;
+        const ziel = zog ? this.kachelUnter(e.clientX, e.clientY) : undefined;
+        const nach = ziel?.getAttribute('data-slot');
+        aufraeumen();
+        this.zugGelaufen = zog;
+        if (nach !== null && nach !== undefined && Number(nach) !== von) {
+          this.onMoveItem?.(von, Number(nach));
+        }
+      };
+
+      // Der Browser bricht den Zeiger ab, sobald er die Geste selbst
+      // übernimmt — etwa zum Scrollen. Dann ist der Zug vorbei, und zwar ohne
+      // Ergebnis.
+      const abbrechen = (e: PointerEvent): void => {
+        if (e.pointerId !== ev.pointerId) return;
+        aufraeumen();
+      };
+
+      window.addEventListener('pointermove', bewegen, { passive: false });
+      window.addEventListener('pointerup', loslassen);
+      window.addEventListener('pointercancel', abbrechen);
+
+      if (!maus) halten = window.setTimeout(() => beginne(startX, startY), 300);
+    });
+  }
+
+  /** Welche Beutelkachel liegt an dieser Bildstelle? */
+  private kachelUnter(x: number, y: number): Element | undefined {
+    const treffer = document.elementFromPoint(x, y)?.closest('.item-slot');
+    return treffer instanceof HTMLElement && treffer.dataset.slot !== undefined
+      ? treffer
+      : undefined;
   }
 
   /**

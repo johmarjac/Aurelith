@@ -39,6 +39,7 @@ import {
   decodeSetTarget,
   decodeShopTrade,
   decodeUpgradeItem,
+  decodeMoveItem,
   decodeUseItem,
   decodeUsePortal,
   encodeCombatEvent,
@@ -87,7 +88,14 @@ import type { CoreBundle } from './core.ts';
 import type { MapStore } from './maps.ts';
 import { MapInstance, type EntityMeta } from './mapInstance.ts';
 import { INPUT_QUEUE_DRAIN_AT, INPUT_QUEUE_DRAIN_MAX, Session } from './session.ts';
-import { addItem, freeBagSlots, normalizeSlots, removeItem, removeSlot } from './inventory.ts';
+import {
+  addItem,
+  freeBagSlots,
+  inventorySlots,
+  normalizeSlots,
+  removeItem,
+  removeSlot,
+} from './inventory.ts';
 import type { GameStore } from './db/index.ts';
 
 /** Wie nah man an einem NPC stehen muss — aus den Stellschrauben. */
@@ -260,6 +268,12 @@ export class GameServer {
           if (session.state !== 'playing') break;
           const { mode, itemId, count, slot } = decodeShopTrade(reader);
           this.shopTrade(session, mode, itemId, count, slot);
+          break;
+        }
+        case ClientOp.MoveItem: {
+          if (session.state !== 'playing') break;
+          const { from, to } = decodeMoveItem(reader);
+          this.moveItem(session, from, to);
           break;
         }
         case ClientOp.UseItem: {
@@ -936,6 +950,36 @@ export class GameServer {
     this.sendInventory(session);
     this.sendStats(session);
     this.systemMessage(session, `${upgradeName(def, entry.upgrade)} angelegt.`);
+  }
+
+  /**
+   * Legt einen Gegenstand im Beutel auf einen anderen Platz.
+   *
+   * Nur innerhalb des Beutels: was am Körper hängt, ordnet nicht der Spieler,
+   * sondern der Platz, an den es gehört — ein Helm liegt im Kopfkästchen, und
+   * dort gibt es nichts umzusortieren. Wer ein angelegtes Stück verschieben
+   * will, legt es ab.
+   *
+   * Liegt am Ziel etwas, tauschen die beiden ihre Plätze. Das ist die
+   * Bewegung, die man von einem Raster erwartet — und sie kann nichts
+   * verlieren: es bleiben dieselben Zeilen, nur mit anderen Nummern.
+   */
+  private moveItem(session: Session, from: number, to: number): void {
+    if (from === to) return;
+    const grenze = inventorySlots();
+    if (from < 0 || from >= grenze || to < 0 || to >= grenze) return;
+
+    const quelle = session.items.find((i) => i.slot === from);
+    if (!quelle || quelle.equipped) return;
+
+    const ziel = session.items.find((i) => i.slot === to);
+    if (ziel?.equipped) return;
+
+    quelle.slot = to;
+    if (ziel) ziel.slot = from;
+
+    session.itemsDirty = true;
+    this.sendInventory(session);
   }
 
   /**
