@@ -305,6 +305,8 @@ export interface Diagnostics {
   connection: string;
   latencyMs: number;
   frames: number;
+  /** Bilder je Sekunde, über ein halbes Sekundenfenster gemittelt. */
+  fps: number;
 }
 
 declare global {
@@ -387,6 +389,16 @@ export class Game {
   private queuedSnapshots: Parameters<Game['applySnapshot']>[0][] = [];
   private stats?: StatsMsg;
 
+  /**
+   * Bildzähler für die Anzeige.
+   *
+   * Gemessen über ein halbes Sekundenfenster statt über den Kehrwert des
+   * letzten Bildabstands: einzelne Bilder schwanken um ein Vielfaches, und
+   * eine Zahl, die zwischen 40 und 200 springt, sagt weniger als gar keine.
+   */
+  private fpsFenster = 0;
+  private fpsBilder = 0;
+
   private accumulator = 0;
   private lastFrameAt = 0;
   private running = false;
@@ -435,6 +447,7 @@ export class Game {
     connection: 'getrennt',
     latencyMs: 0,
     frames: 0,
+    fps: 0,
   };
 
   constructor(
@@ -455,9 +468,13 @@ export class Game {
     this.scene.scene.add(this.view.root);
     // Die Funken zeichnen wir selbst — der erste Pass ohne three.js. Er läuft
     // nach der Szene, im selben Kontext und gegen denselben Tiefenpuffer.
-    this.scene.fuegePassHinzu((gfx, sicht, projektion) =>
-      this.view.particles.zeichne(gfx, sicht, projektion),
-    );
+    this.scene.fuegePassHinzu((gfx, sicht, projektion) => {
+      // Erst der Schweif, dann die Funken: beide sind additiv und damit von
+      // der Reihenfolge unabhängig — aber die Funken eines Treffers gehören
+      // vor die Klinge, wenn doch einmal etwas dazwischenkommt.
+      this.view.spur.zeichne(gfx, sicht, projektion);
+      this.view.particles.zeichne(gfx, sicht, projektion);
+    });
 
     // Dieselbe Modellablage wie die Welt: die Figur im Inventar soll die Waffe
     // tragen, die sie draussen trägt, und nicht deren Platzhalter.
@@ -1921,6 +1938,17 @@ export class Game {
     // passen, das gleich entsteht.
     this.dayCycle.update(this.worldTimeMs, this.scene, this.view.lanterns, now);
     this.ui.setWorldTime(this.dayCycle.time, this.dayCycle.state?.darkness ?? 0);
+
+    // Bildrate: zweimal je Sekunde neu, aus dem, was in diesem Fenster
+    // tatsächlich gezeichnet wurde.
+    this.fpsFenster += dt;
+    this.fpsBilder++;
+    if (this.fpsFenster >= 0.5) {
+      this.diagnostics.fps = this.fpsBilder / this.fpsFenster;
+      this.ui.setFps(this.diagnostics.fps);
+      this.fpsFenster = 0;
+      this.fpsBilder = 0;
+    }
 
     this.view.step(dt, this.localId);
     // Die Wolken ziehen je Bild. Die Farben rechnet der Zyklus nur alle paar

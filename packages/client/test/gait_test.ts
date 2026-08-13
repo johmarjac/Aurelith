@@ -241,6 +241,79 @@ if (!BUG) {
   rig.dispose();
 }
 
+// --- Schlag ----------------------------------------------------------------
+//
+// Ein Hieb muss drei Dinge erfüllen: er beginnt und endet in der Ruhestellung,
+// er holt erst aus und zieht dann durch, und drei Hiebe hintereinander sehen
+// verschieden aus. Alles drei sind Eigenschaften der Kurve, nicht des Bildes —
+// und damit hier prüfbar.
+
+console.log('\nSchlag');
+if (!BUG) {
+  const rig = createRig('player', new THREE.MeshBasicMaterial());
+  const ruhe = { speed: 0, attackPhase: -1, pickupPhase: -1, dead: false, time: 3, dt: DT };
+
+  const beiPhase = (variante: number, p: number): number[] => {
+    rig.update({ ...ruhe, attackPhase: p, attackVariant: variante });
+    return pose(rig);
+  };
+  const stand = (): number[] => {
+    rig.update({ ...ruhe });
+    return pose(rig);
+  };
+
+  const still = stand();
+  for (const variante of [0, 1, 2]) {
+    // Anfang und Ende sind die Ruhestellung. Ohne das ruckt die Figur beim
+    // Übergang in den Lauf — und zwar bei jedem einzelnen Schlag.
+    check(maxDelta(beiPhase(variante, 0), still) < 1e-6, `Hieb ${variante} beginnt in Ruhe`);
+    check(maxDelta(beiPhase(variante, 1), still) < 1e-6, `Hieb ${variante} endet in Ruhe`);
+
+    // Und dazwischen passiert etwas. Gemessen über den ganzen Verlauf und
+    // nicht an einer festen Stelle: mitten im Durchziehen läuft der Arm durch
+    // die Ruhestellung hindurch, und genau dort gemessen sähe der wuchtigste
+    // Hieb aus wie gar keiner.
+    let weiteste = 0;
+    for (let i = 0; i <= 20; i++) {
+      weiteste = Math.max(weiteste, maxDelta(beiPhase(variante, i / 20), still));
+    }
+    check(weiteste > 1.2, `Hieb ${variante} holt aus und zieht durch`, `${weiteste.toFixed(2)} rad`);
+  }
+
+  // Die drei unterscheiden sich — sonst wäre die Abwechslung nur eine Zahl,
+  // die niemand sieht. Gesucht wird die Stelle im Verlauf, an der sie am
+  // weitesten auseinanderliegen: an einer festen Phase können sich zwei ganz
+  // verschiedene Hiebe zufällig kreuzen.
+  const weitesteZwischen = (x: number, y: number): number => {
+    let weit = 0;
+    for (let i = 0; i <= 20; i++) {
+      weit = Math.max(weit, maxDelta(beiPhase(x, i / 20), beiPhase(y, i / 20)));
+    }
+    return weit;
+  };
+  check(weitesteZwischen(0, 1) > 0.5, 'Schräghieb und Querhieb sehen verschieden aus',
+    `${weitesteZwischen(0, 1).toFixed(2)} rad`);
+  check(weitesteZwischen(0, 2) > 0.5, 'Schräghieb und Überkopf auch',
+    `${weitesteZwischen(0, 2).toFixed(2)} rad`);
+  check(weitesteZwischen(1, 2) > 0.5, 'und die beiden anderen untereinander',
+    `${weitesteZwischen(1, 2).toFixed(2)} rad`);
+
+  // Stetig muss er auch sein: kein Sprung von einem Bild zum nächsten. Bei
+  // 0,45 s Dauer und 60 Bildern sind das rund siebenundzwanzig Schritte.
+  let groesster = 0;
+  let vorher = beiPhase(0, 0);
+  for (let i = 1; i <= 27; i++) {
+    const jetzt = beiPhase(0, i / 27);
+    groesster = Math.max(groesster, maxDelta(jetzt, vorher));
+    vorher = jetzt;
+  }
+  // Grosszügiger als beim Laufen: ein Hieb *soll* schnell sein. Aber nicht so
+  // schnell, dass die Klinge von einer Seite auf die andere springt.
+  check(groesster < 0.8, 'der Hieb läuft ohne Sprung durch', `${groesster.toFixed(2)} rad je Bild`);
+
+  rig.dispose();
+}
+
 // --- Sprung ----------------------------------------------------------------
 //
 // Drei Eigenschaften, die zusammen den Sprung ausmachen: er verändert die Pose

@@ -32,6 +32,7 @@ import { WeaponAura } from './weaponAura.ts';
 import { SetAura } from './setAura.ts';
 import { stepAuras } from './auraClock.ts';
 import { ParticleField } from './particles.ts';
+import { WeaponTrail } from './weaponTrail.ts';
 import { buildTerrain, type TerrainMesh } from './terrain.ts';
 import type { TextureLoader } from './textures.ts';
 import type { CharacterRig } from './rigs.ts';
@@ -67,6 +68,24 @@ const ARROW_FLIGHT_SECONDS = 0.16;
  * genug, dass zehn gleichzeitige Pfeile die Wolke nicht füllen.
  */
 const ARROW_TRAIL_STEP = 0.012;
+
+/**
+ * Die Farbe des Schweifs, je Waffenart.
+ *
+ * Was keinen Eintrag hat, zieht keinen: eine Faust schwingt nichts, und ein
+ * Bogen wird gespannt, nicht geschwungen. Die Tabelle ist damit zugleich die
+ * Antwort auf „wer bekommt überhaupt einen Schweif" — eine zweite Liste
+ * daneben liefe irgendwann auseinander.
+ */
+const SCHWEIF_FARBEN: Record<string, [number, number, number] | undefined> = {
+  // Stahl: kühl und hell, mit einem Stich ins Blaue.
+  sword: [0.62, 0.82, 1.0],
+  // Holz und Wucht: warm, etwas satter.
+  club: [1.0, 0.72, 0.38],
+  // Magie: violett, deutlich dunkler als die Klinge — sonst überstrahlt der
+  // Schweif den Stab selbst.
+  staff: [0.68, 0.5, 1.0],
+};
 
 interface FlyingArrow {
   mesh: THREE.Mesh;
@@ -115,6 +134,14 @@ export interface EntityVisual {
 
   /** Sekunden seit Beginn der Schlaganimation, oder negativ. */
   attackTimer: number;
+  /**
+   * Welcher der drei Hiebe zuletzt begonnen hat.
+   *
+   * Reihum je Figur, damit zwei Schläge hintereinander nicht gleich aussehen.
+   * Je Figur und nicht global: sonst hinge die Abwechslung daran, wer sonst
+   * noch gerade zuschlägt, und ein einzelner Kämpfer sähe Zufall statt Folge.
+   */
+  attackVariant: number;
   /**
    * Läuft während einer Geste — Sekunden seit ihrem Beginn, sonst negativ.
    *
@@ -172,10 +199,15 @@ export class WorldView {
   private arrows: FlyingArrow[] = [];
   /** Funken. Eine Wolke für alles, mit fester Größe. */
   readonly particles = new ParticleField();
+  /** Der Schweif hinter geschwungenen Klingen. Ein Band für alle. */
+  readonly spur = new WeaponTrail();
   /** Warmes Licht an den Laternen. Fester Pool, wandert zum Betrachter. */
   readonly lanterns: Lanterns;
   /** Was gerade auf dem Boden liegt. Wird aus dem Snapshot abgeglichen. */
   readonly loot: LootView;
+  /** Zwei Punkte für die Klingenlage. Wiederverwendet, je Bild und Figur. */
+  private readonly klingeA = new THREE.Vector3();
+  private readonly klingeB = new THREE.Vector3();
   private doc?: MapDocument;
   /** Die Welt der aktuellen Karte — nur für die Bodenhöhe, siehe `setMap`. */
   private welt?: CoreWorld;
@@ -443,6 +475,7 @@ export class WorldView {
       targetYaw: row.yaw,
       hoeheVorher: row.y,
       attackTimer: -1,
+      attackVariant: 0,
       pickupTimer: -1,
       speed: 0,
       rig,
@@ -493,6 +526,7 @@ export class WorldView {
   private beginAttack(e: EntityVisual): void {
     if (e.attackTimer >= 0) return;
     e.attackTimer = 0;
+    e.attackVariant = (e.attackVariant + 1) % 3;
     this.onAttackStart?.(e);
   }
 
@@ -757,12 +791,56 @@ export class WorldView {
         luft,
         steigt,
         attackPhase: e.attackTimer >= 0 ? e.attackTimer / ATTACK_ANIM_SECONDS : -1,
+        attackVariant: e.attackVariant,
         pickupPhase: e.pickupTimer >= 0 ? e.pickupTimer / PICKUP_ANIM_SECONDS : -1,
         dead: e.state === EntityState.Dead,
         time: this.elapsed,
         dt,
       });
+
+      if (e.attackTimer >= 0) this.zeichneKlingenlage(e);
     }
+
+    this.spur.step(dt);
+  }
+
+  /**
+   * Nimmt die Lage der Klinge für den Schweif auf.
+   *
+   * **Nach** `rig.update`: erst danach steht die Pose dieses Bildes, und der
+   * Schweif soll dorthin, wo die Klinge gerade ist — nicht dorthin, wo sie im
+   * vorigen Bild war.
+   *
+   * Die Weltmatrizen werden hier von Hand nachgezogen. Three.js tut das erst
+   * beim Zeichnen, und bis dahin stünden im Halter noch die Zahlen des letzten
+   * Bildes. Es kostet einen Durchlauf je zuschlagender Figur — bei einer
+   * Handvoll gleichzeitiger Hiebe ist das nichts.
+   */
+  private zeichneKlingenlage(e: EntityVisual): void {
+    const mount = e.rig.weaponMount;
+    const span = e.rig.weaponSpan;
+    const farbe = SCHWEIF_FARBEN[e.rig.weapon ?? ''];
+    // Ohne Waffe kein Schweif: eine Faust zieht keinen Lichtbogen, und ein
+    // Bogen wird nicht geschwungen.
+    if (!mount || !span || !farbe) return;
+
+    e.rig.root.updateMatrixWorld(true);
+    if (span.axis === 'y') {
+      this.klingeA.set(0, span.bottom, 0);
+      this.klingeB.set(0, span.bottom + span.length, 0);
+    } else {
+      this.klingeA.set(0, 0, span.bottom);
+      this.klingeB.set(0, 0, span.bottom + span.length);
+    }
+    mount.localToWorld(this.klingeA);
+    mount.localToWorld(this.klingeB);
+
+    this.spur.probiere(
+      e.id,
+      this.klingeA.x, this.klingeA.y, this.klingeA.z,
+      this.klingeB.x, this.klingeB.y, this.klingeB.z,
+      farbe,
+    );
   }
 
   /**
@@ -782,6 +860,8 @@ export class WorldView {
     // Auch die Beute: sie gehört zur alten Sitzung. Was auf der neuen liegt,
     // meldet der erste Snapshot.
     this.loot.clear();
+    // Auch der Schweif: er hängt an Kennungen, die es gleich nicht mehr gibt.
+    this.spur.reset();
 
     for (const e of this.entities.values()) {
       this.root.remove(e.rig.root);

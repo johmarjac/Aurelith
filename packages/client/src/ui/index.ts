@@ -244,6 +244,8 @@ export class UI {
 
   private readonly statusPanel: HTMLElement;
   private readonly statusText: HTMLElement;
+  /** Bildrate neben der Verbindung. Eigener Knoten, siehe `setFps`. */
+  private readonly fpsText: HTMLElement;
 
   private readonly deathScreen: HTMLElement;
   private readonly portalPrompt: HTMLButtonElement;
@@ -364,7 +366,11 @@ export class UI {
     this.statusPanel = el('div', 'status panel');
     const dot = el('span', 'dot');
     this.statusText = el('span', undefined, 'verbindet');
-    this.statusPanel.append(dot, this.statusText);
+    // Eigener Knoten und nicht an den Statustext angehängt: die Bildrate
+    // ändert sich zweimal je Sekunde, der Verbindungstext fast nie. Ein
+    // gemeinsamer Knoten schriebe beim Zählen jedes Mal auch „verbunden" neu.
+    this.fpsText = el('span', 'status-fps', '');
+    this.statusPanel.append(dot, this.statusText, this.fpsText);
     this.statusPanel.dataset.state = 'verbindet';
     host.appendChild(this.statusPanel);
 
@@ -1008,6 +1014,20 @@ export class UI {
       target.maxHp,
       `${Math.round(target.hp)} / ${Math.round(target.maxHp)}`,
     );
+  }
+
+  /**
+   * Zeigt die Bildrate.
+   *
+   * Gerundet auf ganze Bilder: eine Nachkommastelle wechselt bei jedem
+   * Aufruf und zieht das Auge auf eine Zahl, die niemand so genau lesen will.
+   */
+  setFps(fps: number): void {
+    const text = `${Math.round(fps)} fps`;
+    if (this.fpsText.textContent !== text) this.fpsText.textContent = text;
+    // Unter dreissig ruckelt es sichtbar, unter zwanzig ist es kein Spiel
+    // mehr. Die Färbung sagt das, ohne dass man die Zahl deuten muss.
+    this.fpsText.dataset.stufe = fps >= 45 ? 'gut' : fps >= 25 ? 'mittel' : 'schlecht';
   }
 
   setConnection(state: ConnectionState, detail?: string): void {

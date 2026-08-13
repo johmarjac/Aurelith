@@ -1791,6 +1791,22 @@ body {
   gap: 0.4rem;
 }
 
+.status-fps {
+  /* Feste Breite, damit der Kasten beim Zählen nicht zappelt: „9 fps" und
+     „144 fps" sollen denselben Platz einnehmen. */
+  min-width: 3.6rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.status-fps[data-stufe='mittel'] {
+  color: #e8c06a;
+}
+
+.status-fps[data-stufe='schlecht'] {
+  color: var(--danger);
+}
+
 .status .dot {
   width: 0.5rem;
   height: 0.5rem;

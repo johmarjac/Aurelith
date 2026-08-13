@@ -22,6 +22,16 @@ export interface RigState {
   /** 0..1 während eines Schlags, sonst negativ. */
   attackPhase: number;
   /**
+   * Welcher Hieb — 0, 1 oder 2.
+   *
+   * Reihum gezählt, damit zwei Schläge hintereinander nicht identisch
+   * aussehen. Reine Anzeige: die Simulation kennt nur „Schlag", und alle drei
+   * dauern gleich lang und richten denselben Schaden an. Wäre es anders,
+   * müsste die Variante über das Netz — und dann wäre sie Spielregel und
+   * nicht Bild.
+   */
+  attackVariant?: number;
+  /**
    * 0..1 während des Bückens, sonst negativ.
    *
    * Eine Geste und kein Zustand: sie kommt als Ereignis vom Server, die
@@ -125,6 +135,114 @@ function shade(color: number, factor: number): number {
  * schwarzen Ärmeln und schwarzen Hosenbeinen herum, während `shirt` und
  * `pants` in ihrer Beschreibung standen und niemand sie benutzte.
  */
+/**
+ * Wie ein Hieb aussieht — drei Sorten, jede über ihren Verlauf beschrieben.
+ *
+ * Vorher war der Schlag eine Gerade: der Arm ging hoch und wieder herunter,
+ * immer dieselbe, immer in derselben Ebene. Das liest sich als „irgendetwas
+ * passiert" und nicht als Schwung.
+ *
+ * Drei Dinge machen den Unterschied:
+ *
+ *   **Der Bogen.** Ein Hieb läuft nicht in einer Ebene. Neben dem Heben kommt
+ *   das Ausstellen zur Seite (`armZ`) und die Drehung des Oberkörpers dazu —
+ *   erst daraus wird eine Kurve im Raum, der die Klinge folgen kann.
+ *
+ *   **Die Zeitverteilung.** Ausholen dauert etwa ein Drittel und wird langsam,
+ *   das Durchziehen ist kurz und schnell, danach kommt ein weiches Auslaufen.
+ *   Gleichmässig verteilt sähe jeder Schlag aus wie eine Turnübung.
+ *
+ *   **Die Abwechslung.** Schräghieb, Querhieb, Überkopf — reihum. Zwei gleiche
+ *   Schläge hintereinander fallen sofort auf, drei verschiedene fallen nicht
+ *   einmal dann auf, wenn man darauf achtet.
+ *
+ * Alle drei beginnen und enden in der Ruhestellung, sonst ruckt es beim
+ * Übergang in den Lauf.
+ */
+interface Schlagpose {
+  /** Schulter: heben und senken. Negativ ist nach hinten oben. */
+  armX: number;
+  /** Schulter: vom Körper weg und quer darüber. */
+  armZ: number;
+  /** Der freie Arm hält dagegen. */
+  armLX: number;
+  /** Oberkörper: Drehung um die Hochachse — der eigentliche Schwung. */
+  koerperY: number;
+  /** Oberkörper: nach vorn und hinten. */
+  koerperX: number;
+  /** Gewichtsverlagerung nach vorn, in Weltnenheiten. */
+  schritt: number;
+}
+
+/** Weich anlaufen. */
+function anlauf(t: number): number {
+  return t * t * (3 - 2 * t);
+}
+
+/**
+ * Schnell los, weich aus — die Kurve eines Durchziehens.
+ *
+ * Quadratisch und nicht kubisch: der Unterschied sind 0,7 statt 0,9 Bogenmass
+ * zwischen zwei Bildern im schnellsten Moment. Kubisch schlägt härter zu und
+ * lässt die Klinge dabei sichtbar springen — bei sechzig Bildern ist ein
+ * halber Radiant je Bild die Grenze dessen, was das Auge noch als Bewegung
+ * liest statt als Versatz.
+ */
+function durchzug(t: number): number {
+  return 1 - (1 - t) * (1 - t);
+}
+
+function schlagpose(variante: number, p: number): Schlagpose {
+  // Drei Abschnitte: ausholen, durchziehen, auslaufen.
+  const AUSHOLEN = 0.32;
+  const DURCH = 0.66;
+
+  /** Mischt zwischen Ruhe, Ausholpunkt und Endpunkt über den Verlauf. */
+  const bahn = (aus: number, ende: number): number => {
+    if (p < AUSHOLEN) return aus * anlauf(p / AUSHOLEN);
+    if (p < DURCH) {
+      const t = durchzug((p - AUSHOLEN) / (DURCH - AUSHOLEN));
+      return aus + (ende - aus) * t;
+    }
+    // Auslaufen: zurück in die Ruhe, aber gemächlicher als der Hieb war.
+    const t = anlauf((p - DURCH) / (1 - DURCH));
+    return ende * (1 - t);
+  };
+
+  switch (variante % 3) {
+    // Querhieb: waagerecht von aussen nach innen, mit viel Körperdrehung.
+    case 1:
+      return {
+        armX: bahn(-1.5, -0.9),
+        armZ: bahn(-1.35, 1.05),
+        armLX: bahn(0.5, -0.45),
+        koerperY: bahn(0.75, -0.8),
+        koerperX: bahn(-0.05, 0.12),
+        schritt: bahn(-0.04, 0.1),
+      };
+    // Überkopf: gerade hoch, gerade herunter. Der wuchtigste der drei.
+    case 2:
+      return {
+        armX: bahn(-2.75, 1.15),
+        armZ: bahn(-0.12, 0.1),
+        armLX: bahn(-0.4, 0.5),
+        koerperY: bahn(0.12, -0.12),
+        koerperX: bahn(-0.22, 0.32),
+        schritt: bahn(-0.06, 0.16),
+      };
+    // Schräghieb von oben aussen nach unten innen — der Grundhieb.
+    default:
+      return {
+        armX: bahn(-2.25, 0.95),
+        armZ: bahn(-0.7, 0.6),
+        armLX: bahn(0.35, -0.3),
+        koerperY: bahn(0.55, -0.65),
+        koerperX: bahn(-0.14, 0.2),
+        schritt: bahn(-0.05, 0.13),
+      };
+  }
+}
+
 function joint(
   geometry: THREE.BufferGeometry,
   material: THREE.Material,
@@ -750,17 +868,25 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
       const swing = Math.sin(gaitPhase) * 0.65 * gait;
 
       armL.rotation.x = -swing * 0.8;
+      // Aus dem Schlag zurück: was der Hieb verstellt hat, gilt sonst nicht.
+      armR.rotation.z = 0;
+      armL.rotation.z = 0;
+      body.position.z = 0;
 
       // Bücken. Hin und zurück in einer Bewegung: `sin(p·π)` ist bei null und
       // eins genau null, die Figur steht also am Anfang und am Ende ohne
       // Übergang wieder gerade.
       const beugung = state.pickupPhase >= 0 ? Math.sin(state.pickupPhase * Math.PI) : 0;
 
+      let schlagKippung = 0;
       if (state.attackPhase >= 0) {
-        // Ausholen und Durchziehen: die erste Hälfte hebt, die zweite schlägt.
-        const p = state.attackPhase;
-        armR.rotation.x = p < 0.45 ? -2.4 * (p / 0.45) : -2.4 + 3.4 * ((p - 0.45) / 0.55);
-        body.rotation.y = p < 0.45 ? 0.35 * (p / 0.45) : 0.35 - 0.75 * ((p - 0.45) / 0.55);
+        const hieb = schlagpose(state.attackVariant ?? 0, state.attackPhase);
+        armR.rotation.x = hieb.armX;
+        armR.rotation.z = hieb.armZ;
+        armL.rotation.x = hieb.armLX;
+        body.rotation.y = hieb.koerperY;
+        body.position.z = hieb.schritt;
+        schlagKippung = hieb.koerperX;
       } else if (beugung > 0) {
         // Der rechte Arm greift nach unten, der linke geht zum Ausgleich nach
         // hinten — so, wie man sich tatsächlich nach etwas bückt.
@@ -775,9 +901,11 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
       // Der Oberkörper kippt nach vorn. Die Beine hängen am selben Knoten und
       // würden mitkippen — die ganze Figur fiele wie ein Brett nach vorn —,
       // deshalb halten sie dagegen und bleiben fast senkrecht.
-      body.rotation.x = beugung * 0.95;
-      legL.rotation.x = swing - beugung * 0.8;
-      legR.rotation.x = -swing - beugung * 0.8;
+      body.rotation.x = beugung * 0.95 + schlagKippung;
+      // Beim Hieb geht das vordere Bein mit, das hintere stemmt sich dagegen —
+      // ohne das steht die Figur beim Schwung auf zwei angenagelten Füssen.
+      legL.rotation.x = swing - beugung * 0.8 - schlagKippung * 0.8;
+      legR.rotation.x = -swing - beugung * 0.8 + schlagKippung * 0.45;
 
       // Leichtes Wippen — ohne das wirkt eine stehende Figur wie ein Möbelstück.
       // Beim Bücken geht die Figur zusätzlich in die Knie.
