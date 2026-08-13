@@ -880,6 +880,34 @@ export class Game {
       onStatus: (status, detail) => {
         this.ui.setConnection(status, detail);
 
+        /*
+         * Ein Kanal, der nicht antwortet.
+         *
+         * Der häufigste Fall im Betrieb, und bis hierher der leiseste: der
+         * Anmeldeserver nennt eine Adresse, hinter der nichts horcht — ein
+         * Kanal ohne Weg durch den Proxy, ein Tippfehler in
+         * `AURELITH_PUBLIC_URL`. Der Browser versucht es, scheitert, und die
+         * Maske stand da, als sei nichts gewesen: „Betreten" gedrückt, nichts
+         * passiert, keine Meldung.
+         *
+         * Die Eintrittskarte ist dabei verbraucht — deshalb geht es zurück an
+         * den Anfang und nicht zur Kanalliste: eine neue Karte gibt es nur
+         * gegen eine Anmeldung.
+         */
+        if (status === 'getrennt' && this.amKanal) {
+          this.amKanal = false;
+          this.connection?.close();
+          this.resetSession();
+          this.lobby.zuruecksetzen();
+          this.lobby.zeigeFehler(
+            `Der Kanal unter ${url} antwortet nicht. Prüfe, ob er von aussen ` +
+              'erreichbar ist, und melde dich neu an.',
+          );
+          this.ui.debug(`[kanal] ${url} nicht erreichbar${detail ? ` — ${detail}` : ''}`, 'fehler');
+          this.connect();
+          return;
+        }
+
         // Steht die Leitung, ist als Nächstes die Anmeldung dran. Sie erscheint
         // auch nach einem Verbindungsabriss wieder: es gibt kein Sitzungspapier,
         // das eine neue Verbindung ausweisen könnte, also wird neu angemeldet.

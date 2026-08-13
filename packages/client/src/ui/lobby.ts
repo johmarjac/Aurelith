@@ -446,6 +446,10 @@ export class LobbyView {
         ...kanaele.map((r) => {
           const knopf = el('button', 'kanal-zeile');
           knopf.type = 'button';
+          // Die Adresse steht im Hinweis und nicht in der Zeile: sie ist lang
+          // und interessiert genau dann, wenn etwas nicht geht — dann aber
+          // sofort, ohne Umweg über die Konsole.
+          knopf.title = r.url;
           knopf.dataset.gewaehlt = r.channel === this.gewaehlterKanal ? '1' : '0';
           // Voll heisst voll: der Knopf bleibt lesbar, lässt sich aber nicht
           // drücken. Ihn wegzulassen wäre schlechter — dann fehlte der Kanal
