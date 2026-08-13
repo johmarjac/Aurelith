@@ -139,6 +139,8 @@ const ARMOR_STYLES: Record<string, { main: number; trim: number }> = {
   leinen: { main: 0x5a6b8a, trim: 0x3f4c63 },
   messing: { main: 0xc9a44a, trim: 0x7d6520 },
   eisen: { main: 0x9aa4b0, trim: 0x5c646e },
+  // Schwerer, dunkler Stoff mit Messingbesatz — der Reisemantel.
+  wolle: { main: 0x4a3d5c, trim: 0x8a7a4a },
   schlicht: { main: 0x8a8a8a, trim: 0x5a5a5a },
 };
 
@@ -382,6 +384,7 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
   const helm = styleColors(cfg.outfit?.head);
   const umhang = styleColors(cfg.outfit?.cloak);
   const brille = styleColors(cfg.outfit?.glasses);
+  const handschuh = styleColors(cfg.outfit?.hands);
 
   const rumpfFarbe = brust ? brust.main : angezogen ? cfg.shirt : cfg.skin;
   const armFarbe = brust ? shade(brust.main, 0.92) : angezogen ? shade(cfg.shirt, 0.92) : cfg.skin;
@@ -500,14 +503,38 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
   }
 
   if (umhang) {
-    // Ein Tuch am Rücken, unten etwas schmaler. Starr: ein wehender Umhang
-    // bräuchte Simulation, und ein schlecht wehender sieht schlimmer aus als
-    // ein ruhiger.
+    /*
+     * Ein Mantel, kein Handtuch.
+     *
+     * Die erste Fassung war ein Rechteck am Rücken, das an der Hüfte aufhörte
+     * — angelegt und abgelegt sah die Figur fast gleich aus, und genau das ist
+     * der Fehler, den ein sichtbares Ausrüstungsteil nicht machen darf. Jetzt
+     * fällt er bis unter die Knie, wird nach unten breiter statt schmaler, hat
+     * einen Kragen und liegt über den Schultern auf.
+     *
+     * Starr, nicht wehend: ein wehender Mantel bräuchte Simulation, und ein
+     * schlecht wehender sieht schlimmer aus als ein ruhiger.
+     *
+     * Die Bahnen überlappen sich um einen Zentimeter (0,60/0,58 und 0,32/0,30
+     * in der Höhe). Bündig aneinandergesetzte Flächen flimmern — dieselbe
+     * Regel wie an Sohle und Schaft.
+     */
     torsoParts.push(
-      { geometry: box(0.48 * w, 0.62, 0.05), color: umhang.main, position: [0, 1.2, -0.185] },
-      { geometry: box(0.4 * w, 0.3, 0.045), color: shade(umhang.main, 0.9), position: [0, 0.78, -0.19] },
-      // Schliesse vorn an der Schulter.
-      { geometry: box(0.36 * w, 0.07, 0.34 * w), color: umhang.trim, position: [0, 1.46, 0] },
+      // Rücken, von den Schultern bis zur Hüfte.
+      { geometry: box(0.5 * w, 0.6, 0.05), color: umhang.main, position: [0, 1.2, -0.185] },
+      // Schoss: breiter und tiefer, bis unter die Knie.
+      { geometry: box(0.58 * w, 0.58, 0.055), color: shade(umhang.main, 0.94), position: [0, 0.62, -0.2] },
+      // Zwei vordere Bahnen, zwischen denen der Rumpf sichtbar bleibt.
+      { geometry: box(0.16 * w, 0.86, 0.045), color: shade(umhang.main, 1.04), position: [0.19 * w, 1.06, 0.16] },
+      { geometry: box(0.16 * w, 0.86, 0.045), color: shade(umhang.main, 1.04), position: [-0.19 * w, 1.06, 0.16] },
+      // Schulterstück, das die Bahnen oben zusammenhält. Bei 1,43 und nicht bei
+      // 1,44: seine Oberkante läge sonst genau auf der des Rumpfes (1,52), und
+      // zwei deckungsgleiche Flächen flimmern.
+      { geometry: box(0.62 * w, 0.16, 0.4 * w), color: umhang.trim, position: [0, 1.43, -0.01] },
+      // Kragen, hinten hochgestellt.
+      { geometry: box(0.34 * w, 0.16, 0.06), color: umhang.trim, position: [0, 1.56, -0.13] },
+      // Schliesse vorn.
+      { geometry: box(0.1 * w, 0.08, 0.06), color: shade(umhang.trim, 1.15), position: [0, 1.44, 0.17] },
     );
   }
 
@@ -537,17 +564,50 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
   // deutlich breiter als jeder Griff, den sie halten soll. Die Waffe steckte
   // darin, statt gehalten zu werden. Jetzt ist sie schmal und hoch, mit einem
   // Daumen zur Körpermitte hin, und der Griff läuft sichtbar durch die Faust.
-  const handParts = (thumbSide: number): Part[] => [
-    { geometry: box(0.1 * w, 0.155, 0.125 * w), color: cfg.skin, position: [0, 0, 0] },
-    {
-      geometry: box(0.042 * w, 0.062, 0.055 * w),
-      color: cfg.skin,
-      position: [thumbSide * 0.062 * w, 0.032, 0.028],
-    },
-    // Bündchen: die Grenze zwischen Ärmel und Haut, sonst wächst die Hand
-    // ohne Übergang aus dem Hemd.
-    { geometry: box(0.13 * w, 0.035, 0.14 * w), color: shade(armFarbe, 0.8), position: [0, 0.092, 0] },
-  ];
+  /*
+   * Die Hand — und darüber, wenn welche angelegt sind, der Handschuh.
+   *
+   * Der Handschuh ersetzt die Haut nicht, er **umschliesst** sie: die Faust
+   * bleibt stehen und bekommt eine Schale von einem Zentimeter Wandstärke
+   * darüber. Bündig anliegende Flächen flimmern, und eine ausgetauschte Farbe
+   * sähe aus wie eine bemalte Hand statt wie ein Handschuh. Die Stulpe am
+   * Unterarm ist das, was man aus zwei Metern Entfernung tatsächlich sieht.
+   */
+  const handParts = (thumbSide: number): Part[] => {
+    const teile: Part[] = [
+      { geometry: box(0.1 * w, 0.155, 0.125 * w), color: cfg.skin, position: [0, 0, 0] },
+      {
+        geometry: box(0.042 * w, 0.062, 0.055 * w),
+        color: cfg.skin,
+        position: [thumbSide * 0.062 * w, 0.032, 0.028],
+      },
+      // Bündchen: die Grenze zwischen Ärmel und Haut, sonst wächst die Hand
+      // ohne Übergang aus dem Hemd.
+      {
+        geometry: box(0.13 * w, 0.035, 0.14 * w),
+        color: shade(handschuh ? handschuh.trim : armFarbe, 0.8),
+        position: [0, 0.092, 0],
+      },
+    ];
+
+    if (handschuh) {
+      teile.push(
+        // Die Schale über der Faust.
+        { geometry: box(0.13 * w, 0.175, 0.155 * w), color: handschuh.main, position: [0, 0.004, 0] },
+        // Und über dem Daumen.
+        {
+          geometry: box(0.07 * w, 0.082, 0.085 * w),
+          color: handschuh.main,
+          position: [thumbSide * 0.066 * w, 0.032, 0.03],
+        },
+        // Stulpe: sitzt über dem Bündchen und reicht ein Stück den Arm hinauf.
+        { geometry: box(0.19 * w, 0.11, 0.19 * w), color: handschuh.trim, position: [0, 0.15, 0] },
+        // Knöchelband, damit die Schale eine Vorderseite hat.
+        { geometry: box(0.14 * w, 0.035, 0.03), color: shade(handschuh.trim, 1.1), position: [0, 0.05, 0.078 * w] },
+      );
+    }
+    return teile;
+  };
 
   for (const [arm, thumbSide] of [
     [armR, -1],

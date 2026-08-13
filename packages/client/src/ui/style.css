@@ -196,29 +196,59 @@ body {
 /* --- Statusleisten -------------------------------------------------------- */
 
 /*
- * Der Kasten oben links.
+ * Der Kasten oben links — Medaillon und drei schmale Balken.
  *
- * Die Breite ist hochkant der Engpass: 46vw sind auf einem Telefon knapp
- * hundertachtzig Bildpunkte, und darin standen Name, Uhr und Stufe nebeneinander
- * — die Stufe hing vierzig Bildpunkte über den Rand hinaus. Am Schreibtisch
- * bleibt es bei 46vw, dort ist der Kasten sonst unnötig breit; auf schmalen
- * Geräten gilt die Regel weiter unten.
+ * Er war dreizeilig und fast einen halben Bildschirm breit. Das ist viel
+ * Fläche für eine Anzeige, die man im Kampf nur streift: was man wissen will,
+ * sind drei Balkenstände und die Stufe, und beides liest man schneller, wenn
+ * es klein und dicht beieinander steht. Die Stufe sitzt jetzt im Medaillon —
+ * dieselbe Auskunft ohne eigene Zeile.
  */
 .vitals {
   position: absolute;
   top: calc(var(--safe-t) + var(--gap));
   left: calc(var(--safe-l) + var(--gap));
-  width: min(17rem, 46vw);
-  padding: 0.55rem 0.65rem;
+  width: min(12.5rem, 44vw);
+  padding: 0.3rem 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/*
+ * Das Medaillon mit der Stufe.
+ *
+ * Rund, mit Messingring — bei Flyff sitzt dort das Porträt und die Stufe in
+ * einem Abzeichen daneben. Ein Porträt hiesse, die Figur ein zweites Mal zu
+ * rendern; die Stufe allein füllt den Kreis, und rund genug, dass er als
+ * Abzeichen und nicht als Knopf gelesen wird.
+ */
+.vitals-badge {
+  flex: 0 0 auto;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 50%;
   display: grid;
-  gap: 0.3rem;
+  place-items: center;
+  background: radial-gradient(circle at 35% 30%, #5c4326, #2c1d0f);
+  border: 2px solid var(--panel-edge-bright);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.vitals-col {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 0.14rem;
 }
 
 .vitals-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  line-height: 1.1;
 }
 
 .vitals-name {
@@ -247,14 +277,17 @@ body {
 
 .vitals-level {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--gold);
-  white-space: nowrap;
+  font-weight: 700;
+  font-size: 0.92rem;
+  line-height: 1;
+  color: var(--gold-hell);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 
+/* Halb so hoch wie vorher: drei Balken übereinander sind sonst ein Block. */
 .bar {
   position: relative;
-  height: 0.85rem;
+  height: 0.62rem;
   background: #3a2716;
   border: 1px solid var(--panel-edge);
   border-radius: 2px;
@@ -274,7 +307,7 @@ body {
   display: grid;
   place-items: center;
   font-family: var(--font-mono);
-  font-size: 0.66rem;
+  font-size: 0.56rem;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
   color: var(--ink-hell);
 }
@@ -286,11 +319,11 @@ body {
   background: linear-gradient(180deg, #5b93d6, var(--mp));
 }
 .bar.exp {
-  height: 0.7rem;
+  height: 0.44rem;
 }
 
 .bar.exp .bar-label {
-  font-size: 0.6rem;
+  font-size: 0.5rem;
 }
 .bar.exp .bar-fill {
   background: linear-gradient(180deg, #9ad65c, var(--exp));
@@ -567,12 +600,12 @@ body {
 /* Auf schmalen Geräten werden Fenster zu Blättern am unteren Rand. */
 @media (max-width: 700px) {
   /*
-   * Hochkant darf der Werte-Kasten breiter sein. Er verdeckt dort nichts, was
-   * man zum Spielen braucht — die Figur steht in der Mitte —, und drei Angaben
-   * in einer Zeile brauchen den Platz.
+   * Hochkant darf der Werte-Kasten etwas breiter sein — nicht, weil er mehr
+   * Inhalt hätte, sondern weil ein Balken von achtzig Bildpunkten Länge keinen
+   * ablesbaren Stand mehr zeigt. Doppelt so breit wie hoch ist die Grenze.
    */
   .vitals {
-    width: min(17rem, 72vw);
+    width: min(14rem, 62vw);
   }
 
   .window {

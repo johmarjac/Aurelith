@@ -237,6 +237,25 @@
       "icon": "icons/leather_boots.webp"
     },
     {
+      "id": "leather_gloves",
+      "name": "Lederhandschuhe",
+      "kind": "armor",
+      "slot": "hands",
+      "levelReq": 1,
+      "attackDamage": 0,
+      "defense": 2,
+      "maxHp": 0,
+      "effectValue": 0,
+      "stackable": false,
+      "maxStack": 1,
+      "value": 22,
+      "model": "armor_hands",
+      "iconColor": "#8a6a42",
+      "description": "Zwei Lagen Leder über den Knöcheln. Man greift damit fester zu.",
+      "armorStyle": "leder",
+      "icon": "icons/leather_gloves.webp"
+    },
+    {
       "id": "wanderer_cloak",
       "name": "Wanderumhang",
       "kind": "armor",
@@ -254,6 +273,26 @@
       "description": "Ein weiter Umhang aus grobem Leinen. Wärmt nachts, staubt tagsüber.",
       "maxHp": 14,
       "icon": "icons/wanderer_cloak.webp"
+    },
+    {
+      "id": "reisemantel",
+      "name": "Reisemantel",
+      "kind": "armor",
+      "slot": "cloak",
+      "levelReq": 1,
+      "attackDamage": 0,
+      "defense": 3,
+      "maxHp": 20,
+      "maxMp": 5,
+      "effectValue": 0,
+      "stackable": false,
+      "maxStack": 1,
+      "value": 48,
+      "model": "armor_coat",
+      "iconColor": "#4a3d5c",
+      "description": "Schwerer Stoff, hoher Kragen, Schoss bis unter die Knie. Hält Wind ab und Blicke fest.",
+      "armorStyle": "wolle",
+      "icon": "icons/reisemantel.webp"
     },
     {
       "id": "reading_glasses",
@@ -312,17 +351,43 @@
       "maxMp": 15,
       "maxHp": 8,
       "icon": "icons/moor_pendant.webp"
+    },
+    {
+      "id": "moor_earring",
+      "name": "Moorohrring",
+      "kind": "armor",
+      "slot": "earring",
+      "levelReq": 1,
+      "attackDamage": 0,
+      "defense": 0,
+      "maxHp": 6,
+      "maxMp": 8,
+      "critChance": 0.01,
+      "effectValue": 0,
+      "stackable": false,
+      "maxStack": 1,
+      "value": 19,
+      "model": "armor_earring",
+      "iconColor": "#c9a44a",
+      "description": "Ein Messingreif mit einem Tropfen Irrlichtessenz. Klingelt leise beim Laufen.",
+      "icon": "icons/moor_earring.webp"
     }
   ],
   "sets": [
     {
       "id": "leder",
       "name": "Ledersatz des Wanderers",
-      "pieces": ["leather_cap", "leather_tunic", "leather_pants", "leather_boots"],
+      "pieces": [
+        "leather_cap",
+        "leather_tunic",
+        "leather_gloves",
+        "leather_pants",
+        "leather_boots"
+      ],
       "bonus": {
         "attackDamage": 2,
-        "defense": 4,
-        "maxHp": 30,
+        "defense": 5,
+        "maxHp": 35,
         "maxMp": 10,
         "critChance": 0.02
       }
@@ -391,6 +456,26 @@
     },
     {
       "item": "copper_ring",
+      "count": 1,
+      "equipped": false
+    },
+    {
+      "item": "leather_gloves",
+      "count": 1,
+      "equipped": false
+    },
+    {
+      "item": "reisemantel",
+      "count": 1,
+      "equipped": false
+    },
+    {
+      "item": "moor_earring",
+      "count": 1,
+      "equipped": false
+    },
+    {
+      "item": "moor_earring",
       "count": 1,
       "equipped": false
     }

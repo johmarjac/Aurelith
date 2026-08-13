@@ -13,7 +13,7 @@
  *
  * **Was man trägt ist nicht, was man sieht.** Eine Halskette und zwei Ringe
  * ändern die Werte, aber auf einem Modell aus Kästen sind sie nicht zu
- * erkennen. Sichtbar sind die sechs Teile in `VISIBLE_SLOTS` — und nur die
+ * erkennen. Sichtbar sind die sieben Teile in `VISIBLE_SLOTS` — und nur die
  * gehen als `Outfit` über die Leitung, damit der Snapshot nicht für Dinge
  * wächst, die niemand sehen kann.
  */
@@ -28,9 +28,11 @@ export const EQUIP_SLOTS: readonly EquipSlot[] = [
   'chest',
   'legs',
   'feet',
+  'hands',
   'cloak',
   'glasses',
   'necklace',
+  'earring',
   'ring',
 ];
 
@@ -42,9 +44,11 @@ export const SLOT_NAMES: Readonly<Record<EquipSlot, string>> = {
   chest: 'Brust',
   legs: 'Hose',
   feet: 'Schuhe',
+  hands: 'Hände',
   cloak: 'Umhang',
   glasses: 'Brille',
   necklace: 'Halskette',
+  earring: 'Ohrring',
   ring: 'Ring',
   none: '—',
 };
@@ -52,13 +56,14 @@ export const SLOT_NAMES: Readonly<Record<EquipSlot, string>> = {
 /**
  * Wie viele Stücke auf einem Platz gleichzeitig sitzen dürfen.
  *
- * Nur Ringe sind mehr als eins. Steht hier und nicht als Zahl im Server, weil
- * der Client dieselbe Frage beantworten muss: das Inventar zeichnet zwei
- * Ringkästchen und nur ein Brustkästchen.
+ * Ringe und Ohrringe sind mehr als eins — man hat zwei Hände und zwei Ohren.
+ * Steht hier und nicht als Zahl im Server, weil der Client dieselbe Frage
+ * beantworten muss: das Inventar zeichnet zwei Ringkästchen und nur ein
+ * Brustkästchen.
  */
 export function slotCapacity(slot: EquipSlot): number {
   if (slot === 'none') return 0;
-  return slot === 'ring' ? 2 : 1;
+  return slot === 'ring' || slot === 'earring' ? 2 : 1;
 }
 
 /**
@@ -68,7 +73,15 @@ export function slotCapacity(slot: EquipSlot): number {
  * die Zeichenkette, und `decodeOutfit` liest sie so zurück. Wer hier etwas
  * einfügt, muss PROTOCOL_VERSION hochzählen.
  */
-export const VISIBLE_SLOTS = ['head', 'chest', 'legs', 'feet', 'cloak', 'glasses'] as const;
+export const VISIBLE_SLOTS = [
+  'head',
+  'chest',
+  'legs',
+  'feet',
+  'hands',
+  'cloak',
+  'glasses',
+] as const;
 export type VisibleSlot = (typeof VISIBLE_SLOTS)[number];
 
 /** Welcher Stil auf welchem sichtbaren Platz sitzt. Leer heißt: nichts an. */
@@ -77,11 +90,11 @@ export type Outfit = Partial<Record<VisibleSlot, string>>;
 /**
  * Das Aussehen als eine Zeichenkette, für den Snapshot.
  *
- * Ein Feld statt sechs: Ausrüstung wechselt selten, und der Server schickt
- * ohnehin die volle Zeile, wenn sich etwas ändert. Sechs kurze Felder wären
- * sechs Längenbytes für dieselbe Auskunft.
+ * Ein Feld statt sieben: Ausrüstung wechselt selten, und der Server schickt
+ * ohnehin die volle Zeile, wenn sich etwas ändert. Sieben kurze Felder wären
+ * sieben Längenbytes für dieselbe Auskunft.
  *
- *     encodeOutfit({ chest: 'leder', feet: 'leder' })  →  "|leder||leder||"
+ *     encodeOutfit({ chest: 'leder', feet: 'leder' })  →  "|leder||leder|||"
  */
 export function encodeOutfit(outfit: Outfit): string {
   return VISIBLE_SLOTS.map((s) => outfit[s] ?? '').join('|');

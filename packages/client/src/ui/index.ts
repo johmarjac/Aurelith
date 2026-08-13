@@ -82,13 +82,16 @@ const KIND_LABEL: Record<string, string> = {
  * untereinander stehen, ist der halbe Sinn der Sache: man liest sie ab, ohne
  * die Symbole anzusehen.
  *
- * Die Reihe oben hat keine sechs Plätze wie das Vorbild — Ohrringe und ein
- * zweites Halsband gibt es hier nicht, und leere Kästchen für Dinge, die es
- * nicht gibt, sind ein Versprechen, das niemand einlöst.
+ * Die Reihe oben trägt Ring, Ohrring, Halskette, Ohrring, Ring — dieselbe
+ * Fünferreihe wie im Vorbild. Was es nicht gibt, steht auch nicht da: leere
+ * Kästchen für Dinge, die nie hineinpassen, sind ein Versprechen, das niemand
+ * einlöst.
  */
 const OBERE_PLAETZE: ReadonlyArray<[EquipSlot, number]> = [
   ['ring', 0],
+  ['earring', 0],
   ['necklace', 0],
+  ['earring', 1],
   ['ring', 1],
 ];
 const LINKE_PLAETZE: ReadonlyArray<[EquipSlot, number]> = [
@@ -99,6 +102,7 @@ const LINKE_PLAETZE: ReadonlyArray<[EquipSlot, number]> = [
 const RECHTE_PLAETZE: ReadonlyArray<[EquipSlot, number]> = [
   ['head', 0],
   ['chest', 0],
+  ['hands', 0],
   ['legs', 0],
   ['feet', 0],
 ];
@@ -109,10 +113,12 @@ const SLOT_GLYPHS: Partial<Record<EquipSlot, string>> = {
   chest: '🎽',
   legs: '👖',
   feet: '🥾',
+  hands: '🧤',
   mainhand: '⚔️',
   cloak: '🧣',
   glasses: '👓',
   necklace: '📿',
+  earring: '💧',
   ring: '💍',
 };
 
@@ -292,13 +298,30 @@ export class UI {
     host.dataset.touch = String(touch);
 
     // --- Werte ------------------------------------------------------------
+    /*
+     * Der Werte-Kasten im Flyff-Zuschnitt: Medaillon links, drei schmale
+     * Balken rechts.
+     *
+     * Er war vorher fast so breit wie ein halber Bildschirm und dreizeilig,
+     * und das ist für eine Anzeige, die man im Kampf mit einem Blick streift,
+     * zu viel Fläche. Die Stufe steht jetzt im Medaillon statt in einer
+     * eigenen Zeile — dieselbe Auskunft, keine zusätzliche Zeile —, und die
+     * Balken sind halb so hoch.
+     */
     const vitals = el('div', 'vitals panel');
+
+    const medaillon = el('div', 'vitals-badge');
+    this.levelLabel = el('span', 'vitals-level', '1');
+    medaillon.append(this.levelLabel);
+
+    const spalte = el('div', 'vitals-col');
     const head = el('div', 'vitals-head');
     this.nameLabel = el('span', 'vitals-name', '—');
-    this.levelLabel = el('span', 'vitals-level', 'Stufe 1');
     this.clockLabel = el('span', 'vitals-clock', '');
-    head.append(this.nameLabel, this.clockLabel, this.levelLabel);
-    vitals.append(head, this.hpBar.root, this.mpBar.root, this.expBar.root);
+    head.append(this.nameLabel, this.clockLabel);
+    spalte.append(head, this.hpBar.root, this.mpBar.root, this.expBar.root);
+
+    vitals.append(medaillon, spalte);
     host.appendChild(vitals);
 
     // --- Ziel -------------------------------------------------------------
@@ -758,7 +781,10 @@ export class UI {
     this.shopWindow.setInventory(this.sellableItems(), stats.gold);
     this.upgradeWindow.setInventory(this.inventory, stats.gold);
 
-    this.levelLabel.textContent = `Stufe ${stats.level}`;
+    // Nur die Zahl: im Medaillon ist kein Platz für das Wort, und ein
+    // Medaillon mit einer Zahl darin liest sich ohnehin als Stufe.
+    this.levelLabel.textContent = String(stats.level);
+    this.levelLabel.title = `Stufe ${stats.level}`;
     // Eine neue Stufe kann Aufträge freischalten — die Zeichen über den NPCs
     // hängen an der Stufe genauso wie am Auftragsstand.
     this.rebuildQuestMarks();

@@ -114,9 +114,9 @@ await page.evaluate(async (stufen) => {
   camera.position.set(0, 1.4, 8);
   camera.lookAt(0, 1.0, 0);
 
-  // Der volle Ledersatz in der Reihenfolge aus VISIBLE_SLOTS:
-  // Kopf, Brust, Hose, Schuhe, Umhang, Brille.
-  const OUTFIT = 'leder|leder|leder|leder||';
+  // Der volle Ledersatz samt Reisemantel, in der Reihenfolge aus VISIBLE_SLOTS:
+  // Kopf, Brust, Hose, Schuhe, Hände, Umhang, Brille.
+  const OUTFIT = 'leder|leder|leder|leder|leder|wolle|';
 
   stufen.forEach((stufe, i) => {
     const rig = createRig(

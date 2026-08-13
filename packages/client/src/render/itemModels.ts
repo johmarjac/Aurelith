@@ -162,6 +162,74 @@ function boots(): THREE.BufferGeometry {
   ]);
 }
 
+/** Lederhandschuhe: Stulpe, Faust, Daumen — ein Paar, leicht versetzt. */
+function gloves(): THREE.BufferGeometry {
+  const teile: Part[] = [];
+  // Zwei Stück nebeneinander und um eine Idee gegeneinander gedreht: ein
+  // einzelner Handschuh sähe im Beutel aus wie ein Fäustling, und Handschuhe
+  // gibt es paarweise.
+  for (const [x, seite, kipp] of [
+    [-0.17, 1, 0.18],
+    [0.17, -1, -0.18],
+  ] as const) {
+    teile.push(
+      { geometry: box(0.26, 0.3, 0.2), color: LEDER, position: [x, 0.42, 0], rotation: [0, 0, kipp] },
+      // Stulpe.
+      { geometry: box(0.32, 0.14, 0.26), color: LEDER_DUNKEL, position: [x, 0.62, 0], rotation: [0, 0, kipp] },
+      // Daumen.
+      { geometry: box(0.1, 0.14, 0.12), color: LEDER, position: [x + seite * 0.15, 0.46, 0.06] },
+      // Knöchelband.
+      { geometry: box(0.28, 0.06, 0.06), color: LEDER_DUNKEL, position: [x, 0.5, 0.11] },
+    );
+  }
+  return assemble(teile);
+}
+
+/** Ohrring: ein Reif mit einem Tropfen daran. */
+function earring(): THREE.BufferGeometry {
+  const messing = 0xc9a44a;
+  const stein = 0x7fd8e8;
+  const teile: Part[] = [];
+  // Derselbe Trick wie beim Ring: ein Kranz Klötzchen, damit das Loch bleibt.
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    teile.push({
+      geometry: box(0.07, 0.07, 0.09),
+      color: messing,
+      position: [Math.cos(a) * 0.18, 0.52 + Math.sin(a) * 0.18, 0],
+      rotation: [0, 0, a],
+    });
+  }
+  // Der Tropfen hängt unten am Reif.
+  teile.push(
+    { geometry: cylinder(0.025, 0.025, 0.1, 6), color: messing, position: [0, 0.29, 0] },
+    { geometry: cone(0.11, 0.24, 6), color: stein, position: [0, 0.14, 0], rotation: [Math.PI, 0, 0] },
+    { geometry: cone(0.11, 0.12, 6), color: stein, position: [0, 0.08, 0] },
+  );
+  return assemble(teile);
+}
+
+/** Reisemantel: Kragen, zwei Bahnen, weiter Schoss. */
+function coat(): THREE.BufferGeometry {
+  const tuch = 0x4a3d5c;
+  const besatz = 0x8a7a4a;
+  return assemble([
+    // Kragen.
+    { geometry: box(0.42, 0.12, 0.16), color: besatz, position: [0, 0.78, 0] },
+    // Schultern.
+    { geometry: box(0.5, 0.16, 0.2), color: shadeItem(tuch, 1.08), position: [0, 0.66, 0] },
+    // Zwei Bahnen mit einer Lücke dazwischen — daran erkennt man einen Mantel
+    // und keinen Umhang.
+    { geometry: box(0.22, 0.56, 0.12), color: tuch, position: [-0.15, 0.32, 0] },
+    { geometry: box(0.22, 0.56, 0.12), color: tuch, position: [0.15, 0.32, 0] },
+    // Schoss, unten weiter.
+    { geometry: box(0.62, 0.16, 0.16), color: shadeItem(tuch, 0.9), position: [0, 0.1, 0] },
+    // Knöpfe.
+    { geometry: box(0.05, 0.05, 0.04), color: besatz, position: [-0.03, 0.52, 0.07] },
+    { geometry: box(0.05, 0.05, 0.04), color: besatz, position: [-0.03, 0.4, 0.07] },
+  ]);
+}
+
 /** Wanderumhang: ein Tuch, oben schmal, unten weit. */
 function cloak(): THREE.BufferGeometry {
   const stoff = 0x5a6b8a;
@@ -234,9 +302,12 @@ export const ITEM_BUILDERS: Record<string, ItemBuilder> = {
   armor_chest: tunic,
   armor_legs: pants,
   armor_feet: boots,
+  armor_hands: gloves,
   armor_cloak: cloak,
+  armor_coat: coat,
   armor_glasses: glasses,
   armor_necklace: pendant,
+  armor_earring: earring,
   armor_ring: ring,
   item_potion: potion,
   item_essence: essence,

@@ -62,7 +62,7 @@ function vollerSatz(stufe: number): WornPiece[] {
 
 console.log('\nZugehörigkeit');
 
-check(LEDER.pieces.length === 4, 'der Ledersatz hat vier Teile', `${LEDER.pieces.length}`);
+check(LEDER.pieces.length === 5, 'der Ledersatz hat fünf Teile', `${LEDER.pieces.length}`);
 check(
   LEDER.pieces.every((id) => setOfItem(id)?.id === 'leder'),
   'jedes Teil kennt seinen Satz',
@@ -88,12 +88,12 @@ console.log('\nWann der Satz gilt');
 
 {
   const aktiv = activeArmorSet(vollerSatz(0));
-  check(aktiv?.set.id === 'leder', 'vier von vier: der Satz gilt', aktiv?.set.id ?? 'keiner');
+  check(aktiv?.set.id === 'leder', 'alle Teile: der Satz gilt', aktiv?.set.id ?? 'keiner');
 }
 
 {
-  const drei = vollerSatz(0).slice(0, 3);
-  check(activeArmorSet(drei) === undefined, 'drei von vier: der Satz gilt nicht');
+  const fastAlle = vollerSatz(0).slice(0, -1);
+  check(activeArmorSet(fastAlle) === undefined, 'eines fehlt: der Satz gilt nicht');
 }
 
 {
@@ -116,14 +116,11 @@ check(activeArmorSet([]) === undefined, 'wer nichts trägt, trägt keinen Satz')
 console.log('\nDie Stufe hängt am schwächsten Teil');
 
 {
-  const gemischt = [
-    { itemId: 'leather_cap', upgrade: 9 },
-    { itemId: 'leather_tunic', upgrade: 7 },
-    { itemId: 'leather_pants', upgrade: 6 },
-    { itemId: 'leather_boots', upgrade: 3 },
-  ];
+  // Alle hoch bis auf eines — die Stufen kommen aus dem Satz selbst, damit die
+  // Prüfung ein zusätzliches Teil überlebt.
+  const gemischt = vollerSatz(9).map((teil, i) => (i === 0 ? { ...teil, upgrade: 3 } : teil));
   const aktiv = activeArmorSet(gemischt);
-  check(aktiv?.minUpgrade === 3, 'drei starke Teile und ein schwaches ergeben die schwache Stufe', `${aktiv?.minUpgrade}`);
+  check(aktiv?.minUpgrade === 3, 'lauter starke Teile und ein schwaches ergeben die schwache Stufe', `${aktiv?.minUpgrade}`);
   check(setGlowLevel(aktiv) === 0, 'und damit leuchtet nichts', `${setGlowLevel(aktiv)}`);
 }
 
@@ -176,15 +173,10 @@ function nachsichtigGlow(aktiv: { minUpgrade: number } | undefined): number {
 }
 
 const gegenproben = [
-  nachsichtigAktiv(vollerSatz(0).slice(0, 3)) === undefined,
+  nachsichtigAktiv(vollerSatz(0).slice(0, -1)) === undefined,
   nachsichtigGlow(nachsichtigAktiv(vollerSatz(glowFrom() - 1))) === 0,
   nachsichtigGlow(
-    nachsichtigAktiv([
-      { itemId: 'leather_cap', upgrade: 9 },
-      { itemId: 'leather_tunic', upgrade: 7 },
-      { itemId: 'leather_pants', upgrade: 6 },
-      { itemId: 'leather_boots', upgrade: 3 },
-    ]),
+    nachsichtigAktiv(vollerSatz(9).map((teil, i) => (i === 0 ? { ...teil, upgrade: 3 } : teil))),
   ) === 0,
 ];
 check(

@@ -26,7 +26,7 @@ bewussten Abweichung, die weiter unten begründet ist.
   Charakterblatt, ziehbare Fenster, Namensschilder, Schadenszahlen — in einem
   eigenen Theme aus Pergament, Holz und Messing, und mit einem Regler für die
   Größe der ganzen Oberfläche.
-- **Ausrüstung mit Rüstungssätzen**: zehn Plätze, sichtbare Teile an der Figur,
+- **Ausrüstung mit Rüstungssätzen**: dreizehn Plätze, sichtbare Teile an der Figur,
   Satzbonus für den vollständigen Satz und ein Schein um die Rüstung, sobald
   jedes Teil davon mindestens +4 trägt.
 - **Drei Karten** mit Gates und einem Dungeon, dazu ein **Map-Editor**, der

@@ -297,7 +297,7 @@ check(
   'die Leinwand hat eine brauchbare Größe',
   puppe ? `${puppe.leinwand.breite}×${puppe.leinwand.hoehe} px` : '—',
 );
-check(puppe?.plaetze === 10, 'zehn Ausrüstungsplätze', String(puppe?.plaetze));
+check(puppe?.plaetze === 13, 'dreizehn Ausrüstungsplätze', String(puppe?.plaetze));
 check(
   puppe?.sichtbar === puppe?.plaetze,
   'und alle liegen im Fenster',

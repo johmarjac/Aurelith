@@ -107,9 +107,10 @@ export type ItemKind = 'weapon' | 'armor' | 'consumable' | 'material' | 'quest';
 /**
  * Wo ein Gegenstand getragen wird.
  *
- * `ring` ist einer und nicht zwei: wie viele Ringe gleichzeitig sitzen dürfen,
- * sagt `slotCapacity` in `equipment.ts`. Ein Ring, der sich für eine Hand
- * entscheiden müsste, wäre eine Angabe, die niemand sinnvoll ausfüllen kann.
+ * `ring` ist einer und nicht zwei, `earring` ebenso: wie viele gleichzeitig
+ * sitzen dürfen, sagt `slotCapacity` in `equipment.ts`. Ein Ring, der sich für
+ * eine Hand entscheiden müsste, wäre eine Angabe, die niemand sinnvoll
+ * ausfüllen kann.
  */
 export type EquipSlot =
   | 'mainhand'
@@ -118,9 +119,11 @@ export type EquipSlot =
   | 'chest'
   | 'legs'
   | 'feet'
+  | 'hands'
   | 'cloak'
   | 'glasses'
   | 'necklace'
+  | 'earring'
   | 'ring'
   | 'none';
 

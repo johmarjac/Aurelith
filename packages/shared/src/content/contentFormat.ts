@@ -156,9 +156,11 @@ const SLOT_NAMEN = [
   'chest',
   'legs',
   'feet',
+  'hands',
   'cloak',
   'glasses',
   'necklace',
+  'earring',
   'ring',
   'none',
 ] as const;

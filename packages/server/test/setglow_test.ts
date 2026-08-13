@@ -231,9 +231,13 @@ async function aufwerten(itemId: string): Promise<void> {
   while (Date.now() < bis && stufeVon(itemId) === vorher) await sleep(50);
 }
 
-console.log('\nDrei Teile hoch, eines bleibt liegen');
+console.log('\nAlle Teile hoch bis auf eines');
 
-for (const teil of TEILE.slice(0, 3)) {
+// `slice(0, -1)` und nicht `slice(0, 3)`: wie viele Teile ein Satz hat, sagt
+// die Inhaltsdatei. Als die Handschuhe dazukamen, blieb bei einer festen Drei
+// ein weiteres Teil liegen, und die Prüfung darunter mass etwas anderes, als
+// sie behauptete.
+for (const teil of TEILE.slice(0, -1)) {
   for (let i = 0; i < SCHWELLE; i++) await aufwerten(teil);
 }
 // Auf die Antwort warten: die Stufe steht im Beutel, das Leuchten im
@@ -241,8 +245,8 @@ for (const teil of TEILE.slice(0, 3)) {
 await sleep(400);
 
 check(
-  TEILE.slice(0, 3).every((id) => stufeVon(id) === SCHWELLE),
-  `drei Teile stehen auf +${SCHWELLE}`,
+  TEILE.slice(0, -1).every((id) => stufeVon(id) === SCHWELLE),
+  `${TEILE.length - 1} Teile stehen auf +${SCHWELLE}`,
   TEILE.map((id) => `${stufeVon(id)}`).join('/'),
 );
 check(
@@ -251,9 +255,9 @@ check(
   String(setGlow),
 );
 
-console.log('\nDas vierte Teil nach');
+console.log('\nDas letzte Teil nach');
 
-for (let i = 0; i < SCHWELLE; i++) await aufwerten(TEILE[3]!);
+for (let i = 0; i < SCHWELLE; i++) await aufwerten(TEILE.at(-1)!);
 await sleep(400);
 
 check(setGlow === SCHWELLE, `jetzt leuchtet es — Stufe ${SCHWELLE}`, String(setGlow));
@@ -288,7 +292,7 @@ while (Date.now() < bisAus && inventory.find((i) => i.itemId === TEILE[0])?.equi
 }
 await sleep(400);
 
-check(setGlow === 0, 'ohne das vierte Teil leuchtet nichts mehr', String(setGlow));
+check(setGlow === 0, 'ohne dieses eine Teil leuchtet nichts mehr', String(setGlow));
 
 console.log(
   failures === 0 ? '\nAlle Prüfungen bestanden.\n' : `\n${failures} Prüfung(en) fehlgeschlagen.\n`,
