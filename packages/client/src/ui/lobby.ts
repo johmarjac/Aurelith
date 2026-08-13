@@ -639,6 +639,19 @@ export class LobbyView {
   }
 
   /**
+   * Eine Auskunft, die keine Absage ist — „du bist abgemeldet".
+   *
+   * Dasselbe Feld, anderer Anstrich. Ein zweites Feld daneben hiesse, dass
+   * zwei Meldungen gleichzeitig stehen können, und die ältere wäre dann
+   * regelmässig die falsche.
+   */
+  zeigeHinweis(text: string): void {
+    this.meldung.textContent = text;
+    this.meldung.hidden = text.length === 0;
+    this.meldung.dataset.art = 'hinweis';
+  }
+
+  /**
    * Übernimmt den Stand aus der Verwaltung.
    *
    * Die Liste wird jedes Mal neu gebaut. Ein Abgleich wäre schneller und

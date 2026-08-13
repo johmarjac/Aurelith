@@ -7,7 +7,7 @@
  * ändert, zählt PROTOCOL_VERSION hoch.
  */
 
-export const PROTOCOL_VERSION = 12;
+export const PROTOCOL_VERSION = 13;
 
 export const ClientOp = {
   Hello: 0x01,
@@ -45,8 +45,13 @@ export const ClientOp = {
   DeleteCharacter: 0x14,
   /** Mit einem Charakter in die Welt. */
   EnterWorld: 0x15,
-  /** Zurück in die Charakterverwaltung — die Figur verlässt die Welt. */
-  LeaveWorld: 0x16,
+  /*
+   * 0x16 war `LeaveWorld` — zurück in die Charakterverwaltung, Verbindung
+   * behalten. Zurückgezogen: der Weg aus der Welt führt jetzt ganz heraus
+   * (siehe `Logout`), weil die Eintrittskarte, mit der man hereinkam, nur
+   * einmal gilt. Wer in der Verwaltung sass, hatte danach keine mehr und kam
+   * nirgends mehr hin. Die Nummer bleibt frei — sie war einmal etwas anderes.
+   */
   /** Eine Fertigkeit wirken. Was daraus wird, entscheidet der Server. */
   UseSkill: 0x17,
   /**
@@ -82,6 +87,17 @@ export const ClientOp = {
    * Passwörter geprüft werden.
    */
   Ticket: 0x1b,
+  /**
+   * Abmelden — raus aus der Welt und aus dem Kanal.
+   *
+   * Der Kanal speichert, nimmt die Figur aus der Welt, meldet das Konto beim
+   * Anmeldeserver als frei und schliesst **dann** die Leitung. Diese
+   * Reihenfolge ist der ganze Zweck des Pakets: würde der Client einfach
+   * auflegen, liefe er sofort zum Anmeldeserver und stünde dort vor „dieses
+   * Konto spielt gerade" — der Abmeldung des Kanals zuvorgekommen, die
+   * unterwegs noch als HTTP-Ruf durchs Netz geht.
+   */
+  Logout: 0x1c,
 } as const;
 export type ClientOp = (typeof ClientOp)[keyof typeof ClientOp];
 

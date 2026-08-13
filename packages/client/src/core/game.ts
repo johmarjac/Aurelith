@@ -520,10 +520,10 @@ export class Game {
     // Eintrittskarte für den nächsten Kanal gibt es nur dort, und sie wird
     // nur gegen eine Anmeldung ausgestellt — deshalb vergisst die Maske
     // vorher, dass sie angemeldet war, und zeigt wieder das Formular.
-    this.lobby.onBackToChannels = () => {
-      this.lobby.zuruecksetzen();
-      this.connect();
-    };
+    // Denselben Weg wie „Abmelden": auch hier wird die Kanalsitzung beendet,
+    // und auch hier muss der Kanal das Konto erst freigeben, bevor der
+    // Anmeldeserver eine neue Anmeldung annimmt.
+    this.lobby.onBackToChannels = () => this.abmelden();
     this.lobby.onEnterWorld = (id) => {
       // Der Name für den Kasten oben links steht in der Liste, nicht im
       // Willkommen: der Server nennt dort die Karte, nicht die Figur.
@@ -541,9 +541,10 @@ export class Game {
     this.ui.onMoveItem = (from, to) => this.connection?.sendMoveItem(from, to);
     this.ui.onDropItem = (slot) => this.connection?.sendDropItem(slot);
     this.ui.onDestroyItem = (slot) => this.connection?.sendDestroyItem(slot);
-    // Abmelden heisst hier: zurück in die Figurenauswahl. Die Verbindung
-    // bleibt — der Server nimmt die Figur aus der Welt und schickt die Liste.
-    this.ui.onLeaveWorld = () => this.connection?.sendLeaveWorld();
+    // Abmelden heisst: ganz heraus. Siehe `abmelden` — in die Figurenauswahl
+    // zurückzukehren wäre eine Sackgasse, denn von dort führt ohne
+    // Eintrittskarte kein Weg mehr in die Welt.
+    this.ui.onLogout = () => this.abmelden();
     this.ui.onQuestAction = (questId, action) =>
       this.connection?.sendQuestAction(questId, action);
     this.ui.onBuy = (itemId, count) => this.connection?.sendShopTrade(0, itemId, count);
@@ -879,6 +880,7 @@ export class Game {
     // die Sitzung am Kanal. Scheitert sie, geht es zurück zum Anmeldeserver —
     // dort und nur dort gibt es eine neue Karte.
     this.amKanal = ticket !== undefined;
+    this.kanalUrl = ticket === undefined ? '' : url;
     this.lobby.notiere(
       `Verbinde mit ${url}${ticket === undefined ? '' : ' (mit Eintrittskarte)'}`,
     );
@@ -930,42 +932,69 @@ export class Game {
         );
 
         /*
-         * Ein Kanal, der nicht antwortet.
+         * Eine Kanalverbindung, die endet — gleich aus welchem Grund.
          *
-         * Der häufigste Fall im Betrieb, und bis hierher der leiseste: der
-         * Anmeldeserver nennt eine Adresse, hinter der nichts horcht — ein
-         * Kanal ohne Weg durch den Proxy, ein Tippfehler in
-         * `AURELITH_PUBLIC_URL`. Der Browser versucht es, scheitert, und die
-         * Maske stand da, als sei nichts gewesen: „Betreten" gedrückt, nichts
-         * passiert, keine Meldung.
+         * Sie lässt sich nicht wieder aufnehmen. Der Schlüssel dazu war die
+         * Eintrittskarte, und die gilt einmal: was der Client noch in der Hand
+         * hält, ist ein Stück Papier, das der Kanal beim zweiten Vorzeigen
+         * zurückweist. Ein selbsttätiger Wiederversuch liefe deshalb in eine
+         * Schleife aus Absagen. Also zurück zum Anmeldeserver, wo es eine neue
+         * Karte gibt — gegen eine neue Anmeldung.
          *
-         * Die Eintrittskarte ist dabei verbraucht — deshalb geht es zurück an
-         * den Anfang und nicht zur Kanalliste: eine neue Karte gibt es nur
-         * gegen eine Anmeldung.
+         * Drei Fälle enden hier, und sie sollen sich nicht gleich anfühlen:
+         * gewollt abgemeldet, nie angekommen, mittendrin abgerissen.
          */
-        if (status === 'getrennt' && this.amKanal) {
+        if (status === 'getrennt' && this.kanalUrl !== '') {
+          const nichtAngekommen = this.amKanal;
+          const gewollt = this.abmeldeWunsch;
           this.amKanal = false;
+          this.kanalUrl = '';
+          this.abmeldeWunsch = false;
+          window.clearTimeout(this.abmeldeFrist);
           this.connection?.close();
           this.resetSession();
           this.lobby.zuruecksetzen();
-          // Der Schliesscode gehört in die Meldung und nicht nur in die
-          // Konsole: er ist der Unterschied zwischen „kommt nicht hin" (1006)
-          // und „wurde abgewiesen" (1002, 1008), und niemand öffnet die
-          // Konsole, bevor er weiss, dass dort etwas steht.
-          this.lobby.zeigeFehler(
-            `Der Kanal unter ${url} antwortet nicht${detail ? ` (${detail})` : ''}. ` +
-              'Prüfe, ob er von aussen erreichbar ist, und melde dich neu an.',
-          );
-          this.ui.debug(`[kanal] ${url} nicht erreichbar${detail ? ` — ${detail}` : ''}`, 'fehler');
-          this.lobby.notiere(
-            'Kanal nicht erreichbar — zurück zum Anmeldeserver, die Eintrittskarte ist verbraucht.',
-            'fehler',
-          );
-          // Der Schliesscode allein reicht nicht: 1006 heisst nur „gar nicht
-          // zustande gekommen" und nennt keinen Grund. Die Nachfrage über HTTP
-          // trennt die beiden Fälle, die dahinterstecken — siehe `pruefeKanal`.
-          void this.pruefeKanal(url);
+
+          if (gewollt) {
+            this.lobby.notiere('Abgemeldet. Der Kanal hat die Sitzung aufgeräumt.');
+            this.lobby.zeigeHinweis(
+              'Du bist abgemeldet. Melde dich an, um wieder einen Kanal zu betreten.',
+            );
+          } else if (nichtAngekommen) {
+            // Der Schliesscode gehört in die Meldung und nicht nur in die
+            // Konsole: er ist der Unterschied zwischen „kommt nicht hin"
+            // (1006) und „wurde abgewiesen" (1002, 1008), und niemand öffnet
+            // die Konsole, bevor er weiss, dass dort etwas steht.
+            this.lobby.zeigeFehler(
+              `Der Kanal unter ${url} antwortet nicht${detail ? ` (${detail})` : ''}. ` +
+                'Prüfe, ob er von aussen erreichbar ist, und melde dich neu an.',
+            );
+            this.ui.debug(
+              `[kanal] ${url} nicht erreichbar${detail ? ` — ${detail}` : ''}`,
+              'fehler',
+            );
+            this.lobby.notiere(
+              'Kanal nicht erreichbar — zurück zum Anmeldeserver, die Eintrittskarte ist verbraucht.',
+              'fehler',
+            );
+            // Der Schliesscode allein reicht nicht: 1006 heisst nur „gar nicht
+            // zustande gekommen" und nennt keinen Grund. Die Nachfrage über
+            // HTTP trennt die beiden Fälle — siehe `pruefeKanal`.
+            void this.pruefeKanal(url);
+          } else {
+            this.lobby.zeigeFehler(
+              `Die Verbindung zum Kanal ist abgerissen${detail ? ` (${detail})` : ''}. ` +
+                'Die Eintrittskarte gilt nur einmal — melde dich neu an, dann geht es weiter.',
+            );
+            this.lobby.notiere(
+              'Kanalverbindung verloren — die verbrauchte Eintrittskarte taugt für ' +
+                'keinen zweiten Versuch, also zurück zum Anmeldeserver.',
+              'fehler',
+            );
+          }
+
           this.connect();
+          this.lobby.zeigeAnmeldung();
           return;
         }
 
@@ -1189,6 +1218,59 @@ export class Game {
   }
 
   /**
+   * Abmelden — aus der Welt, aus dem Kanal, zurück ans Anmeldeformular.
+   *
+   * Nicht zurück in die Figurenauswahl. Die gehört zum Kanal, und in den kommt
+   * man nur mit einer Eintrittskarte; wer dort ohne eine sässe, hätte eine
+   * Liste mit einem Knopf, der nichts mehr bewirken kann.
+   *
+   * Der Client legt nicht selbst auf, sondern bittet den Kanal darum. Der
+   * räumt auf — speichern, Figur aus der Welt, Konto beim Anmeldeserver
+   * freigeben — und legt danach von sich aus auf; erst das schliessende
+   * `getrennt` bringt uns zum Anmeldeserver zurück. Die Frist darunter ist
+   * für den Fall, dass er das nicht tut: lieber eine Sekunde zu früh
+   * abgemeldet als eine Maske, die für immer wartet.
+   */
+  private abmelden(): void {
+    if (this.abmeldeWunsch) return;
+
+    // Ohne Eintrittskarte — am Anmeldeserver oder bei einem Spielserver im
+    // Alleinbetrieb — hat das Auflegen keine Folgen, die man abwarten müsste:
+    // es gibt kein Konto freizugeben, und die Figur speichert der Server beim
+    // Trennen ohnehin. Also gleich zurück ans Formular.
+    if (this.kanalUrl === '') {
+      this.resetSession();
+      this.lobby.zuruecksetzen();
+      this.connect();
+      this.lobby.zeigeAnmeldung();
+      return;
+    }
+
+    this.abmeldeWunsch = true;
+    this.lobby.notiere('Abmelden — der Kanal räumt die Sitzung auf.');
+    this.connection?.sendLogout();
+    window.clearTimeout(this.abmeldeFrist);
+    this.abmeldeFrist = window.setTimeout(() => {
+      if (!this.abmeldeWunsch) return;
+      this.lobby.notiere(
+        'Der Kanal bestätigt das Abmelden nicht — die Leitung wird von hier aus ' +
+          'geschlossen. Falls die nächste Anmeldung „Konto spielt gerade" meldet, ' +
+          'liegt es daran; nach einem Moment ist es frei.',
+        'fehler',
+      );
+      // Der Rest ist derselbe Weg wie sonst: das Schliessen meldet `getrennt`,
+      // und dort steht, was danach passiert.
+      this.connection?.close();
+      this.abmeldeWunsch = false;
+      this.kanalUrl = '';
+      this.resetSession();
+      this.lobby.zuruecksetzen();
+      this.connect();
+      this.lobby.zeigeAnmeldung();
+    }, 4000);
+  }
+
+  /**
    * Nachfragen, warum ein Kanal nicht erreichbar war.
    *
    * Ein gescheitertes WebSocket gibt dem Browser aus Sicherheitsgründen keinen
@@ -1373,8 +1455,22 @@ export class Game {
    * Anmeldeserver zurückzugehen.
    */
   private amKanal = false;
+  /**
+   * Die Adresse des Kanals, an dem diese Sitzung hängt. Leer heisst:
+   * Anmeldeserver.
+   *
+   * Der Unterschied zu `amKanal`: das dort erlischt, sobald die Karte
+   * eingelöst ist. Diese Angabe bleibt, solange die Verbindung steht — denn
+   * die Frage „darf ich es einfach noch einmal versuchen?" wird auch nach dem
+   * Einlösen gestellt, und die Antwort ist dieselbe: nein, die Karte ist weg.
+   */
+  private kanalUrl = '';
   /** Läuft, solange ein Kanal noch keine Antwort auf die Eintrittskarte gab. */
   private stilleWache = 0;
+  /** Wir haben uns abgemeldet und warten darauf, dass der Kanal auflegt. */
+  private abmeldeWunsch = false;
+  /** Notausgang, falls der Kanal auf das Abmelden nicht antwortet. */
+  private abmeldeFrist = 0;
 
   private commandConnect(argument: string): void {
     if (!argument) {

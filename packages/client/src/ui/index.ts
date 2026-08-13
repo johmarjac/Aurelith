@@ -239,7 +239,8 @@ export class UI {
   /** Einen Gegenstand vernichten — auf den Mülleimer gezogen. */
   onDestroyItem?: (slot: number) => void;
   /** Zurück in die Charakterverwaltung. */
-  onLeaveWorld?: () => void;
+  /** Abmelden — raus aus Welt und Kanal, zurück ans Anmeldeformular. */
+  onLogout?: () => void;
   /** Aufwerten beim Schmied. Ebenfalls über den Platz. */
   onUpgradeItem?: (slot: number) => void;
   /** Auftrag annehmen, abgeben oder aufgeben. */
@@ -651,7 +652,7 @@ export class UI {
       this.menuEntry('💬', 'Chat', '⏎', () => this.setChatOpen(!this.chatOpen)),
       this.menuEntry('⚙', 'Einstellungen', 'O', () => this.settingsWindow.toggle()),
       this.menuEntry('🐞', 'Konsole', 'K', () => this.konsole.fenster.toggle()),
-      this.menuEntry('🚪', 'Abmelden', '', () => this.onLeaveWorld?.()),
+      this.menuEntry('🚪', 'Abmelden', '', () => this.onLogout?.()),
     );
     host.appendChild(this.menuPanel);
 

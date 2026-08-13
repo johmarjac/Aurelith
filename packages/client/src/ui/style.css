@@ -1419,6 +1419,13 @@ body {
   color: var(--ink);
 }
 
+/*
+ * Die eine Meldung der Maske — in zwei Anstrichen.
+ *
+ * Rot ist eine Absage: etwas ist schiefgegangen. Ein Hinweis wie „du bist
+ * abgemeldet" in derselben Farbe liest sich wie ein Fehler, und wer sich
+ * absichtlich abmeldet, hat nichts falsch gemacht.
+ */
 .lobby-meldung {
   margin: 0;
   padding: 0.45rem 0.6rem;
@@ -1428,6 +1435,12 @@ body {
   border: 1px solid var(--hp-dim);
   color: var(--hp-dim);
   font-weight: 600;
+}
+
+.lobby-meldung[data-art='hinweis'] {
+  background: rgba(109, 74, 42, 0.12);
+  border-color: var(--panel-edge);
+  color: var(--ink-dim);
 }
 
 /*

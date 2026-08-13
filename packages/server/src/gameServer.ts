@@ -280,7 +280,7 @@ export class GameServer {
     }
     // Das Konto ist wieder frei — auf allen Kanälen. Ohne diese Meldung
     // bliebe es beim Anmeldeserver hängen, bis dieser Kanal verfällt.
-    this.login.meldeAnwesenheit(session.accountId, false);
+    void this.login.meldeAnwesenheit(session.accountId, false);
     this.login.setzeOnline(this.sessions.size);
     session.state = 'closed';
   }
@@ -430,8 +430,10 @@ export class GameServer {
         case ClientOp.EnterWorld:
           void this.onEnterWorld(session, decodeCharacterRef(reader).characterId);
           break;
-        case ClientOp.LeaveWorld:
-          if (session.state === 'playing') void this.onLeaveWorld(session);
+        case ClientOp.Logout:
+          // Aus jedem Zustand ausser dem Handschlag: wer in der Verwaltung
+          // sitzt, darf sich genauso abmelden wie jemand mitten in der Welt.
+          if (session.state !== 'handshake') void this.onLogout(session);
           break;
         case ClientOp.UseSkill: {
           if (session.state !== 'playing') break;
@@ -633,7 +635,7 @@ export class GameServer {
 
     // Dem Anmeldeserver sagen, dass dieses Konto hier ist. Er sperrt es damit
     // auf allen anderen Kanälen.
-    this.login.meldeAnwesenheit(accountId, true);
+    void this.login.meldeAnwesenheit(accountId, true);
     this.login.setzeOnline(this.sessions.size);
 
     await this.sendLobby(session);
@@ -760,6 +762,22 @@ export class GameServer {
     session.entityId = this.nextEntityId++;
     session.mapId = instance.doc.id;
     session.state = 'playing';
+    /*
+     * Der Client fängt mit einer leeren Welt an — also auch die Buchführung
+     * darüber, was er schon kennt.
+     *
+     * `known` entscheidet, ob ein Wesen als Spawn geschickt wird oder nur als
+     * Aktualisierung. Blieb der Stand von vorhin stehen, hielt der Server
+     * jedes Monster für bekannt und schickte bloss noch Positionen — zu
+     * Wesen, die der Client eben weggeworfen hatte. Man stand dann in einer
+     * leeren Welt: keine Monster, keine NPCs, nichts zum Anklicken.
+     *
+     * Hier und nicht beim Verlassen, weil hier das `Welcome` rausgeht: das
+     * ist die Nachricht, auf die hin der Client abräumt. Wer einen neuen Weg
+     * in die Welt baut, kommt an dieser Stelle vorbei.
+     */
+    session.known.clear();
+    session.inputQueue.length = 0;
 
     const stats = this.statsFor(session);
     const profile = this.attackProfileOf(session);
@@ -814,21 +832,35 @@ export class GameServer {
   }
 
   /**
-   * Die Figur verlässt die Welt, die Verbindung bleibt.
+   * Abmelden — aus der Welt **und** aus dem Kanal.
    *
-   * Derselbe Weg wie beim Trennen — speichern, Entity entfernen —, nur endet
-   * er in der Verwaltung statt im Nichts. Zwei Wege dorthin wären zwei
-   * Gelegenheiten, das Speichern zu vergessen.
+   * Die Reihenfolge ist der Inhalt dieser Methode: speichern, die Figur aus
+   * der Welt nehmen, das Konto beim Anmeldeserver freigeben — und erst danach
+   * auflegen. Der Client wartet auf das Auflegen und geht dann zum
+   * Anmeldeserver.
+   *
+   * Legte er stattdessen selbst auf, liefe er dem Freigeben davon: das geht
+   * als HTTP-Ruf an den Anmeldeserver, und der Client wäre mit seiner neuen
+   * Anmeldung schneller dort als diese Nachricht. Er stünde dann vor „dieses
+   * Konto spielt gerade auf Kanal 1" — auf dem Kanal, den er eben verlassen
+   * hat.
+   *
+   * Zurück in die Verwaltung führt dieser Weg nicht mehr. Die Eintrittskarte,
+   * mit der man hereinkam, gilt einmal; wer in der Verwaltung sitzt, hat keine
+   * mehr und kommt von dort nirgends hin. Also ganz heraus und neu anmelden —
+   * das ist ehrlicher als eine Maske, aus der es keinen Ausgang gibt.
    */
-  private async onLeaveWorld(session: Session): Promise<void> {
-    await this.persist(session).catch((err) =>
-      console.error('[db] Speichern beim Verlassen fehlgeschlagen:', err),
-    );
+  private async onLogout(session: Session): Promise<void> {
+    if (session.entityId !== 0) {
+      await this.persist(session).catch((err) =>
+        console.error('[db] Speichern beim Abmelden fehlgeschlagen:', err),
+      );
 
-    this.instances.get(session.mapId)?.removePlayer(session.entityId);
-    this.sessionByEntity.delete(session.entityId);
-    // Die anderen sollen die Figur nicht als bekannt führen — sie ist weg.
-    for (const other of this.sessions) other.known.delete(session.entityId);
+      this.instances.get(session.mapId)?.removePlayer(session.entityId);
+      this.sessionByEntity.delete(session.entityId);
+      // Die anderen sollen die Figur nicht als bekannt führen — sie ist weg.
+      for (const other of this.sessions) other.known.delete(session.entityId);
+    }
 
     session.entityId = 0;
     session.mapId = '';
@@ -837,9 +869,12 @@ export class GameServer {
     session.quests.load([]);
     session.itemsDirty = false;
     session.questsDirty = false;
-    session.state = 'lobby';
 
-    await this.sendLobby(session);
+    // Abgewartet, nicht nur abgeschickt. Genau dafür gibt es dieses Paket.
+    await this.login.meldeAnwesenheit(session.accountId, false);
+
+    console.log(`[sitzung] ${session.accountName} meldet sich ab`);
+    session.close(1000, 'abgemeldet');
   }
 
   // -------------------------------------------------------------------------

@@ -127,11 +127,11 @@ export function encodeEnterWorld(characterId: number): Uint8Array {
 }
 
 /**
- * Zurück in die Verwaltung. Ohne Rumpf — welche Figur gemeint ist, weiss der
- * Server besser als der Client.
+ * Abmelden. Ohne Rumpf — wer gemeint ist, weiss der Server besser als der
+ * Client, und etwas anderes als „ich selbst" gibt es hier nicht.
  */
-export function encodeLeaveWorld(): Uint8Array {
-  return packet(ClientOp.LeaveWorld, 8).finish();
+export function encodeLogout(): Uint8Array {
+  return packet(ClientOp.Logout, 8).finish();
 }
 
 /** Beide nennen nur eine Figur — gelesen wird für beide gleich. */

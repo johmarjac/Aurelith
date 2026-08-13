@@ -40,7 +40,7 @@ import {
   encodeCreateCharacter,
   encodeDeleteCharacter,
   encodeEnterWorld,
-  encodeLeaveWorld,
+  encodeLogout,
   encodeFrame,
   encodeHello,
   encodeInput,
@@ -410,9 +410,16 @@ export class Connection {
     this.send(encodeEnterWorld(characterId));
   }
 
-  /** Zurück in die Verwaltung — die Figur verlässt die Welt. */
-  sendLeaveWorld(): void {
-    this.send(encodeLeaveWorld());
+  /**
+   * Abmelden — der Kanal räumt auf und legt danach selbst auf.
+   *
+   * Sofort verschickt und nicht eingereiht: darauf wartet der Server, und
+   * eine Runde des Zeichners später wäre schon der Fall möglich, dass dieser
+   * Client vorher auflegt.
+   */
+  sendLogout(): void {
+    this.send(encodeLogout());
+    this.flush();
   }
 
   sendMoveItem(from: number, to: number): void {

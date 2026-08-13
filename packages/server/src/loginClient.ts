@@ -99,10 +99,15 @@ export class LoginClient {
    * Kanäle hinweg. Fehlschläge werden verschluckt: ein Konto, das
    * fälschlich als frei gilt, ist ein kleineres Übel als ein Spieler, der
    * wegen eines Netzhusters nicht mehr in die Welt kommt.
+   *
+   * Gibt zurück, wann der Anmeldeserver es zur Kenntnis genommen hat. Beim
+   * Trennen interessiert das niemanden — da ist die Leitung ohnehin weg. Beim
+   * Abmelden schon: der Client meldet sich unmittelbar danach neu an, und
+   * käme er dem hier zuvor, wiese ihn der Anmeldeserver ab.
    */
-  meldeAnwesenheit(accountId: number, drin: boolean): void {
+  async meldeAnwesenheit(accountId: number, drin: boolean): Promise<void> {
     if (!this.aktiv || accountId === 0) return;
-    void this.ruf('/intern/anwesend', {
+    await this.ruf('/intern/anwesend', {
       accountId,
       server: config.serverName,
       channel: config.channelName,
