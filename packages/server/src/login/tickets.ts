@@ -20,6 +20,8 @@ import { randomBytes } from 'node:crypto';
 interface Karte {
   accountId: number;
   accountName: string;
+  /** Zugriffsstufe als Wort. Reist mit — der Kanal kennt die Konten nicht. */
+  accessLevel: string;
   /** Millisekunden seit der Epoche. */
   gueltigBis: number;
 }
@@ -35,10 +37,20 @@ export class Kartenstapel {
    * 32 Byte aus dem Zufallsgenerator des Betriebssystems, nicht
    * `Math.random()`: eine erratbare Karte ist ein Konto ohne Passwort.
    */
-  stelleAus(accountId: number, accountName: string, jetzt = Date.now()): string {
+  stelleAus(
+    accountId: number,
+    accountName: string,
+    accessLevel: string,
+    jetzt = Date.now(),
+  ): string {
     this.raeume(jetzt);
     const token = randomBytes(32).toString('base64url');
-    this.karten.set(token, { accountId, accountName, gueltigBis: jetzt + GUELTIG_MS });
+    this.karten.set(token, {
+      accountId,
+      accountName,
+      accessLevel,
+      gueltigBis: jetzt + GUELTIG_MS,
+    });
     return token;
   }
 
@@ -47,12 +59,19 @@ export class Kartenstapel {
    *
    * Gibt zurück, zu wem sie gehörte, oder nichts.
    */
-  loeseEin(token: string, jetzt = Date.now()): { accountId: number; accountName: string } | undefined {
+  loeseEin(
+    token: string,
+    jetzt = Date.now(),
+  ): { accountId: number; accountName: string; accessLevel: string } | undefined {
     const karte = this.karten.get(token);
     if (!karte) return undefined;
     this.karten.delete(token);
     if (karte.gueltigBis < jetzt) return undefined;
-    return { accountId: karte.accountId, accountName: karte.accountName };
+    return {
+      accountId: karte.accountId,
+      accountName: karte.accountName,
+      accessLevel: karte.accessLevel,
+    };
   }
 
   /** Wirft ab, was abgelaufen ist. Sonst wächst der Stapel ohne Ende. */

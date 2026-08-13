@@ -16,7 +16,7 @@ import { createServer as createHttpsServer } from 'node:https';
 import { readFileSync } from 'node:fs';
 import { formatBuild } from '@aurelith/shared';
 import { loginConfig } from './config.ts';
-import { createStore } from '../db/index.ts';
+import { createKontoStore } from '../db/index.ts';
 import { KanalRegister } from './registry.ts';
 import { Kartenstapel } from './tickets.ts';
 import { behandleIntern } from './internal.ts';
@@ -33,7 +33,9 @@ function baueHttpServer(): { server: Server; scheme: 'ws' | 'wss' } {
   return { server: createHttpServer(), scheme: 'ws' };
 }
 
-const store = await createStore(loginConfig.databaseUrl);
+// Nur Konten. Der Anmeldeserver hat keine Figuren — die liegen je Region in
+// einer eigenen Datenbank neben ihren Kanälen.
+const store = await createKontoStore(loginConfig.databaseUrl);
 const register = new KanalRegister();
 const karten = new Kartenstapel();
 

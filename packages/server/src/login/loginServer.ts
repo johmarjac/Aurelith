@@ -49,7 +49,7 @@ import {
 } from '@aurelith/shared';
 import { anmelden } from '../accounts.ts';
 import { loginConfig } from './config.ts';
-import type { GameStore } from '../db/index.ts';
+import type { KontoStore } from '../db/index.ts';
 import type { KanalRegister } from './registry.ts';
 import type { Kartenstapel } from './tickets.ts';
 
@@ -67,6 +67,8 @@ class LoginSitzung {
   angemeldet = false;
   accountId = 0;
   accountName = '';
+  /** Zugriffsstufe als Wort. Geht mit jeder Eintrittskarte an den Kanal. */
+  accessLevel = 'player';
   versuche = 0;
   gegruesst = false;
   offen = true;
@@ -112,7 +114,7 @@ export class LoginServer {
   private naechsteId = 1;
 
   constructor(
-    private readonly store: GameStore,
+    private readonly store: KontoStore,
     private readonly register: KanalRegister,
     private readonly karten: Kartenstapel,
   ) {}
@@ -258,6 +260,7 @@ export class LoginServer {
     sitzung.angemeldet = true;
     sitzung.accountId = konto.id;
     sitzung.accountName = konto.name;
+    sitzung.accessLevel = konto.accessLevel;
     sitzung.versuche = 0;
     await this.store.touchLogin(konto.id);
 
@@ -270,7 +273,11 @@ export class LoginServer {
 
   /** Die Serverliste samt frischer Eintrittskarte. */
   private schickeListe(sitzung: LoginSitzung): void {
-    const ticket = this.karten.stelleAus(sitzung.accountId, sitzung.accountName);
+    const ticket = this.karten.stelleAus(
+      sitzung.accountId,
+      sitzung.accountName,
+      sitzung.accessLevel,
+    );
     sitzung.send(encodeRealms({ ticket, realms: this.register.liste() }));
   }
 

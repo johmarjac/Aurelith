@@ -127,7 +127,7 @@ import {
   removeItem,
   removeSlot,
 } from './inventory.ts';
-import type { GameStore, ItemRecord } from './db/index.ts';
+import type { ItemRecord, KontoStore, WeltStore } from './db/index.ts';
 
 /**
  * So viele Fehlversuche verträgt eine Verbindung, dann fliegt sie.
@@ -165,7 +165,15 @@ export class GameServer {
   constructor(
     private readonly bundle: CoreBundle,
     private readonly maps: MapStore,
-    private readonly store: GameStore,
+    /**
+     * Die Weltdatenbank dieses Servers — Figuren, Beutel, Aufträge.
+     *
+     * Sie steht in derselben Region wie dieser Kanal. Das ist der Grund für
+     * die ganze Aufteilung: eine Figur wird beim Betreten geladen und alle
+     * dreissig Sekunden geschrieben, und beides über ein Seekabel wäre in
+     * jeder Sitzung spürbar.
+     */
+    private readonly welt: WeltStore,
     /**
      * Die Verbindung zum Anmeldeserver.
      *
@@ -174,6 +182,15 @@ export class GameServer {
      * sie gibt, und die Antwort wäre überall dieselbe Verzweigung.
      */
     private readonly login: LoginClient,
+    /**
+     * Konten — **nur** im Alleinbetrieb.
+     *
+     * Läuft ein Anmeldeserver, sieht dieser Prozess nie ein Passwort und
+     * braucht die Masterdatenbank nicht: wer da ist, sagt die Eintrittskarte.
+     * Das ist keine Sparsamkeit, sondern der Sinn der Trennung — die
+     * Masterdatenbank steht in einer anderen Erdhälfte.
+     */
+    private readonly konten?: KontoStore,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -505,8 +522,14 @@ export class GameServer {
     }
     session.loginAttempts++;
 
+    if (!this.konten) {
+      session.send(encodeLobbyError('Dieser Server kennt keine Konten.'));
+      session.flush();
+      return;
+    }
+
     const ergebnis = await anmelden(
-      this.store,
+      this.konten,
       daten.name,
       daten.password,
       anlegen,
@@ -518,7 +541,12 @@ export class GameServer {
       return;
     }
 
-    await this.uebernehmeKonto(session, ergebnis.account.id, ergebnis.account.name, ergebnis.account.accessLevel);
+    await this.uebernehmeKonto(
+      session,
+      ergebnis.account.id,
+      ergebnis.account.name,
+      ergebnis.account.accessLevel,
+    );
   }
 
   /**
@@ -546,15 +574,10 @@ export class GameServer {
       return;
     }
 
-    // Die Zugriffsstufe steht am Konto in der Datenbank — der Anmeldeserver
-    // hat sie beim Anmelden schon nachgezogen. Hier wird sie nur gelesen.
-    const gespeichert = await this.store.findAccount(konto.accountName);
-    await this.uebernehmeKonto(
-      session,
-      konto.accountId,
-      konto.accountName,
-      gespeichert?.accessLevel ?? accessName(AccessLevel.Player),
-    );
+    // Die Zugriffsstufe kommt **mit der Karte**. Sie am Konto nachzusehen
+    // hiesse, in die Masterdatenbank zu greifen — die in einer anderen
+    // Erdhälfte steht und die dieser Prozess sonst gar nicht kennt.
+    await this.uebernehmeKonto(session, konto.accountId, konto.accountName, konto.accessLevel);
   }
 
   /**
@@ -604,7 +627,9 @@ export class GameServer {
     session.access = accessFromName(accessLevel);
     session.state = 'lobby';
     session.loginAttempts = 0;
-    await this.store.touchLogin(accountId);
+    // Nur im Alleinbetrieb: sonst hat der Anmeldeserver das schon getan, und
+    // zwar dort, wo die Konten stehen.
+    await this.konten?.touchLogin(accountId);
 
     // Dem Anmeldeserver sagen, dass dieses Konto hier ist. Er sperrt es damit
     // auf allen anderen Kanälen.
@@ -618,7 +643,7 @@ export class GameServer {
   /** Schickt den Stand der Verwaltung: wer man ist, welche Figuren es gibt. */
   private async sendLobby(session: Session): Promise<void> {
     if (session.accountId === 0) return;
-    const figuren = await this.store.listCharacters(session.accountId, config.serverName);
+    const figuren = await this.welt.listCharacters(session.accountId);
     session.send(
       encodeLobby({
         accountName: session.accountName,
@@ -650,7 +675,7 @@ export class GameServer {
       return;
     }
 
-    const vorhanden = await this.store.listCharacters(session.accountId, config.serverName);
+    const vorhanden = await this.welt.listCharacters(session.accountId);
     if (vorhanden.length >= config.maxCharacters) {
       session.send(
         encodeLobbyError(`Mehr als ${config.maxCharacters} Figuren gehen nicht.`),
@@ -664,12 +689,11 @@ export class GameServer {
     // gedacht, und nur beim Anlegen einer Figur.
     const spawn = config.startPos ?? startMap.spawn;
     // Ohne Beruf: den lehrt der Kampfmeister ab Stufe 15.
-    const figur = await this.store.createCharacter(
+    // In **dieser** Welt — die Datenbank dieses Servers. Kanäle teilen sie
+    // sich; ein anderer Server hat seine eigene, in seiner eigenen Region.
+    const figur = await this.welt.createCharacter(
       session.accountId,
       sauber,
-      // Auf **diesem** Server. Kanäle teilen sich die Figuren eines Servers;
-      // ein anderer Server ist eine andere Welt und eine andere Figur.
-      config.serverName,
       KEIN_BERUF,
       {
         mapId: startMap.id,
@@ -689,7 +713,7 @@ export class GameServer {
 
   private async onDeleteCharacter(session: Session, characterId: number): Promise<void> {
     if (session.state !== 'lobby') return;
-    const weg = await this.store.deleteCharacter(session.accountId, characterId);
+    const weg = await this.welt.deleteCharacter(session.accountId, characterId);
     if (!weg) {
       session.send(encodeLobbyError('Diese Figur gibt es nicht.'));
       session.flush();
@@ -707,11 +731,7 @@ export class GameServer {
   private async onEnterWorld(session: Session, characterId: number): Promise<void> {
     if (session.state !== 'lobby') return;
 
-    const geladen = await this.store.loadCharacter(
-      session.accountId,
-      characterId,
-      config.serverName,
-    );
+    const geladen = await this.welt.loadCharacter(session.accountId, characterId);
     if (!geladen) {
       session.send(encodeLobbyError('Diese Figur gibt es nicht.'));
       session.flush();
@@ -2372,17 +2392,17 @@ export class GameServer {
       character.hp = Math.round(row.hp);
       character.mapId = session.mapId;
     }
-    await this.store.saveCharacter(character);
+    await this.welt.saveCharacter(character);
 
     // Beutel und Aufträge nur, wenn sich etwas getan hat: beide werden
     // ersetzend geschrieben, und das ist deutlich teurer als eine Zeile mit
     // der neuen Position.
     if (session.itemsDirty) {
-      await this.store.saveInventory(character.id, session.items);
+      await this.welt.saveInventory(character.id, session.items);
       session.itemsDirty = false;
     }
     if (session.questsDirty) {
-      await this.store.saveQuests(character.id, session.quests.records());
+      await this.welt.saveQuests(character.id, session.quests.records());
       session.questsDirty = false;
     }
   }

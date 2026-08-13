@@ -24,6 +24,14 @@ const HERZSCHLAG_MS = 10_000;
 export interface TicketAuskunft {
   accountId: number;
   accountName: string;
+  /**
+   * Zugriffsstufe als Wort — siehe `ACCESS_NAMES` im geteilten Paket.
+   *
+   * Sie steht am Konto, also in der Masterdatenbank, die dieser Prozess nicht
+   * kennt. Deshalb reist sie mit der Karte: der Anmeldeserver hat sie beim
+   * Anmelden ohnehin in der Hand.
+   */
+  accessLevel: string;
 }
 
 export class LoginClient {
@@ -78,7 +86,10 @@ export class LoginClient {
     const accountId = Number(antwort.accountId);
     const accountName = String(antwort.accountName ?? '');
     if (!Number.isFinite(accountId) || accountId <= 0 || accountName === '') return undefined;
-    return { accountId, accountName };
+    // Fehlt die Stufe, gilt die niedrigste. Ein Anmeldeserver, der sie nicht
+    // mitschickt, soll niemanden versehentlich zum Verwalter machen.
+    const accessLevel = String(antwort.accessLevel ?? 'player');
+    return { accountId, accountName, accessLevel };
   }
 
   /**

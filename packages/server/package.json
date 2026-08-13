@@ -10,7 +10,8 @@
     "start": "tsx src/index.ts",
     "dev:login": "tsx watch src/login/index.ts",
     "start:login": "tsx src/login/index.ts",
-    "migrate": "tsx src/db/migrate.ts"
+    "migrate": "tsx src/db/migrate.ts master",
+    "migrate:welt": "tsx src/db/migrate.ts welt"
   },
   "dependencies": {
     "@aurelith/core": "*",

@@ -1,5 +1,13 @@
 /**
  * PostgreSQL-Backend. Die einzige Datei im Server, in der SQL steht.
+ *
+ * **Zwei Sorten Datenbank, zwei Klassen.** `PostgresKonten` spricht mit der
+ * Masterdatenbank, `PostgresWelt` mit der Weltdatenbank einer Region. Eine
+ * Klasse für beides hätte Methoden mitgebracht, die auf der jeweils anderen
+ * Verbindung ins Leere greifen — und das erst zur Laufzeit gezeigt.
+ *
+ * Im Alleinbetrieb zeigen beide auf dieselbe Adresse. Das kostet einen
+ * zweiten Verbindungspool und spart die Fallunterscheidung überall sonst.
  */
 
 import pg from 'pg';
@@ -8,26 +16,28 @@ import { starterRows } from '../inventory.ts';
 import type {
   AccountRecord,
   CharacterRecord,
-  GameStore,
   ItemRecord,
+  KontoStore,
   LoadedCharacter,
   QuestRecord,
   SpawnPoint,
+  WeltStore,
 } from './types.ts';
 
 const { Pool } = pg;
 
-export class PostgresStore implements GameStore {
+/** Was beide Sorten teilen: ein Pool, ein Antest, ein Auflegen. */
+abstract class PostgresBasis {
   readonly kind = 'postgres' as const;
-  private readonly pool: pg.Pool;
+  protected readonly pool: pg.Pool;
 
   constructor(connectionString: string) {
     this.pool = new Pool({ connectionString, max: 10 });
   }
 
   async init(): Promise<void> {
-    // Verbindung einmal antesten, damit ein falscher DATABASE_URL beim
-    // Hochfahren auffällt und nicht erst beim ersten Login.
+    // Verbindung einmal antesten, damit eine falsche Adresse beim Hochfahren
+    // auffällt und nicht erst beim ersten Login.
     const client = await this.pool.connect();
     try {
       await client.query('SELECT 1');
@@ -39,7 +49,10 @@ export class PostgresStore implements GameStore {
   async close(): Promise<void> {
     await this.pool.end();
   }
+}
 
+/** Die Masterdatenbank: Konten. */
+export class PostgresKonten extends PostgresBasis implements KontoStore {
   async findAccount(name: string): Promise<AccountRecord | undefined> {
     const res = await this.pool.query(
       `SELECT id, name, password_hash, access_level
@@ -81,13 +94,36 @@ export class PostgresStore implements GameStore {
     await this.pool.query('UPDATE accounts SET last_login_at = now() WHERE id = $1', [accountId]);
   }
 
-  async listCharacters(accountId: number, server: string): Promise<CharacterRecord[]> {
+}
+
+/** Eine Weltdatenbank: Figuren, Beutel, Aufträge einer Region. */
+export class PostgresWelt extends PostgresBasis implements WeltStore {
+  /**
+   * Schreibt den Servernamen hinein — oder liest ihn, wenn schon einer
+   * dasteht.
+   *
+   * Ein einziges `INSERT … ON CONFLICT DO NOTHING` gefolgt vom Lesen: so
+   * entscheidet die Datenbank, wer zuerst da war, und zwei gleichzeitig
+   * startende Kanäle desselben Servers stolpern nicht übereinander.
+   */
+  async beanspruche(server: string): Promise<{ ok: true } | { ok: false; gehoert: string }> {
+    await this.pool.query(
+      `INSERT INTO welt_info (einzig, server) VALUES (TRUE, $1)
+       ON CONFLICT (einzig) DO NOTHING`,
+      [server],
+    );
+    const res = await this.pool.query('SELECT server FROM welt_info WHERE einzig');
+    const gehoert = String(res.rows[0]?.server ?? '');
+    return gehoert === server ? { ok: true } : { ok: false, gehoert };
+  }
+
+  async listCharacters(accountId: number): Promise<CharacterRecord[]> {
     const res = await this.pool.query(
-      `SELECT id, account_id, name, server, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw
+      `SELECT id, account_id, name, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw
          FROM characters
-        WHERE account_id = $1 AND server = $2
+        WHERE account_id = $1
         ORDER BY id`,
-      [accountId, server],
+      [accountId],
     );
     return res.rows.map((r) => toCharacter(r));
   }
@@ -95,7 +131,6 @@ export class PostgresStore implements GameStore {
   async createCharacter(
     accountId: number,
     name: string,
-    server: string,
     beruf: string,
     spawn: SpawnPoint,
   ): Promise<CharacterRecord | undefined> {
@@ -103,14 +138,14 @@ export class PostgresStore implements GameStore {
     try {
       await client.query('BEGIN');
       const inserted = await client.query(
-        // Der Name kollidiert nur **innerhalb eines Servers** — der Index
-        // liegt auf (server, lower(name)). Zwei Welten dürfen denselben
-        // Namen tragen.
-        `INSERT INTO characters (account_id, name, server, class, map_id, pos_x, pos_z, yaw)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        // Der Name kollidiert nur **in dieser Welt** — der Index liegt auf
+        // lower(name), und die Datenbank ist der Server. Eine andere Region
+        // darf denselben Namen noch einmal vergeben.
+        `INSERT INTO characters (account_id, name, class, map_id, pos_x, pos_z, yaw)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          ON CONFLICT DO NOTHING
-         RETURNING id, account_id, name, server, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw`,
-        [accountId, name, server, beruf, spawn.mapId, spawn.x, spawn.z, spawn.yaw],
+         RETURNING id, account_id, name, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw`,
+        [accountId, name, beruf, spawn.mapId, spawn.x, spawn.z, spawn.yaw],
       );
       if (inserted.rowCount === 0) {
         await client.query('ROLLBACK');
@@ -150,13 +185,12 @@ export class PostgresStore implements GameStore {
   async loadCharacter(
     accountId: number,
     characterId: number,
-    server: string,
   ): Promise<LoadedCharacter | undefined> {
     const res = await this.pool.query(
-      `SELECT id, account_id, name, server, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw
+      `SELECT id, account_id, name, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw
          FROM characters
-        WHERE id = $1 AND account_id = $2 AND server = $3`,
-      [characterId, accountId, server],
+        WHERE id = $1 AND account_id = $2`,
+      [characterId, accountId],
     );
     const row = res.rows[0];
     if (!row) return undefined;
@@ -274,7 +308,6 @@ function toCharacter(row: Record<string, unknown> | undefined): CharacterRecord 
     id: Number(row.id),
     accountId: Number(row.account_id),
     name: String(row.name),
-    server: String(row.server ?? ''),
     beruf: String(row.class ?? KEIN_BERUF),
     level: Number(row.level),
     exp: Number(row.exp),

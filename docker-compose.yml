@@ -1,6 +1,6 @@
 # Aurelith — Serverbetrieb auf einer eigenen Maschine.
 #
-# Vier Dienste: der Anmeldeserver, zwei Kanäle und PostgreSQL. Um TLS
+# Ein Anmeldeserver, zwei Kanäle, zwei Datenbanken. Um TLS
 # kümmert sich ein vorgelagerter Reverse-Proxy, der hier nicht mitgeliefert
 # wird — wer schon einen betreibt, will keinen zweiten.
 #
@@ -15,9 +15,24 @@
 # an. Ein Kanal mehr heisst: einen Block kopieren, Namen und Port ändern —
 # am Anmeldeserver ist nichts zu tun.
 #
-# **Alle** Dienste hängen an derselben Datenbank. Eine Figur gehört einem
-# Konto und nicht einem Kanal; wer auf Kanal 2 wechselt, findet dieselben
-# Figuren vor.
+# **Zwei Sorten Datenbank**, und das ist der Kern der Aufteilung:
+#
+#   db-master   Konten. Einmal auf der Welt, beim Anmeldeserver.
+#   db-eu       Figuren der Region EU. Steht dort, wo ihre Kanäle stehen.
+#
+# Der Grund ist Latenz. Eine Figur wird beim Betreten geladen und alle
+# dreissig Sekunden geschrieben — über ein Seekabel wäre das in jeder Sitzung
+# spürbar. Angemeldet wird dagegen einmal je Sitzung; dort ist eine Umlaufzeit
+# über den Atlantik ein Wimpernschlag beim Klick auf „Anmelden".
+#
+# Eine zweite Region ist deshalb kein zweiter Eintrag in dieser Datei, sondern
+# ein zweiter Stapel auf einer Maschine in der anderen Region — mit eigenem
+# `db-us`, eigenen Kanälen und AURELITH_LOGIN_URL auf denselben
+# Anmeldeserver. Nur die Masterdatenbank bleibt, wo sie ist.
+#
+# Die Kanäle **einer** Region teilen sich deren Weltdatenbank: wer den Kanal
+# wechselt, spielt dieselbe Figur weiter. Wer die Region wechselt, fängt dort
+# neu an.
 #
 #   cp .env.example .env     # Datenbankpasswort und AURELITH_INTERNAL_SECRET
 #   docker compose up -d
@@ -42,10 +57,11 @@ services:
     restart: unless-stopped
     init: true
     depends_on:
-      db:
+      db-master:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://aurelith:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt — .env anlegen}@db:5432/aurelith
+      # Die Masterdatenbank: Konten, sonst nichts.
+      DATABASE_URL: postgres://aurelith:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt — .env anlegen}@db-master:5432/aurelith
       AURELITH_LOGIN_HOST: 0.0.0.0
       AURELITH_LOGIN_PORT: 8790
       AURELITH_INTERNAL_SECRET: ${AURELITH_INTERNAL_SECRET:?AURELITH_INTERNAL_SECRET fehlt — .env anlegen}
@@ -78,12 +94,14 @@ services:
     restart: unless-stopped
     init: true
     depends_on:
-      db:
+      db-eu:
         condition: service_healthy
       login:
         condition: service_started
     environment:
-      DATABASE_URL: postgres://aurelith:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt — .env anlegen}@db:5432/aurelith
+      # Die Weltdatenbank dieser Region. Beide Kanäle zeigen auf dieselbe —
+      # sie sind derselbe Server.
+      DATABASE_URL: postgres://aurelith:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt — .env anlegen}@db-eu:5432/aurelith
       AURELITH_HOST: 0.0.0.0
       AURELITH_PORT: 8787
       AURELITH_START_MAP: ${AURELITH_START_MAP:-lichtmoor}
@@ -135,12 +153,14 @@ services:
     restart: unless-stopped
     init: true
     depends_on:
-      db:
+      db-eu:
         condition: service_healthy
       login:
         condition: service_started
     environment:
-      DATABASE_URL: postgres://aurelith:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt — .env anlegen}@db:5432/aurelith
+      # Die Weltdatenbank dieser Region. Beide Kanäle zeigen auf dieselbe —
+      # sie sind derselbe Server.
+      DATABASE_URL: postgres://aurelith:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt — .env anlegen}@db-eu:5432/aurelith
       AURELITH_HOST: 0.0.0.0
       AURELITH_PORT: 8788
       AURELITH_START_MAP: ${AURELITH_START_MAP:-lichtmoor}
@@ -158,7 +178,12 @@ services:
         aliases:
           - aurelith-kanal2
 
-  db:
+  # --- Masterdatenbank: Konten ---------------------------------------------
+  #
+  # Sie steht einmal auf der Welt, beim Anmeldeserver. Eine zweite Region
+  # verbindet sich über das Netz hierher — einmal je Anmeldung, und danach
+  # nicht wieder.
+  db-master:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
@@ -166,7 +191,26 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt — .env anlegen}
       POSTGRES_DB: aurelith
     volumes:
-      - db-data:/var/lib/postgresql/data
+      - db-master-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U aurelith -d aurelith']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # --- Weltdatenbank der Region: Figuren ------------------------------------
+  #
+  # Sie steht bei ihren Kanälen. Genau dafür gibt es sie: Laden und Speichern
+  # einer Figur soll über ein kurzes Kabel gehen.
+  db-eu:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aurelith
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt — .env anlegen}
+      POSTGRES_DB: aurelith
+    volumes:
+      - db-eu-data:/var/lib/postgresql/data
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U aurelith -d aurelith']
       interval: 5s
@@ -174,4 +218,5 @@ services:
       retries: 12
 
 volumes:
-  db-data:
+  db-master-data:
+  db-eu-data:

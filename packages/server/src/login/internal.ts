@@ -143,7 +143,12 @@ export async function behandleIntern(
         json(res, 200, { ok: false });
         return true;
       }
-      json(res, 200, { ok: true, accountId: konto.accountId, accountName: konto.accountName });
+      json(res, 200, {
+        ok: true,
+        accountId: konto.accountId,
+        accountName: konto.accountName,
+        accessLevel: konto.accessLevel,
+      });
       return true;
     }
 

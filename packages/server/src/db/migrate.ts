@@ -1,11 +1,18 @@
 /**
- * Migrationslauf. Liest die SQL-Dateien aus `migrations/` in Namensreihenfolge
- * und wendet an, was noch fehlt.
+ * Migrationslauf. Liest die SQL-Dateien aus `migrations/<rolle>/` in
+ * Namensreihenfolge und wendet an, was noch fehlt.
  *
  * Bewusst ohne Framework: eine Tabelle, eine Schleife, eine Transaktion je
  * Datei. Solange Migrationen nur vorwärts gehen, ist mehr nicht nötig.
  *
- *   npm run db:migrate
+ *   npm run db:migrate            # Masterdatenbank (Konten)
+ *   npm run db:migrate:welt       # eine Weltdatenbank (Figuren)
+ *
+ * **Zwei Rollen, zwei Verzeichnisse.** Eine Masterdatenbank steht einmal auf
+ * der Welt und hält Konten; eine Weltdatenbank steht je Server in dessen
+ * Region und hält Figuren. Beide bekommen deshalb einen eigenen Satz Dateien
+ * und ihre eigene `schema_migrations` — sie liegen in verschiedenen
+ * Datenbanken und wissen nichts voneinander.
  *
  * **Ein Läufer zur Zeit.** Seit es Kanäle gibt, starten mehrere Prozesse
  * gleichzeitig gegen dieselbe Datenbank, und jeder migriert beim Hochfahren.
@@ -22,12 +29,16 @@ import pg from 'pg';
 
 const { Client } = pg;
 
-const migrationsDir = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'migrations');
+const migrationsRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'migrations');
+
+/** Welche Sorte Datenbank. Entspricht dem Verzeichnis unter `migrations/`. */
+export type DbRolle = 'master' | 'welt';
 
 /** Schlüssel der Beratungssperre. Frei gewählt, überall derselbe. */
 const MIGRATIONS_LOCK = 8_147_231;
 
-export async function migrate(connectionString: string): Promise<number> {
+export async function migrate(connectionString: string, rolle: DbRolle): Promise<number> {
+  const migrationsDir = join(migrationsRoot, rolle);
   const client = new Client({ connectionString });
   await client.connect();
 
@@ -94,6 +105,12 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.error('DATABASE_URL ist nicht gesetzt.');
     process.exit(1);
   }
-  const applied = await migrate(url);
-  console.log(applied === 0 ? 'Schema ist aktuell.' : `${applied} Migration(en) angewandt.`);
+  // `npm run db:migrate -- welt` oder ohne Angabe: master.
+  const rolle: DbRolle = process.argv[2] === 'welt' ? 'welt' : 'master';
+  const applied = await migrate(url, rolle);
+  console.log(
+    applied === 0
+      ? `Schema (${rolle}) ist aktuell.`
+      : `${applied} Migration(en) auf ${rolle} angewandt.`,
+  );
 }

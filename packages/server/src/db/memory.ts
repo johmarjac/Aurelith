@@ -63,13 +63,24 @@ export class MemoryStore implements GameStore {
     }
   }
 
+  /**
+   * Der Speicher ist Master **und** Welt zugleich.
+   *
+   * Er kommt nur ohne Datenbank vor — ein Prozess, ein Zustand, nichts zu
+   * trennen. Der Anspruch geht deshalb immer durch: es gibt keine zweite
+   * Welt, mit der man sich stossen könnte.
+   */
+  async beanspruche(): Promise<{ ok: true }> {
+    return { ok: true };
+  }
+
   async touchLogin(): Promise<void> {
     // Im Speicher gibt es keine Buchführung über gestern.
   }
 
-  async listCharacters(accountId: number, server: string): Promise<CharacterRecord[]> {
+  async listCharacters(accountId: number): Promise<CharacterRecord[]> {
     return [...this.figuren.values()]
-      .filter((f) => f.character.accountId === accountId && f.character.server === server)
+      .filter((f) => f.character.accountId === accountId)
       .sort((a, b) => a.character.id - b.character.id)
       .map((f) => ({ ...f.character }));
   }
@@ -77,14 +88,10 @@ export class MemoryStore implements GameStore {
   async createCharacter(
     accountId: number,
     name: string,
-    server: string,
     beruf: string,
     spawn: SpawnPoint,
   ): Promise<CharacterRecord | undefined> {
-    // Namen kollidieren nur innerhalb eines Servers — wie der Index in der
-    // Datenbank. Zwei Welten dürfen denselben Namen tragen.
     for (const f of this.figuren.values()) {
-      if (f.character.server !== server) continue;
       if (schluessel(f.character.name) === schluessel(name)) return undefined;
     }
 
@@ -92,7 +99,6 @@ export class MemoryStore implements GameStore {
       id: this.nextCharacterId++,
       accountId,
       name,
-      server,
       beruf,
       level: 1,
       exp: 0,
@@ -118,11 +124,9 @@ export class MemoryStore implements GameStore {
   async loadCharacter(
     accountId: number,
     characterId: number,
-    server: string,
   ): Promise<LoadedCharacter | undefined> {
     const figur = this.figuren.get(characterId);
     if (!figur || figur.character.accountId !== accountId) return undefined;
-    if (figur.character.server !== server) return undefined;
     return {
       character: { ...figur.character },
       items: figur.items.map((i) => ({ ...i })),

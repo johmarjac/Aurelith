@@ -16,7 +16,7 @@ import { loadServerCore } from './core.ts';
 import { MapStore } from './maps.ts';
 import { GameServer } from './gameServer.ts';
 import { LoginClient } from './loginClient.ts';
-import { createStore } from './db/index.ts';
+import { createStore, createWeltStore } from './db/index.ts';
 
 function buildHttpServer(): { server: Server; scheme: 'ws' | 'wss' } {
   if (config.tls) {
@@ -54,7 +54,7 @@ if (maps.size === 0) {
 }
 console.log(`[maps] ${maps.size} Maps geladen: ${maps.ids.join(', ')}`);
 
-const store = await createStore(config.databaseUrl);
+
 
 const { server, scheme } = buildHttpServer();
 
@@ -64,7 +64,16 @@ const { server, scheme } = buildHttpServer();
 server.on('request', (req, res) => {
   if (req.url === '/health') {
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, maps: maps.ids, store: store.kind, core: core.core.version }));
+    res.end(
+      JSON.stringify({
+        ok: true,
+        server: config.serverName,
+        channel: config.channelName,
+        maps: maps.ids,
+        store: welt.kind,
+        core: core.core.version,
+      }),
+    );
     return;
   }
   res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
@@ -74,21 +83,40 @@ server.on('request', (req, res) => {
 // Der Kanal meldet sich beim Anmeldeserver an — oder stellt fest, dass es
 // keinen gibt und läuft im Alleinbetrieb weiter.
 const loginClient = new LoginClient();
-// Ein Kanal am Anmeldeserver **ohne** gemeinsame Datenbank ist eine Falle: die
-// Konten legt der Anmeldeserver an, die Figuren sucht dieser Server bei sich —
-// und findet keine. Wer sich anmeldet, stünde vor einer leeren Figurenliste
-// und legte eine Figur an, die auf dem nächsten Kanal wieder weg ist.
+
+/*
+ * Welche Datenbanken dieser Prozess braucht, hängt an einer Frage: gibt es
+ * einen Anmeldeserver?
+ *
+ * **Mit** einem: nur die Weltdatenbank dieser Region — Figuren, Beutel,
+ * Aufträge. Konten sieht dieser Prozess nie; wer da ist, sagt die
+ * Eintrittskarte. Das ist der Punkt der ganzen Aufteilung: die
+ * Masterdatenbank darf in einer anderen Erdhälfte stehen, weil sie im Spiel
+ * nicht angefasst wird.
+ *
+ * **Ohne** einen: Alleinbetrieb, und dann ist dieselbe Datenbank beides.
+ */
+const alleinbetrieb = !loginClient.aktiv;
+// Im Alleinbetrieb **ein** Speicher für beides. Zwei getrennt gebaute wären
+// bei PostgreSQL zwei Pools auf dieselbe Adresse und beim Speicher-Backend
+// zwei getrennte Zustände — Konten im einen, Figuren im anderen.
+const konten = alleinbetrieb ? await createStore(config.databaseUrl, config.serverName) : undefined;
+const welt = konten ?? (await createWeltStore(config.databaseUrl, config.serverName));
+
+// Ein Kanal am Anmeldeserver **ohne** Weltdatenbank ist eine Falle: die Figuren
+// lägen im Speicher und wären beim nächsten Kanalwechsel weg. Im Alleinbetrieb
+// ist der Speicher dagegen genau richtig — ein Prozess, ein Zustand.
 if (loginClient.aktiv && !config.databaseUrl) {
   console.error(
     '[kanal] AURELITH_LOGIN_URL ist gesetzt, DATABASE_URL nicht.\n' +
-      '        Alle Kanäle und der Anmeldeserver brauchen dieselbe Datenbank —\n' +
-      '        eine Figur gehört einem Konto und nicht einem Kanal.',
+      '        Ein Kanal braucht die Weltdatenbank seines Servers — sonst hätte\n' +
+      '        jeder Kanal seine eigenen Figuren, und sie wären beim Neustart weg.',
   );
   process.exit(1);
 }
 await loginClient.start();
 
-const game = new GameServer(core, maps, store, loginClient);
+const game = new GameServer(core, maps, welt, loginClient, konten);
 game.start(server);
 
 server.listen(config.port, config.host, () => {
@@ -114,7 +142,9 @@ async function shutdown(signal: string): Promise<void> {
   // Kanal noch bis zu einer halben Minute zum Betreten da, obwohl er schon
   // niemanden mehr annehmen kann.
   await loginClient.stop();
-  await store.close();
+  await welt.close();
+  // Im Alleinbetrieb ist `konten` derselbe Speicher — dann ist er schon zu.
+  if (konten && konten !== welt) await konten.close();
   server.close(() => process.exit(0));
   // Falls offene Verbindungen das Schließen aufhalten, nicht ewig warten.
   setTimeout(() => process.exit(0), 3000).unref();

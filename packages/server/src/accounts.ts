@@ -19,7 +19,7 @@ import {
   isValidName,
 } from '@aurelith/shared';
 import { hashPassword, verifyPassword } from './passwords.ts';
-import type { AccountRecord, GameStore } from './db/index.ts';
+import type { AccountRecord, KontoStore } from './db/index.ts';
 
 export type AnmeldeErgebnis =
   | { ok: true; account: AccountRecord }
@@ -39,7 +39,7 @@ export type AnmeldeErgebnis =
  * auf einem frischen Server niemanden, der jemandem etwas geben könnte.
  */
 export async function anmelden(
-  store: GameStore,
+  store: KontoStore,
   name: string,
   passwort: string,
   anlegen: boolean,

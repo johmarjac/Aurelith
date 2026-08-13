@@ -1,24 +1,29 @@
 /**
- * Persistenzschnittstelle. Zwei Implementierungen: PostgreSQL für den Betrieb,
- * ein Speicher-Backend für den Fall, dass keine Datenbank konfiguriert ist.
+ * Persistenzschnittstellen. Zwei Implementierungen: PostgreSQL für den
+ * Betrieb, ein Speicher-Backend für den Fall, dass keine Datenbank
+ * konfiguriert ist.
  *
- * Der Rest des Servers kennt nur dieses Interface — es gibt keine Stelle, an
- * der SQL außerhalb von `postgres.ts` steht.
+ * Der Rest des Servers kennt nur diese Schnittstellen — es gibt keine Stelle,
+ * an der SQL außerhalb von `postgres.ts` steht.
+ *
+ * **Zwei Datenbanken, zwei Schnittstellen.**
+ *
+ *   `KontoStore` — die Masterdatenbank. Steht einmal auf der Welt, neben dem
+ *   Anmeldeserver, und hält Konten.
+ *
+ *   `WeltStore` — eine je Server, also je Region. Steht dort, wo die Kanäle
+ *   stehen, und hält Figuren, Beutel und Aufträge.
+ *
+ * Getrennt und nicht ein Interface mit zwei Hälften: der Anmeldeserver **hat**
+ * keine Figuren, und ein Kanal **hat** keine Passwörter. Wäre beides eine
+ * Schnittstelle, liesse sich das nur zur Laufzeit merken — als Methode, die
+ * ins Leere greift, statt als Aufruf, den es nicht gibt.
  */
 
 export interface CharacterRecord {
   id: number;
   accountId: number;
   name: string;
-  /**
-   * Auf welchem Server diese Figur lebt.
-   *
-   * Der **Servername**, nicht der Kanal: Kanäle sind Lastverteilung auf
-   * derselben Welt, und wer auf Kanal 2 wechselt, spielt dieselbe Figur
-   * weiter. Ein Serverwechsel dagegen ist eine andere Welt und eine andere
-   * Figur.
-   */
-  server: string;
   /** Kennung des Berufs — siehe `assets/content/classes.json`. */
   beruf: string;
   level: number;
@@ -72,12 +77,24 @@ export interface SpawnPoint {
   yaw: number;
 }
 
-export interface GameStore {
+/** Was jede der beiden Sorten kann. */
+export interface StoreBasis {
   readonly kind: 'postgres' | 'memory';
   init(): Promise<void>;
   close(): Promise<void>;
-  /** Konto zum Namen, oder nichts. Der Vergleich ist unabhängig von Gross-
-   * und Kleinschreibung: `Held` und `held` sind dieselbe Person. */
+}
+
+/**
+ * Die Masterdatenbank: Konten.
+ *
+ * Nur der Anmeldeserver spricht damit — und ein Spielserver im Alleinbetrieb,
+ * der ohne Anmeldeserver läuft und deshalb selbst Passwörter prüfen muss.
+ */
+export interface KontoStore extends StoreBasis {
+  /**
+   * Konto zum Namen, oder nichts. Der Vergleich ist unabhängig von Gross- und
+   * Kleinschreibung: `Held` und `held` sind dieselbe Person.
+   */
   findAccount(name: string): Promise<AccountRecord | undefined>;
   /**
    * Legt ein Konto an. Gibt nichts zurück, wenn der Name schon vergeben ist —
@@ -93,17 +110,31 @@ export interface GameStore {
   setAccessLevel(accountId: number, accessLevel: string): Promise<void>;
   /** Merkt sich, wann zuletzt angemeldet wurde. Reine Buchführung. */
   touchLogin(accountId: number): Promise<void>;
+}
 
+/**
+ * Eine Weltdatenbank: Figuren, Beutel, Aufträge.
+ *
+ * Kein Servername in irgendeiner Signatur — die Datenbank **ist** der Server.
+ * Ein Feld dafür wäre eine zweite Wahrheit über dieselbe Trennung, und die
+ * schweigende von beiden gewinnt genau dann, wenn jemand sie falsch setzt.
+ *
+ * `accountId` zeigt in die Masterdatenbank. Dass es das Konto gibt, sagt die
+ * Eintrittskarte des Anmeldeservers; ein Fremdschlüssel geht über
+ * Datenbankgrenzen hinweg nicht.
+ */
+export interface WeltStore extends StoreBasis {
   /**
-   * Die Figuren dieses Kontos **auf diesem Server**, in der Reihenfolge ihrer
-   * Entstehung.
+   * Trägt ein, wem diese Welt gehört — oder prüft es.
    *
-   * Der Servername gehört zur Frage und nicht zur Antwort: eine Figur lebt in
-   * genau einer Welt, und ein Konto kann in mehreren welche haben. Ohne den
-   * Namen bekäme ein Kanal von „Nordmark" die Figuren von „Aurelith" zu sehen
-   * — und der Spieler dürfte sie betreten.
+   * Beim ersten Hochfahren steht der Name da, danach wird er verglichen.
+   * Passt er nicht, gibt es den eingetragenen zurück, und der Aufrufer bricht
+   * ab: zwei Server auf derselben Datenbank ist ein Fehler, den man sonst
+   * erst bemerkt, wenn Spieler fremde Figuren sehen.
    */
-  listCharacters(accountId: number, server: string): Promise<CharacterRecord[]>;
+  beanspruche(server: string): Promise<{ ok: true } | { ok: false; gehoert: string }>;
+  /** Die Figuren dieses Kontos in dieser Welt, in der Reihenfolge ihrer Entstehung. */
+  listCharacters(accountId: number): Promise<CharacterRecord[]>;
   /**
    * Legt eine Figur an. Nichts, wenn der Name schon vergeben ist.
    *
@@ -113,25 +144,13 @@ export interface GameStore {
   createCharacter(
     accountId: number,
     name: string,
-    server: string,
     beruf: string,
     spawn: SpawnPoint,
   ): Promise<CharacterRecord | undefined>;
   /** Löscht eine Figur — nur, wenn sie dem Konto gehört. */
   deleteCharacter(accountId: number, characterId: number): Promise<boolean>;
-  /**
-   * Lädt eine Figur samt Beutel und Aufträgen — nur, wenn sie dem Konto **und**
-   * diesem Server gehört.
-   *
-   * Der Servername steht in der Bedingung und nicht in einer Prüfung danach:
-   * sonst liesse sich mit einer Kennung aus einer anderen Welt betreten, was
-   * einem dort gehört, und die Figur stünde plötzlich auf der falschen Karte.
-   */
-  loadCharacter(
-    accountId: number,
-    characterId: number,
-    server: string,
-  ): Promise<LoadedCharacter | undefined>;
+  /** Lädt eine Figur samt Beutel und Aufträgen — nur, wenn sie dem Konto gehört. */
+  loadCharacter(accountId: number, characterId: number): Promise<LoadedCharacter | undefined>;
   saveCharacter(character: CharacterRecord): Promise<void>;
   saveInventory(characterId: number, items: ItemRecord[]): Promise<void>;
   /**
@@ -142,3 +161,12 @@ export interface GameStore {
    */
   saveQuests(characterId: number, quests: QuestRecord[]): Promise<void>;
 }
+
+/**
+ * Beides in einem — für den Alleinbetrieb und den Speicher.
+ *
+ * Ohne Anmeldeserver liegt alles in derselben Datenbank: es gibt genau einen
+ * Prozess, und ihm eine zweite Verbindung zu derselben Adresse aufzuzwingen
+ * wäre Zeremonie ohne Wirkung. Im Betrieb kommt diese Sorte nicht vor.
+ */
+export type GameStore = KontoStore & WeltStore;

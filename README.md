@@ -412,10 +412,48 @@ an. Kanäle sind Lastverteilung **innerhalb** eines Servers: dieselben Figuren,
 dieselbe Welt, eine andere Maschine. Wer den Kanal wechselt, spielt dieselbe
 Figur weiter; wer den Server wechselt, eine andere.
 
-Daraus folgt zwingend: **alle Kanäle eines Servers und der Anmeldeserver
-brauchen dieselbe Datenbank.** Ein Kanal mit `AURELITH_LOGIN_URL`, aber ohne
-`DATABASE_URL`, startet gar nicht erst — er würde Figuren suchen, die woanders
-liegen.
+### Zwei Sorten Datenbank
+
+Server sind vor allem **Regionen** — EU, US —, und eine Region taugt nur
+etwas, wenn ihre Daten in ihr liegen. Deshalb gibt es zwei Sorten:
+
+```
+Masterdatenbank    Konten. Einmal auf der Welt, beim Anmeldeserver.
+Weltdatenbank      Figuren, Beutel, Aufträge. Eine je Server, in dessen Region.
+```
+
+Der Grund ist Latenz, und er ist rein rechnerisch: eine Figur wird beim
+Betreten geladen und alle dreissig Sekunden geschrieben. Läge sie hinter einem
+Seekabel, wäre das in jeder Sitzung spürbar. Ein Konto dagegen wird **einmal je
+Sitzung** angefasst — dort ist eine Umlaufzeit über den Atlantik ein
+Wimpernschlag beim Klick auf „Anmelden" und danach nie wieder.
+
+Verknüpft sind beide über `characters.account_id` — eine gewöhnliche Zahl ohne
+Fremdschlüssel, denn PostgreSQL kann nicht über Datenbanken hinweg verweisen.
+Dass es das Konto gibt, sagt die Eintrittskarte des Anmeldeservers.
+
+Ein Kanal sieht die Masterdatenbank nie: die Zugriffsstufe reist mit der Karte.
+Das ist keine Sparsamkeit, sondern der Sinn der Aufteilung.
+
+Jede Weltdatenbank trägt in `welt_info`, wem sie gehört. Ein Kanal, der auf die
+Datenbank eines anderen Servers gerichtet wird, fährt nicht hoch:
+
+```
+Error: Diese Weltdatenbank gehört "US", nicht "EU".
+```
+
+Sonst bemerkt man den Fehler erst, wenn Spieler fremde Figuren in ihrer Liste
+sehen — und sie betreten dürfen.
+
+Migriert wird je Rolle:
+
+```
+DATABASE_URL=…master npm run db:migrate        # Konten
+DATABASE_URL=…welt   npm run db:migrate:welt   # Figuren
+```
+
+Beide Sätze laufen auch beim Hochfahren mit, unter einer Sperre — bei mehreren
+gleichzeitig startenden Kanälen migriert genau einer, die anderen warten.
 
 Ohne `AURELITH_LOGIN_URL` läuft ein Spielserver im **Alleinbetrieb**: er prüft
 Passwörter selbst und steht in keiner Liste. Das ist der bequeme Fall für
@@ -438,9 +476,14 @@ docker compose pull
 docker compose up -d
 ```
 
-Vier Dienste: der Anmeldeserver, zwei Kanäle und PostgreSQL. Um TLS kümmert
-sich ein vorgelagerter Reverse-Proxy, der hier nicht mitgeliefert wird — wer
-schon einen betreibt, will keinen zweiten.
+Ein Anmeldeserver, zwei Kanäle, zwei Datenbanken (`db-master` und `db-eu`). Um
+TLS kümmert sich ein vorgelagerter Reverse-Proxy, der hier nicht mitgeliefert
+wird — wer schon einen betreibt, will keinen zweiten.
+
+Eine zweite Region ist **kein** zweiter Eintrag in dieser Datei, sondern ein
+zweiter Stapel auf einer Maschine dort drüben: eigenes `db-us`, eigene Kanäle,
+`AURELITH_LOGIN_URL` auf denselben Anmeldeserver. Nur die Masterdatenbank
+bleibt, wo sie ist.
 
 Die internen Wege des Anmeldeservers liegen unter `/intern/` und sind mit
 `AURELITH_INTERNAL_SECRET` abgesichert. Sie gehören **nicht** ins offene Netz:
