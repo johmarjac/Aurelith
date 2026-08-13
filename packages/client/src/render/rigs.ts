@@ -14,7 +14,7 @@
 
 import * as THREE from 'three';
 import { decodeOutfit, type Outfit } from '@aurelith/shared';
-import { assemble, box, cone, cylinder, paint, sphere, type Part } from './geometry.ts';
+import { assemble, box, cone, cylinder, paint, rundeBox, sphere, type Part } from './geometry.ts';
 
 export interface RigState {
   /** Weltnenheiten pro Sekunde. Treibt die Schrittfrequenz. */
@@ -632,19 +632,82 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
   const beinFarbe = hose ? hose.main : angezogen ? cfg.pants : cfg.skin;
   const stiefelFarbe = schuhe ? schuhe.main : shade(beinFarbe, 0.62);
 
+  /*
+   * Der Körper ist aus **gerundeten** Boxen — die Einzelheiten nicht.
+   *
+   * Was die Silhouette bestimmt, bekommt gebrochene Kanten und eine
+   * Verjüngung: Rumpf, Kopf, Glieder, Hände, Füsse. Augen, Brauen, Mund und
+   * Gürtelschnallen bleiben Kästchen. Sie sind zwei Zentimeter gross; eine
+   * Fase daran kostet Dreiecke und ist aus zwei Metern Entfernung kein
+   * Unterschied, den jemand sieht.
+   */
   const torsoParts: Part[] = [
-    { geometry: box(0.5 * w, 0.6, 0.3 * w), color: rumpfFarbe, position: [0, 1.22, 0] },
+    // Der Rumpf verjüngt sich nach unten: Schultern breit, Taille schmal. Das
+    // allein nimmt der Figur das Kastenhafte, noch vor jeder Rundung.
+    {
+      geometry: rundeBox(0.5 * w, 0.6, 0.3 * w, { oben: 1.06, unten: 0.82, rund: 0.075, seg: 3 }),
+      color: rumpfFarbe,
+      position: [0, 1.22, 0],
+    },
+
+    /*
+     * Schulterkugeln.
+     *
+     * Die eine Stelle, an der ein Kastenrumpf immer als Kasten auffällt: der
+     * Arm hängt an einer senkrechten Wand, und dazwischen ist eine Kante.
+     * Zwei gerundete Körper an den Drehpunkten schliessen die Lücke und
+     * machen aus der Ecke eine Wölbung. Sie sitzen **auf** dem Drehpunkt, also
+     * dreht der Arm in ihnen — nicht mit ihnen, und darum klafft beim
+     * Schwingen nichts auf.
+     */
+    {
+      geometry: rundeBox(0.21 * w, 0.2, 0.21 * w, { unten: 0.86, rund: 0.07, seg: 3 }),
+      color: armFarbe,
+      position: [0.3 * w, 1.42, 0],
+    },
+    {
+      geometry: rundeBox(0.21 * w, 0.2, 0.21 * w, { unten: 0.86, rund: 0.07, seg: 3 }),
+      color: armFarbe,
+      position: [-0.3 * w, 1.42, 0],
+    },
+
+    /*
+     * Das Becken.
+     *
+     * Unten hörte der Rumpf mit einer waagerechten Platte auf, aus der zwei
+     * Beine ragten. Ein gerundetes Stück darunter nimmt die Kante und gibt dem
+     * Übergang eine Form — schmaler als der Rumpf, breiter als die beiden
+     * Beine zusammen.
+     */
+    {
+      geometry: rundeBox(0.42 * w, 0.19, 0.29 * w, { oben: 1.0, unten: 0.9, rund: 0.06, seg: 3 }),
+      color: rumpfFarbe,
+      position: [0, 0.99, 0],
+    },
 
     // Hals — vorher saß der Kopf ohne Übergang auf den Schultern.
-    { geometry: box(0.14, 0.1, 0.14), color: shade(cfg.skin, 0.86), position: [0, 1.5, 0] },
+    {
+      geometry: rundeBox(0.14, 0.1, 0.14, { rund: 0.035 }),
+      color: shade(cfg.skin, 0.86),
+      position: [0, 1.5, 0],
+    },
 
-    { geometry: box(0.28, 0.28, 0.26), color: cfg.skin, position: [0, 1.66, 0] },
+    // Der Kopf: unten schmaler, oben breiter — ein Schädel und kein Würfel.
+    {
+      geometry: rundeBox(0.28, 0.28, 0.26, { oben: 0.97, unten: 0.85, rund: 0.082, seg: 3 }),
+      color: cfg.skin,
+      position: [0, 1.66, 0],
+    },
     // Kinn: schmaler als der Kopf, damit der Würfel eine Form bekommt.
-    { geometry: box(0.2, 0.07, 0.22), color: cfg.skin, position: [0, 1.535, 0.012] },
+    {
+      geometry: rundeBox(0.2, 0.07, 0.22, { unten: 0.8, rund: 0.03 }),
+      color: cfg.skin,
+      position: [0, 1.535, 0.012],
+    },
 
     // Ohren.
-    { geometry: box(0.03, 0.075, 0.06), color: shade(cfg.skin, 0.94), position: [0.147, 1.665, -0.005] },
-    { geometry: box(0.03, 0.075, 0.06), color: shade(cfg.skin, 0.94), position: [-0.147, 1.665, -0.005] },
+    { geometry: rundeBox(0.03, 0.075, 0.06, { rund: 0.014 }), color: shade(cfg.skin, 0.94), position: [0.147, 1.665, -0.005] },
+    { geometry: rundeBox(0.03, 0.075, 0.06, { rund: 0.014 }), color: shade(cfg.skin, 0.94), position: [-0.147, 1.665, -0.005] },
 
     // Brauen.
     { geometry: box(0.082, 0.024, 0.02), color: brow, position: [0.06, 1.729, 0.126] },
@@ -657,20 +720,30 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
     { geometry: box(0.03, 0.034, 0.012), color: 0x2a2018, position: [-0.066, 1.697, 0.136] },
 
     // Nase: der einzige Teil, der wirklich vorsteht.
-    { geometry: box(0.055, 0.08, 0.06), color: shade(cfg.skin, 1.04), position: [0, 1.662, 0.145] },
+    { geometry: rundeBox(0.055, 0.08, 0.06, { rund: 0.02 }), color: shade(cfg.skin, 1.04), position: [0, 1.662, 0.145] },
 
     // Mund.
     { geometry: box(0.082, 0.016, 0.012), color: shade(cfg.skin, 0.72), position: [0, 1.6, 0.13] },
 
     // Haar: Dach, Nacken, Seiten und eine Strähne über der Stirn. Vier Kästen
     // statt einem — ein einzelner Deckel sieht aus wie ein aufgesetzter Hut.
-    { geometry: box(0.31, 0.09, 0.29), color: cfg.hair, position: [0, 1.79, 0] },
-    { geometry: box(0.15, 0.09, 0.06), color: cfg.hair, position: [0, 1.7, -0.14] },
-    { geometry: box(0.032, 0.17, 0.28), color: cfg.hair, position: [0.148, 1.7, -0.012] },
-    { geometry: box(0.032, 0.17, 0.28), color: cfg.hair, position: [-0.148, 1.7, -0.012] },
+    { geometry: rundeBox(0.31, 0.09, 0.29, { oben: 0.86, rund: 0.045, seg: 3 }), color: cfg.hair, position: [0, 1.79, 0] },
+    { geometry: rundeBox(0.15, 0.09, 0.06, { rund: 0.025 }), color: cfg.hair, position: [0, 1.7, -0.14] },
+    // Die Seiten laufen nach unten schmaler zu — ein Haarvorhang, der unten so
+    // breit ist wie oben, ist ein Brett neben dem Kopf.
+    {
+      geometry: rundeBox(0.032, 0.17, 0.28, { unten: 0.8, rund: 0.014, seg: 3 }),
+      color: cfg.hair,
+      position: [0.148, 1.7, -0.012],
+    },
+    {
+      geometry: rundeBox(0.032, 0.17, 0.28, { unten: 0.8, rund: 0.014, seg: 3 }),
+      color: cfg.hair,
+      position: [-0.148, 1.7, -0.012],
+    },
     // Flach am Kopf und ueber der Braue: eine Straehne, die weiter vorsteht
     // als die Augen, deckt sie zu — und sieht aus wie ein Fehler im Modell.
-    { geometry: box(0.292, 0.05, 0.04), color: cfg.hair, position: [0, 1.772, 0.112] },
+    { geometry: rundeBox(0.292, 0.05, 0.04, { rund: 0.016 }), color: cfg.hair, position: [0, 1.772, 0.112] },
   ];
 
   // --- Was die Ausrüstung obendrauf legt -----------------------------------
@@ -708,7 +781,7 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
     // beider gleich weit weg ist und der Puffer zwischen ihnen hin- und
     // herspringt. Ein Fingerbreit mehr, und das Problem verschwindet.
     torsoParts.push(
-      { geometry: box(0.54 * w, 0.21, 0.36 * w), color: UNDERWEAR, position: [0, 0.9, 0] },
+      { geometry: rundeBox(0.54 * w, 0.21, 0.36 * w, { rund: 0.05, seg: 3 }), color: UNDERWEAR, position: [0, 0.9, 0] },
       { geometry: box(0.55 * w, 0.05, 0.37 * w), color: shade(UNDERWEAR, 0.88), position: [0, 0.995, 0] },
     );
   } else if (hose) {
@@ -802,10 +875,23 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
   const UNTERARM = armLength * 0.5;
   const UEBERLAPP = 1.1;
 
-  const oberarmGeo = () => box(0.16 * w, OBERARM * UEBERLAPP, 0.16 * w);
-  const unterarmGeo = () => box(0.145 * w, UNTERARM * UEBERLAPP, 0.145 * w);
-  const oberschenkelGeo = () => box(0.19 * w, OBERSCHENKEL * UEBERLAPP, 0.21 * w);
-  const schienbeinGeo = () => box(0.165 * w, SCHIENBEIN * UEBERLAPP, 0.185 * w);
+  /*
+   * Die Glieder verjüngen sich nach unten — jedes für sich.
+   *
+   * Ein Oberarm, der am Ellbogen so dick ist wie an der Schulter, liest sich
+   * als Rohr. Die Faktoren sind klein: 1,0 oben zu 0,85 unten ist im Bild ein
+   * deutlicher Unterschied und im Umriss noch immer eine gerade Linie. Wichtig
+   * ist, dass das obere Glied unten dort endet, wo das untere oben anfängt —
+   * sonst hat der Ellbogen eine Stufe.
+   */
+  const oberarmGeo = () =>
+    rundeBox(0.16 * w, OBERARM * UEBERLAPP, 0.16 * w, { oben: 1.05, unten: 0.86, rund: 0.03 });
+  const unterarmGeo = () =>
+    rundeBox(0.145 * w, UNTERARM * UEBERLAPP, 0.145 * w, { oben: 0.98, unten: 0.8, rund: 0.028 });
+  const oberschenkelGeo = () =>
+    rundeBox(0.19 * w, OBERSCHENKEL * UEBERLAPP, 0.21 * w, { oben: 1.04, unten: 0.86, rund: 0.038 });
+  const schienbeinGeo = () =>
+    rundeBox(0.165 * w, SCHIENBEIN * UEBERLAPP, 0.185 * w, { oben: 1.0, unten: 0.82, rund: 0.034 });
 
   // Ärmel in Hemdfarbe, Hosenbeine in Hosenfarbe — beides stand schon in der
   // Beschreibung, wurde aber nie gezeichnet.
@@ -848,9 +934,13 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
    */
   const handParts = (thumbSide: number): Part[] => {
     const teile: Part[] = [
-      { geometry: box(0.1 * w, 0.155, 0.125 * w), color: cfg.skin, position: [0, 0, 0] },
       {
-        geometry: box(0.042 * w, 0.062, 0.055 * w),
+        geometry: rundeBox(0.1 * w, 0.155, 0.125 * w, { unten: 0.9, rund: 0.028 }),
+        color: cfg.skin,
+        position: [0, 0, 0],
+      },
+      {
+        geometry: rundeBox(0.042 * w, 0.062, 0.055 * w, { rund: 0.016 }),
         color: cfg.skin,
         position: [thumbSide * 0.062 * w, 0.032, 0.028],
       },
@@ -904,9 +994,14 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
    * zudem seitlich exakt so breit wie das Bein.
    */
   const bootParts: Part[] = [
-    { geometry: box(0.23 * w, 0.1, 0.27 * w), color: stiefelFarbe, position: [0, 0, 0.02] },
+    { geometry: rundeBox(0.23 * w, 0.1, 0.27 * w, { rund: 0.03 }), color: stiefelFarbe, position: [0, 0, 0.02] },
     // Die Spitze steht nach vorn über — ohne sie steht die Figur auf Stümpfen.
-    { geometry: box(0.2 * w, 0.07, 0.1 * w), color: stiefelFarbe, position: [0, -0.016, 0.16] },
+    // Vorn schmaler als hinten, sonst ist es ein Klotz mit Klotz davor.
+    {
+      geometry: rundeBox(0.2 * w, 0.07, 0.1 * w, { oben: 0.85, unten: 0.9, rund: 0.024 }),
+      color: stiefelFarbe,
+      position: [0, -0.016, 0.16],
+    },
     // Schaft, nur mit echten Stiefeln. Barfuss endet das Bein am Knöchel.
     ...(schuhe
       ? [

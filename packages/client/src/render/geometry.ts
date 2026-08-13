@@ -101,6 +101,85 @@ export function sphere(r: number, detail = 1): THREE.BufferGeometry {
 }
 
 /**
+ * Eine Box mit gebrochenen Kanten — und, wenn man will, verjüngt.
+ *
+ * Der Unterschied zwischen „Klotz" und „Low Poly" sind nicht mehr Dreiecke,
+ * sondern zwei Dinge, die eine Box nicht hat: **gebrochene Kanten** und eine
+ * **Verjüngung**. Eine scharfe Würfelkante fängt das Licht auf beiden Seiten
+ * gleich und liest sich als Karton; eine gebrochene bekommt einen schmalen
+ * Streifen dazwischen, und genau der macht die Rundung — auch bei zwölf
+ * Dreiecken mehr. Und ein Oberarm, der oben so dick ist wie unten, sieht aus
+ * wie ein Rohr; einer, der zum Handgelenk hin schmaler wird, sieht aus wie ein
+ * Arm.
+ *
+ * Gerechnet wird über das Abstandsfeld einer abgerundeten Box: jeder Punkt
+ * wird auf den innen liegenden Kern geklemmt und von dort um `rund` nach
+ * aussen geschoben. Flächenmitten bleiben, wo sie sind — Kanten und Ecken
+ * rücken herein. Das ist derselbe Trick, mit dem man Rundungen in Shadern
+ * baut, hier einmalig beim Erzeugen angewandt.
+ *
+ * `oben` und `unten` sind Breitenfaktoren an Ober- und Unterkante; dazwischen
+ * wird linear geblendet. `seg` bestimmt, wie viele Zwischenpunkte je Kante
+ * entstehen — zwei genügen für eine sichtbare Fase, drei für eine weiche
+ * Wölbung. Mehr wäre kein Low Poly mehr.
+ */
+export function rundeBox(
+  w: number,
+  h: number,
+  d: number,
+  opts: { rund?: number; oben?: number; unten?: number; seg?: number } = {},
+): THREE.BufferGeometry {
+  const seg = opts.seg ?? 2;
+  const oben = opts.oben ?? 1;
+  const unten = opts.unten ?? 1;
+  // Ein Viertel der schmalsten Kante, gedeckelt: eine Fase, die breiter ist
+  // als die halbe Fläche, lässt vom Körper nichts übrig.
+  const rund = Math.min(opts.rund ?? Math.min(w, h, d) * 0.26, Math.min(w, h, d) * 0.49);
+
+  const geo = new THREE.BoxGeometry(w, h, d, seg, seg, seg);
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+
+  const hx = Math.max(1e-6, w / 2 - rund);
+  const hy = Math.max(1e-6, h / 2 - rund);
+  const hz = Math.max(1e-6, d / 2 - rund);
+
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+
+    // Auf den Kern klemmen und von dort um `rund` nach aussen — das rundet
+    // Ecken und Kanten und lässt Flächenmitten unberührt.
+    const kx = Math.max(-hx, Math.min(hx, x));
+    const ky = Math.max(-hy, Math.min(hy, y));
+    const kz = Math.max(-hz, Math.min(hz, z));
+    const dx = x - kx;
+    const dy = y - ky;
+    const dz = z - kz;
+    const laenge = Math.hypot(dx, dy, dz) || 1;
+
+    let nx = kx + (dx / laenge) * rund;
+    const ny = ky + (dy / laenge) * rund;
+    let nz = kz + (dz / laenge) * rund;
+
+    // Verjüngen: der Faktor hängt an der Höhe, nicht am Punkt selbst — sonst
+    // zöge sich die Fase mit zusammen und die Rundung liefe schief.
+    if (oben !== 1 || unten !== 1) {
+      const t = h > 1e-6 ? (ny + h / 2) / h : 0.5;
+      const f = unten + (oben - unten) * Math.max(0, Math.min(1, t));
+      nx *= f;
+      nz *= f;
+    }
+
+    pos.setXYZ(i, nx, ny, nz);
+  }
+
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/**
  * Verzieht eine Geometrie deterministisch — aus einer glatten Kugel wird so
  * ein Felsblock, ohne dass wir Felsen modellieren müssten.
  */
