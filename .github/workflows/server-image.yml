@@ -24,12 +24,20 @@ on:
       - claude/new-session-9cek38
     tags:
       - 'v*'
-    # Nur wenn sich am Server oder am Bauplan etwas ändert. Eine Änderung am
-    # Client hat auf das Serverbild keine Wirkung.
+    # Nur wenn sich am Server, am Bauplan oder am Ausrollen etwas ändert. Eine
+    # Änderung am Client hat auf das Serverbild keine Wirkung.
+    #
+    # Compose und `update.sh` stehen mit in der Liste, obwohl sie im Bild gar
+    # nicht landen: sie sind das, was der Deploy-Schritt auf dem Pi ausführt.
+    # Ohne sie blieb eine kaputte Stapelbeschreibung unbemerkt, bis das
+    # nächste Mal jemand am Server etwas änderte — der Lauf, der sie hätte
+    # prüfen können, wurde für ihre eigene Änderung nicht angestossen.
     paths:
       - 'Dockerfile'
       - '.dockerignore'
       - 'docker/**'
+      - 'docker-compose*.yml'
+      - 'update.sh'
       - 'packages/core/**'
       - 'packages/shared/**'
       - 'packages/server/**'
