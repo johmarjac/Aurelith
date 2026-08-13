@@ -201,6 +201,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+      # Eine frische Datenbank legt beim ersten Start ihr Verzeichnis an, und
+      # auf einem Raspberry Pi dauert das. Waehrend dieser Zeit zaehlen
+      # Fehlschlaege nicht mit — sonst gilt die Datenbank als krank, bevor sie
+      # ueberhaupt fertig aufgestanden ist.
+      start_period: 40s
 
   # --- Weltdatenbank der Region: Figuren ------------------------------------
   #
@@ -220,6 +225,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+      # Eine frische Datenbank legt beim ersten Start ihr Verzeichnis an, und
+      # auf einem Raspberry Pi dauert das. Waehrend dieser Zeit zaehlen
+      # Fehlschlaege nicht mit — sonst gilt die Datenbank als krank, bevor sie
+      # ueberhaupt fertig aufgestanden ist.
+      start_period: 40s
 
 volumes:
   db-data:

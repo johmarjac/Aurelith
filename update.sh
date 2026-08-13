@@ -105,8 +105,20 @@ Bei einem privaten Paket fehlt meist die Anmeldung:
 fi
 
 schritt 'Stapel neu starten'
-# Ohne -v: die Datenbank liegt in einem Volume und soll das ueberleben.
-compose down
+#
+# `--remove-orphans`: Container von Diensten wegraeumen, die es in der
+# Compose-Datei nicht mehr gibt.
+#
+# Ohne das bleiben sie einfach stehen — `down` fasst nur an, was in der Datei
+# steht. Genau daran scheiterte der erste Start nach der Aufteilung: der alte
+# Container `aurelith-db-1` lief weiter und hielt das Datenverzeichnis
+# gesperrt, und die neue `db-master` auf demselben Band starb im selben
+# Augenblick mit einer Meldung, die niemand sah. Sichtbar war nur „is
+# unhealthy".
+#
+# Ohne -v: die Datenbanken liegen in Volumes und sollen das ueberleben.
+# `--remove-orphans` raeumt Container weg, keine Volumes.
+compose down --remove-orphans
 compose up -d
 
 # --- Ergebnis ---------------------------------------------------------------
