@@ -37,6 +37,7 @@ import {
   encodeCreateCharacter,
   encodeDeleteCharacter,
   encodeEnterWorld,
+  encodeLeaveWorld,
   encodeFrame,
   encodeHello,
   encodeInput,
@@ -317,6 +318,11 @@ export class Connection {
 
   sendEnterWorld(characterId: number): void {
     this.send(encodeEnterWorld(characterId));
+  }
+
+  /** Zurück in die Verwaltung — die Figur verlässt die Welt. */
+  sendLeaveWorld(): void {
+    this.send(encodeLeaveWorld());
   }
 
   sendMoveItem(from: number, to: number): void {

@@ -111,6 +111,14 @@ const RECHTE_PLAETZE: ReadonlyArray<[EquipSlot, number]> = [
 ];
 
 /** Ein Zeichen je Platz, solange nichts darin liegt. */
+/**
+ * So viele Plätze hat die Fertigkeitenleiste.
+ *
+ * Sechs, weil die Zifferntasten 1 bis 6 ohne Umgreifen erreichbar sind. Die
+ * Plätze sind noch leer — die Fertigkeiten kommen als Nächstes.
+ */
+const ACTION_SLOTS = 6;
+
 const SLOT_GLYPHS: Partial<Record<EquipSlot, string>> = {
   head: '🪖',
   chest: '🎽',
@@ -201,6 +209,8 @@ export class UI {
   onUseItem?: (slot: number) => void;
   /** Einen Gegenstand im Beutel auf einen anderen Platz legen. */
   onMoveItem?: (from: number, to: number) => void;
+  /** Zurück in die Charakterverwaltung. */
+  onLeaveWorld?: () => void;
   /** Aufwerten beim Schmied. Ebenfalls über den Platz. */
   onUpgradeItem?: (slot: number) => void;
   /** Auftrag annehmen, abgeben oder aufgeben. */
@@ -243,6 +253,9 @@ export class UI {
   private readonly equipCells = new Map<string, HTMLElement>();
   private readonly characterWindow: GameWindow;
   private readonly characterStats: HTMLElement;
+  /** Das Menü unten links und sein Knopf. */
+  private readonly menuPanel: HTMLDivElement;
+  private readonly menuButton: HTMLButtonElement;
   private readonly settingsWindow: GameWindow;
 
   private readonly dialogWindow: DialogWindow;
@@ -497,16 +510,53 @@ export class UI {
     );
     this.buildSettings();
 
-    // --- Aktionsleiste ----------------------------------------------------
+    // --- Fertigkeitenleiste -----------------------------------------------
+    //
+    // Unten in der Mitte, und vorerst leer: hier kommen die Fertigkeiten hin.
+    // Die Fenster, die früher hier standen — Inventar, Charakter, Aufträge,
+    // Chat —, sind ins Menü gewandert. Was man im Kampf drückt, gehört an
+    // diesen Platz; was man einmal am Abend drückt, nicht.
     const actionbar = el('div', 'actionbar panel');
-    actionbar.append(
-      this.slot('🎒', 'I', 'Inventar', () => this.inventoryWindow.toggle()),
-      this.slot('👤', 'C', 'Charakter', () => this.characterWindow.toggle()),
-      this.slot('📜', 'J', 'Aufträge', () => this.questWindow.toggle()),
-      this.slot('💬', '⏎', 'Chat', () => this.setChatOpen(!this.chatOpen)),
-      this.slot('⚙', 'O', 'Einstellungen', () => this.settingsWindow.toggle()),
-    );
+    for (let i = 0; i < ACTION_SLOTS; i++) {
+      const platz = el('div', 'action-slot');
+      platz.title = `Fertigkeitenplatz ${i + 1} — noch leer`;
+      platz.append(el('span', 'key', String(i + 1)));
+      actionbar.appendChild(platz);
+    }
     host.appendChild(actionbar);
+
+    // --- Menü unten links -------------------------------------------------
+    //
+    // Alles, was ein Fenster aufmacht, und alles um das Spiel herum. Eine
+    // Leiste, in der Inventar neben Abmelden steht, macht aus beidem
+    // dasselbe — und nimmt den Platz weg, an dem die Fertigkeiten hingehören.
+    this.menuPanel = el('div', 'menu-panel panel');
+    this.menuPanel.hidden = true;
+    this.menuPanel.append(
+      this.menuEntry('🎒', 'Inventar', 'I', () => this.inventoryWindow.toggle()),
+      this.menuEntry('👤', 'Charakter', 'C', () => this.characterWindow.toggle()),
+      this.menuEntry('📜', 'Aufträge', 'J', () => this.questWindow.toggle()),
+      this.menuEntry('💬', 'Chat', '⏎', () => this.setChatOpen(!this.chatOpen)),
+      this.menuEntry('⚙', 'Einstellungen', 'O', () => this.settingsWindow.toggle()),
+      this.menuEntry('🚪', 'Abmelden', '', () => this.onLeaveWorld?.()),
+    );
+    host.appendChild(this.menuPanel);
+
+    this.menuButton = el('button', 'btn menu-button', '☰');
+    this.menuButton.type = 'button';
+    this.menuButton.title = 'Menü (Esc)';
+    this.menuButton.setAttribute('aria-label', 'Menü');
+    this.menuButton.addEventListener('click', () => this.setMenuOpen(this.menuPanel.hidden));
+    host.appendChild(this.menuButton);
+
+    // Ein Druck daneben schliesst es. Ohne das bliebe es offen stehen, und
+    // wer weiterspielen will, müsste erst den Knopf wiederfinden.
+    window.addEventListener('pointerdown', (ev) => {
+      if (this.menuPanel.hidden) return;
+      const ziel = ev.target as Node | null;
+      if (ziel && (this.menuPanel.contains(ziel) || this.menuButton.contains(ziel))) return;
+      this.setMenuOpen(false);
+    });
 
     // --- Angriffsknopf (nur mobil) ---------------------------------------
     if (touch) {
@@ -743,13 +793,39 @@ export class UI {
     }
   }
 
-  private slot(icon: string, key: string, label: string, onClick: () => void): HTMLButtonElement {
-    const button = el('button', 'btn slot', icon);
+  /**
+   * Klappt das Menü auf oder zu.
+   *
+   * Der Knopf trägt seinen Zustand als `data-open`, damit sich das Zeichen
+   * drehen lässt — und damit von aussen ablesbar ist, was gerade gilt.
+   */
+  private setMenuOpen(offen: boolean): void {
+    this.menuPanel.hidden = !offen;
+    this.menuButton.dataset.open = String(offen);
+  }
+
+  /**
+   * Ein Eintrag im Menü.
+   *
+   * Das Menü schliesst sich bei jedem Eintrag — man klappt es auf, um eine
+   * Sache zu tun, nicht um darin zu wohnen. Die Tastenkürzel stehen dabei,
+   * weil sie weiter gelten: wer sie kennt, braucht das Menü nicht mehr.
+   */
+  private menuEntry(
+    icon: string,
+    label: string,
+    key: string,
+    onClick: () => void,
+  ): HTMLButtonElement {
+    const button = el('button', 'btn menu-entry');
     button.type = 'button';
-    button.title = `${label} (${key})`;
     button.setAttribute('aria-label', label);
-    if (!this.touch) button.append(el('span', 'key', key));
-    button.addEventListener('click', onClick);
+    button.append(el('span', 'menu-icon', icon), el('span', 'menu-label', label));
+    if (key && !this.touch) button.append(el('span', 'key', key));
+    button.addEventListener('click', () => {
+      this.setMenuOpen(false);
+      onClick();
+    });
     return button;
   }
 
@@ -764,6 +840,7 @@ export class UI {
       else if (e.code === 'KeyC') this.characterWindow.toggle();
       else if (e.code === 'KeyJ') this.questWindow.toggle();
       else if (e.code === 'KeyO') this.settingsWindow.toggle();
+      else if (e.code === 'Escape') this.setMenuOpen(this.menuPanel.hidden);
       else if (e.code === 'Enter') {
         e.preventDefault();
         this.chatInput.focus();

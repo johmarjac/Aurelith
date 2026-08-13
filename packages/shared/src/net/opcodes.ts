@@ -45,6 +45,8 @@ export const ClientOp = {
   DeleteCharacter: 0x14,
   /** Mit einem Charakter in die Welt. */
   EnterWorld: 0x15,
+  /** Zurück in die Charakterverwaltung — die Figur verlässt die Welt. */
+  LeaveWorld: 0x16,
 } as const;
 export type ClientOp = (typeof ClientOp)[keyof typeof ClientOp];
 

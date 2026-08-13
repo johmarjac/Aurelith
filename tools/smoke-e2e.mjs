@@ -536,6 +536,67 @@ check(
 );
 check(afterConnect.entities > 1, `Welt kommt wieder an (${afterConnect.entities} Entities)`);
 
+// --- Menü unten links ------------------------------------------------------
+//
+// Der Knopf sitzt in derselben Ecke wie der Chat. Dass er nicht darunter
+// liegt, ist keine Geschmacksfrage: ein Knopf hinter einem Textfeld ist kein
+// Knopf mehr.
+
+const ecke = await page.evaluate(() => {
+  const knopf = document.querySelector('.menu-button')?.getBoundingClientRect();
+  const chat = document.querySelector('.chat')?.getBoundingClientRect();
+  if (!knopf || !chat) return undefined;
+  const ueberlappt =
+    knopf.left < chat.right &&
+    knopf.right > chat.left &&
+    knopf.top < chat.bottom &&
+    knopf.bottom > chat.top;
+  return { ueberlappt, knopf: Math.round(knopf.top), chat: Math.round(chat.bottom) };
+});
+check(ecke !== undefined, 'der Menüknopf steht im Bild');
+check(
+  ecke?.ueberlappt === false,
+  `Menüknopf und Chat überschneiden sich nicht (Knopf ab ${ecke?.knopf}, Chat bis ${ecke?.chat})`,
+);
+
+await page.click('.menu-button');
+const menue = await page.evaluate(() => {
+  const panel = document.querySelector('.menu-panel');
+  return {
+    offen: panel ? !panel.hidden : false,
+    eintraege: [...document.querySelectorAll('.menu-entry')].map((n) => n.textContent?.trim()),
+  };
+});
+check(menue.offen, 'ein Klick klappt das Menü auf');
+check(
+  ['Inventar', 'Charakter', 'Aufträge', 'Chat', 'Einstellungen', 'Abmelden'].every((wort) =>
+    menue.eintraege.some((t) => t?.includes(wort)),
+  ),
+  `alle Fenster stehen darin (${menue.eintraege.join(', ')})`,
+);
+
+// Unten steht jetzt die Fertigkeitenleiste — leer, aber vorhanden. Das ist der
+// Platz, den das Menü frei gemacht hat.
+const leiste = await page.evaluate(() => ({
+  plaetze: document.querySelectorAll('.actionbar .action-slot').length,
+  knoepfe: document.querySelectorAll('.actionbar .btn').length,
+}));
+check(leiste.plaetze > 0, `unten stehen Fertigkeitenplätze (${leiste.plaetze})`);
+check(leiste.knoepfe === 0, 'und keine Fensterknöpfe mehr');
+
+await page.click('.menu-entry:has-text("Einstellungen")');
+check(
+  await page
+    .waitForSelector('.window[data-window="settings"][data-open="true"]', { timeout: 3000 })
+    .then(() => true)
+    .catch(() => false),
+  'Einstellungen öffnen sich aus dem Menü',
+);
+check(
+  await page.evaluate(() => document.querySelector('.menu-panel')?.hidden === true),
+  'und das Menü schliesst sich dabei',
+);
+
 await mkdir(shotDir, { recursive: true });
 await page.screenshot({ path: join(shotDir, 'client.png') });
 console.log(`\n→ Bildschirmfoto: artefakte/client.png`);
@@ -557,6 +618,31 @@ if (pageErrors.length > 0 || errors.length > 0) {
 // dann misst der Test die Maschine statt die Eingabe: in einem gemeinsamen Lauf
 // kam die Mobil-Seite auf vier Bilder und null Simulationsschritte, allein
 // gestartet auf zweiundzwanzig Schritte und knapp vier Einheiten Bewegung.
+
+// --- Abmelden --------------------------------------------------------------
+//
+// Zurück in die Figurenauswahl, ohne die Verbindung zu verlieren: die Figur
+// verlässt die Welt, das Konto bleibt angemeldet.
+
+await page.click('.menu-button');
+await page.click('.menu-entry:has-text("Abmelden")');
+const abgemeldet = await page
+  .waitForFunction(
+    () =>
+      window.aurelith.localId === 0 &&
+      document.querySelector('.lobby')?.hidden === false &&
+      document.querySelectorAll('.lobby-figur').length > 0,
+    { timeout: 15000 },
+  )
+  .then(() => true)
+  .catch(() => false);
+check(abgemeldet, 'Abmelden führt zurück in die Figurenauswahl');
+check(
+  await page.evaluate(
+    () => document.querySelector('.status')?.getAttribute('data-state') === 'verbunden',
+  ),
+  'und die Verbindung bleibt dabei stehen',
+);
 
 await page.close();
 
@@ -872,9 +958,10 @@ if (tabletReady) {
       `getroffen=${chat.hitTag})`,
   );
 
-  // Und das 💬 klappt ihn wieder auf.
+  // Und das 💬 klappt ihn wieder auf — jetzt aus dem Menü.
   const opened = await tabletPage.evaluate(async () => {
-    const buttons = [...document.querySelectorAll('.actionbar .slot')];
+    document.querySelector('.menu-button')?.click();
+    const buttons = [...document.querySelectorAll('.menu-entry')];
     const chatButton = buttons.find((b) => b.getAttribute('aria-label') === 'Chat');
     chatButton?.click();
     await new Promise((r) => setTimeout(r, 150));

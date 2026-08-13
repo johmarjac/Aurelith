@@ -424,6 +424,9 @@ export class Game {
     this.ui.onUsePortal = () => this.usePortal();
     this.ui.onUseItem = (slot) => this.connection?.sendUseItem(slot);
     this.ui.onMoveItem = (from, to) => this.connection?.sendMoveItem(from, to);
+    // Abmelden heisst hier: zurück in die Figurenauswahl. Die Verbindung
+    // bleibt — der Server nimmt die Figur aus der Welt und schickt die Liste.
+    this.ui.onLeaveWorld = () => this.connection?.sendLeaveWorld();
     this.ui.onQuestAction = (questId, action) =>
       this.connection?.sendQuestAction(questId, action);
     this.ui.onBuy = (itemId, count) => this.connection?.sendShopTrade(0, itemId, count);
@@ -777,9 +780,11 @@ export class Game {
       },
 
       onLobby: (msg) => {
-        // Angemeldet, aber noch nicht in der Welt: die Maske zeigt die
-        // Figuren. Wer schon spielt, sieht sie nicht wieder — der Server
-        // schickt sie dann auch nicht.
+        // Angemeldet, aber nicht in der Welt: die Maske zeigt die Figuren.
+        // Auch nach dem Abmelden aus dem Spiel — dann steht die Sitzung
+        // wieder in der Verwaltung, und was von ihr im Bild war, gehört
+        // abgeräumt.
+        this.resetSession();
         this.lobby.setStand(msg);
         this.accessLevel = msg.accessLevel;
       },

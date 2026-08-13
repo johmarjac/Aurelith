@@ -330,6 +330,9 @@ export class GameServer {
         case ClientOp.EnterWorld:
           void this.onEnterWorld(session, decodeCharacterRef(reader).characterId);
           break;
+        case ClientOp.LeaveWorld:
+          if (session.state === 'playing') void this.onLeaveWorld(session);
+          break;
         case ClientOp.VersionRequest:
           // Ohne Zustandsprüfung: die Fassung ist keine Auskunft über die
           // Welt, und gerade wenn eine Sitzung nicht ins Spiel kommt, will
@@ -636,6 +639,35 @@ export class GameServer {
       `[sitzung] ${session.accountName}/${geladen.character.name} betritt ${instance.doc.id} ` +
         `(Entity ${session.entityId})`,
     );
+  }
+
+  /**
+   * Die Figur verlässt die Welt, die Verbindung bleibt.
+   *
+   * Derselbe Weg wie beim Trennen — speichern, Entity entfernen —, nur endet
+   * er in der Verwaltung statt im Nichts. Zwei Wege dorthin wären zwei
+   * Gelegenheiten, das Speichern zu vergessen.
+   */
+  private async onLeaveWorld(session: Session): Promise<void> {
+    await this.persist(session).catch((err) =>
+      console.error('[db] Speichern beim Verlassen fehlgeschlagen:', err),
+    );
+
+    this.instances.get(session.mapId)?.removePlayer(session.entityId);
+    this.sessionByEntity.delete(session.entityId);
+    // Die anderen sollen die Figur nicht als bekannt führen — sie ist weg.
+    for (const other of this.sessions) other.known.delete(session.entityId);
+
+    session.entityId = 0;
+    session.mapId = '';
+    session.character = undefined;
+    session.items = [];
+    session.quests.load([]);
+    session.itemsDirty = false;
+    session.questsDirty = false;
+    session.state = 'lobby';
+
+    await this.sendLobby(session);
   }
 
   // -------------------------------------------------------------------------

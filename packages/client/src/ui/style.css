@@ -399,24 +399,44 @@ body {
   padding: 0.35rem;
 }
 
-.slot {
+/*
+ * Ein Fertigkeitenplatz.
+ *
+ * Ausgespart wie eine Inventarkachel und nicht erhaben wie ein Knopf: hier
+ * liegt später etwas drin, es ist selbst keins. Leer bleibt er sichtbar — die
+ * Leiste soll ihren Platz behalten, auch bevor die erste Fertigkeit da ist.
+ */
+.action-slot {
   width: 3rem;
   height: 3rem;
   display: grid;
   place-items: center;
-  gap: 0;
   position: relative;
-  font-size: 1.3rem;
-  padding: 0;
+  border-radius: 3px;
+  background: var(--kachel);
+  border: 1px solid var(--kachel-rand);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45);
 }
 
-.slot .key {
+.action-slot .key {
   position: absolute;
-  right: 2px;
+  right: 3px;
   bottom: 1px;
   font-family: var(--font-mono);
   font-size: 0.58rem;
+  color: var(--panel-edge-bright);
+  opacity: 0.75;
+}
+
+.menu-entry .key {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
   color: var(--ink-faint);
+}
+
+.menu-label {
+  flex: 1;
 }
 
 /* --- Angriffsknopf (nur mobil) -------------------------------------------- */
@@ -873,6 +893,110 @@ body {
   font-weight: 400;
 }
 
+/* --- Menü unten links ----------------------------------------------------- */
+/*
+   Was um das Spiel herum liegt und nicht darin: Einstellungen, Abmelden. Der
+   Knopf steht in der unteren linken Ecke, der Chat rückt dafür ein Stück
+   höher — beides in derselben Ecke übereinander, nichts überdeckt etwas.
+*/
+
+.menu-button {
+  position: absolute;
+  left: calc(var(--safe-l) + var(--gap));
+  bottom: calc(var(--safe-b) + var(--gap));
+  width: 3rem;
+  height: 3rem;
+  font-size: 1.3rem;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  z-index: 12;
+}
+
+.menu-button[data-open='true'] {
+  filter: brightness(1.15);
+}
+
+/*
+ * Auf dem Telefon gehört die untere linke Ecke dem Daumen: dort erscheint der
+ * Joystick, und zwar unter dem Finger, wo immer er aufsetzt. Ein Knopf darin
+ * wäre entweder verdeckt oder er schluckte die Steuerung. Also nach oben
+ * rechts, unter die Verbindungsanzeige — die einzige Ecke, in der weder
+ * Werte, noch Joystick, noch Angriffsknopf liegen.
+ */
+#ui-root[data-touch='true'] .menu-button {
+  left: auto;
+  bottom: auto;
+  right: calc(var(--safe-r) + var(--gap));
+  top: calc(var(--safe-t) + var(--gap) + 1.8rem);
+}
+
+#ui-root[data-touch='true'] .menu-panel {
+  left: auto;
+  bottom: auto;
+  right: calc(var(--safe-r) + var(--gap));
+  top: calc(var(--safe-t) + var(--gap) + 5.2rem);
+  transform-origin: 100% 0;
+}
+
+@keyframes menu-ab {
+  from {
+    opacity: 0;
+    transform: translateY(-0.5rem) scaleY(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+#ui-root[data-touch='true'] .menu-panel {
+  animation-name: menu-ab;
+}
+
+.menu-panel {
+  position: absolute;
+  left: calc(var(--safe-l) + var(--gap));
+  bottom: calc(var(--safe-b) + var(--gap) + 3.4rem);
+  min-width: 11rem;
+  padding: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  z-index: 13;
+  /* Klappt aus der Ecke hoch, aus der es kommt. */
+  transform-origin: 0 100%;
+  animation: menu-auf 0.14s ease-out;
+}
+
+.menu-panel[hidden] {
+  display: none;
+}
+
+@keyframes menu-auf {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem) scaleY(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.menu-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: left;
+  padding: 0.45rem 0.6rem;
+}
+
+.menu-icon {
+  width: 1.2rem;
+  text-align: center;
+}
+
 /* --- Anmeldung und Charakterverwaltung ------------------------------------ */
 /*
    Liegt über der schon gezeichneten Welt: der Client lädt Kern, Inhalte und
@@ -1185,7 +1309,9 @@ body {
 .chat {
   position: absolute;
   left: calc(var(--safe-l) + var(--gap));
-  bottom: calc(var(--safe-b) + var(--gap));
+  /* Über dem Menüknopf, nicht auf ihm: der sitzt in derselben Ecke, und ein
+     Knopf hinter dem Chatfeld ist kein Knopf. */
+  bottom: calc(var(--safe-b) + var(--gap) + 3.4rem);
   width: min(26rem, 52vw);
   display: grid;
   gap: 0.3rem;
@@ -1266,6 +1392,8 @@ body {
 
 #ui-root[data-touch='true'] .chat {
   width: min(22rem, 62vw);
+  /* Über der Fertigkeitenleiste. Der Menüknopf steht hier oben rechts, also
+     braucht der Chat unten keinen Platz für ihn freizuhalten. */
   bottom: calc(var(--safe-b) + 4.4rem);
 }
 

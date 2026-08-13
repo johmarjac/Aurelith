@@ -88,6 +88,14 @@ export function encodeEnterWorld(characterId: number): Uint8Array {
   return packet(ClientOp.EnterWorld, 16).u32(characterId).finish();
 }
 
+/**
+ * Zurück in die Verwaltung. Ohne Rumpf — welche Figur gemeint ist, weiss der
+ * Server besser als der Client.
+ */
+export function encodeLeaveWorld(): Uint8Array {
+  return packet(ClientOp.LeaveWorld, 8).finish();
+}
+
 /** Beide nennen nur eine Figur — gelesen wird für beide gleich. */
 export function decodeCharacterRef(r: ByteReader): { characterId: number } {
   return { characterId: r.u32() };
