@@ -24,6 +24,8 @@
 import * as THREE from 'three';
 import { CoreButton, type CoreEntityRow, type CoreWorld } from '@aurelith/core';
 import {
+  normalisiereLeiste,
+  type InventoryRow,
   angleDelta,
   CombatFlag,
   EntityState,
@@ -225,6 +227,23 @@ export interface Diagnostics {
   auftrag: { art: string; zielId: number; angriff: boolean };
   /** Simulationsschritte seit dem Start. */
   ticks: number;
+  /**
+   * Die Aktionsleiste, wie der Server sie zuletzt gemeldet hat.
+   *
+   * Von aussen sonst nur mit dem Auge zu prüfen — und zwei der Regeln daran
+   * sind gerade solche, die man beim Hinsehen für erfüllt hält: dass die
+   * Belegung ein Abmelden übersteht, und dass ein vernichteter Gegenstand vom
+   * Platz verschwindet.
+   */
+  aktionsleiste: { art: number; id: string }[];
+  /**
+   * Der Beutel, wie er zuletzt gemeldet wurde.
+   *
+   * Von aussen ist eine Inventarkachel nur an ihrer Nummer zu erkennen, und
+   * welche Nummer der Trank hat, weiss allein diese Liste. Ohne sie müsste
+   * eine Prüfung raten, worauf sie klickt.
+   */
+  inventar: { itemId: string; slot: number; count: number; equipped: boolean }[];
   /**
    * Die Laufmarke — jeder ihrer Punkte und der Boden darunter.
    *
@@ -464,6 +483,8 @@ export class Game {
     auftrag: { art: 'nichts', zielId: 0, angriff: false },
     ticks: 0,
     laufmarke: { sichtbar: false, mitte: 0, punkte: [] },
+    aktionsleiste: [],
+    inventar: [],
     weaponModels: [],
     audio: { state: 'wartet', contextState: 'kein Kontext', sampleRate: 0, geladen: [], dekodiert: [] },
     reconciles: 0,
@@ -573,6 +594,24 @@ export class Game {
     this.ui.onUpgradeItem = (slot) => this.connection?.sendUpgradeItem(slot);
     this.ui.onUsePortal = () => this.usePortal();
     this.ui.onUseItem = (slot) => this.connection?.sendUseItem(slot);
+    this.ui.onSetActionSlot = (index, art, id) =>
+      this.connection?.sendSetActionSlot(index, art, id);
+    /*
+     * Ein Gegenstand von der Aktionsleiste.
+     *
+     * Die Leiste kennt nur die Kennung; der Server will einen Beutelplatz. Die
+     * Übersetzung gehört hierher, weil hier der letzte bekannte Beutel liegt —
+     * und sie nimmt den kleinsten Stapel zuerst. Das räumt den Beutel beim
+     * Spielen von selbst auf, statt einen angebrochenen Stapel ewig
+     * mitzuschleppen.
+     */
+    this.ui.onUseItemId = (itemId) => {
+      const stapel = this.inventar
+        .filter((e) => e.itemId === itemId && !e.equipped)
+        .sort((a, b) => a.count - b.count)[0];
+      if (!stapel) return;
+      this.connection?.sendUseItem(stapel.slot);
+    };
     this.ui.onMoveItem = (from, to) => this.connection?.sendMoveItem(from, to);
     this.ui.onDropItem = (slot) => this.connection?.sendDropItem(slot);
     this.ui.onDestroyItem = (slot) => this.connection?.sendDestroyItem(slot);
@@ -1142,6 +1181,14 @@ export class Game {
       // Die Kanalliste. Kommt nur vom Anmeldeserver.
       onRealms: (msg) => this.lobby.zeigeKanaele(msg),
 
+      // Die Aktionsleiste. Kommt vom Server, weil sie dort gemerkt wird —
+      // sonst wäre sie auf jedem Gerät eine andere.
+      onActionBar: (plaetze) => {
+        const leiste = normalisiereLeiste(plaetze);
+        this.diagnostics.aktionsleiste = leiste.map((p) => ({ art: p.art, id: p.id }));
+        this.ui.setzeAktionsleiste(leiste);
+      },
+
       onWelcome: async (msg) => {
         this.localId = msg.entityId;
         // Die Maske bleibt noch stehen — sie geht erst, wenn es etwas zu
@@ -1219,6 +1266,15 @@ export class Game {
       },
 
       onInventory: (rows) => {
+        // Der letzte bekannte Beutel. Die Aktionsleiste zeigt auf Kennungen
+        // und braucht ihn, um daraus einen Beutelplatz zu machen.
+        this.inventar = rows;
+        this.diagnostics.inventar = rows.map((r) => ({
+          itemId: r.itemId,
+          slot: r.slot,
+          count: r.count,
+          equipped: r.equipped,
+        }));
         this.ui.setInventory(rows);
 
         // Aus der Ausrüstung folgt, wie die Figur zuschlägt — und was sie in
@@ -1523,6 +1579,14 @@ export class Game {
    * gewöhnliche, und eine Absage ist eine Absage — kein Grund, zum
    * Anmeldeserver zurückzugehen.
    */
+  /**
+   * Der zuletzt gemeldete Beutel.
+   *
+   * Nur zum Nachschlagen: welcher Stapel zu einer Kennung gehört. Die
+   * Anzeige führt die Oberfläche, der Bestand der Server — das hier ist eine
+   * Abschrift und keine dritte Meinung.
+   */
+  private inventar: InventoryRow[] = [];
   private amKanal = false;
   /**
    * Die Adresse des Kanals, an dem diese Sitzung hängt. Leer heisst:

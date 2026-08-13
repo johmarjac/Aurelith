@@ -3,6 +3,7 @@
  * keine Spielregeln. Die stehen im GameServer.
  */
 
+import { leereLeiste, type AktionsPlatz } from '@aurelith/shared';
 import type { WebSocket } from 'ws';
 import {
   AccessLevel,
@@ -78,6 +79,16 @@ export class Session {
    */
   itemsDirty = false;
   questsDirty = false;
+  aktionenDirty = false;
+
+  /**
+   * Die Aktionsleiste — zehn Plätze mit Gegenständen und Fertigkeiten.
+   *
+   * Gehört zur Figur und wird mit ihr geladen. Sie steht hier und nicht im
+   * Browser, weil sie sonst am Gerät hinge: auf dem Telefon wäre die Leiste
+   * leer, die man am Schreibtisch eingerichtet hat.
+   */
+  aktionen: AktionsPlatz[] = leereLeiste();
 
   /**
    * Wann jede Fertigkeit wieder bereit ist, als Zeitstempel.

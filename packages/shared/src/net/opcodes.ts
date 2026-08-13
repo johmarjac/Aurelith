@@ -7,7 +7,7 @@
  * ändert, zählt PROTOCOL_VERSION hoch.
  */
 
-export const PROTOCOL_VERSION = 13;
+export const PROTOCOL_VERSION = 14;
 
 export const ClientOp = {
   Hello: 0x01,
@@ -98,6 +98,15 @@ export const ClientOp = {
    * unterwegs noch als HTTP-Ruf durchs Netz geht.
    */
   Logout: 0x1c,
+  /**
+   * Einen Platz der Aktionsleiste belegen oder räumen.
+   *
+   * Was darauf liegt, ist Sache des Spielers und keine des Servers — aber
+   * gemerkt wird es dort, denn nach einem Neuanmelden soll dieselbe Belegung
+   * dastehen. Im Browser abzulegen hiesse: auf einem zweiten Gerät ist die
+   * Leiste leer, und niemand versteht warum.
+   */
+  SetActionSlot: 0x1d,
 } as const;
 export type ClientOp = (typeof ClientOp)[keyof typeof ClientOp];
 
@@ -157,6 +166,8 @@ export const ServerOp = {
    * Pakete daraus zu machen hiesse, dass eines ohne das andere ankommen kann.
    */
   Realms: 0x91,
+  /** Die volle Aktionsleiste. Nach dem Betreten und nach jeder Änderung. */
+  ActionBar: 0x92,
 } as const;
 export type ServerOp = (typeof ServerOp)[keyof typeof ServerOp];
 

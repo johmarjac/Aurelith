@@ -1008,6 +1008,42 @@ export function decodeInventory(r: ByteReader): InventoryRow[] {
 }
 
 /**
+ * Ein Platz der Aktionsleiste wird belegt oder geräumt.
+ *
+ * Geräumt heisst `art = Leer`; eine eigene Nachricht dafür wäre ein zweiter
+ * Weg zum selben Ziel. Der Server prüft, was hier ankommt — eine Kennung, die
+ * es nicht gibt, kommt als leerer Platz zurück.
+ */
+export function encodeSetActionSlot(index: number, art: number, id: string): Uint8Array {
+  return packet(ClientOp.SetActionSlot, 64).u8(index).u8(art).str(id).finish();
+}
+
+export function decodeSetActionSlot(r: ByteReader): { index: number; art: number; id: string } {
+  return { index: r.u8(), art: r.u8(), id: r.str() };
+}
+
+/**
+ * Die volle Leiste, immer vollständig.
+ *
+ * Wie beim Inventar: zehn Plätze sind ein paar Dutzend Byte, und ein
+ * Teilabgleich hätte den Preis, dass Client und Server verschiedener Meinung
+ * darüber sein können, was auf Platz 4 liegt.
+ */
+export function encodeActionBar(plaetze: readonly { art: number; id: string }[]): Uint8Array {
+  const w = packet(ServerOp.ActionBar, 128);
+  w.u8(plaetze.length);
+  for (const p of plaetze) w.u8(p.art).str(p.id);
+  return w.finish();
+}
+
+export function decodeActionBar(r: ByteReader): { art: number; id: string }[] {
+  const anzahl = r.u8();
+  const raus: { art: number; id: string }[] = new Array(anzahl);
+  for (let i = 0; i < anzahl; i++) raus[i] = { art: r.u8(), id: r.str() };
+  return raus;
+}
+
+/**
  * Was ein angesprochener NPC anzubieten hat.
  *
  * Bewusst schmal: nur Kennungen und Zustände. Namen, Begrüssung, Auftragstexte

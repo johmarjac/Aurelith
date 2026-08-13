@@ -11,7 +11,13 @@
  */
 
 import pg from 'pg';
-import { KEIN_BERUF } from '@aurelith/shared';
+import {
+  AktionsArt,
+  KEIN_BERUF,
+  leereLeiste,
+  normalisiereLeiste,
+  type AktionsPlatz,
+} from '@aurelith/shared';
 import { starterRows } from '../inventory.ts';
 import type {
   AccountRecord,
@@ -212,6 +218,22 @@ export class PostgresWelt extends PostgresBasis implements WeltStore {
       [character.id],
     );
 
+    const aktionen = await this.pool.query(
+      `SELECT idx, art, ref FROM character_actions WHERE character_id = $1`,
+      [character.id],
+    );
+    const leiste = leereLeiste();
+    for (const r of aktionen.rows) {
+      const i = Number(r.idx);
+      // Was ausserhalb liegt, fällt weg: die Zahl der Plätze kann sich ändern,
+      // und eine alte Zeile für Platz 12 soll dann nichts umwerfen.
+      if (i >= 0 && i < leiste.length) {
+        // `normalisiereLeiste` weiter unten wirft weg, was keine gültige Art
+        // ist — deshalb reicht hier die rohe Zahl.
+        leiste[i] = { art: Number(r.art) as AktionsArt, id: String(r.ref) };
+      }
+    }
+
     return {
       character,
       items: items.rows.map((r) => ({
@@ -228,6 +250,7 @@ export class PostgresWelt extends PostgresBasis implements WeltStore {
         // Treiberfassung als Text zurueck, deshalb der Durchlauf.
         progress: Array.isArray(r.progress) ? r.progress.map((p: unknown) => Number(p)) : [],
       })),
+      aktionen: normalisiereLeiste(leiste),
     };
   }
 
@@ -281,6 +304,31 @@ export class PostgresWelt extends PostgresBasis implements WeltStore {
           `INSERT INTO character_quests (character_id, quest_id, status, progress)
            VALUES ($1, $2, $3, $4)`,
           [characterId, quest.questId, quest.status, quest.progress],
+        );
+      }
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async saveAktionen(characterId: number, plaetze: AktionsPlatz[]): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Ersetzend wie Beutel und Aufträge. Leere Plätze bekommen keine Zeile —
+      // ein Platz, von dem nichts in der Datenbank steht, ist leer, und beides
+      // zugleich zu führen wären zwei Wahrheiten über dasselbe Loch.
+      await client.query('DELETE FROM character_actions WHERE character_id = $1', [characterId]);
+      for (let i = 0; i < plaetze.length; i++) {
+        const p = plaetze[i]!;
+        if (p.art === AktionsArt.Leer || p.id === '') continue;
+        await client.query(
+          `INSERT INTO character_actions (character_id, idx, art, ref) VALUES ($1, $2, $3, $4)`,
+          [characterId, i, p.art, p.id],
         );
       }
       await client.query('COMMIT');

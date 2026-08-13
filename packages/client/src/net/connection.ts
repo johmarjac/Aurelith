@@ -18,6 +18,7 @@ import {
   ServerOp,
   decodeCombatEvent,
   decodeEmote,
+  decodeActionBar,
   decodeRealms,
   decodeSkillCast,
   decodeFrame,
@@ -58,6 +59,7 @@ import {
   encodeUpgradeItem,
   encodeQuestAction,
   encodeRealmList,
+  encodeSetActionSlot,
   encodeSetTarget,
   encodeTicket,
   encodeShopTrade,
@@ -120,6 +122,8 @@ export interface ConnectionHandlers {
   onRealms?: (msg: RealmsMsg) => void;
   /** Was an einer Anmeldung oder einer Figurenänderung nicht ging. */
   onLobbyError?: (text: string) => void;
+  /** Die volle Aktionsleiste — nach dem Betreten und nach jeder Änderung. */
+  onActionBar?: (plaetze: { art: number; id: string }[]) => void;
 }
 
 /** Wartezeiten zwischen Verbindungsversuchen, in Millisekunden. */
@@ -334,6 +338,9 @@ export class Connection {
         case ServerOp.Inventory:
           this.handlers.onInventory?.(decodeInventory(reader));
           break;
+        case ServerOp.ActionBar:
+          this.handlers.onActionBar?.(decodeActionBar(reader));
+          break;
         case ServerOp.NpcDialog:
           this.handlers.onNpcDialog?.(decodeNpcDialog(reader));
           break;
@@ -419,6 +426,12 @@ export class Connection {
    */
   sendLogout(): void {
     this.send(encodeLogout());
+    this.flush();
+  }
+
+  /** Einen Platz der Aktionsleiste belegen oder räumen. */
+  sendSetActionSlot(index: number, art: number, id: string): void {
+    this.send(encodeSetActionSlot(index, art, id));
     this.flush();
   }
 

@@ -4,6 +4,7 @@
  * Neustart weg, und der Server sagt das beim Hochfahren.
  */
 
+import { leereLeiste, normalisiereLeiste, type AktionsPlatz } from '@aurelith/shared';
 import { starterRows } from '../inventory.ts';
 import type {
   AccountRecord,
@@ -19,6 +20,7 @@ interface Figur {
   character: CharacterRecord;
   items: ItemRecord[];
   quests: QuestRecord[];
+  aktionen: AktionsPlatz[];
 }
 
 /** Namen vergleichen sich ohne Rücksicht auf Gross- und Kleinschreibung. */
@@ -110,7 +112,12 @@ export class MemoryStore implements GameStore {
       z: spawn.z,
       yaw: spawn.yaw,
     };
-    this.figuren.set(character.id, { character, items: starterRows(), quests: [] });
+    this.figuren.set(character.id, {
+      character,
+      items: starterRows(),
+      quests: [],
+      aktionen: leereLeiste(),
+    });
     return { ...character };
   }
 
@@ -131,6 +138,7 @@ export class MemoryStore implements GameStore {
       character: { ...figur.character },
       items: figur.items.map((i) => ({ ...i })),
       quests: figur.quests.map((q) => ({ ...q, progress: [...q.progress] })),
+      aktionen: figur.aktionen.map((p) => ({ ...p })),
     };
   }
 
@@ -147,5 +155,10 @@ export class MemoryStore implements GameStore {
   async saveQuests(characterId: number, quests: QuestRecord[]): Promise<void> {
     const figur = this.figuren.get(characterId);
     if (figur) figur.quests = quests.map((q) => ({ ...q, progress: [...q.progress] }));
+  }
+
+  async saveAktionen(characterId: number, plaetze: AktionsPlatz[]): Promise<void> {
+    const figur = this.figuren.get(characterId);
+    if (figur) figur.aktionen = normalisiereLeiste(plaetze);
   }
 }

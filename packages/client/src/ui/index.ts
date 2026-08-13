@@ -13,6 +13,10 @@
 import * as THREE from 'three';
 import {
   ChatChannel,
+  AKTIONS_PLAETZE,
+  AktionsArt,
+  type AktionsPlatz,
+  leereLeiste,
   QUESTS,
   getNpc,
   QuestStatus,
@@ -27,6 +31,7 @@ import {
   SLOT_NAMES,
   setOfItem,
   skillsFor,
+  getSkill,
   getClass,
   type SkillDef,
   setProgress,
@@ -129,7 +134,13 @@ const RECHTE_PLAETZE: ReadonlyArray<[EquipSlot, number]> = [
  * Sechs, weil die Zifferntasten 1 bis 6 ohne Umgreifen erreichbar sind. Die
  * Plätze sind noch leer — die Fertigkeiten kommen als Nächstes.
  */
-const ACTION_SLOTS = 6;
+/**
+ * Wie viele Plätze die Leiste hat — die Zahl steht im geteilten Paket.
+ *
+ * Der Server merkt sich die Belegung und muss dieselbe Zahl kennen; zwei
+ * Konstanten wären zwei Meinungen darüber, ob es Platz 9 gibt.
+ */
+const ACTION_SLOTS = AKTIONS_PLAETZE;
 
 const SLOT_GLYPHS: Partial<Record<EquipSlot, string>> = {
   head: '🪖',
@@ -241,6 +252,22 @@ export class UI {
   /** Zurück in die Charakterverwaltung. */
   /** Abmelden — raus aus Welt und Kanal, zurück ans Anmeldeformular. */
   onLogout?: () => void;
+  /**
+   * Ein Platz der Leiste soll belegt oder geräumt werden.
+   *
+   * Was daraus wird, sagt der Server: er schickt die Leiste zurück. Die
+   * Oberfläche übernimmt nie ihre eigene Vorstellung — sonst stünde nach einem
+   * abgelehnten Zug etwas da, das es nirgends gibt.
+   */
+  onSetActionSlot?: (index: number, art: number, id: string) => void;
+  /**
+   * Einen Gegenstand über seine Kennung benutzen.
+   *
+   * Die Leiste kennt nur Kennungen, kein Beutelplatz — der ändert sich beim
+   * Umsortieren. Welcher Stapel es wird, entscheidet die Stelle, die das
+   * Inventar führt.
+   */
+  onUseItemId?: (itemId: string) => void;
   /** Aufwerten beim Schmied. Ebenfalls über den Platz. */
   onUpgradeItem?: (slot: number) => void;
   /** Auftrag annehmen, abgeben oder aufgeben. */
@@ -359,6 +386,14 @@ export class UI {
   // Nachteil, dass ein leerer Platz dann entweder `undefined` ist — und die
   // Zuordnung zur Taste verliert — oder ein Blindobjekt braucht.
   private readonly aktionsplaetze: HTMLDivElement[] = [];
+  /**
+   * Was auf den Plätzen liegt — die Belegung des Servers, unverändert.
+   *
+   * Die Oberfläche rechnet nichts daran: sie schickt einen Wunsch und zeichnet,
+   * was zurückkommt. Ein eigener Stand daneben wäre eine zweite Wahrheit, und
+   * die falsche von beiden stünde ausgerechnet nach einem abgelehnten Zug da.
+   */
+  private leiste: AktionsPlatz[] = leereLeiste();
   private readonly leisteSkills: (SkillDef | undefined)[] = [];
   /** `performance.now()`, ab dem der Platz wieder frei ist. Null heisst bereit. */
   private readonly abklingBis: number[] = [];
@@ -622,21 +657,51 @@ export class UI {
     const actionbar = el('div', 'actionbar panel');
     for (let i = 0; i < ACTION_SLOTS; i++) {
       const platz = el('div', 'action-slot');
-      platz.title = `Fertigkeitenplatz ${i + 1} — noch leer`;
-      // Das Zeichen der Fertigkeit, die Abklingzeit darüber, die Taste unten
-      // rechts. Alle drei sind immer da und werden nur gefüllt — ein Platz,
-      // der seine Kinder wechselt, verliert bei jedem Wechsel die
-      // Mausverfolgung und damit die Anzeige beim Überfahren.
+      // Die Nummer am Element ist die Trefferfläche beim Ziehen: wer einen
+      // Gegenstand aus dem Beutel hierher zieht, landet auf genau diesem Platz.
+      platz.dataset.aktion = String(i);
+      // Das Bild oder Zeichen, die Anzahl, die Abklingzeit, die Taste. Alle
+      // vier sind immer da und werden nur gefüllt — ein Platz, der seine
+      // Kinder wechselt, verliert bei jedem Wechsel die Mausverfolgung und
+      // damit die Anzeige beim Überfahren.
       platz.append(
         el('span', 'action-glyph', ''),
+        el('span', 'action-menge', ''),
         el('span', 'action-abkling', ''),
-        el('span', 'key', String(i + 1)),
+        // Die Null steht ganz rechts, wie auf der Tastatur.
+        el('span', 'key', String((i + 1) % 10)),
       );
       platz.addEventListener('click', () => this.wirke(i));
+      /*
+       * Einen Platz räumen.
+       *
+       * Am Schreibtisch mit der rechten Maustaste, auf dem Telefon durch
+       * Halten — dieselbe Geste, mit der man einen Gegenstand aufnimmt, denn
+       * hier gibt es nichts aufzunehmen. Ein eigener Knopf je Platz wäre auf
+       * dem Daumen kleiner als der Platz selbst.
+       */
+      platz.addEventListener('contextmenu', (ev) => {
+        ev.preventDefault();
+        this.raeumePlatz(i);
+      });
+      platz.addEventListener('pointerdown', (ev) => {
+        if (ev.pointerType === 'mouse') return;
+        const halten = window.setTimeout(() => this.raeumePlatz(i), 500);
+        const stop = (): void => {
+          window.clearTimeout(halten);
+          platz.removeEventListener('pointerup', stop);
+          platz.removeEventListener('pointercancel', stop);
+          platz.removeEventListener('pointerleave', stop);
+        };
+        platz.addEventListener('pointerup', stop);
+        platz.addEventListener('pointercancel', stop);
+        platz.addEventListener('pointerleave', stop);
+      });
       this.aktionsplaetze.push(platz);
       actionbar.appendChild(platz);
     }
     host.appendChild(actionbar);
+    this.zeichneLeiste();
 
     // --- Menü unten links -------------------------------------------------
     //
@@ -974,7 +1039,10 @@ export class UI {
       // liegt auf derselben Taste ein „&", und die Leiste soll dort dieselbe
       // sein wie überall.
       if (e.code.startsWith('Digit')) {
-        const platz = Number(e.code.slice(5)) - 1;
+        // Die 0 liegt auf dem letzten Platz, so wie sie auf der Tastatur rechts
+        // neben der 9 liegt. `(0 + 9) % 10` wäre dasselbe in unlesbar.
+        const ziffer = Number(e.code.slice(5));
+        const platz = ziffer === 0 ? ACTION_SLOTS - 1 : ziffer - 1;
         if (platz >= 0 && platz < ACTION_SLOTS) {
           e.preventDefault();
           this.wirke(platz);
@@ -1039,36 +1107,76 @@ export class UI {
   // -------------------------------------------------------------------------
 
   /**
-   * Füllt die Leiste mit dem, was dieser Beruf auf dieser Stufe kann.
+   * Übernimmt die Belegung, die der Server führt.
    *
-   * Beruf **und** Stufe: eine Fertigkeit kommt mit einer Stufe dazu, und die
-   * Leiste soll das im selben Augenblick zeigen, in dem der Aufstieg im
-   * Medaillon steht. Gebaut wird nur, wenn sich eines von beidem geändert hat
-   * — sonst risse jedes Stats-Paket die Abklinganzeige mitten im Zählen ab.
+   * Die Leiste wurde früher aus Beruf und Stufe gebaut: die ersten Fertigkeiten
+   * lagen einfach der Reihe nach darauf. Das ging, solange es nichts anderes
+   * gab, was man drauflegen könnte. Jetzt legt der Spieler selbst, und wo
+   * jemand etwas hingelegt hat, darf nichts von selbst umsortieren.
    */
-  private baueLeiste(beruf: string, level: number): void {
-    const schluessel = `${beruf}:${level}`;
-    if (this.leisteAus === schluessel) return;
-    this.leisteAus = schluessel;
+  setzeAktionsleiste(plaetze: AktionsPlatz[]): void {
+    this.leiste = plaetze;
+    this.zeichneLeiste();
+  }
 
-    const koennen = skillsFor(beruf, level);
+  /** Malt die Plätze aus `leiste` und dem, was gerade im Beutel liegt. */
+  private zeichneLeiste(): void {
     for (let i = 0; i < this.aktionsplaetze.length; i++) {
       const platz = this.aktionsplaetze[i]!;
-      const def = koennen[i];
-      this.leisteSkills[i] = def;
-
+      const eintrag = this.leiste[i] ?? { art: AktionsArt.Leer, id: '' };
       const glyph = platz.querySelector<HTMLElement>('.action-glyph')!;
-      glyph.textContent = def?.glyph ?? '';
-      platz.dataset.belegt = def ? '1' : '0';
-      platz.title = def
-        ? `${def.name} — ${def.beschreibung}\n` +
-          `${def.manaCost} Mana · ${(def.cooldownMs / 1000).toFixed(0)} s Abklingzeit`
-        : `Fertigkeitenplatz ${i + 1} — noch leer`;
+      const menge = platz.querySelector<HTMLElement>('.action-menge')!;
+
+      glyph.replaceChildren();
+      menge.textContent = '';
+      this.leisteSkills[i] = undefined;
+      platz.dataset.belegt = eintrag.art === AktionsArt.Leer ? '0' : '1';
+
+      if (eintrag.art === AktionsArt.Fertigkeit) {
+        const def = getSkill(eintrag.id);
+        this.leisteSkills[i] = def;
+        glyph.textContent = def?.glyph ?? '?';
+        platz.title = def
+          ? `${def.name} — ${def.beschreibung}\n` +
+            `${def.manaCost} Mana · ${(def.cooldownMs / 1000).toFixed(0)} s Abklingzeit`
+          : eintrag.id;
+        continue;
+      }
+
+      if (eintrag.art === AktionsArt.Gegenstand) {
+        const def = getItem(eintrag.id);
+        glyph.appendChild(itemIcon(def));
+        // Die Anzahl kommt aus dem Beutel und nicht aus der Leiste: die Leiste
+        // zeigt auf „den Trank", nicht auf einen Stapel. Wie viele davon da
+        // sind, weiss allein der Beutel.
+        const wieviele = this.inventory
+          .filter((e) => e.itemId === eintrag.id && !e.equipped)
+          .reduce((summe, e) => summe + e.count, 0);
+        menge.textContent = wieviele > 1 ? String(wieviele) : '';
+        platz.dataset.leer = wieviele === 0 ? '1' : '0';
+        platz.title = def ? def.name : eintrag.id;
+        continue;
+      }
+
+      platz.title = `Platz ${(i + 1) % 10} — leer. Zieh einen Gegenstand herauf.`;
+      platz.dataset.leer = '0';
     }
   }
 
   /**
-   * Wirkt, was auf diesem Platz liegt.
+   * Räumt einen Platz.
+   *
+   * Auch das geht über den Server: er führt die Leiste, und eine Belegung, die
+   * nur hier verschwindet, wäre nach dem nächsten Anmelden wieder da.
+   */
+  private raeumePlatz(index: number): void {
+    const eintrag = this.leiste[index];
+    if (!eintrag || eintrag.art === AktionsArt.Leer) return;
+    this.onSetActionSlot?.(index, AktionsArt.Leer, '');
+  }
+
+  /**
+   * Benutzt, was auf diesem Platz liegt.
    *
    * Die Prüfungen hier sind eine Höflichkeit und keine Regel: der Server
    * entscheidet, und er tut es noch einmal. Was er absagt, kommt als
@@ -1076,6 +1184,14 @@ export class UI {
    * kassieren, das man selbst schon sieht.
    */
   private wirke(index: number): void {
+    const eintrag = this.leiste[index];
+    if (!eintrag || eintrag.art === AktionsArt.Leer) return;
+
+    if (eintrag.art === AktionsArt.Gegenstand) {
+      this.onUseItemId?.(eintrag.id);
+      return;
+    }
+
     const def = this.leisteSkills[index];
     if (!def) return;
 
@@ -1134,7 +1250,6 @@ export class UI {
 
   setStats(stats: StatsMsg): void {
     this.lastStats = stats;
-    this.baueLeiste(stats.beruf, stats.level);
     // Das Gold steht im Laden — wer eben etwas verkauft hat, soll den neuen
     // Stand sehen, ohne das Fenster zu schliessen.
     this.shopWindow.setInventory(this.sellableItems(), stats.gold);
@@ -1602,6 +1717,9 @@ export class UI {
 
   setInventory(entries: InventoryEntry[]): void {
     this.inventory = entries;
+    // Auf der Leiste steht, wie viele Tränke noch da sind. Das ändert sich mit
+    // jedem Schluck, und die Zahl gehört dorthin, wo man sie im Kampf sieht.
+    this.zeichneLeiste();
     this.shopWindow.setInventory(this.sellableItems(), this.lastStats?.gold ?? 0);
     this.upgradeWindow.setInventory(entries, this.lastStats?.gold ?? 0);
 
@@ -1713,6 +1831,26 @@ export class UI {
       let ghost: HTMLElement | undefined;
       let halten: number | undefined;
       let markiert: Element | undefined;
+      /*
+       * Zwei Absichten, eine Geste.
+       *
+       * Auf dem Telefon beginnt jeder Zug mit Halten — und danach kann er
+       * zweierlei bedeuten: den Beutel umsortieren oder einen Platz der
+       * Aktionsleiste belegen. Am Schreibtisch entscheidet das die Stelle, an
+       * der man loslässt, denn dort ist beides gleichzeitig zu sehen. Auf dem
+       * Telefon nicht: das Inventar füllt das Bild und deckt die Leiste zu.
+       *
+       * Also entscheidet, wie lange man **stillhält**. Kurz halten und ziehen
+       * heisst umsortieren, das Inventar bleibt, wie es ist. Wer danach noch
+       * einen Wimpernschlag liegen bleibt, ohne den Finger zu bewegen, will
+       * offensichtlich nicht in dieses Raster — dann tritt das Inventar
+       * zurück, die Leiste kommt nach vorn, und der Zug gehört ihr.
+       *
+       * Der Ausstieg ist die Bewegung selbst: wer den Finger vorher
+       * verschiebt, sortiert um, und der zweite Halter fällt aus.
+       */
+      let zuweisung: number | undefined;
+      let zuweisen = false;
 
       const setzeGhost = (x: number, y: number): void => {
         if (!ghost) return;
@@ -1729,6 +1867,14 @@ export class UI {
         ghost.style.height = `${kasten.height}px`;
         document.body.appendChild(ghost);
         zelle.classList.add('item-zieht');
+        // Nur auf dem Telefon: am Schreibtisch sind Beutel und Leiste
+        // gleichzeitig zu sehen, dort braucht es keinen zweiten Zustand.
+        if (!maus) {
+          zuweisung = window.setTimeout(() => {
+            zuweisen = true;
+            document.body.classList.add('aktion-zuweisen');
+          }, 450);
+        }
         // Solange gezogen wird, scrollt der Beutel nicht mit. Danach schon —
         // deshalb hängt es an einer Klasse und nicht fest im Stil.
         this.inventoryGrid.classList.add('zieht');
@@ -1737,7 +1883,9 @@ export class UI {
 
       const markiere = (x: number, y: number): void => {
         // Der Mülleimer ist ein Ziel wie eine Kachel und leuchtet wie eine.
-        const ziel = this.muellUnter(x, y) ?? this.kachelUnter(x, y);
+        // Die Aktionsleiste auch — sie ist der dritte Ort, an dem ein Zug
+        // enden kann.
+        const ziel = this.muellUnter(x, y) ?? this.aktionUnter(x, y) ?? this.kachelUnter(x, y);
         if (ziel === markiert) return;
         markiert?.classList.remove('item-ziel');
         markiert = ziel ?? undefined;
@@ -1746,12 +1894,14 @@ export class UI {
 
       const aufraeumen = (): void => {
         if (halten !== undefined) window.clearTimeout(halten);
+        if (zuweisung !== undefined) window.clearTimeout(zuweisung);
         ghost?.remove();
         ghost = undefined;
         markiert?.classList.remove('item-ziel');
         markiert = undefined;
         zelle.classList.remove('item-zieht');
         this.inventoryGrid.classList.remove('zieht');
+        document.body.classList.remove('aktion-zuweisen');
         window.removeEventListener('pointermove', bewegen);
         window.removeEventListener('pointerup', loslassen);
         window.removeEventListener('pointercancel', abbrechen);
@@ -1770,6 +1920,13 @@ export class UI {
 
         // Erst ab hier gehört die Geste uns.
         e.preventDefault();
+        // Wer den Finger verschiebt, sortiert um — der zweite Halter fällt
+        // aus. Danach nicht mehr: einmal in der Zuweisung, immer in der
+        // Zuweisung, sonst spränge die Anzeige beim Zielen hin und her.
+        if (!zuweisen && zuweisung !== undefined && weit > 14) {
+          window.clearTimeout(zuweisung);
+          zuweisung = undefined;
+        }
         setzeGhost(e.clientX, e.clientY);
         markiere(e.clientX, e.clientY);
       };
@@ -1791,14 +1948,26 @@ export class UI {
         if (e.pointerId !== ev.pointerId) return;
         const zog = ghost !== undefined;
         const muell = zog ? this.muellUnter(e.clientX, e.clientY) : undefined;
+        const aktion = zog ? this.aktionUnter(e.clientX, e.clientY) : undefined;
         const ziel = zog ? this.kachelUnter(e.clientX, e.clientY) : undefined;
-        const inDerWelt = zog && !muell && !ziel && this.ueberDerWelt(e.clientX, e.clientY);
+        const inDerWelt =
+          zog && !muell && !aktion && !ziel && this.ueberDerWelt(e.clientX, e.clientY);
         const nach = ziel?.getAttribute('data-slot');
+        const aufPlatz = aktion?.getAttribute('data-aktion');
         aufraeumen();
         this.zugGelaufen = zog;
 
         if (muell) {
           this.onDestroyItem?.(von);
+          return;
+        }
+        if (aufPlatz !== null && aufPlatz !== undefined) {
+          // Die Kennung und nicht der Beutelplatz: was hier hinkommt, soll
+          // „der Trank" heissen und nicht „was gerade auf Platz 7 liegt".
+          const eintrag = this.inventory.find((i) => !i.equipped && i.slot === von);
+          if (eintrag) {
+            this.onSetActionSlot?.(Number(aufPlatz), AktionsArt.Gegenstand, eintrag.itemId);
+          }
           return;
         }
         if (nach !== null && nach !== undefined && Number(nach) !== von) {
@@ -1849,6 +2018,11 @@ export class UI {
   }
 
   /** Welche Beutelkachel liegt an dieser Bildstelle? */
+  /** Liegt an dieser Bildstelle ein Platz der Aktionsleiste? */
+  private aktionUnter(x: number, y: number): Element | undefined {
+    return document.elementFromPoint(x, y)?.closest('[data-aktion]') ?? undefined;
+  }
+
   private kachelUnter(x: number, y: number): Element | undefined {
     const treffer = document.elementFromPoint(x, y)?.closest('.item-slot');
     return treffer instanceof HTMLElement && treffer.dataset.slot !== undefined

@@ -451,6 +451,14 @@ body {
   display: flex;
   gap: 0.35rem;
   padding: 0.35rem;
+  /* Zehn Plätze passen auf einem schmalen Telefon nicht nebeneinander in
+     3 rem. Sie dürfen umbrechen, statt aus dem Bild zu laufen. */
+  flex-wrap: wrap;
+  justify-content: center;
+  /* Zehn Plätze zu 3 rem plus Abstände brauchen gut 34 rem. Der Wert liegt
+     bewusst darüber: genau auf Kante bricht die letzte Kachel bei jedem
+     Rundungsfehler in eine zweite Zeile um. */
+  max-width: min(100vw - 2 * var(--gap), 38rem);
 }
 
 /*
@@ -483,9 +491,94 @@ body {
   border-color: var(--gold-hell);
 }
 
+/*
+ * Der Zuweisungsmodus — solange ein Gegenstand am Finger hängt.
+ *
+ * Auf dem Telefon füllt das Inventar das Bild; die Leiste läge darunter und
+ * wäre weder zu sehen noch zu treffen. Also tritt das Inventar fast ganz
+ * zurück und die Leiste nach vorn. Ganz durchsichtig wird es nicht: man soll
+ * noch ahnen, woher man den Gegenstand genommen hat.
+ */
+body.aktion-zuweisen .window[data-window='inventory'] {
+  opacity: 0.08;
+  pointer-events: none;
+}
+
+/*
+ * Eine Zeile, die sagt, was gerade gilt.
+ *
+ * Der Zuweisungsmodus ist ein Zustand, in den man durch Stillhalten gerät —
+ * ohne Ansage stünde man vor einem plötzlich durchsichtigen Inventar und
+ * wüsste nicht, was passiert ist.
+ */
+body.aktion-zuweisen .actionbar::before {
+  content: 'Auf einen Platz legen';
+  position: absolute;
+  left: 50%;
+  top: -1.5rem;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--gold-hell);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+body.aktion-zuweisen .actionbar {
+  z-index: 40;
+  /* Grösser und heller: die Plätze sind jetzt Ziele und keine Knöpfe. */
+  transform: translateX(-50%) scale(1.12);
+  background: rgba(12, 9, 6, 0.85);
+  box-shadow: 0 0 0 2px var(--gold-hell), 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+body.aktion-zuweisen .action-slot {
+  border-color: var(--gold-hell);
+  box-shadow: inset 0 0 12px rgba(230, 192, 121, 0.35);
+}
+
+/* Der Platz unter dem Finger. Dieselbe Klasse wie bei einer Inventarkachel —
+   ein Ziel leuchtet überall gleich, sonst muss man zweimal lernen, was
+   „hier landet es" heisst. */
+.action-slot.item-ziel {
+  border-color: var(--gold-hell);
+  background: rgba(230, 192, 121, 0.28);
+}
+
+/*
+ * Wie viele davon noch da sind.
+ *
+ * Unten links, gegenüber der Taste. Die Zahl steht nur bei mehr als einem —
+ * eine „1" auf jedem Trank wäre Lärm.
+ */
+.action-menge {
+  position: absolute;
+  left: 2px;
+  bottom: 1px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--ink-hell);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+
+/* Nichts mehr davon im Beutel: der Platz bleibt, das Bild verblasst. Das
+   kommt nur vor, bis der Server die Leiste nachzieht — er räumt solche
+   Plätze selbst. */
+.action-slot[data-leer='1'] .action-glyph {
+  opacity: 0.3;
+  filter: grayscale(1);
+}
+
 .action-glyph {
   font-size: 1.5rem;
   line-height: 1;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
   /* Ohne das verschiebt die Zifferntaste in der Ecke das Zeichen aus der
      Mitte — sie liegt zwar absolut, wird aber beim Umbruch mitgezählt. */
   pointer-events: none;

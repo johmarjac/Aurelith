@@ -123,5 +123,6 @@ export async function createStore(databaseUrl: string, serverName: string): Prom
     saveCharacter: (character) => welt.saveCharacter(character),
     saveInventory: (characterId, items) => welt.saveInventory(characterId, items),
     saveQuests: (characterId, quests) => welt.saveQuests(characterId, quests),
+    saveAktionen: (characterId, plaetze) => welt.saveAktionen(characterId, plaetze),
   };
 }

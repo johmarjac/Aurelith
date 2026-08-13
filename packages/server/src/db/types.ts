@@ -20,6 +20,8 @@
  * ins Leere greift, statt als Aufruf, den es nicht gibt.
  */
 
+import type { AktionsPlatz } from '@aurelith/shared';
+
 export interface CharacterRecord {
   id: number;
   accountId: number;
@@ -68,6 +70,11 @@ export interface LoadedCharacter {
   character: CharacterRecord;
   items: ItemRecord[];
   quests: QuestRecord[];
+  /**
+   * Die Aktionsleiste. Immer voller Länge — die leeren Plätze stehen mit
+   * darin, damit niemand am anderen Ende die Löcher füllen muss.
+   */
+  aktionen: AktionsPlatz[];
 }
 
 export interface SpawnPoint {
@@ -160,6 +167,13 @@ export interface WeltStore extends StoreBasis {
    * und ein Abgleich wäre mehr Code für dieselbe Wirkung.
    */
   saveQuests(characterId: number, quests: QuestRecord[]): Promise<void>;
+  /**
+   * Schreibt die Aktionsleiste. Ersetzend wie Beutel und Aufträge.
+   *
+   * Erwartet die volle Länge; leere Plätze bekommen keine Zeile. Aus zehn
+   * Plätzen werden so selten mehr als drei Zeilen.
+   */
+  saveAktionen(characterId: number, plaetze: AktionsPlatz[]): Promise<void>;
 }
 
 /**

@@ -26,6 +26,7 @@ export * from './content/database.ts';
 export * from './content/equipment.ts';
 export * from './content/armorSets.ts';
 export * from './content/attributes.ts';
+export * from './content/aktionen.ts';
 export * from './content/classes.ts';
 export * from './content/progression.ts';
 export * from './content/quests.ts';

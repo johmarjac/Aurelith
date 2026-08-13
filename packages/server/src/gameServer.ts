@@ -11,6 +11,12 @@
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { Server } from 'node:http';
 import {
+  AktionsArt,
+  skillsFor,
+  decodeSetActionSlot,
+  encodeActionBar,
+  leereLeiste,
+  normalisiereLeiste,
   AccessLevel,
   ByteReader,
   canUseSkill,
@@ -430,6 +436,12 @@ export class GameServer {
         case ClientOp.EnterWorld:
           void this.onEnterWorld(session, decodeCharacterRef(reader).characterId);
           break;
+        case ClientOp.SetActionSlot: {
+          if (session.state !== 'playing') break;
+          const { index, art, id } = decodeSetActionSlot(reader);
+          this.setzeAktionsplatz(session, index, art, id);
+          break;
+        }
         case ClientOp.Logout:
           // Aus jedem Zustand ausser dem Handschlag: wer in der Verwaltung
           // sitzt, darf sich genauso abmelden wie jemand mitten in der Welt.
@@ -819,9 +831,11 @@ export class GameServer {
         serverTimeMs: worldNow(),
       }),
     );
+    session.aktionen = normalisiereLeiste(geladen.aktionen);
     this.sendStats(session);
     this.sendInventory(session);
     this.sendQuestLog(session);
+    this.sendAktionen(session);
     this.systemMessage(session, `Willkommen in ${instance.doc.name}, ${geladen.character.name}.`);
     session.flush();
 
@@ -867,8 +881,10 @@ export class GameServer {
     session.character = undefined;
     session.items = [];
     session.quests.load([]);
+    session.aktionen = leereLeiste();
     session.itemsDirty = false;
     session.questsDirty = false;
+    session.aktionenDirty = false;
 
     // Abgewartet, nicht nur abgeschickt. Genau dafür gibt es dieses Paket.
     await this.login.meldeAnwesenheit(session.accountId, false);
@@ -1695,7 +1711,110 @@ export class GameServer {
     for (const other of this.sessions) other.known.delete(session.entityId);
   }
 
+  /**
+   * Bringt die Aktionsleiste mit der Wirklichkeit in Übereinstimmung.
+   *
+   * Zwei Richtungen, und beide sind nötig:
+   *
+   *   Herunter, was nicht mehr geht — ein Gegenstand, den man vernichtet,
+   *   verkauft oder aufgebraucht hat, und eine Fertigkeit, die diese Figur
+   *   nicht (mehr) kann. Ein Platz, der auf nichts zeigt, ist ein Knopf, der
+   *   nichts tut, und davon hatten wir heute genug.
+   *
+   *   Hinauf, was neu dazukommt: eine frisch gelernte Fertigkeit legt sich auf
+   *   den ersten freien Platz. Ohne das läge sie nirgends, und bis es einen
+   *   Fertigkeitenbaum gibt, käme man gar nicht an sie heran.
+   *
+   * Gibt zurück, ob sich etwas geändert hat — der Aufrufer schickt die Leiste
+   * dann neu. Ohne diese Antwort ginge sie bei jeder Bewegung im Beutel
+   * unverändert über die Leitung.
+   */
+  private pflegeAktionen(session: Session): boolean {
+    const beruf = session.character?.beruf ?? KEIN_BERUF;
+    const level = session.character?.level ?? 1;
+    let geaendert = false;
+
+    for (const platz of session.aktionen) {
+      if (platz.art === AktionsArt.Leer) continue;
+
+      const bleibt =
+        platz.art === AktionsArt.Gegenstand
+          ? session.items.some((i) => i.itemId === platz.id)
+          : canUseSkill(beruf, level, platz.id);
+      if (bleibt) continue;
+
+      platz.art = AktionsArt.Leer;
+      platz.id = '';
+      geaendert = true;
+    }
+
+    for (const koennen of skillsFor(beruf, level)) {
+      if (session.aktionen.some((p) => p.art === AktionsArt.Fertigkeit && p.id === koennen.id)) {
+        continue;
+      }
+      const frei = session.aktionen.find((p) => p.art === AktionsArt.Leer);
+      // Volle Leiste: dann bleibt die Fertigkeit, wo sie ist — im Können der
+      // Figur. Etwas zu verdrängen, das jemand dorthin gelegt hat, wäre das
+      // schlechtere von beiden Übeln.
+      if (!frei) break;
+      frei.art = AktionsArt.Fertigkeit;
+      frei.id = koennen.id;
+      geaendert = true;
+    }
+
+    if (geaendert) session.aktionenDirty = true;
+    return geaendert;
+  }
+
+  /**
+   * Belegt einen Platz — oder räumt ihn.
+   *
+   * Geprüft wird beides: dass es die Kennung gibt und dass diese Figur damit
+   * etwas anfangen kann. Der Client schickt, was der Spieler gezogen hat; was
+   * daraus wird, entscheidet diese Stelle, und sie schickt die Leiste
+   * anschliessend zurück. Der Client übernimmt also nie seine eigene
+   * Vorstellung — er sieht immer das, was wirklich gespeichert ist.
+   */
+  private setzeAktionsplatz(session: Session, index: number, art: number, id: string): void {
+    if (index < 0 || index >= session.aktionen.length) return;
+    const platz = session.aktionen[index]!;
+
+    if (art === AktionsArt.Gegenstand && getItem(id) && session.items.some((i) => i.itemId === id)) {
+      platz.art = AktionsArt.Gegenstand;
+      platz.id = id;
+    } else if (
+      art === AktionsArt.Fertigkeit &&
+      canUseSkill(session.character?.beruf ?? KEIN_BERUF, session.character?.level ?? 1, id)
+    ) {
+      platz.art = AktionsArt.Fertigkeit;
+      platz.id = id;
+    } else {
+      // Alles andere räumt: eine Kennung, die nicht taugt, ist kein Grund für
+      // eine Fehlermeldung — der Platz ist danach eben leer, und das sieht man.
+      platz.art = AktionsArt.Leer;
+      platz.id = '';
+    }
+
+    session.aktionenDirty = true;
+    // Erst pflegen, dann schicken: eine Fertigkeit, die eben verdrängt wurde,
+    // sucht sich sonst erst beim nächsten Beutelereignis einen neuen Platz.
+    this.pflegeAktionen(session);
+    this.sendAktionen(session);
+  }
+
+  private sendAktionen(session: Session): void {
+    session.send(encodeActionBar(session.aktionen));
+    session.flush();
+  }
+
   private sendInventory(session: Session): void {
+    // Ein Gegenstand, der weg ist, gehört von der Leiste herunter — und der
+    // einzige Ort, an dem **jede** Änderung am Beutel vorbeikommt, ist diese
+    // Zeile hier. Die Prüfung an die einzelnen Stellen zu hängen (vernichten,
+    // fallen lassen, verkaufen, verbrauchen) hiesse, sie viermal zu schreiben
+    // und beim fünften Weg zu vergessen.
+    if (this.pflegeAktionen(session)) this.sendAktionen(session);
+
     session.send(
       encodeInventory(
         session.items.map((i) => ({
@@ -2439,6 +2558,10 @@ export class GameServer {
     if (session.questsDirty) {
       await this.welt.saveQuests(character.id, session.quests.records());
       session.questsDirty = false;
+    }
+    if (session.aktionenDirty) {
+      await this.welt.saveAktionen(character.id, session.aktionen);
+      session.aktionenDirty = false;
     }
   }
 }
