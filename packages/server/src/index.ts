@@ -15,6 +15,7 @@ import { loadContentFromDisk } from './content.ts';
 import { loadServerCore } from './core.ts';
 import { MapStore } from './maps.ts';
 import { GameServer } from './gameServer.ts';
+import { LoginClient } from './loginClient.ts';
 import { createStore } from './db/index.ts';
 
 function buildHttpServer(): { server: Server; scheme: 'ws' | 'wss' } {
@@ -53,7 +54,7 @@ if (maps.size === 0) {
 }
 console.log(`[maps] ${maps.size} Maps geladen: ${maps.ids.join(', ')}`);
 
-const store = await createStore();
+const store = await createStore(config.databaseUrl);
 
 const { server, scheme } = buildHttpServer();
 
@@ -70,11 +71,31 @@ server.on('request', (req, res) => {
   res.end('Aurelith-Spielserver. Spielverkehr läuft über /ws.\n');
 });
 
-const game = new GameServer(core, maps, store);
+// Der Kanal meldet sich beim Anmeldeserver an — oder stellt fest, dass es
+// keinen gibt und läuft im Alleinbetrieb weiter.
+const loginClient = new LoginClient();
+// Ein Kanal am Anmeldeserver **ohne** gemeinsame Datenbank ist eine Falle: die
+// Konten legt der Anmeldeserver an, die Figuren sucht dieser Server bei sich —
+// und findet keine. Wer sich anmeldet, stünde vor einer leeren Figurenliste
+// und legte eine Figur an, die auf dem nächsten Kanal wieder weg ist.
+if (loginClient.aktiv && !config.databaseUrl) {
+  console.error(
+    '[kanal] AURELITH_LOGIN_URL ist gesetzt, DATABASE_URL nicht.\n' +
+      '        Alle Kanäle und der Anmeldeserver brauchen dieselbe Datenbank —\n' +
+      '        eine Figur gehört einem Konto und nicht einem Kanal.',
+  );
+  process.exit(1);
+}
+await loginClient.start();
+
+const game = new GameServer(core, maps, store, loginClient);
 game.start(server);
 
 server.listen(config.port, config.host, () => {
-  console.log(`[server] ${scheme}://${config.host}:${config.port}/ws — bereit`);
+  console.log(
+    `[server] ${config.serverName} · ${config.channelName} — ` +
+      `${scheme}://${config.host}:${config.port}/ws bereit`,
+  );
   // Dieselbe Zeile, die `/version` im Chat zeigt. Wer ein Protokoll liest,
   // soll nicht raten müssen, welcher Stand da lief.
   console.log(`[server] Fassung ${formatBuild(config.build)}`);
@@ -89,6 +110,10 @@ async function shutdown(signal: string): Promise<void> {
   shuttingDown = true;
   console.log(`\n[server] ${signal} — fahre herunter`);
   await game.stop();
+  // Zuerst aus der Kanalliste heraus, dann die Datenbank zu: sonst steht der
+  // Kanal noch bis zu einer halben Minute zum Betreten da, obwohl er schon
+  // niemanden mehr annehmen kann.
+  await loginClient.stop();
   await store.close();
   server.close(() => process.exit(0));
   // Falls offene Verbindungen das Schließen aufhalten, nicht ewig warten.

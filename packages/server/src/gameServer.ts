@@ -42,6 +42,7 @@ import {
   decodePing,
   decodeQuestAction,
   decodeSetTarget,
+  decodeTicket,
   decodeShopTrade,
   decodeUpgradeItem,
   decodeCharacterRef,
@@ -106,6 +107,8 @@ import {
 import { CoreEventType, CoreButton } from '@aurelith/core';
 import { hashPassword, verifyPassword } from './passwords.ts';
 import { runCommand } from './commands.ts';
+import { anmelden } from './accounts.ts';
+import type { LoginClient } from './loginClient.ts';
 import { config } from './config.ts';
 import {
   protokolliereOpcodeFehler,
@@ -163,6 +166,14 @@ export class GameServer {
     private readonly bundle: CoreBundle,
     private readonly maps: MapStore,
     private readonly store: GameStore,
+    /**
+     * Die Verbindung zum Anmeldeserver.
+     *
+     * Immer da, auch im Alleinbetrieb — dann ist sie still und `aktiv` ist
+     * falsch. Ein `undefined` hier hiesse, an jeder Stelle zu fragen, ob es
+     * sie gibt, und die Antwort wäre überall dieselbe Verzweigung.
+     */
+    private readonly login: LoginClient,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -250,6 +261,10 @@ export class GameServer {
       this.instances.get(session.mapId)?.removePlayer(session.entityId);
       this.sessionByEntity.delete(session.entityId);
     }
+    // Das Konto ist wieder frei — auf allen Kanälen. Ohne diese Meldung
+    // bliebe es beim Anmeldeserver hängen, bis dieser Kanal verfällt.
+    this.login.meldeAnwesenheit(session.accountId, false);
+    this.login.setzeOnline(this.sessions.size);
     session.state = 'closed';
   }
 
@@ -383,6 +398,9 @@ export class GameServer {
         case ClientOp.CreateAccount:
           void this.onLogin(session, decodeCredentials(reader), true);
           break;
+        case ClientOp.Ticket:
+          void this.onTicket(session, decodeTicket(reader).ticket);
+          break;
         case ClientOp.CreateCharacter:
           void (() => {
             const { name } = decodeCreateCharacter(reader);
@@ -449,12 +467,32 @@ export class GameServer {
    * verrät, welche Namen es gibt — und das ist die Hälfte der Arbeit für den,
    * der sie durchprobiert.
    */
+  /**
+   * Anmeldung mit Name und Passwort — nur im **Alleinbetrieb**.
+   *
+   * Läuft ein Anmeldeserver, kennt dieser Server keine Passwörter: dann kommt
+   * man ausschliesslich mit einer Eintrittskarte herein (siehe `onTicket`).
+   * Beides zugleich zuzulassen hiesse, zwei Türen zu bauen und nur eine zu
+   * bewachen.
+   *
+   * Die Regeln selbst — Namensform, Passwortlänge, Verwalterliste — stehen in
+   * `accounts.ts` und gelten für beide Türen. Was hier steht, ist der Weg
+   * dorthin und zurück.
+   */
   private async onLogin(
     session: Session,
     daten: ReturnType<typeof decodeCredentials>,
     anlegen: boolean,
   ): Promise<void> {
     if (session.state !== 'anonym') return;
+
+    if (this.login.aktiv) {
+      session.send(
+        encodeLobbyError('Dieser Server nimmt nur Eintrittskarten vom Anmeldeserver an.'),
+      );
+      session.flush();
+      return;
+    }
 
     // Fehlversuche kosten. Nach ein paar davon ist die Verbindung zu Ende —
     // wer wirklich sein Passwort sucht, verbindet neu; wer eine Liste
@@ -467,79 +505,85 @@ export class GameServer {
     }
     session.loginAttempts++;
 
-    const name = daten.name.trim();
-    const passwort = daten.password;
-
-    if (!isValidName(name)) {
-      session.send(
-        encodeLobbyError(
-          'Der Name darf drei bis sechzehn Buchstaben, Ziffern, Strich oder Unterstrich haben.',
-        ),
-      );
-      session.flush();
-      return;
-    }
-    if (anlegen && passwort.length < MIN_PASSWORD_LENGTH) {
-      session.send(
-        encodeLobbyError(`Das Passwort braucht mindestens ${MIN_PASSWORD_LENGTH} Zeichen.`),
-      );
+    const ergebnis = await anmelden(
+      this.store,
+      daten.name,
+      daten.password,
+      anlegen,
+      config.admins,
+    );
+    if (!ergebnis.ok) {
+      session.send(encodeLobbyError(ergebnis.fehler));
       session.flush();
       return;
     }
 
-    let account = await this.store.findAccount(name);
+    await this.uebernehmeKonto(session, ergebnis.account.id, ergebnis.account.name, ergebnis.account.accessLevel);
+  }
 
-    if (anlegen) {
-      if (account) {
-        session.send(encodeLobbyError('Diesen Namen gibt es schon.'));
-        session.flush();
-        return;
-      }
-      account = await this.store.createAccount(
-        name,
-        await hashPassword(passwort),
-        accessName(config.admins.includes(name.toLowerCase()) ? AccessLevel.Admin : AccessLevel.Player),
-      );
-      if (!account) {
-        // Zwischen Nachsehen und Anlegen war jemand schneller.
-        session.send(encodeLobbyError('Diesen Namen gibt es schon.'));
-        session.flush();
-        return;
-      }
-    } else {
-      const passt = account ? await verifyPassword(passwort, account.passwordHash) : false;
-      if (!account || !passt) {
-        session.send(encodeLobbyError('Name oder Passwort stimmt nicht.'));
-        session.flush();
-        return;
-      }
+  /**
+   * Eintrittskarte vorzeigen — der Weg herein, wenn ein Anmeldeserver läuft.
+   *
+   * Der Spielserver prüft die Karte nicht selbst, er fragt. Damit gibt es
+   * genau eine Stelle im System, die Konten kennt, egal wie viele Kanäle
+   * laufen — und ein neuer Kanal bringt keine neue Stelle mit, an der ein
+   * Passwort falsch behandelt werden könnte.
+   */
+  private async onTicket(session: Session, ticket: string): Promise<void> {
+    if (session.state !== 'anonym') return;
+    if (!this.login.aktiv) {
+      session.send(encodeLobbyError('Dieser Server läuft ohne Anmeldeserver.'));
+      session.flush();
+      return;
     }
 
-    // Die Liste der Verwalter steht in der Konfiguration und gilt bei jeder
-    // Anmeldung: so lässt sich eine Stufe vergeben, ohne in der Datenbank zu
-    // schreiben, und sie lässt sich genauso wieder entziehen.
-    const gewuenscht = config.admins.includes(name.toLowerCase())
-      ? accessName(AccessLevel.Admin)
-      : account.accessLevel;
-    if (gewuenscht !== account.accessLevel) {
-      await this.store.setAccessLevel(account.id, gewuenscht);
-      account = { ...account, accessLevel: gewuenscht };
+    const konto = await this.login.loeseTicket(ticket);
+    if (!konto) {
+      // Auch ein Netzfehler landet hier. Der Text sagt beides zugleich, weil
+      // der Spieler in beiden Fällen dasselbe tun soll: neu anmelden.
+      session.send(encodeLobbyError('Die Eintrittskarte gilt nicht mehr. Melde dich neu an.'));
+      session.flush();
+      return;
     }
 
-    // Ein Konto, eine Sitzung.
-    //
-    // Die zweite Anmeldung wird abgewiesen, die bestehende bleibt. Andersherum
-    // — die ältere fliegt — war es einmal, und das ist die gefährlichere
-    // Richtung: wer das Passwort kennt, könnte den Spieler damit jederzeit aus
-    // der Welt werfen, mitten im Kampf. Abgewiesen zu werden kostet den
-    // Rechtmässigen dagegen nur eine Meldung.
-    //
-    // Eine abgerissene Verbindung sperrt nicht dauerhaft aus: sie fällt
-    // spätestens nach `sessionTimeoutSeconds` ohne Lebenszeichen heraus. Ein
-    // gewöhnlicher Seitenneuladen schliesst den Socket sofort und gibt das
-    // Konto damit im selben Moment frei.
+    // Die Zugriffsstufe steht am Konto in der Datenbank — der Anmeldeserver
+    // hat sie beim Anmelden schon nachgezogen. Hier wird sie nur gelesen.
+    const gespeichert = await this.store.findAccount(konto.accountName);
+    await this.uebernehmeKonto(
+      session,
+      konto.accountId,
+      konto.accountName,
+      gespeichert?.accessLevel ?? accessName(AccessLevel.Player),
+    );
+  }
+
+  /**
+   * Trägt das Konto in die Sitzung ein und schickt die Figurenliste.
+   *
+   * Der gemeinsame Schluss beider Türen: was danach passiert, hängt nicht
+   * mehr davon ab, ob ein Passwort oder eine Karte den Weg geöffnet hat.
+   */
+  private async uebernehmeKonto(
+    session: Session,
+    accountId: number,
+    accountName: string,
+    accessLevel: string,
+  ): Promise<void> {
+    /*
+     * Ein Konto, eine Sitzung — auf **diesem** Kanal.
+     *
+     * Über alle Kanäle hinweg wacht der Anmeldeserver darüber; er ist der
+     * Einzige, der alle kennt. Diese Prüfung hier bleibt trotzdem: sie gilt
+     * auch im Alleinbetrieb, und sie fängt den Fall ab, in dem zwei
+     * Eintrittskarten desselben Kontos kurz hintereinander ausgestellt wurden.
+     *
+     * Die zweite Anmeldung wird abgewiesen, die bestehende bleibt. Andersherum
+     * — die ältere fliegt — war es einmal, und das ist die gefährlichere
+     * Richtung: wer das Passwort kennt, könnte den Spieler damit jederzeit aus
+     * der Welt werfen, mitten im Kampf.
+     */
     for (const other of this.sessions) {
-      if (other === session || other.accountId !== account.id) continue;
+      if (other === session || other.accountId !== accountId) continue;
       if (other.state === 'closed') continue;
 
       session.send(
@@ -555,21 +599,26 @@ export class GameServer {
       return;
     }
 
-    session.accountId = account.id;
-    session.accountName = account.name;
-    session.access = accessFromName(account.accessLevel);
+    session.accountId = accountId;
+    session.accountName = accountName;
+    session.access = accessFromName(accessLevel);
     session.state = 'lobby';
     session.loginAttempts = 0;
-    await this.store.touchLogin(account.id);
+    await this.store.touchLogin(accountId);
+
+    // Dem Anmeldeserver sagen, dass dieses Konto hier ist. Er sperrt es damit
+    // auf allen anderen Kanälen.
+    this.login.meldeAnwesenheit(accountId, true);
+    this.login.setzeOnline(this.sessions.size);
 
     await this.sendLobby(session);
-    console.log(`[konto] ${account.name} angemeldet (${account.accessLevel})`);
+    console.log(`[konto] ${accountName} in ${config.channelName} (${accessLevel})`);
   }
 
   /** Schickt den Stand der Verwaltung: wer man ist, welche Figuren es gibt. */
   private async sendLobby(session: Session): Promise<void> {
     if (session.accountId === 0) return;
-    const figuren = await this.store.listCharacters(session.accountId);
+    const figuren = await this.store.listCharacters(session.accountId, config.serverName);
     session.send(
       encodeLobby({
         accountName: session.accountName,
@@ -601,7 +650,7 @@ export class GameServer {
       return;
     }
 
-    const vorhanden = await this.store.listCharacters(session.accountId);
+    const vorhanden = await this.store.listCharacters(session.accountId, config.serverName);
     if (vorhanden.length >= config.maxCharacters) {
       session.send(
         encodeLobbyError(`Mehr als ${config.maxCharacters} Figuren gehen nicht.`),
@@ -615,12 +664,20 @@ export class GameServer {
     // gedacht, und nur beim Anlegen einer Figur.
     const spawn = config.startPos ?? startMap.spawn;
     // Ohne Beruf: den lehrt der Kampfmeister ab Stufe 15.
-    const figur = await this.store.createCharacter(session.accountId, sauber, KEIN_BERUF, {
-      mapId: startMap.id,
-      x: spawn.x,
-      z: spawn.z,
-      yaw: spawn.yaw,
-    });
+    const figur = await this.store.createCharacter(
+      session.accountId,
+      sauber,
+      // Auf **diesem** Server. Kanäle teilen sich die Figuren eines Servers;
+      // ein anderer Server ist eine andere Welt und eine andere Figur.
+      config.serverName,
+      KEIN_BERUF,
+      {
+        mapId: startMap.id,
+        x: spawn.x,
+        z: spawn.z,
+        yaw: spawn.yaw,
+      },
+    );
     if (!figur) {
       session.send(encodeLobbyError('Diesen Namen trägt schon jemand.'));
       session.flush();
@@ -650,7 +707,11 @@ export class GameServer {
   private async onEnterWorld(session: Session, characterId: number): Promise<void> {
     if (session.state !== 'lobby') return;
 
-    const geladen = await this.store.loadCharacter(session.accountId, characterId);
+    const geladen = await this.store.loadCharacter(
+      session.accountId,
+      characterId,
+      config.serverName,
+    );
     if (!geladen) {
       session.send(encodeLobbyError('Diese Figur gibt es nicht.'));
       session.flush();

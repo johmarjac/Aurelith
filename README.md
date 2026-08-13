@@ -105,7 +105,13 @@ packages/
             KI, Terrain. Kennt weder Browser noch Netzwerk.
   shared    Protokoll, Frame-Format, Map-Format, Content-Tabellen. TypeScript,
             läuft in Client und Server.
-  server    Autorität. Node, ws, PostgreSQL. Treibt je Karte eine Welt im Kern.
+  server    Zwei Serveranwendungen in einem Paket:
+            `src/index.ts`       Spielserver — **ein Kanal**. Autorität, treibt
+                                 je Karte eine Welt im Kern.
+            `src/login/index.ts` Anmeldeserver — Konten und Kanalliste. Von dem
+                                 gibt es genau einen.
+            Ein Paket, weil Konten, Datenbank und Passwortregeln damit an genau
+            einer Stelle stehen. Zwei Prozesse, zwei Rollen.
   client    Dünne Schale, Renderer, Eingabe, UI.
   editor    Map-Editor auf demselben Stack.
 assets/
@@ -376,10 +382,50 @@ verschiedenen Hosts — so wie es der Blueprint vorsieht.
 
 ---
 
-## Server betreiben
+## Server, Kanäle und der Anmeldeserver
 
-Pages liefert den Client. Den Server muss man selbst hinstellen — und weil die
-Seite über HTTPS kommt, muss er `wss://` sprechen. Das ist keine Kür: ohne
+Es gibt zwei Serveranwendungen.
+
+**Der Anmeldeserver** kennt Konten und führt die Liste der Kanäle. Von ihm gibt
+es weltweit einen. Er simuliert nichts, tickt nicht und hält keine Welt — fällt
+er aus, kommt niemand mehr neu herein, aber wer drin ist, spielt weiter.
+
+**Der Spielserver** ist ein **Kanal**: ein Servername, ein Kanalname, eine
+Adresse, alles aus seiner eigenen Konfiguration. Beim Hochfahren meldet er sich
+beim Anmeldeserver an und schickt danach alle zehn Sekunden ein Lebenszeichen.
+Bleibt es aus, fällt er aus der Liste. Deshalb gibt es **keine** Kanalliste zum
+Pflegen: ein Kanal mehr heisst, einen Prozess mit anderen Namen zu starten.
+
+```
+Client ──► Anmeldeserver   anmelden, Liste holen, Eintrittskarte bekommen
+       ──► Kanal           Karte vorzeigen, Figuren wählen, spielen
+
+Kanal  ──► Anmeldeserver   anmelden · Lebenszeichen · Karte einlösen · anwesend
+```
+
+Der Anmeldeserver ruft nie von sich aus an. Er weiss nicht, wo die Kanäle
+stehen — nur, was sie über sich gesagt haben.
+
+**Server und Kanal sind nicht dasselbe.** Ein Server ist eine Welt: die Figuren
+darauf gehören ihm, und wer auf einem zweiten Server anfängt, fängt bei null
+an. Kanäle sind Lastverteilung **innerhalb** eines Servers: dieselben Figuren,
+dieselbe Welt, eine andere Maschine. Wer den Kanal wechselt, spielt dieselbe
+Figur weiter; wer den Server wechselt, eine andere.
+
+Daraus folgt zwingend: **alle Kanäle eines Servers und der Anmeldeserver
+brauchen dieselbe Datenbank.** Ein Kanal mit `AURELITH_LOGIN_URL`, aber ohne
+`DATABASE_URL`, startet gar nicht erst — er würde Figuren suchen, die woanders
+liegen.
+
+Ohne `AURELITH_LOGIN_URL` läuft ein Spielserver im **Alleinbetrieb**: er prüft
+Passwörter selbst und steht in keiner Liste. Das ist der bequeme Fall für
+Entwicklung und Prüfungen — ein Prozess statt zwei, `npm run dev:server` und
+fertig.
+
+### Betreiben
+
+Pages liefert den Client. Die Server muss man selbst hinstellen — und weil die
+Seite über HTTPS kommt, müssen sie `wss://` sprechen. Das ist keine Kür: ohne
 gültiges Zertifikat verweigert der Browser die Verbindung, egal wie offen der
 Port ist.
 
@@ -387,14 +433,29 @@ Dafür liegt ein Container bereit, gebaut für amd64 und arm64. Der Raspberry Pi
 ist damit ein vollwertiges Ziel.
 
 ```
-cp .env.example .env      # Datenbankpasswort eintragen
+cp .env.example .env      # Datenbankpasswort und AURELITH_INTERNAL_SECRET
 docker compose pull
 docker compose up -d
 ```
 
-Zwei Dienste: der Spielserver und PostgreSQL für die Spielstände. Um TLS
-kümmert sich ein vorgelagerter Reverse-Proxy, der hier nicht mitgeliefert wird
-— wer schon einen betreibt, will keinen zweiten.
+Vier Dienste: der Anmeldeserver, zwei Kanäle und PostgreSQL. Um TLS kümmert
+sich ein vorgelagerter Reverse-Proxy, der hier nicht mitgeliefert wird — wer
+schon einen betreibt, will keinen zweiten.
+
+Die internen Wege des Anmeldeservers liegen unter `/intern/` und sind mit
+`AURELITH_INTERNAL_SECRET` abgesichert. Sie gehören **nicht** ins offene Netz:
+wer sie erreicht, kann einen Kanal in die Liste stellen und Spieler auf seinen
+Rechner locken. Der Proxy soll sie nicht durchreichen.
+
+Lokal beide Anwendungen starten:
+
+```
+npm run dev:login                                  # Anmeldeserver, Port 8790
+AURELITH_LOGIN_URL=http://localhost:8790 \
+AURELITH_CHANNEL_NAME='Kanal 1' \
+AURELITH_PUBLIC_URL=ws://localhost:8787/ws \
+DATABASE_URL=postgres://… npm run dev:server       # ein Kanal
+```
 
 Der Server veröffentlicht seinen Port standardmäßig nur auf der
 Loopback-Adresse: erreichbar für einen Proxy auf derselben Maschine, aus dem

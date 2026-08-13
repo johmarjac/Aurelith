@@ -31,6 +31,44 @@ export const config = {
   host: env('AURELITH_HOST', '0.0.0.0'),
   port: envNum('AURELITH_PORT', 8787),
 
+  // --- Wer dieser Kanal ist ------------------------------------------------
+  //
+  // Ein Spielserver ist ein Kanal, und wie er heisst, steht in seiner eigenen
+  // Konfiguration — nicht in einer Liste beim Anmeldeserver. Wer einen Kanal
+  // dazustellen will, startet einen Prozess mit anderen Namen und anderem
+  // Port; niemand sonst muss davon wissen.
+
+  /** Unter welchem Servernamen dieser Kanal in der Liste steht. */
+  serverName: env('AURELITH_SERVER_NAME', 'Aurelith'),
+  /** Wie der Kanal heisst. Zusammen mit dem Servernamen eindeutig. */
+  channelName: env('AURELITH_CHANNEL_NAME', 'Kanal 1'),
+  /**
+   * Die Adresse, unter der Clients diesen Kanal erreichen.
+   *
+   * Ausdrücklich und nicht aus Host und Port zusammengesetzt: der Server hört
+   * auf `0.0.0.0` hinter einem Proxy, und was der Client eingeben muss, ist
+   * etwas ganz anderes — die Zusammensetzung stimmte genau im einfachsten
+   * Fall und in keinem echten.
+   */
+  publicUrl: env('AURELITH_PUBLIC_URL', 'ws://localhost:8787/ws'),
+  /**
+   * Wie viele Spieler in diesen Kanal passen. Null heisst: keine Grenze.
+   *
+   * Heute nur eine Anzeige in der Kanalliste — sie sagt, wie voll es ist.
+   */
+  capacity: envNum('AURELITH_CAPACITY', 0),
+
+  /**
+   * Adresse des Anmeldeservers, etwa `http://localhost:8790`.
+   *
+   * Leer heisst Alleinbetrieb: dann prüft dieser Server Passwörter selbst und
+   * steht in keiner Kanalliste. Für Entwicklung und Prüfungen ist das der
+   * bequeme Fall — ein Prozess statt zwei.
+   */
+  loginUrl: env('AURELITH_LOGIN_URL', '').replace(/\/+$/, ''),
+  /** Gemeinsames Geheimnis für die internen Wege. Siehe `login/internal.ts`. */
+  internalSecret: env('AURELITH_INTERNAL_SECRET', 'aurelith-entwicklung'),
+
   /** Wo die Map-Dokumente liegen. Im Betrieb dieselben Dateien wie im CDN. */
   mapsDir: env('AURELITH_MAPS_DIR', join(repoRoot, 'assets', 'maps')),
 

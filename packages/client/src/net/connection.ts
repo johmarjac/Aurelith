@@ -18,6 +18,7 @@ import {
   ServerOp,
   decodeCombatEvent,
   decodeEmote,
+  decodeRealms,
   decodeSkillCast,
   decodeFrame,
   FrameError,
@@ -56,7 +57,9 @@ import {
   encodeUseSkill,
   encodeUpgradeItem,
   encodeQuestAction,
+  encodeRealmList,
   encodeSetTarget,
+  encodeTicket,
   encodeShopTrade,
   encodeUsePortal,
   encodeVersionRequest,
@@ -71,6 +74,7 @@ import {
   type MapChangeMsg,
   type NpcDialogMsg,
   type QuestLogRow,
+  type RealmsMsg,
   type SnapshotMsg,
   type StatsMsg,
   type WelcomeMsg,
@@ -105,6 +109,15 @@ export interface ConnectionHandlers {
   onSkillCast?: (entityId: number, skillId: string) => void;
   /** Der Stand der Charakterverwaltung — nach dem Anmelden und nach jeder Änderung. */
   onLobby?: (msg: LobbyMsg) => void;
+  /**
+   * Die Server- und Kanalliste des Anmeldeservers.
+   *
+   * Kommt statt `onLobby`, wenn am anderen Ende ein Anmeldeserver hängt: der
+   * kennt keine Figuren, sondern Kanäle. Ein Spielserver im Alleinbetrieb
+   * schickt weiterhin gleich die Figurenliste — der Client muss deshalb nicht
+   * wissen, mit welcher Sorte er spricht.
+   */
+  onRealms?: (msg: RealmsMsg) => void;
   /** Was an einer Anmeldung oder einer Figurenänderung nicht ging. */
   onLobbyError?: (text: string) => void;
 }
@@ -139,6 +152,16 @@ export class Connection {
   constructor(
     private readonly url: string,
     private readonly handlers: ConnectionHandlers,
+    /**
+     * Eintrittskarte für einen Kanal, falls diese Verbindung eine zu einem
+     * Spielserver ist.
+     *
+     * Sie geht direkt hinter dem Gruss raus — es gibt nichts, worauf sie
+     * warten müsste. Ohne Karte ist es eine Verbindung zum Anmeldeserver
+     * (oder zu einem Spielserver im Alleinbetrieb), und dann kommt der Name
+     * über die Anmeldemaske.
+     */
+    private readonly ticket?: string,
   ) {}
 
   connect(): void {
@@ -162,6 +185,7 @@ export class Connection {
           supportedCiphers: [0],
         }),
       );
+      if (this.ticket) this.send(encodeTicket(this.ticket));
       this.flush();
       this.setStatus('verbunden');
       this.startPinging();
@@ -260,6 +284,9 @@ export class Connection {
           this.handlers.onSkillCast?.(entityId, skillId);
           break;
         }
+        case ServerOp.Realms:
+          this.handlers.onRealms?.(decodeRealms(reader));
+          break;
         case ServerOp.Lobby:
           this.handlers.onLobby?.(decodeLobby(reader));
           break;
@@ -366,6 +393,12 @@ export class Connection {
   /** Einen Gegenstand vernichten. Sofort raus — der Mülleimer hat kein Zurück. */
   sendDestroyItem(slot: number): void {
     this.send(encodeDestroyItem(slot));
+    this.flush();
+  }
+
+  /** Holt die Kanalliste neu — und damit eine frische Eintrittskarte. */
+  sendRealmList(): void {
+    this.send(encodeRealmList());
     this.flush();
   }
 

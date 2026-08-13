@@ -7,7 +7,7 @@
  * ändert, zählt PROTOCOL_VERSION hoch.
  */
 
-export const PROTOCOL_VERSION = 11;
+export const PROTOCOL_VERSION = 12;
 
 export const ClientOp = {
   Hello: 0x01,
@@ -65,6 +65,23 @@ export const ClientOp = {
    * dass ein verlorenes Bit aus dem Wegwerfen ein Vernichten macht.
    */
   DestroyItem: 0x19,
+  /**
+   * Frage nach den Servern und ihren Kanälen. Nur der Anmeldeserver kennt sie.
+   *
+   * Antwort: `ServerOp.Realms` — samt frischer Eintrittskarte. Wer die Liste
+   * neu holt, bekommt eine neue Karte, weil die alte beim Betreten eines
+   * Kanals verbraucht wurde.
+   */
+  RealmList: 0x1a,
+  /**
+   * Die Eintrittskarte beim Spielserver vorzeigen.
+   *
+   * Sie ersetzt dort Name und Passwort: der Spielserver kennt kein Passwort,
+   * er fragt den Anmeldeserver, zu wem die Karte gehört. Das ist der ganze
+   * Sinn der Trennung — ein Kanal mehr bedeutet keine Stelle mehr, an der
+   * Passwörter geprüft werden.
+   */
+  Ticket: 0x1b,
 } as const;
 export type ClientOp = (typeof ClientOp)[keyof typeof ClientOp];
 
@@ -116,6 +133,14 @@ export const ServerOp = {
    * Was die Fertigkeit *anrichtet*, kommt wie immer als Trefferereignisse.
    */
   SkillCast: 0x90,
+  /**
+   * Die Serverliste des Anmeldeservers — und die Eintrittskarte dazu.
+   *
+   * Beides in einem Paket, weil beides zum selben Augenblick gehört: die
+   * Karte gilt für den Kanal, den man sich aus dieser Liste aussucht. Zwei
+   * Pakete daraus zu machen hiesse, dass eines ohne das andere ankommen kann.
+   */
+  Realms: 0x91,
 } as const;
 export type ServerOp = (typeof ServerOp)[keyof typeof ServerOp];
 

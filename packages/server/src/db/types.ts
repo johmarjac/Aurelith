@@ -10,6 +10,15 @@ export interface CharacterRecord {
   id: number;
   accountId: number;
   name: string;
+  /**
+   * Auf welchem Server diese Figur lebt.
+   *
+   * Der **Servername**, nicht der Kanal: Kanäle sind Lastverteilung auf
+   * derselben Welt, und wer auf Kanal 2 wechselt, spielt dieselbe Figur
+   * weiter. Ein Serverwechsel dagegen ist eine andere Welt und eine andere
+   * Figur.
+   */
+  server: string;
   /** Kennung des Berufs — siehe `assets/content/classes.json`. */
   beruf: string;
   level: number;
@@ -85,8 +94,16 @@ export interface GameStore {
   /** Merkt sich, wann zuletzt angemeldet wurde. Reine Buchführung. */
   touchLogin(accountId: number): Promise<void>;
 
-  /** Die Figuren eines Kontos, in der Reihenfolge ihrer Entstehung. */
-  listCharacters(accountId: number): Promise<CharacterRecord[]>;
+  /**
+   * Die Figuren dieses Kontos **auf diesem Server**, in der Reihenfolge ihrer
+   * Entstehung.
+   *
+   * Der Servername gehört zur Frage und nicht zur Antwort: eine Figur lebt in
+   * genau einer Welt, und ein Konto kann in mehreren welche haben. Ohne den
+   * Namen bekäme ein Kanal von „Nordmark" die Figuren von „Aurelith" zu sehen
+   * — und der Spieler dürfte sie betreten.
+   */
+  listCharacters(accountId: number, server: string): Promise<CharacterRecord[]>;
   /**
    * Legt eine Figur an. Nichts, wenn der Name schon vergeben ist.
    *
@@ -96,13 +113,25 @@ export interface GameStore {
   createCharacter(
     accountId: number,
     name: string,
+    server: string,
     beruf: string,
     spawn: SpawnPoint,
   ): Promise<CharacterRecord | undefined>;
   /** Löscht eine Figur — nur, wenn sie dem Konto gehört. */
   deleteCharacter(accountId: number, characterId: number): Promise<boolean>;
-  /** Lädt eine Figur samt Beutel und Aufträgen — nur, wenn sie dem Konto gehört. */
-  loadCharacter(accountId: number, characterId: number): Promise<LoadedCharacter | undefined>;
+  /**
+   * Lädt eine Figur samt Beutel und Aufträgen — nur, wenn sie dem Konto **und**
+   * diesem Server gehört.
+   *
+   * Der Servername steht in der Bedingung und nicht in einer Prüfung danach:
+   * sonst liesse sich mit einer Kennung aus einer anderen Welt betreten, was
+   * einem dort gehört, und die Figur stünde plötzlich auf der falschen Karte.
+   */
+  loadCharacter(
+    accountId: number,
+    characterId: number,
+    server: string,
+  ): Promise<LoadedCharacter | undefined>;
   saveCharacter(character: CharacterRecord): Promise<void>;
   saveInventory(characterId: number, items: ItemRecord[]): Promise<void>;
   /**

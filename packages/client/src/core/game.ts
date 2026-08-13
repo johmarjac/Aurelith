@@ -489,6 +489,16 @@ export class Game {
     this.lobby.onCreateAccount = (name, pass) => this.connection?.sendCreateAccount(name, pass);
     this.lobby.onCreateCharacter = (name) => this.connection?.sendCreateCharacter(name);
     this.lobby.onDeleteCharacter = (id) => this.connection?.sendDeleteCharacter(id);
+    this.lobby.onEnterChannel = (url, ticket) => this.connect(url, ticket);
+    this.lobby.onRefreshRealms = () => this.connection?.sendRealmList();
+    // Zurück zur Kanalauswahl heisst: zurück zum Anmeldeserver. Die
+    // Eintrittskarte für den nächsten Kanal gibt es nur dort, und sie wird
+    // nur gegen eine Anmeldung ausgestellt — deshalb vergisst die Maske
+    // vorher, dass sie angemeldet war, und zeigt wieder das Formular.
+    this.lobby.onBackToChannels = () => {
+      this.lobby.zuruecksetzen();
+      this.connect();
+    };
     this.lobby.onEnterWorld = (id) => {
       // Der Name für den Kasten oben links steht in der Liste, nicht im
       // Willkommen: der Server nennt dort die Karte, nicht die Figur.
@@ -821,7 +831,18 @@ export class Game {
   // Verbindung
   // -------------------------------------------------------------------------
 
-  private connect(): void {
+  /**
+   * Baut die Verbindung auf.
+   *
+   * Ohne Argumente geht sie an die hinterlegte Adresse — im Betrieb der
+   * Anmeldeserver, im Alleinbetrieb ein Spielserver. Mit `url` und `ticket`
+   * geht sie an einen Kanal, den man sich in der Maske ausgesucht hat.
+   *
+   * **Eine** Verbindung und ein Satz Rückrufe für beide Fälle. Der Client
+   * fragt nie, mit welcher Sorte Server er spricht: er meldet sich an und
+   * bekommt entweder eine Kanalliste oder gleich seine Figuren.
+   */
+  private connect(url = serverUrl(), ticket?: string): void {
     // Eine bestehende Verbindung zuerst abraeumen: nach `close()` meldet sie
     // nichts mehr nach oben, also kann kein Paket im Flug die frische Sitzung
     // durcheinanderbringen.
@@ -829,7 +850,10 @@ export class Game {
     this.resetSession();
 
     let explainedMissingServer = false;
-    const url = serverUrl();
+    // Solange eine Karte im Spiel ist und noch keine Figurenliste kam, hängt
+    // die Sitzung am Kanal. Scheitert sie, geht es zurück zum Anmeldeserver —
+    // dort und nur dort gibt es eine neue Karte.
+    this.amKanal = ticket !== undefined;
 
     this.connection = new Connection(url, {
       onStatus: (status, detail) => {
@@ -892,6 +916,8 @@ export class Game {
       },
 
       onLobby: (msg) => {
+        // Die Karte ist eingelöst, die Sitzung steht.
+        this.amKanal = false;
         // Angemeldet, aber nicht in der Welt: die Maske zeigt die Figuren.
         // Auch nach dem Abmelden aus dem Spiel — dann steht die Sitzung
         // wieder in der Verwaltung, und was von ihr im Bild war, gehört
@@ -901,7 +927,25 @@ export class Game {
         this.accessLevel = msg.accessLevel;
       },
 
-      onLobbyError: (text) => this.lobby.zeigeFehler(text),
+      /**
+       * Eine Absage.
+       *
+       * Kam sie von einem Kanal, während die Eintrittskarte noch nicht
+       * eingelöst war, ist die Karte verbraucht oder abgelaufen — dann führt
+       * kein Weg von hier weiter, und der Client geht zurück zum
+       * Anmeldeserver. Ohne das stünde man vor einer Kanalliste, deren Karte
+       * nicht mehr gilt, und jeder weitere Versuch scheiterte gleich.
+       */
+      onLobbyError: (text) => {
+        this.lobby.zeigeFehler(text);
+        if (this.amKanal) {
+          this.amKanal = false;
+          this.connect();
+        }
+      },
+
+      // Die Kanalliste. Kommt nur vom Anmeldeserver.
+      onRealms: (msg) => this.lobby.zeigeKanaele(msg),
 
       onWelcome: async (msg) => {
         this.localId = msg.entityId;
@@ -1107,6 +1151,16 @@ export class Game {
 
   /** Läuft gerade eine `/version`-Frage, und welche? 0 heisst: keine. */
   private versionFrage = 0;
+
+  /**
+   * Hängt diese Verbindung an einer Eintrittskarte, die noch nicht eingelöst
+   * ist?
+   *
+   * Nur bis zur ersten Figurenliste wahr. Danach ist die Sitzung eine
+   * gewöhnliche, und eine Absage ist eine Absage — kein Grund, zum
+   * Anmeldeserver zurückzugehen.
+   */
+  private amKanal = false;
 
   private commandConnect(argument: string): void {
     if (!argument) {

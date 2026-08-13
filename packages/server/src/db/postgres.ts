@@ -81,13 +81,13 @@ export class PostgresStore implements GameStore {
     await this.pool.query('UPDATE accounts SET last_login_at = now() WHERE id = $1', [accountId]);
   }
 
-  async listCharacters(accountId: number): Promise<CharacterRecord[]> {
+  async listCharacters(accountId: number, server: string): Promise<CharacterRecord[]> {
     const res = await this.pool.query(
-      `SELECT id, account_id, name, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw
+      `SELECT id, account_id, name, server, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw
          FROM characters
-        WHERE account_id = $1
+        WHERE account_id = $1 AND server = $2
         ORDER BY id`,
-      [accountId],
+      [accountId, server],
     );
     return res.rows.map((r) => toCharacter(r));
   }
@@ -95,6 +95,7 @@ export class PostgresStore implements GameStore {
   async createCharacter(
     accountId: number,
     name: string,
+    server: string,
     beruf: string,
     spawn: SpawnPoint,
   ): Promise<CharacterRecord | undefined> {
@@ -102,11 +103,14 @@ export class PostgresStore implements GameStore {
     try {
       await client.query('BEGIN');
       const inserted = await client.query(
-        `INSERT INTO characters (account_id, name, class, map_id, pos_x, pos_z, yaw)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         ON CONFLICT (name) DO NOTHING
-         RETURNING id, account_id, name, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw`,
-        [accountId, name, beruf, spawn.mapId, spawn.x, spawn.z, spawn.yaw],
+        // Der Name kollidiert nur **innerhalb eines Servers** — der Index
+        // liegt auf (server, lower(name)). Zwei Welten dürfen denselben
+        // Namen tragen.
+        `INSERT INTO characters (account_id, name, server, class, map_id, pos_x, pos_z, yaw)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT DO NOTHING
+         RETURNING id, account_id, name, server, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw`,
+        [accountId, name, server, beruf, spawn.mapId, spawn.x, spawn.z, spawn.yaw],
       );
       if (inserted.rowCount === 0) {
         await client.query('ROLLBACK');
@@ -146,12 +150,13 @@ export class PostgresStore implements GameStore {
   async loadCharacter(
     accountId: number,
     characterId: number,
+    server: string,
   ): Promise<LoadedCharacter | undefined> {
     const res = await this.pool.query(
-      `SELECT id, account_id, name, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw
+      `SELECT id, account_id, name, server, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw
          FROM characters
-        WHERE id = $1 AND account_id = $2`,
-      [characterId, accountId],
+        WHERE id = $1 AND account_id = $2 AND server = $3`,
+      [characterId, accountId, server],
     );
     const row = res.rows[0];
     if (!row) return undefined;
@@ -269,6 +274,7 @@ function toCharacter(row: Record<string, unknown> | undefined): CharacterRecord 
     id: Number(row.id),
     accountId: Number(row.account_id),
     name: String(row.name),
+    server: String(row.server ?? ''),
     beruf: String(row.class ?? KEIN_BERUF),
     level: Number(row.level),
     exp: Number(row.exp),

@@ -1447,6 +1447,15 @@ body {
   border-color: #5e1b19;
 }
 
+/* Wo man spielt — Server und Kanal, über der Figurenliste. */
+.lobby-wo {
+  margin: -0.3rem 0 0;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--gold-hell);
+}
+
 .lobby-konto {
   margin: 0;
   font-size: 0.8rem;
@@ -1492,6 +1501,94 @@ body {
   text-align: center;
   font-size: 0.85rem;
   color: var(--ink-dim);
+}
+
+/* --- Server und Kanal ------------------------------------------------------
+ *
+ * Zwei Spalten nebeneinander: links der Server, rechts seine Kanäle. Auf
+ * einem schmalen Telefon werden daraus zwei Zeilen — untereinander ist eng,
+ * aber nebeneinander wären beide Spalten zu schmal für einen Namen.
+ */
+
+.lobby-kanaele {
+  width: min(34rem, 100%);
+}
+
+.kanal-spalten {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+@media (max-width: 30rem) {
+  .kanal-spalten {
+    grid-template-columns: 1fr;
+  }
+}
+
+.kanal-seite {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.kanal-titel {
+  margin: 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+/* Rollend und mit fester Höhe: bei zwölf Kanälen soll die Maske nicht über
+   den Bildschirmrand hinauswachsen, und beide Spalten sollen gleich hoch
+   bleiben, egal wie viele Zeilen darin stehen. */
+.kanal-spalte {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-height: 14rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.kanal-zeile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--kachel-rand);
+  background: var(--kachel);
+  color: var(--ink-hell);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.kanal-zeile:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+/* Wie in der Berufsauswahl hängt die Wahl am Datenfeld: der Zustand steht an
+   genau einer Stelle, und das Umschalten kann keine halbe Wahrheit
+   hinterlassen, in der zwei Zeilen hell sind. */
+.kanal-zeile[data-gewaehlt='1'] {
+  border-color: var(--gold-hell);
+  color: var(--gold-hell);
+  background: rgba(196, 158, 74, 0.16);
+}
+
+.kanal-name {
+  font-weight: 600;
+}
+
+.kanal-info {
+  font-size: 0.72rem;
+  color: var(--panel-edge-bright);
 }
 
 /* --- Umsortieren im Beutel ------------------------------------------------ */

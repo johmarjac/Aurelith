@@ -1,6 +1,6 @@
 # Aurelith — Serverbetrieb auf einer eigenen Maschine.
 #
-# Zwei Dienste: der Spielserver und PostgreSQL für die Spielstände. Um TLS
+# Vier Dienste: der Anmeldeserver, zwei Kanäle und PostgreSQL. Um TLS
 # kümmert sich ein vorgelagerter Reverse-Proxy, der hier nicht mitgeliefert
 # wird — wer schon einen betreibt, will keinen zweiten.
 #
@@ -10,7 +10,16 @@
 # WebSocket-Aufwertungen durchreichen, sonst kommt keine Verbindung zustande,
 # egal wie richtig der Server läuft.
 #
-#   cp .env.example .env     # Datenbankpasswort eintragen
+# Der Anmeldeserver ist der, mit dem sich der Client zuerst verbindet. Er
+# kennt Konten und führt die Kanalliste; die Kanäle melden sich bei ihm selbst
+# an. Ein Kanal mehr heisst: einen Block kopieren, Namen und Port ändern —
+# am Anmeldeserver ist nichts zu tun.
+#
+# **Alle** Dienste hängen an derselben Datenbank. Eine Figur gehört einem
+# Konto und nicht einem Kanal; wer auf Kanal 2 wechselt, findet dieselben
+# Figuren vor.
+#
+#   cp .env.example .env     # Datenbankpasswort und AURELITH_INTERNAL_SECRET
 #   docker compose up -d
 #
 # Aus der Registry statt selbst gebaut:
@@ -20,9 +29,47 @@
 name: aurelith
 
 services:
-  server:
+  # --- Anmeldeserver ------------------------------------------------------
+  #
+  # Von diesem gibt es einen. Er simuliert nichts und tickt nicht — fällt er
+  # aus, kommt niemand mehr neu herein, aber wer drin ist, spielt weiter.
+  login:
     image: ${AURELITH_IMAGE:-ghcr.io/johmarjac/aurelith-server:latest}
-    # Für den lokalen Bau: `docker compose build server`. Im Normalfall wird
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ['tsx', 'packages/server/src/login/index.ts']
+    restart: unless-stopped
+    init: true
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://aurelith:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt — .env anlegen}@db:5432/aurelith
+      AURELITH_LOGIN_HOST: 0.0.0.0
+      AURELITH_LOGIN_PORT: 8790
+      AURELITH_INTERNAL_SECRET: ${AURELITH_INTERNAL_SECRET:?AURELITH_INTERNAL_SECRET fehlt — .env anlegen}
+      AURELITH_ADMINS: ${AURELITH_ADMINS:-}
+    # Nur der Anmeldeserver muss von aussen erreichbar sein — und die Kanäle,
+    # deren Adressen er ausgibt. Die internen Wege unter /intern/ gehören
+    # **nicht** ins offene Netz: wer sie erreicht, kann Kanäle in die Liste
+    # stellen. Ein vorgelagerter Proxy sollte sie deshalb nicht durchreichen.
+    ports:
+      - '${AURELITH_LOGIN_BIND:-127.0.0.1:8790}:8790'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:8790/health >/dev/null || exit 1']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      default:
+        aliases:
+          - aurelith-login
+
+  # --- Kanal 1 -------------------------------------------------------------
+  kanal1:
+    image: ${AURELITH_IMAGE:-ghcr.io/johmarjac/aurelith-server:latest}
+    # Für den lokalen Bau: `docker compose build kanal1`. Im Normalfall wird
     # das Bild aus der Registry gezogen — auf einem Raspberry Pi dauert das
     # Sekunden statt der Minuten, die der Emscripten-Bau kostet.
     build:
@@ -33,12 +80,24 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      login:
+        condition: service_started
     environment:
       DATABASE_URL: postgres://aurelith:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt — .env anlegen}@db:5432/aurelith
       AURELITH_HOST: 0.0.0.0
       AURELITH_PORT: 8787
       AURELITH_START_MAP: ${AURELITH_START_MAP:-lichtmoor}
       AURELITH_SESSION_TIMEOUT: ${AURELITH_SESSION_TIMEOUT:-90}
+      # Wie dieser Kanal in der Liste steht. Der Servername ist bei allen
+      # Kanälen derselbe — er ist die Überschrift, unter der sie stehen.
+      AURELITH_SERVER_NAME: ${AURELITH_SERVER_NAME:-Aurelith}
+      AURELITH_CHANNEL_NAME: 'Kanal 1'
+      # Was der **Client** eingeben muss, nicht was der Server hört. Hinter
+      # einem Proxy ist das eine wss://-Adresse mit einem Pfad je Kanal.
+      AURELITH_PUBLIC_URL: ${AURELITH_KANAL1_URL:-ws://localhost:8787/ws}
+      AURELITH_LOGIN_URL: http://login:8790
+      AURELITH_INTERNAL_SECRET: ${AURELITH_INTERNAL_SECRET:?AURELITH_INTERNAL_SECRET fehlt — .env anlegen}
+      AURELITH_CAPACITY: ${AURELITH_CAPACITY:-0}
     #
     # Standardmäßig nur auf der Loopback-Adresse. Damit ist der Server für
     # einen Proxy auf **derselben Maschine** erreichbar, aus dem Internet aber
@@ -57,11 +116,47 @@ services:
       - '${AURELITH_BIND:-127.0.0.1:8787}:8787'
     networks:
       default:
-        # Unter diesem Namen findet ein Proxy den Server, sobald er am selben
-        # Netz hängt. `server` täte es auch, ist als Name im Docker-Netz aber
+        # Unter diesem Namen findet ein Proxy den Kanal, sobald er am selben
+        # Netz hängt. `kanal1` täte es auch, ist als Name im Docker-Netz aber
         # so allgemein, dass er sich mit dem nächsten Stapel überschneidet.
         aliases:
-          - aurelith-server
+          - aurelith-kanal1
+
+  # --- Kanal 2 -------------------------------------------------------------
+  #
+  # Derselbe Block, drei Zeilen anders: Kanalname, Port, öffentliche Adresse.
+  # So sieht jeder weitere Kanal aus. Der Anmeldeserver erfährt davon nichts —
+  # der Kanal meldet sich bei ihm.
+  kanal2:
+    image: ${AURELITH_IMAGE:-ghcr.io/johmarjac/aurelith-server:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    depends_on:
+      db:
+        condition: service_healthy
+      login:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgres://aurelith:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt — .env anlegen}@db:5432/aurelith
+      AURELITH_HOST: 0.0.0.0
+      AURELITH_PORT: 8788
+      AURELITH_START_MAP: ${AURELITH_START_MAP:-lichtmoor}
+      AURELITH_SESSION_TIMEOUT: ${AURELITH_SESSION_TIMEOUT:-90}
+      AURELITH_SERVER_NAME: ${AURELITH_SERVER_NAME:-Aurelith}
+      AURELITH_CHANNEL_NAME: 'Kanal 2'
+      AURELITH_PUBLIC_URL: ${AURELITH_KANAL2_URL:-ws://localhost:8788/ws}
+      AURELITH_LOGIN_URL: http://login:8790
+      AURELITH_INTERNAL_SECRET: ${AURELITH_INTERNAL_SECRET:?AURELITH_INTERNAL_SECRET fehlt — .env anlegen}
+      AURELITH_CAPACITY: ${AURELITH_CAPACITY:-0}
+    ports:
+      - '${AURELITH_KANAL2_BIND:-127.0.0.1:8788}:8788'
+    networks:
+      default:
+        aliases:
+          - aurelith-kanal2
 
   db:
     image: postgres:17-alpine

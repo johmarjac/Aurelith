@@ -24,6 +24,7 @@
     "satz": "node tools/shot-satz.mjs",
     "himmel": "node tools/shot-sky.mjs",
     "dev:server": "npm run dev --workspace @aurelith/server",
+    "dev:login": "npm run dev:login --workspace @aurelith/server",
     "dev:client": "npm run dev --workspace @aurelith/client",
     "dev:editor": "npm run dev --workspace @aurelith/editor",
     "build": "npm run core && npm run manifest && npm run build --workspace @aurelith/client",

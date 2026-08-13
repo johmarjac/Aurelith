@@ -88,6 +88,22 @@ export function decodeCreateCharacter(r: ByteReader): { name: string } {
 }
 
 /**
+ * Frage nach der Serverliste. Ohne Rumpf — die Frage ist die Nachricht.
+ */
+export function encodeRealmList(): Uint8Array {
+  return packet(ClientOp.RealmList, 4).finish();
+}
+
+/** Die Eintrittskarte beim Spielserver vorzeigen. */
+export function encodeTicket(ticket: string): Uint8Array {
+  return packet(ClientOp.Ticket, 128).str(ticket).finish();
+}
+
+export function decodeTicket(r: ByteReader): { ticket: string } {
+  return { ticket: r.str() };
+}
+
+/**
  * Eine Fertigkeit wirken.
  *
  * Nur die Kennung — kein Ziel, keine Stelle, keine Richtung. Wohin sie wirkt,
@@ -833,6 +849,61 @@ export function encodeSkillCast(entityId: number, skillId: string): Uint8Array {
 
 export function decodeSkillCast(r: ByteReader): { entityId: number; skillId: string } {
   return { entityId: r.u32(), skillId: r.str() };
+}
+
+/**
+ * Ein Kanal, wie ihn der Anmeldeserver kennt.
+ *
+ * `server` und `channel` sind Namen und keine Kennungen: der Spielserver
+ * bestimmt sie in seiner eigenen Konfiguration, und wer ihn umbenennt, hat
+ * einen umbenannten Kanal — nichts hängt sonst daran. Die `url` ist die
+ * Adresse, mit der sich der Client verbindet, wenn er diesen Kanal wählt.
+ */
+export interface RealmRow {
+  server: string;
+  channel: string;
+  url: string;
+  /** Wie viele gerade darin spielen. */
+  online: number;
+  /** Wie viele hineinpassen. Null heisst: keine Grenze gesetzt. */
+  capacity: number;
+}
+
+export interface RealmsMsg {
+  /**
+   * Die Eintrittskarte für den Kanal, den man sich gleich aussucht.
+   *
+   * Sie kommt mit der Liste, weil sie nur zusammen mit ihr Sinn ergibt — und
+   * sie ist kurzlebig und einmal verwendbar. Wer die Liste neu holt, bekommt
+   * eine neue.
+   */
+  ticket: string;
+  realms: RealmRow[];
+}
+
+export function encodeRealms(msg: RealmsMsg): Uint8Array {
+  const w = packet(ServerOp.Realms, 64 + msg.realms.length * 128);
+  w.str(msg.ticket).u16(msg.realms.length);
+  for (const r of msg.realms) {
+    w.str(r.server).str(r.channel).str(r.url).u16(r.online).u16(r.capacity);
+  }
+  return w.finish();
+}
+
+export function decodeRealms(r: ByteReader): RealmsMsg {
+  const ticket = r.str();
+  const count = r.u16();
+  const realms: RealmRow[] = [];
+  for (let i = 0; i < count; i++) {
+    realms.push({
+      server: r.str(),
+      channel: r.str(),
+      url: r.str(),
+      online: r.u16(),
+      capacity: r.u16(),
+    });
+  }
+  return { ticket, realms };
 }
 
 export function encodeKick(reason: number, message: string): Uint8Array {

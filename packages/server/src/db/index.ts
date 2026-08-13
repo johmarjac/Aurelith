@@ -5,7 +5,6 @@
  * verschwiegen.
  */
 
-import { config } from '../config.ts';
 import { MemoryStore } from './memory.ts';
 import { PostgresStore } from './postgres.ts';
 import { migrate } from './migrate.ts';
@@ -14,8 +13,18 @@ import type { GameStore } from './types.ts';
 export * from './types.ts';
 export { migrate } from './migrate.ts';
 
-export async function createStore(): Promise<GameStore> {
-  if (!config.databaseUrl) {
+/**
+ * Baut den Speicher.
+ *
+ * Die Adresse kommt als Parameter und nicht aus der Konfiguration: es gibt
+ * zwei Anwendungen, die einen Speicher brauchen — Spielserver und
+ * Anmeldeserver —, und jede hat ihre eigene Konfiguration. Ein Griff in die
+ * eine von hier aus hiesse, dass der Anmeldeserver die Karten- und
+ * Tickeinstellungen des Spielservers mitlädt, um an eine Datenbankadresse zu
+ * kommen.
+ */
+export async function createStore(databaseUrl: string): Promise<GameStore> {
+  if (!databaseUrl) {
     console.warn(
       '[db] DATABASE_URL ist nicht gesetzt — Speicher-Backend aktiv.\n' +
         '     Charaktere, Fortschritt und Inventare sind beim Neustart weg.',
@@ -25,12 +34,12 @@ export async function createStore(): Promise<GameStore> {
     return store;
   }
 
-  const store = new PostgresStore(config.databaseUrl);
+  const store = new PostgresStore(databaseUrl);
   await store.init();
 
   // Migrationen beim Start mitziehen. Bei einem Server ist das bequem; sobald
   // mehrere Instanzen laufen, gehört das in einen eigenen Schritt vor dem Rollout.
-  const applied = await migrate(config.databaseUrl);
+  const applied = await migrate(databaseUrl);
   if (applied > 0) console.log(`[db] ${applied} Migration(en) angewandt.`);
   console.log('[db] PostgreSQL verbunden.');
 

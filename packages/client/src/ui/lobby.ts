@@ -10,9 +10,12 @@
  * Inhalte und Karte, während hier jemand tippt — wer sich angemeldet hat, ist
  * damit sofort drin, statt erst einen Ladebalken zu sehen.
  *
- * Drei Masken, nicht eine.
+ * Vier Masken, nicht eine.
  *
  *   `anmeldung` — Konto und Passwort. Schmal, mittig, sonst nichts.
+ *   `kanaele`   — Server links, Kanäle rechts. Kommt nur, wenn am anderen Ende
+ *                 ein Anmeldeserver hängt; ein Spielserver im Alleinbetrieb
+ *                 schickt gleich die Figurenliste.
  *   `figuren`   — die Liste der Figuren dieses Kontos.
  *   `neu`       — eine Figur anlegen.
  *
@@ -23,7 +26,7 @@
  * Kastens sagte immer dasselbe.
  */
 
-import { getClass, type LobbyCharacter } from '@aurelith/shared';
+import { getClass, type LobbyCharacter, type RealmRow, type RealmsMsg } from '@aurelith/shared';
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -43,8 +46,8 @@ export interface LobbyStand {
   characters: LobbyCharacter[];
 }
 
-/** Welche der drei Masken gerade gilt. */
-type Seite = 'anmeldung' | 'figuren' | 'neu';
+/** Welche der Masken gerade gilt. */
+type Seite = 'anmeldung' | 'kanaele' | 'figuren' | 'neu';
 
 export class LobbyView {
   /** Anmelden mit Name und Passwort. */
@@ -54,6 +57,23 @@ export class LobbyView {
   onCreateCharacter?: (name: string) => void;
   onDeleteCharacter?: (characterId: number) => void;
   onEnterWorld?: (characterId: number) => void;
+  /**
+   * Einen Kanal betreten: Adresse und Eintrittskarte.
+   *
+   * Was daraus wird, entscheidet das Spiel — die Maske weiss nicht, dass
+   * dahinter eine zweite Verbindung aufgebaut wird.
+   */
+  onEnterChannel?: (url: string, ticket: string) => void;
+  /** Die Kanalliste neu holen. Bringt auch eine frische Eintrittskarte mit. */
+  onRefreshRealms?: () => void;
+  /**
+   * Zurück zur Kanalauswahl.
+   *
+   * Das ist mehr als ein Maskenwechsel: die Verbindung zum Kanal wird
+   * beendet und die zum Anmeldeserver neu aufgebaut, denn nur dort gibt es
+   * eine neue Eintrittskarte. Was das genau heisst, weiss das Spiel.
+   */
+  onBackToChannels?: () => void;
 
   private readonly root: HTMLDivElement;
   private readonly anmeldungSeite: HTMLDivElement;
@@ -69,6 +89,28 @@ export class LobbyView {
   private readonly neuForm: HTMLFormElement;
   private readonly neuInput: HTMLInputElement;
   private readonly neuKnopf: HTMLButtonElement;
+  private readonly kanaeleSeite: HTMLDivElement;
+  private readonly serverListe: HTMLDivElement;
+  private readonly kanalListe: HTMLDivElement;
+  private readonly kanalKnopf: HTMLButtonElement;
+  private readonly kanalWechsel: HTMLButtonElement;
+  private readonly woZeile: HTMLParagraphElement;
+
+  /** Was der Anmeldeserver zuletzt gemeldet hat. */
+  private realms: RealmRow[] = [];
+  /** Die Eintrittskarte zur aktuellen Liste. Leer heisst: keine. */
+  private ticket = '';
+  /** Welcher Servername links ausgewählt ist. */
+  private gewaehlterServer = '';
+  /** Welcher Kanal rechts ausgewählt ist — Kanalname innerhalb des Servers. */
+  private gewaehlterKanal = '';
+  /**
+   * Wo man gerade spielt, als fertige Zeile.
+   *
+   * Leer im Alleinbetrieb: dann gibt es keine Kanäle, und eine Zeile „ · "
+   * über der Figurenliste wäre eine Auskunft über nichts.
+   */
+  private wo = '';
 
   /** Welche Maske gerade offen ist. Die eine Wahrheit darüber. */
   private seite: Seite = 'anmeldung';
@@ -156,15 +198,70 @@ export class LobbyView {
     zurNeu.type = 'button';
     zurNeu.addEventListener('click', () => this.zeigeSeite('neu'));
 
+    // Der Weg zurück zur Kanalauswahl. Sichtbar nur, wenn es überhaupt eine
+    // gab — im Alleinbetrieb führte er ins Leere.
+    this.kanalWechsel = el('button', 'btn', 'Kanal wechseln');
+    this.kanalWechsel.type = 'button';
+    // Der Weg zurück führt über den Anmeldeserver, und der kennt diese
+    // Verbindung nicht mehr — die Eintrittskarte war einmalig. Also noch
+    // einmal anmelden. Das steht am Knopf, damit es niemanden überrascht.
+    this.kanalWechsel.title = 'Zurück zur Kanalauswahl — mit erneuter Anmeldung.';
+    this.kanalWechsel.hidden = true;
+    this.kanalWechsel.addEventListener('click', () => this.onBackToChannels?.());
+
+    const figurenKnoepfe = el('div', 'lobby-knoepfe');
+    figurenKnoepfe.append(zurNeu, this.kanalWechsel);
+
+    // Wo man ist — Server und Kanal, über der Liste. Die Figuren gehören zum
+    // **Server**: auf einem anderen sind es andere.
+    this.woZeile = el('p', 'lobby-wo', '');
+    this.woZeile.hidden = true;
+
     this.figurenSeite.append(
       el('h1', 'lobby-titel', 'Deine Figuren'),
+      this.woZeile,
       this.kontoZeile,
       this.liste,
-      zurNeu,
+      figurenKnoepfe,
     );
     // Der Knopf wird ausgeblendet, wenn das Konto voll ist — gemerkt, damit
     // `setStand` ihn wiederfindet, ohne im DOM zu suchen.
     this.neuKnopf = zurNeu;
+
+    // --- Maske 2b: Server und Kanal ---------------------------------------
+    //
+    // Zwei Spalten: links, welcher Server — rechts, welcher Kanal darin. Das
+    // ist keine Zierde, sondern die Form der Sache: ein Kanal gehört immer zu
+    // genau einem Server, und eine einzige lange Liste aus „Aurelith · Kanal
+    // 1", „Aurelith · Kanal 2" würde diese Zugehörigkeit in jeder Zeile
+    // wiederholen, statt sie einmal zu zeigen.
+    this.kanaeleSeite = el('div', 'lobby-box panel lobby-kanaele');
+    this.kanaeleSeite.hidden = true;
+    this.serverListe = el('div', 'kanal-spalte');
+    this.kanalListe = el('div', 'kanal-spalte');
+
+    const spalten = el('div', 'kanal-spalten');
+    const linkeSpalte = el('div', 'kanal-seite');
+    linkeSpalte.append(el('h2', 'kanal-titel', 'Server'), this.serverListe);
+    const rechteSpalte = el('div', 'kanal-seite');
+    rechteSpalte.append(el('h2', 'kanal-titel', 'Kanal'), this.kanalListe);
+    spalten.append(linkeSpalte, rechteSpalte);
+
+    this.kanalKnopf = el('button', 'btn btn-gross', 'Betreten');
+    this.kanalKnopf.type = 'button';
+    this.kanalKnopf.addEventListener('click', () => this.betreteKanal());
+    const neuLaden = el('button', 'btn', 'Liste neu laden');
+    neuLaden.type = 'button';
+    neuLaden.addEventListener('click', () => this.onRefreshRealms?.());
+
+    const kanalKnoepfe = el('div', 'lobby-knoepfe');
+    kanalKnoepfe.append(this.kanalKnopf, neuLaden);
+    this.kanaeleSeite.append(
+      el('h1', 'lobby-titel', 'Welt betreten'),
+      el('p', 'lobby-unter', 'Wähle einen Server und darin einen Kanal.'),
+      spalten,
+      kanalKnoepfe,
+    );
 
     // --- Maske 3: Figur anlegen -------------------------------------------
     this.neuSeite = el('div', 'lobby-box panel lobby-neu');
@@ -206,7 +303,7 @@ export class LobbyView {
 
     this.neuSeite.append(el('h1', 'lobby-titel', 'Neue Figur'), this.neuForm);
 
-    this.root.append(this.anmeldungSeite, this.figurenSeite, this.neuSeite);
+    this.root.append(this.anmeldungSeite, this.kanaeleSeite, this.figurenSeite, this.neuSeite);
     host.appendChild(this.root);
     this.zeigeSeite('anmeldung');
   }
@@ -221,15 +318,18 @@ export class LobbyView {
   private zeigeSeite(seite: Seite): void {
     this.seite = seite;
     this.anmeldungSeite.hidden = seite !== 'anmeldung';
+    this.kanaeleSeite.hidden = seite !== 'kanaele';
     this.figurenSeite.hidden = seite !== 'figuren';
     this.neuSeite.hidden = seite !== 'neu';
 
     const kasten =
       seite === 'anmeldung'
         ? this.anmeldungSeite
-        : seite === 'figuren'
-          ? this.figurenSeite
-          : this.neuSeite;
+        : seite === 'kanaele'
+          ? this.kanaeleSeite
+          : seite === 'figuren'
+            ? this.figurenSeite
+            : this.neuSeite;
     // Nach der Überschrift, vor allem anderen.
     kasten.insertBefore(this.meldung, kasten.children[1] ?? null);
 
@@ -254,15 +354,134 @@ export class LobbyView {
   }
 
   /**
+   * Übernimmt die Server- und Kanalliste des Anmeldeservers.
+   *
+   * Kommt an derselben Stelle an, an der im Alleinbetrieb `setStand` käme:
+   * beides ist die Antwort auf eine erfolgreiche Anmeldung, und welche der
+   * beiden kommt, entscheidet die Gegenstelle. Der Client fragt nicht danach.
+   */
+  zeigeKanaele(msg: RealmsMsg): void {
+    this.realms = msg.realms;
+    this.ticket = msg.ticket;
+    this.angemeldet = true;
+    this.formularSteht = false;
+    this.root.hidden = false;
+    this.zeigeFehler('');
+
+    // Die bisherige Wahl behalten, wenn es sie noch gibt: die Liste wird auch
+    // neu geladen, während man davorsitzt, und eine Auswahl, die dabei
+    // wegspringt, macht das Neuladen unbrauchbar.
+    if (!this.realms.some((r) => r.server === this.gewaehlterServer)) {
+      this.gewaehlterServer = this.realms[0]?.server ?? '';
+      this.gewaehlterKanal = '';
+    }
+    this.baueKanalListen();
+    this.zeigeSeite('kanaele');
+  }
+
+  /** Die beiden Spalten neu aufbauen. Aus `realms` und der aktuellen Wahl. */
+  private baueKanalListen(): void {
+    // Servernamen in der Reihenfolge, in der sie in der Liste stehen: die
+    // kommt sortiert vom Anmeldeserver, und eine zweite Sortierung hier wäre
+    // eine zweite Meinung darüber, wie die Liste aussieht.
+    const server: string[] = [];
+    for (const r of this.realms) if (!server.includes(r.server)) server.push(r.server);
+
+    this.serverListe.replaceChildren(
+      ...server.map((name) => {
+        const kanaele = this.realms.filter((r) => r.server === name);
+        const leute = kanaele.reduce((summe, r) => summe + r.online, 0);
+        const knopf = el('button', 'kanal-zeile');
+        knopf.type = 'button';
+        knopf.dataset.gewaehlt = name === this.gewaehlterServer ? '1' : '0';
+        knopf.append(
+          el('span', 'kanal-name', name),
+          el('span', 'kanal-info', `${kanaele.length} Kanäle · ${leute} online`),
+        );
+        knopf.addEventListener('click', () => {
+          this.gewaehlterServer = name;
+          this.gewaehlterKanal = '';
+          this.baueKanalListen();
+        });
+        return knopf;
+      }),
+    );
+
+    const kanaele = this.realms.filter((r) => r.server === this.gewaehlterServer);
+    if (kanaele.length === 0) {
+      this.kanalListe.replaceChildren(
+        el('p', 'lobby-leer', 'Kein Kanal ist gerade erreichbar.'),
+      );
+    } else {
+      this.kanalListe.replaceChildren(
+        ...kanaele.map((r) => {
+          const knopf = el('button', 'kanal-zeile');
+          knopf.type = 'button';
+          knopf.dataset.gewaehlt = r.channel === this.gewaehlterKanal ? '1' : '0';
+          // Voll heisst voll: der Knopf bleibt lesbar, lässt sich aber nicht
+          // drücken. Ihn wegzulassen wäre schlechter — dann fehlte der Kanal
+          // in der Liste, und niemand wüsste, dass es ihn gibt.
+          const voll = r.capacity > 0 && r.online >= r.capacity;
+          knopf.disabled = voll;
+          knopf.append(
+            el('span', 'kanal-name', r.channel),
+            el(
+              'span',
+              'kanal-info',
+              voll
+                ? `voll (${r.online}/${r.capacity})`
+                : r.capacity > 0
+                  ? `${r.online}/${r.capacity} online`
+                  : `${r.online} online`,
+            ),
+          );
+          knopf.addEventListener('click', () => {
+            this.gewaehlterKanal = r.channel;
+            this.baueKanalListen();
+          });
+          return knopf;
+        }),
+      );
+    }
+
+    this.kanalKnopf.disabled = this.gewaehlterKanal === '' || this.ticket === '';
+  }
+
+  private betreteKanal(): void {
+    const kanal = this.realms.find(
+      (r) => r.server === this.gewaehlterServer && r.channel === this.gewaehlterKanal,
+    );
+    if (!kanal || this.ticket === '') return;
+
+    // Die Karte gilt nur einmal. Sie hier zu vergessen ist keine Vorsicht,
+    // sondern Ehrlichkeit: ein zweiter Druck auf denselben Knopf würde sonst
+    // mit einer verbrauchten Karte losziehen und ohne Grund scheitern.
+    const ticket = this.ticket;
+    this.ticket = '';
+    this.kanalKnopf.disabled = true;
+    this.wo = `${kanal.server} · ${kanal.channel}`;
+    this.onEnterChannel?.(kanal.url, ticket);
+  }
+
+  /**
    * Vergisst die Anmeldung — nach einem Verbindungsabriss.
    *
    * Es gibt kein Sitzungspapier, das eine neue Verbindung ausweisen könnte:
    * wer die Leitung verliert, meldet sich neu an.
    */
   zuruecksetzen(): void {
+    // Der Kontoname bleibt im Feld stehen: wer den Kanal wechselt, meldet
+    // sich mit demselben Konto neu an, und ihn erneut tippen zu lassen wäre
+    // eine Schikane ohne Zweck. Das Passwort bleibt selbstverständlich leer.
+    if (this.stand) this.nameInput.value = this.stand.accountName;
+    this.passInput.value = '';
     this.angemeldet = false;
     this.formularSteht = false;
     this.stand = undefined;
+    // Die Kanalliste **nicht**: sie gehört zum Anmeldeserver, und der ist
+    // gerade noch da. Wer auf einem Kanal die Verbindung verliert, soll die
+    // Liste wiedersehen und nicht bei null anfangen — er hat sich eben erst
+    // angemeldet.
   }
 
   verbergen(): void {
@@ -300,6 +519,10 @@ export class LobbyView {
     this.root.hidden = false;
     this.zeigeFehler('');
     this.loeschKandidat = 0;
+
+    this.woZeile.textContent = this.wo;
+    this.woZeile.hidden = this.wo === '';
+    this.kanalWechsel.hidden = this.wo === '';
 
     const stufe = ['Spieler', 'Spielleiter', 'Entwickler', 'Verwalter'][stand.accessLevel] ?? '';
     this.kontoZeile.textContent =
@@ -355,7 +578,15 @@ export class LobbyView {
     }
 
     if (zeilen.length === 0) {
-      zeilen.push(el('p', 'lobby-leer', 'Noch keine Figur. Leg eine an.'));
+      zeilen.push(
+        el(
+          'p',
+          'lobby-leer',
+          this.wo === ''
+            ? 'Noch keine Figur. Leg eine an.'
+            : 'Auf diesem Server noch keine Figur. Leg eine an.',
+        ),
+      );
     }
     this.liste.replaceChildren(...zeilen);
 

@@ -3,11 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Autoritativer Spielserver. Treibt die geteilte Simulation und ist die einzige Quelle der Wahrheit.",
+  "description": "Die beiden Serveranwendungen: Spielserver (ein Kanal, treibt die Simulation) und Anmeldeserver (Konten und Kanalliste). Zwei Prozesse, ein Paket — Konten, Datenbank und Passwortregeln stehen damit an genau einer Stelle.",
   "main": "./src/index.ts",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
+    "dev:login": "tsx watch src/login/index.ts",
+    "start:login": "tsx src/login/index.ts",
     "migrate": "tsx src/db/migrate.ts"
   },
   "dependencies": {
