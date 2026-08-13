@@ -495,6 +495,7 @@ export class Game {
     this.ui.onSell = (itemId, count, slot) =>
       this.connection?.sendShopTrade(1, itemId, count, slot);
     this.ui.onAttackHold = (held) => this.input.setAttackButton(held);
+    this.ui.onJump = () => this.input.springe();
     this.input.onPick = (x, y) => this.pickTarget(x, y);
     // Über einem Haufen zeigt die Maus eine Hand.
     this.input.zeigerFasstAn = (x, y) => this.lootUnderPointer(x, y).id !== 0;
@@ -1790,7 +1791,12 @@ export class Game {
       this.schlaegtZu = false;
     }
 
-    const buttons = this.schlaegtZu && !this.dead ? CoreButton.Attack : 0;
+    // Angriff und Sprung sind unabhängig: man kann im Sprung weiterschlagen,
+    // und ein Sprung bricht keinen Auftrag ab — er ist keine Bewegung im Sinne
+    // der Steuerung, sondern eine Geste nach oben.
+    const buttons =
+      (this.schlaegtZu && !this.dead ? CoreButton.Attack : 0) |
+      (snapshot.sprung && !this.dead ? CoreButton.Jump : 0);
 
     const seq = ++this.inputSeq;
 

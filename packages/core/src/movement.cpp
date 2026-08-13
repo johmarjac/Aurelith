@@ -60,7 +60,10 @@ void World::moveWithCollision(Entity& e, float dx, float dz, float* outDx, float
     if (!slidX && dz != 0.0f) tryStep(e, 0.0f, dz);
   }
 
-  e.y = terrainHeight(e.x, e.z, terrain_);
+  // Wer springt, hängt nicht am Boden. Ohne diese Bedingung zöge die
+  // waagerechte Bewegung die Figur im selben Schritt wieder herunter, und der
+  // Sprung wäre ein Zucken.
+  if (!e.airborne) e.y = terrainHeight(e.x, e.z, terrain_);
   if (outDx != nullptr) *outDx = e.x - startX;
   if (outDz != nullptr) *outDz = e.z - startZ;
 }
@@ -109,6 +112,15 @@ void World::applyInput(uint32_t id, float moveX, float moveZ, float yaw, uint32_
     tryStartSwing(e);
   }
 
+  // Der Absprung — mehr nicht. Die Flugbahn rechnet der Tick, und zwar für
+  // alle: eine Eingabe kann ausbleiben (verlorenes Paket, Fenster im
+  // Hintergrund), und eine Figur, deren Schwerkraft an ihrer Eingabe hängt,
+  // bliebe dann in der Luft stehen.
+  if ((buttons & kButtonJump) != 0u && !e.airborne) {
+    e.vy = kJumpSpeed;
+    e.airborne = true;
+  }
+
   float mx = moveX;
   float mz = moveZ;
   const float len = std::sqrt(mx * mx + mz * mz);
@@ -126,7 +138,7 @@ void World::applyInput(uint32_t id, float moveX, float moveZ, float yaw, uint32_
     e.vx = 0.0f;
     e.vz = 0.0f;
     if (e.state == kStateMove) e.state = kStateIdle;
-    e.y = terrainHeight(e.x, e.z, terrain_);
+    if (!e.airborne) e.y = terrainHeight(e.x, e.z, terrain_);
     return;
   }
 

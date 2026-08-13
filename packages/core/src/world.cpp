@@ -216,6 +216,11 @@ void World::teleport(uint32_t id, float x, float z, float yaw) {
   e->yaw = yaw;
   e->vx = 0.0f;
   e->vz = 0.0f;
+  // Wer mitten im Sprung durch ein Tor geht, landet — sonst fiele er auf der
+  // neuen Karte aus der Luft, und zwar aus der Höhe, die er auf der alten
+  // hatte.
+  e->vy = 0.0f;
+  e->airborne = false;
   e->swingTimer = -1.0f;
   e->targetId = 0;
   e->homeX = e->x;
@@ -231,6 +236,8 @@ void World::respawnPlayer(uint32_t id, float x, float z) {
   e->hp = std::max(1.0f, e->maxHp * 0.5f);
   e->mp = e->maxMp * 0.5f;
   e->state = kStateIdle;
+  e->vy = 0.0f;
+  e->airborne = false;
   e->swingTimer = -1.0f;
   e->attackCooldown = 0.0f;
   e->hitStun = 0.0f;

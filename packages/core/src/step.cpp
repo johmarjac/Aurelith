@@ -5,7 +5,7 @@
 // enthält. Beide führen dieselbe wasm-Binärdatei aus.
 //
 // Die Reihenfolge ist Vertrag:
-//   1. Zeitgeber herunterzählen, fällige Schläge auflösen
+//   1. Zeitgeber herunterzählen, fällige Schläge auflösen, Sprünge fortführen
 //   2. Monster entscheiden
 //   3. Überlappungen auflösen
 //   4. Regeneration
@@ -28,6 +28,40 @@ void World::advanceTimers(Entity& e, float dt) {
       resolveSwing(e);
       if (e.state == kStateAttack) e.state = kStateIdle;
     }
+  }
+}
+
+/**
+ * Die Flugbahn eines Sprungs — je Tick, für jeden, der in der Luft ist.
+ *
+ * Im Tick und nicht in `applyInput`: der Tick läuft immer, eine Eingabe nicht.
+ * Bliebe die Schwerkraft an der Eingabe hängen, stünde eine Figur mit
+ * abgerissener Verbindung im Bild der anderen für immer in der Luft.
+ *
+ * Gelandet wird, sobald der Boden erreicht ist — und danach gilt wieder die
+ * Höhe des Geländes, auch wenn es sich unter der Figur geändert hat.
+ */
+void World::advanceJump(Entity& e, float dt) {
+  if (!e.airborne) return;
+
+  if (!isAlive(e)) {
+    // Wer in der Luft stirbt, fällt nicht weiter — der Körper bleibt liegen,
+    // wo der Kern ihn zuletzt hatte. Alles andere wäre eine Leiche, die noch
+    // eine Sekunde lang durch die Landschaft segelt.
+    e.airborne = false;
+    e.vy = 0.0f;
+    e.y = terrainHeight(e.x, e.z, terrain_);
+    return;
+  }
+
+  e.y += e.vy * dt;
+  e.vy -= kGravity * dt;
+
+  const float boden = terrainHeight(e.x, e.z, terrain_);
+  if (e.y <= boden) {
+    e.y = boden;
+    e.vy = 0.0f;
+    e.airborne = false;
   }
 }
 
@@ -58,8 +92,9 @@ void World::resolveOverlaps() {
       a.z = clampToMap(a.z - uz * push, terrain_);
       b.x = clampToMap(b.x + ux * push, terrain_);
       b.z = clampToMap(b.z + uz * push, terrain_);
-      a.y = terrainHeight(a.x, a.z, terrain_);
-      b.y = terrainHeight(b.x, b.z, terrain_);
+      // Wer springt, behält seine Höhe: die Trennung schiebt waagerecht.
+      if (!a.airborne) a.y = terrainHeight(a.x, a.z, terrain_);
+      if (!b.airborne) b.y = terrainHeight(b.x, b.z, terrain_);
     }
   }
 }
@@ -103,6 +138,8 @@ void World::respawnMonster(Entity& e) {
   e.mp = e.maxMp;
   e.state = kStateIdle;
   e.targetId = 0;
+  e.airborne = false;
+  e.vy = 0.0f;
   // Frisch erschienen wird erst einmal gestanden — sonst setzt sich ein
   // ganzer Schwung gleichzeitig in Bewegung, weil alle im selben Takt
   // erscheinen. Die Pause ist unterschiedlich lang, aus demselben Grund: wer
@@ -150,6 +187,7 @@ void World::step(float dt) {
 
   for (Entity& e : entities_) {
     advanceTimers(e, dt);
+    advanceJump(e, dt);
   }
 
   for (size_t i = 0; i < entities_.size(); ++i) {

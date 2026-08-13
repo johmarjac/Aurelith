@@ -24,6 +24,16 @@ constexpr float kTickSeconds = 1.0f / static_cast<float>(kTickRate);
 // Steiler als das wird nicht mehr begangen.
 constexpr float kMaxWalkableSlopeDeg = 52.0f;
 
+// --- Springen --------------------------------------------------------------
+//
+// Beide Zahlen liegen deutlich über der Wirklichkeit, und das ist Absicht: mit
+// 9,81 m/s² schwebt eine Figur, die gut einen Meter hoch springt, fast eine
+// Sekunde lang durch die Luft, und das fühlt sich an wie auf dem Mond. 22 und
+// 7,2 ergeben 1,18 Meter Scheitelhöhe in 0,65 Sekunden — hoch genug, dass man
+// den Sprung sieht, kurz genug, dass er die Steuerung nicht anhält.
+constexpr float kGravity = 22.0f;
+constexpr float kJumpSpeed = 7.2f;
+
 // Trefferpause des Opfers in Sekunden.
 constexpr float kHitStunSeconds = 0.18f;
 
@@ -194,6 +204,18 @@ struct Entity {
 
   float hp = 1.0f, maxHp = 1.0f;
   float mp = 0.0f, maxMp = 0.0f;
+
+  /**
+   * Senkrechte Geschwindigkeit und ob die Figur den Boden verlassen hat.
+   *
+   * `airborne` ist kein abgeleiteter Wert, obwohl man ihn aus `y` und dem
+   * Gelände ausrechnen könnte: die Figur steht beim Absprung noch exakt auf
+   * dem Boden, und ein Vergleich ergäbe „am Boden" — der Sprung endete im
+   * selben Tick, in dem er beginnt. Das Merkmal gehört zum Zustand, nicht zur
+   * Geometrie.
+   */
+  float vy = 0.0f;
+  bool airborne = false;
 
   float attackCooldown = 0.0f;
   // Negativ heißt: kein Schlag unterwegs.

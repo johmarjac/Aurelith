@@ -29,6 +29,19 @@ export interface RigState {
    * Schleim, Vierbeiner —, sehen einfach weg.
    */
   pickupPhase: number;
+  /**
+   * Wie weit die Figur vom Boden weg ist, 0 bis 1.
+   *
+   * Nicht die Höhe in Metern: die Pose soll beim Absprung weich einsetzen und
+   * ist ab einem Vierteldmeter voll ausgeprägt. Wer die Zahl in Metern
+   * durchreichte, müsste dieselbe Umrechnung in jedem Rig wiederholen.
+   *
+   * Weggelassen heisst „am Boden" — die Werkzeuge, die Rigs für Bilder
+   * aufstellen, sollen keine Sprungwerte erfinden müssen.
+   */
+  luft?: number;
+  /** Steigt die Figur gerade, oder fällt sie? Formt die Beinhaltung. */
+  steigt?: boolean;
   dead: boolean;
   /** Sekunden seit Spielstart, für Leerlaufbewegung mit fester Frequenz. */
   time: number;
@@ -771,6 +784,34 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
       body.position.y = Math.abs(Math.sin(gaitPhase)) * 0.05 * gait +
         Math.sin(state.time * 1.8) * 0.012 -
         beugung * 0.18;
+
+      // --- Sprung ---------------------------------------------------------
+      //
+      // Zuletzt und als Überblendung über alles andere: ein Sprung übersteuert
+      // Schrittwerk und Wippen, aber nicht schlagartig. Beim Abheben wächst
+      // `luft` von null hoch, beim Landen fällt es zurück — die Figur geht
+      // also weich in die Sprunghaltung und ebenso weich wieder heraus.
+      //
+      // Zwei Haltungen, nicht eine: beim Steigen zieht man die Knie an und
+      // nimmt die Arme hoch, beim Fallen streckt man die Beine nach unten, um
+      // aufzukommen. Eine einzige Pose für beides sieht aus wie eine Puppe an
+      // einem Faden.
+      const luft = Math.max(0, Math.min(1, state.luft ?? 0));
+      if (luft > 0) {
+        const steigt = state.steigt === true;
+        const misch = (jetzt: number, sprung: number): number =>
+          jetzt * (1 - luft) + sprung * luft;
+
+        // Beim Fallen stehen die Beine fast senkrecht unter dem Körper — so
+        // kommt man auf. Nur leicht gespreizt, damit die Haltung nicht wie
+        // stramme Habachtstellung aussieht.
+        legL.rotation.x = misch(legL.rotation.x, steigt ? -1.0 : 0.18);
+        legR.rotation.x = misch(legR.rotation.x, steigt ? -0.7 : -0.12);
+        armL.rotation.x = misch(armL.rotation.x, steigt ? -1.25 : -0.55);
+        armR.rotation.x = misch(armR.rotation.x, steigt ? -1.05 : -0.45);
+        body.rotation.x = misch(body.rotation.x, steigt ? -0.14 : 0.1);
+        body.position.y = misch(body.position.y, steigt ? 0.07 : -0.05);
+      }
     },
     dispose() {
       for (const g of disposables) g.dispose();

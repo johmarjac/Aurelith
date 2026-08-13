@@ -38,6 +38,7 @@ import {
 import type { EntityVisual } from '../render/worldView.ts';
 import type { ModelRegistry } from '../render/modelRegistry.ts';
 import { GameWindow } from './windows.ts';
+import { Konsole, type LogArt } from './konsole.ts';
 import { DialogWindow, QuestLogWindow, ShopWindow, UpgradeWindow } from './npcWindows.ts';
 import { Overlay } from './overlay.ts';
 import { DollView } from './dollView.ts';
@@ -198,6 +199,8 @@ export class UI {
   onChatSubmit?: (text: string) => void;
   onRespawn?: () => void;
   onAttackHold?: (held: boolean) => void;
+  /** Der Sprungknopf auf dem Telefon. Dasselbe wie die Leertaste. */
+  onJump?: () => void;
   /** Der Spieler will das Tor benutzen, in dem er steht. */
   onUsePortal?: () => void;
   /**
@@ -257,6 +260,12 @@ export class UI {
   private readonly menuPanel: HTMLDivElement;
   private readonly menuButton: HTMLButtonElement;
   private readonly settingsWindow: GameWindow;
+  /**
+   * Die Konsole. Öffentlich, weil das ganze Spiel hineinschreibt — und weil
+   * die zweite Meldungsstelle daneben (der Chat) etwas anderes ist: dort steht,
+   * was den Spieler angeht, hier, was den Entwickler angeht.
+   */
+  readonly konsole: Konsole;
 
   private readonly dialogWindow: DialogWindow;
   private readonly questWindow: QuestLogWindow;
@@ -510,6 +519,14 @@ export class UI {
     );
     this.buildSettings();
 
+    // --- Konsole ----------------------------------------------------------
+    //
+    // Früh angelegt und sofort umgeleitet: was beim Start schiefgeht, ist das
+    // Interessanteste überhaupt, und eine Konsole, die erst nach dem Laden
+    // zuhört, hat genau davon nichts.
+    this.konsole = new Konsole(host);
+    this.konsole.uebernehmeGlobales();
+
     // --- Fertigkeitenleiste -----------------------------------------------
     //
     // Unten in der Mitte, und vorerst leer: hier kommen die Fertigkeiten hin.
@@ -538,6 +555,7 @@ export class UI {
       this.menuEntry('📜', 'Aufträge', 'J', () => this.questWindow.toggle()),
       this.menuEntry('💬', 'Chat', '⏎', () => this.setChatOpen(!this.chatOpen)),
       this.menuEntry('⚙', 'Einstellungen', 'O', () => this.settingsWindow.toggle()),
+      this.menuEntry('🐞', 'Konsole', 'K', () => this.konsole.fenster.toggle()),
       this.menuEntry('🚪', 'Abmelden', '', () => this.onLeaveWorld?.()),
     );
     host.appendChild(this.menuPanel);
@@ -571,6 +589,19 @@ export class UI {
       attack.addEventListener('pointercancel', press(false));
       attack.addEventListener('pointerleave', press(false));
       host.appendChild(attack);
+
+      // Springen. Ein eigener Knopf, weil es am Telefon keine Leertaste gibt —
+      // und kleiner als der Angriffsknopf: gesprungen wird seltener, und der
+      // Daumen soll im Gefecht nicht danebengreifen.
+      const jump = el('button', 'jump-button', '⭡');
+      jump.type = 'button';
+      jump.title = 'Springen';
+      jump.setAttribute('aria-label', 'Springen');
+      jump.addEventListener('pointerdown', (ev) => {
+        ev.preventDefault();
+        this.onJump?.();
+      });
+      host.appendChild(jump);
     }
 
     // --- Tor-Hinweis ------------------------------------------------------
@@ -840,6 +871,7 @@ export class UI {
       else if (e.code === 'KeyC') this.characterWindow.toggle();
       else if (e.code === 'KeyJ') this.questWindow.toggle();
       else if (e.code === 'KeyO') this.settingsWindow.toggle();
+      else if (e.code === 'KeyK') this.konsole.fenster.toggle();
       else if (e.code === 'Escape') this.setMenuOpen(this.menuPanel.hidden);
       else if (e.code === 'Enter') {
         e.preventDefault();
@@ -851,6 +883,17 @@ export class UI {
   // -------------------------------------------------------------------------
   // Anzeigen
   // -------------------------------------------------------------------------
+
+  /**
+   * Eine Zeile in die Konsole.
+   *
+   * Der eine Weg dorthin — auch für Meldungen, die nebenbei in `console.log`
+   * landen. Zwei Wege wären zwei Fassungen desselben Textes, und beim Suchen
+   * eines Fehlers wüsste man nie, welche vollständig ist.
+   */
+  debug(text: string, art: LogArt = 'info'): void {
+    this.konsole.schreibe(art, text);
+  }
 
   setPlayerName(name: string): void {
     this.nameLabel.textContent = name;

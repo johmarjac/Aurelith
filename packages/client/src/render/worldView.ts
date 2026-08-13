@@ -93,6 +93,15 @@ export interface EntityVisual {
   maxHp: number;
   state: EntityState;
 
+  /**
+   * Höhe im vorigen Bild — nur, um Steigen von Fallen zu unterscheiden.
+   *
+   * Die senkrechte Geschwindigkeit steht im Kern, kommt aber nicht über das
+   * Netz: sie im Schnappschuss mitzuführen wären vier Byte je Wesen und Bild
+   * für eine Angabe, die sich hier aus zwei Höhen ablesen lässt.
+   */
+  hoeheVorher: number;
+
   /** Gezeichnete Position — läuft der Zielposition hinterher. */
   x: number;
   y: number;
@@ -168,6 +177,8 @@ export class WorldView {
   /** Was gerade auf dem Boden liegt. Wird aus dem Snapshot abgeglichen. */
   readonly loot: LootView;
   private doc?: MapDocument;
+  /** Die Welt der aktuellen Karte — nur für die Bodenhöhe, siehe `setMap`. */
+  private welt?: CoreWorld;
   private elapsed = 0;
 
   /**
@@ -206,6 +217,11 @@ export class WorldView {
   setMap(world: CoreWorld, doc: MapDocument, quality: QualitySettings): void {
     this.clear();
     this.doc = doc;
+    // Die Welt wird behalten, weil die Sprunganimation den Boden braucht:
+    // „in der Luft" heisst „über dem Gelände", und wie hoch das Gelände liegt,
+    // weiss nur der Kern. Eine zweite Höhenrechnung im Renderer wäre eine
+    // zweite Wahrheit über den Boden.
+    this.welt = world;
 
     this.terrain = buildTerrain(world, doc, quality.terrainCell, {
       useNormalMaps: quality.groundNormalMaps,
@@ -425,6 +441,7 @@ export class WorldView {
       targetY: row.y,
       targetZ: row.z,
       targetYaw: row.yaw,
+      hoeheVorher: row.y,
       attackTimer: -1,
       pickupTimer: -1,
       speed: 0,
@@ -720,8 +737,25 @@ export class WorldView {
         if (e.pickupTimer > PICKUP_ANIM_SECONDS) e.pickupTimer = -1;
       }
 
+      // In der Luft? Gefragt wird nur bei Spielern — Monster springen nicht,
+      // und ein Aufruf in den Kern je Wesen und Bild wäre für sie umsonst.
+      let luft = 0;
+      let steigt = false;
+      if (e.type === EntityType.Player && this.welt) {
+        const ueberBoden = e.y - this.welt.heightAt(e.x, e.z);
+        // Erst ab einer Handbreit, und ab einem Drittelmeter voll: darunter
+        // liegt das Rauschen aus Interpolation und Geländeauflösung, und eine
+        // Figur, die beim Gehen über eine Wurzel kurz die Beine anzieht, sieht
+        // kaputt aus.
+        luft = Math.max(0, Math.min(1, (ueberBoden - 0.08) / 0.3));
+        steigt = e.y > e.hoeheVorher + 1e-4;
+      }
+      e.hoeheVorher = e.y;
+
       e.rig.update({
         speed: e.speed,
+        luft,
+        steigt,
         attackPhase: e.attackTimer >= 0 ? e.attackTimer / ATTACK_ANIM_SECONDS : -1,
         pickupPhase: e.pickupTimer >= 0 ? e.pickupTimer / PICKUP_ANIM_SECONDS : -1,
         dead: e.state === EntityState.Dead,

@@ -5,14 +5,16 @@
  * Weltachsen und eine Blickrichtung. Was darüber liegt, unterscheidet sich:
  *
  *   Desktop  WASD bewegt, rechte Maustaste dreht die Kamera, Rad zoomt,
- *            Linksklick wählt aus, Leertaste greift das Gewählte an.
+ *            Linksklick wählt aus und greift an, Leertaste springt.
  *   Mobil    Ein Daumen links ist der Joystick, ein Finger rechts dreht die
- *            Kamera, zwei Finger zoomen, ein Tipper wählt aus, ein Knopf
- *            greift an.
+ *            Kamera, zwei Finger zoomen, ein Tipper wählt aus, zwei Knöpfe
+ *            greifen an und springen.
  *
- * Der Angriff ist ein **Druck** und kein Halten: seit dem Zielsystem heisst
- * er „greif das an, was ausgewählt ist", und das Weiterschlagen besorgt danach
- * das Spiel. Eine gehaltene Taste hätte hier nichts mehr zu sagen.
+ * Angriff und Sprung sind **Drücke** und kein Halten. Der Angriff heisst seit
+ * dem Zielsystem „greif das an, was ausgewählt ist", und das Weiterschlagen
+ * besorgt danach das Spiel; der Sprung ist ohnehin ein einzelner Absprung. Was
+ * beide gemeinsam haben: eine gehaltene Taste hat hier nichts mehr zu sagen,
+ * und deshalb wird nur die Flanke gemeldet.
  *
  * Die Bewegungsrichtung ist immer kamerarelativ: „vorwärts" heißt dorthin, wo
  * man hinsieht. Alles andere fühlt sich in der dritten Person falsch an.
@@ -29,6 +31,14 @@ export interface InputSnapshot {
   /** Blickrichtung, die die Figur einnehmen soll. */
   yaw: number;
   interact: boolean;
+  /**
+   * In diesem Schritt wurde abgesprungen.
+   *
+   * Genau **einen** Schritt lang wahr, auch wenn die Taste unten bleibt: der
+   * Kern lehnt einen zweiten Absprung in der Luft zwar ohnehin ab, aber die
+   * Absicht gehört hierher und nicht in eine Regel dort.
+   */
+  sprung: boolean;
   /**
    * Ob in diesem Takt tatsächlich jemand gesteuert hat.
    *
@@ -75,9 +85,17 @@ export class InputManager {
    * wiederholt sich, solange eine Taste gehalten wird, und jede Wiederholung
    * wäre sonst ein neuer Angriffsbefehl. Der Zustand selbst geht nirgendwohin.
    */
-  private attackKey = false;
   private attackButtonHeld = false;
   private interactPressed = false;
+  /**
+   * Sprungtaste gedrückt — bis der nächste Simulationsschritt sie abholt.
+   *
+   * `jumpKey` merkt sich, dass die Taste noch unten ist: `keydown` wiederholt
+   * sich, solange man sie hält, und jede Wiederholung wäre sonst ein neuer
+   * Absprung, sobald die Figur den Boden berührt.
+   */
+  private jumpPressed = false;
+  private jumpKey = false;
 
   /** Zeiger, der gerade die Kamera dreht. */
   private lookPointer: number | null = null;
@@ -123,19 +141,20 @@ export class InputManager {
       if (isTypingTarget(e.target)) return;
       this.keys.add(e.code);
       if (e.code === 'Space') {
+        // Ohne das scrollt die Seite unter dem Spiel weg.
         e.preventDefault();
-        if (!this.attackKey) this.onAttackPressed?.();
-        this.attackKey = true;
+        if (!this.jumpKey) this.jumpPressed = true;
+        this.jumpKey = true;
       }
       if (e.code === 'KeyF') this.interactPressed = true;
     };
     const up = (e: KeyboardEvent) => {
       this.keys.delete(e.code);
-      if (e.code === 'Space') this.attackKey = false;
+      if (e.code === 'Space') this.jumpKey = false;
     };
     const blur = () => {
       this.keys.clear();
-      this.attackKey = false;
+      this.jumpKey = false;
     };
 
     window.addEventListener('keydown', down);
@@ -337,6 +356,11 @@ export class InputManager {
     this.attackButtonHeld = held;
   }
 
+  /** Der Sprungknopf der Touch-Oberfläche. Dasselbe wie die Leertaste. */
+  springe(): void {
+    this.jumpPressed = true;
+  }
+
   /**
    * Liefert den Eingabezustand dieses Schrittes in Weltachsen.
    *
@@ -402,6 +426,8 @@ export class InputManager {
 
     const interact = this.interactPressed;
     this.interactPressed = false;
+    const sprung = this.jumpPressed;
+    this.jumpPressed = false;
 
     // Der automatische Lauf geht durch dieselbe Glättung wie die Hand am
     // Joystick — nicht an ihr vorbei. Sonst gäbe es zwei Arten, wie sich eine
@@ -423,6 +449,7 @@ export class InputManager {
       moveZ: steered.moveZ,
       yaw: steered.yaw,
       interact: !frozen && interact,
+      sprung: !frozen && sprung,
       manual: selbst,
     };
   }

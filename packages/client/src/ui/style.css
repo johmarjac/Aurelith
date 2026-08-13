@@ -465,6 +465,35 @@ body {
   transform: scale(0.96);
 }
 
+/*
+ * Der Sprungknopf sitzt links neben dem Angriff und ist kleiner.
+ *
+ * Kleiner, weil er seltener gebraucht wird als der Angriff — und links davon,
+ * weil der Daumen von rechts kommt: der wichtigere Knopf liegt näher am
+ * Ballen, der seltenere weiter innen. Beide zusammen bleiben in der unteren
+ * rechten Ecke, damit die linke Hand am Joystick nichts davon verdeckt.
+ */
+.jump-button {
+  position: absolute;
+  right: calc(var(--safe-r) + 7.2rem);
+  bottom: calc(var(--safe-b) + 5.6rem);
+  width: 3.6rem;
+  height: 3.6rem;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  line-height: 1;
+  background: radial-gradient(circle at 35% 30%, #3a5560, #1a2730);
+  border: 2px solid var(--panel-edge-bright);
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+}
+
+.jump-button:active {
+  background: radial-gradient(circle at 35% 30%, #8fd0e6, #2a6a86);
+  transform: scale(0.94);
+}
+
 /* --- Joystick ------------------------------------------------------------- */
 
 .joystick {
@@ -636,6 +665,107 @@ body {
   overflow-y: auto;
   overscroll-behavior: contain;
   touch-action: pan-y;
+}
+
+/* --- Konsole --------------------------------------------------------------
+ *
+ * Absichtlich schmucklos: hier wird gelesen, nicht bewundert. Feste Breite
+ * für die Zeit, Schreibmaschinenschrift für den Text — Zeilen, die alle an
+ * derselben Stelle beginnen, überfliegt man; eingerückte nicht.
+ */
+[data-window='konsole'] {
+  width: min(46rem, 92vw);
+}
+
+[data-window='konsole'] .window-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  /* Der Rumpf scrollt nicht, die Liste darin schon — sonst wandert der Kopf
+     mit den Knöpfen aus dem Bild, sobald etwas ansteht. */
+  overflow: hidden;
+  max-height: 60vh;
+}
+
+.konsole-kopf {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.konsole-zaehler {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--ink-3, #8a7f6d);
+  margin-right: auto;
+}
+
+.konsole-zaehler[data-fehler='true'] {
+  color: var(--danger);
+}
+
+.konsole-filter {
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.15rem 0.3rem;
+}
+
+.konsole-liste {
+  flex: 1;
+  min-height: 8rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  line-height: 1.5;
+  background: #0006;
+  border: 1px solid #0004;
+  border-radius: calc(var(--radius) * 0.5);
+  padding: 0.3rem 0.4rem;
+  /* Lange Pfade und Hexdumps sollen umbrechen statt seitwärts zu scrollen. */
+  overflow-wrap: anywhere;
+}
+
+.konsole-zeile {
+  display: flex;
+  gap: 0.45rem;
+  padding: 0.05rem 0;
+}
+
+.konsole-zeit {
+  flex: none;
+  opacity: 0.55;
+}
+
+.konsole-text {
+  white-space: pre-wrap;
+}
+
+.konsole-mal {
+  flex: none;
+  margin-left: auto;
+  opacity: 0.7;
+}
+
+.konsole-zeile[data-art='netz'] .konsole-text {
+  color: #9ec9e8;
+}
+
+.konsole-zeile[data-art='warnung'] .konsole-text {
+  color: #f0c46a;
+}
+
+.konsole-zeile[data-art='fehler'] .konsole-text {
+  color: #ff9b8c;
+}
+
+/* Der Filter blendet aus, statt neu zu bauen: eine ausgeblendete Zeile bleibt
+   im Verlauf und kommt beim Umschalten unverändert zurück. */
+.konsole-liste[data-filter='netz'] .konsole-zeile:not([data-art='netz']),
+.konsole-liste[data-filter='problem'] .konsole-zeile[data-art='info'],
+.konsole-liste[data-filter='problem'] .konsole-zeile[data-art='netz'] {
+  display: none;
 }
 
 /* Auf schmalen Geräten werden Fenster zu Blättern am unteren Rand. */

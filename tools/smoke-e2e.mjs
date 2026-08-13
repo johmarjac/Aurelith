@@ -440,25 +440,37 @@ check(
     `(${smoothness.interpolated} von ${smoothness.total} Bildern, ${smoothness.fps.toFixed(0)} fps)`,
 );
 
-// Angriffstaste ohne Ziel: sie darf nichts auslösen.
-//
-// Seit dem Zielsystem heisst die Leertaste „greif das Gewählte an", und ohne
-// Auswahl gibt es nichts zu greifen. Ein Kern, der wieder von selbst ein Ziel
-// suchte, fiele genau hier auf.
+// Springen. Die Leertaste greift seit dem Zielsystem nicht mehr an — sie hebt
+// die Figur vom Boden. Gemessen an der Höhe der eigenen Figur: sie steigt und
+// kommt danach wieder auf dieselbe Höhe zurück.
+const vorSprung = await page.evaluate(() => window.aurelith.playerSim.y);
 await page.keyboard.press('Space');
-await page.waitForTimeout(600);
-
-const after = await page.evaluate(() => ({
+await page.waitForTimeout(250);
+const imSprung = await page.evaluate(() => window.aurelith.playerSim.y);
+await page.waitForTimeout(900);
+const nachSprung = await page.evaluate(() => ({
+  y: window.aurelith.playerSim.y,
   auftrag: { ...window.aurelith.auftrag },
   status: document.querySelector('.status')?.textContent ?? '',
 }));
 
 check(
-  after.auftrag.art === 'nichts' && after.auftrag.angriff === false,
-  'ohne Ziel loest die Angriffstaste nichts aus',
-  `${after.auftrag.art}, angriff=${after.auftrag.angriff}`,
+  imSprung > vorSprung + 0.3,
+  'die Leertaste hebt die Figur vom Boden',
+  `${vorSprung.toFixed(2)} → ${imSprung.toFixed(2)}`,
 );
-check(after.status.length > 0, 'Statusanzeige bleibt lesbar');
+check(
+  Math.abs(nachSprung.y - vorSprung) < 0.05,
+  'und sie landet wieder',
+  `${imSprung.toFixed(2)} → ${nachSprung.y.toFixed(2)}`,
+);
+// Die Gegenprobe zum alten Verhalten: ein Sprung ist kein Angriff.
+check(
+  nachSprung.auftrag.art === 'nichts' && nachSprung.auftrag.angriff === false,
+  'ein Sprung loest keinen Angriff aus',
+  `${nachSprung.auftrag.art}, angriff=${nachSprung.auftrag.angriff}`,
+);
+check(nachSprung.status.length > 0, 'Statusanzeige bleibt lesbar');
 
 // --- Chatbefehl /connect --------------------------------------------------
 //

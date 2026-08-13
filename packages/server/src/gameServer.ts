@@ -12,6 +12,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import type { Server } from 'node:http';
 import {
   AccessLevel,
+  ByteReader,
   ChatChannel,
   EntityState,
   EntityType,
@@ -99,6 +100,11 @@ import { CoreEventType, CoreButton } from '@aurelith/core';
 import { hashPassword, verifyPassword } from './passwords.ts';
 import { runCommand } from './commands.ts';
 import { config } from './config.ts';
+import {
+  protokolliereOpcodeFehler,
+  protokolliereRahmenfehler,
+  type RahmenQuelle,
+} from './framelog.ts';
 import type { CoreBundle } from './core.ts';
 import type { MapStore } from './maps.ts';
 import { MapInstance, type EntityMeta } from './mapInstance.ts';
@@ -192,18 +198,31 @@ export class GameServer {
     const session = new Session(this.nextSessionId++, ws, config.maxInputsPerSecond);
     this.sessions.add(session);
 
+    // Die Adresse einmal beim Verbinden merken: nach dem Schliessen ist sie
+    // weg, und der Rahmenfehler, den man protokollieren will, kommt gern genau
+    // dann.
+    session.adresse = String(
+      (ws as unknown as { _socket?: { remoteAddress?: string } })._socket?.remoteAddress ?? '',
+    );
+
     ws.binaryType = 'nodebuffer';
     ws.on('message', (data: Buffer) => {
       session.lastSeenAt = Date.now();
+      const bytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
       try {
-        this.onFrame(session, new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
+        this.onFrame(session, bytes);
       } catch (err) {
         if (err instanceof FrameError) {
+          // Ins Ausgabefenster, mit Kopf und Hexdump. Ein Rahmenfehler beendet
+          // die Sitzung — wenn er nicht protokolliert wird, ist er danach
+          // spurlos weg, und übrig bleibt „die Verbindung bricht manchmal ab".
+          session.rahmenfehler++;
+          protokolliereRahmenfehler(this.quelleVon(session), err, bytes);
           session.send(encodeKick(KickReason.BadFrame, err.code));
           session.flush();
           session.close(1002, err.code);
         } else {
-          console.error('[sitzung] Fehler beim Verarbeiten:', err);
+          console.error(`[sitzung ${session.id}] Fehler beim Verarbeiten:`, err);
           session.close(1011, 'internal');
         }
       }
@@ -227,10 +246,36 @@ export class GameServer {
     session.state = 'closed';
   }
 
+  /** Wer da schickt — so viel, wie gerade bekannt ist. Für das Protokoll. */
+  private quelleVon(session: Session): RahmenQuelle {
+    return {
+      sitzung: session.id,
+      zustand: session.state,
+      konto: session.accountName,
+      figur: session.character?.name ?? '',
+      adresse: session.adresse,
+    };
+  }
+
   private onFrame(session: Session, data: Uint8Array): void {
     const frame = decodeFrame(data, session.cipherSuite);
     for (const raw of frame.packets) {
       const { opcode, reader } = readPacket(raw);
+      try {
+        this.onPacket(session, opcode, reader);
+      } catch (err) {
+        // Rahmen in Ordnung, Inhalt nicht: meist ein Rumpf, der sich geändert
+        // hat, während die Protokollversion stehenblieb. Das Paket fällt aus,
+        // die Sitzung bleibt — ein einzelnes unlesbares Paket ist kein Grund,
+        // jemanden aus der Welt zu werfen.
+        session.paketfehler++;
+        protokolliereOpcodeFehler(this.quelleVon(session), opcode, raw, err);
+      }
+    }
+  }
+
+  private onPacket(session: Session, opcode: number, reader: ByteReader): void {
+    {
       switch (opcode) {
         case ClientOp.Hello:
           this.onHello(session, decodeHello(reader));

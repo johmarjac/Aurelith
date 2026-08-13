@@ -241,6 +241,91 @@ if (!BUG) {
   rig.dispose();
 }
 
+// --- Sprung ----------------------------------------------------------------
+//
+// Drei Eigenschaften, die zusammen den Sprung ausmachen: er verändert die Pose
+// überhaupt, Steigen und Fallen sehen verschieden aus, und dazwischen wird
+// überblendet statt umgeschaltet.
+//
+// Gemessen wird am ganzen Posenvektor und nicht an einem einzelnen Gelenk: die
+// Rigs benennen ihre Teile nicht, und ein Test, der das tiefste Mesh für einen
+// Fuss hält, misst irgendwann eine Hand.
+
+console.log('\nSprung');
+if (!BUG) {
+  const rig = createRig('player', new THREE.MeshBasicMaterial());
+  const stand = { speed: 0, attackPhase: -1, pickupPhase: -1, dead: false, time: 3, dt: DT };
+
+  const posiere = (luft: number, steigt: boolean): number[] => {
+    rig.update({ ...stand, luft, steigt });
+    return pose(rig);
+  };
+
+  const amBoden = posiere(0, false);
+  const steigend = posiere(1, true);
+  const fallend = posiere(1, false);
+
+  check(maxDelta(steigend, amBoden) > 0.5, 'in der Luft steht die Figur anders',
+    `groesster Unterschied ${maxDelta(steigend, amBoden).toFixed(2)} rad`);
+  check(maxDelta(steigend, fallend) > 0.5, 'und Steigen sieht anders aus als Fallen',
+    `groesster Unterschied ${maxDelta(steigend, fallend).toFixed(2)} rad`);
+
+  // Die Überblendung: jeder einzelne Wert der halben Pose muss zwischen Boden
+  // und voller Sprunghaltung liegen. Ein Umschalten bei einer Schwelle fiele
+  // hier durch — und im Bild als Zucken beim Abheben auf.
+  const halb = posiere(0.5, true);
+  let dazwischen = true;
+  for (let i = 0; i < halb.length; i++) {
+    const a = Math.min(amBoden[i]!, steigend[i]!) - 1e-6;
+    const b = Math.max(amBoden[i]!, steigend[i]!) + 1e-6;
+    if (halb[i]! < a || halb[i]! > b) dazwischen = false;
+  }
+  check(dazwischen, 'auf halbem Weg liegt jede Haltung dazwischen');
+
+  // Die Füsse verlassen den Boden — die Eigenschaft, die man tatsächlich
+  // sieht.
+  //
+  // Verfolgt werden **dieselben** Teile vorher und nachher: die Reihenfolge
+  // beim Durchlaufen des Rigs ist fest, also taugt der Index als Kennung. Nur
+  // „den tiefsten Punkt" zu messen ginge daneben, sobald ein Saum oder ein
+  // Umhang tief hängt und sich beim Sprung nicht bewegt — dann bliebe der
+  // tiefste Punkt stehen, obwohl die Beine längst oben sind.
+  const teile = (luft: number, steigt: boolean): Array<{ x: number; y: number }> => {
+    rig.update({ ...stand, luft, steigt });
+    rig.root.updateMatrixWorld(true);
+    const raus: Array<{ x: number; y: number }> = [];
+    rig.root.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      const p = new THREE.Vector3();
+      o.getWorldPosition(p);
+      raus.push({ x: p.x, y: p.y });
+    });
+    return raus;
+  };
+
+  const ruhe = teile(0, false);
+  // Die Füsse sind die tiefsten Teile **neben** der Mittelachse: ganz unten in
+  // der Mitte sitzt ein Teil des Rumpfes, das sich mit ihm hebt und nicht mit
+  // den Beinen. Wer nur „das tiefste Mesh" nähme, prüfte an ihm — und bekäme
+  // eine Figur durchgewunken, die im Sprung die Beine hängen lässt.
+  const fuesse = ruhe
+    .map((t, i) => ({ ...t, i }))
+    .filter((t) => Math.abs(t.x) > 0.05)
+    .sort((a, b) => a.y - b.y)
+    .slice(0, 2)
+    .map((t) => t.i);
+  const gehoben = teile(1, true);
+  const angezogen = fuesse.filter((i) => gehoben[i]!.y > ruhe[i]!.y + 0.15).length;
+  check(angezogen === 2, 'beide Füsse werden angezogen',
+    `${angezogen} von 2 um mehr als 15 cm`);
+
+  // Gegenprobe: ohne Luft ändert die Steigrichtung nichts. Ohne sie prüfte
+  // alles oben nur, dass `update` überhaupt etwas tut.
+  check(maxDelta(posiere(0, true), amBoden) < 1e-6, 'am Boden ändert `steigt` nichts');
+
+  rig.dispose();
+}
+
 console.log(
   `\n${failures === 0 ? 'Alle Pruefungen bestanden.' : `${failures} Pruefung(en) fehlgeschlagen.`}`,
 );

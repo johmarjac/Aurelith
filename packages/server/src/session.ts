@@ -120,6 +120,18 @@ export class Session {
   }
 
   lastSeenAt = Date.now();
+  /** Adresse der Gegenstelle, beim Verbinden gemerkt. Nur fürs Protokoll. */
+  adresse = '';
+  /**
+   * Wie oft diese Verbindung schon Unlesbares geschickt hat.
+   *
+   * Zwei Zähler, weil es zwei verschiedene Fehler sind: ein kaputter Rahmen
+   * beendet die Sitzung, ein unlesbares Paket nicht. Wer beides in einer Zahl
+   * führte, sähe nicht mehr, ob eine Sitzung einmal hart gescheitert ist oder
+   * fünfzigmal ein Paket verschluckt hat.
+   */
+  rahmenfehler = 0;
+  paketfehler = 0;
   /** Verbleibendes Eingabekontingent dieser Sekunde. */
   inputBudget: number;
   private budgetResetAt = Date.now() + 1000;

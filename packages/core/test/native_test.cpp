@@ -195,6 +195,80 @@ void testSwingHitsOnlyTarget() {
   check(weit.find(10)->hp == 100.0f, "ein Ziel ausser Reichweite bleibt unversehrt");
 }
 
+void testJump() {
+  std::printf("Springen\n");
+  aur::MobRegistry mobs;
+  aur::World world(17u, flatTerrain(), &mobs);
+  world.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+
+  const aur::Entity* p = world.find(1);
+  const float boden = p->y;
+
+  // Ein Tick mit gedrückter Sprungtaste: die Figur muss abheben.
+  world.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonJump, aur::kTickSeconds);
+  world.step(aur::kTickSeconds);
+  check(p->y > boden, "die Figur hebt ab");
+  check(p->airborne, "und gilt als in der Luft");
+
+  // Die Taste bleibt gedrückt. In der Luft darf daraus **kein** zweiter Stoss
+  // werden — sonst stiege die Figur, solange jemand die Taste hält.
+  //
+  // Geprüft wird an der senkrechten Geschwindigkeit und nicht an der Höhe: sie
+  // fällt unter Schwerkraft stetig, und jeder Stoss wäre ein Sprung nach oben
+  // in dieser Zahl. Über die Höhe wäre derselbe Fehler nicht von einem zweiten
+  // Sprung *nach der Landung* zu unterscheiden — und der ist erlaubt.
+  float hoechste = p->y;
+  float vorigeSteigung = p->vy;
+  bool zweiterStoss = false;
+  for (int i = 0; i < 12; ++i) {
+    world.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonJump, aur::kTickSeconds);
+    world.step(aur::kTickSeconds);
+    if (!p->airborne) break;
+    if (p->vy > vorigeSteigung + 0.01f) zweiterStoss = true;
+    vorigeSteigung = p->vy;
+    hoechste = std::max(hoechste, p->y);
+  }
+  check(!zweiterStoss, "eine gehaltene Taste stösst in der Luft nicht nach");
+
+  // Scheitelhöhe: v²/(2g) bei 7,2 und 22 sind 1,18 Meter. Grosszügige Grenzen,
+  // weil die Schrittweite den Scheitel nicht genau trifft — aber eng genug,
+  // dass ein Faktor daneben auffällt.
+  check(hoechste - boden > 0.8f && hoechste - boden < 1.5f,
+        "die Sprunghöhe liegt im erwarteten Bereich");
+
+  // Und am Ende steht sie wieder am Boden, mit stehender Höhe.
+  for (int i = 0; i < aur::kTickRate; ++i) world.step(aur::kTickSeconds);
+  check(!p->airborne, "sie landet wieder");
+  checkNear(p->y, boden, 0.001f, "und steht auf derselben Höhe wie vorher");
+
+  // Ohne Sprungtaste passiert nichts. Die Gegenprobe zur ersten Zeile: ohne
+  // sie prüfte sie nur, dass die Figur überhaupt eine Höhe hat.
+  aur::World ruhig(18u, flatTerrain(), &mobs);
+  ruhig.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+  const aur::Entity* q = ruhig.find(1);
+  const float ruheBoden = q->y;
+  for (int i = 0; i < 10; ++i) {
+    ruhig.applyInput(1, 0.0f, 1.0f, 0.0f, 0u, aur::kTickSeconds);
+    ruhig.step(aur::kTickSeconds);
+  }
+  check(!q->airborne, "ohne Sprungtaste bleibt sie am Boden");
+  checkNear(q->y, ruheBoden, 0.001f, "auch beim Laufen");
+
+  // Waagerecht bewegen darf man sich im Sprung — sonst bliebe die Figur in der
+  // Luft stehen, sobald man springt.
+  aur::World weit(19u, flatTerrain(), &mobs);
+  weit.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+  const aur::Entity* r = weit.find(1);
+  weit.applyInput(1, 0.0f, 1.0f, 0.0f, aur::kButtonJump, aur::kTickSeconds);
+  weit.step(aur::kTickSeconds);
+  const float z0 = r->z;
+  for (int i = 0; i < 6; ++i) {
+    weit.applyInput(1, 0.0f, 1.0f, 0.0f, 0u, aur::kTickSeconds);
+    weit.step(aur::kTickSeconds);
+  }
+  check(r->z > z0 + 0.5f, "im Sprung kommt man vorwärts");
+}
+
 void testWindupDelaysDamage() {
   std::printf("Vorlaufzeit verzögert den Schaden\n");
   aur::MobRegistry mobs;
@@ -684,6 +758,7 @@ int main() {
   testMovement();
   testCollider();
   testSwingHitsOnlyTarget();
+  testJump();
   testWindupDelaysDamage();
   testAggroAndLeash();
   testDeathAndRespawn();

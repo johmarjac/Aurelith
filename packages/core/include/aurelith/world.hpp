@@ -184,6 +184,7 @@ class World {
 
   // Tick-Abschnitte
   void advanceTimers(Entity& e, float dt);
+  void advanceJump(Entity& e, float dt);
   void updateMonsterAi(Entity& e, float dt);
   /**
    * Wo ein Wesen hingehört: Mitte seines Feldes und dessen Radius.

@@ -19,6 +19,7 @@ import {
   decodeCombatEvent,
   decodeEmote,
   decodeFrame,
+  FrameError,
   decodeInventory,
   decodeKick,
   decodeMapChange,
@@ -156,10 +157,20 @@ export class Connection {
 
     socket.onmessage = (event) => {
       if (!(event.data instanceof ArrayBuffer)) return;
+      const bytes = new Uint8Array(event.data);
       try {
-        this.handleFrame(new Uint8Array(event.data));
+        this.handleFrame(bytes);
       } catch (err) {
-        console.error('[netz] Frame nicht lesbar:', err);
+        // Dasselbe, was der Server in sein Ausgabefenster schreibt, nur von
+        // dieser Seite gesehen: Fehlerschlüssel, Länge und die ersten Bytes.
+        // Ohne die Bytes ist „Frame nicht lesbar" eine Feststellung ohne
+        // Anhaltspunkt.
+        const code = err instanceof FrameError ? err.code : 'unbekannt';
+        const text = err instanceof Error ? err.message : String(err);
+        const kopf = [...bytes.subarray(0, 16)]
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join(' ');
+        console.error(`[netz] Rahmen nicht lesbar (${code}): ${text} — ${bytes.length} Byte: ${kopf}`);
       }
     };
 
