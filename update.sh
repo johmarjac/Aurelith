@@ -119,7 +119,21 @@ schritt 'Stapel neu starten'
 # Ohne -v: die Datenbanken liegen in Volumes und sollen das ueberleben.
 # `--remove-orphans` raeumt Container weg, keine Volumes.
 compose down --remove-orphans
-compose up -d
+
+# Kommt der Stapel nicht hoch, sind die Protokolle das Einzige, was die
+# Ursache nennt.
+#
+# Compose selbst sagt nur „dependency failed to start: container … is
+# unhealthy" — und das steht sowohl da, wenn ein Dienst seine Gesundheits-
+# pruefung nicht besteht, als auch dann, wenn er sofort stirbt. Zwei sehr
+# verschiedene Faelle unter einem Satz. Wer den Unterschied sehen will,
+# braucht die Zeilen aus dem Dienst selbst, und die sind nach dem naechsten
+# `up` weg.
+if ! compose up -d; then
+  schritt 'Protokolle der Dienste (letzte Zeilen)'
+  compose logs --tail=40 --no-color || true
+  fehler 'Der Stapel kam nicht hoch. Die Ursache steht in den Zeilen darueber.'
+fi
 
 # --- Ergebnis ---------------------------------------------------------------
 
