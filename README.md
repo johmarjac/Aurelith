@@ -524,6 +524,13 @@ Die internen Wege des Anmeldeservers liegen unter `/intern/` und sind mit
 wer sie erreicht, kann einen Kanal in die Liste stellen und Spieler auf seinen
 Rechner locken. Der Proxy soll sie nicht durchreichen.
 
+`update.sh` prüft vor dem Ziehen, ob dort, wo Docker seine Daten hält, noch
+zwei Gigabyte frei sind, und räumt nach jeder Aktualisierung die verwaisten
+Bilder weg (`--behalte-bilder` schaltet das ab). Beides aus einem Anlass: eine
+volle SD-Karte zeigt sich nicht als „kein Platz", sondern als eine Datenbank,
+die eine halbe Sekunde nach dem Start stirbt, und als ein Compose, das dazu
+nur „is unhealthy" sagt.
+
 Lokal beide Anwendungen starten:
 
 ```

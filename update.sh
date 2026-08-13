@@ -6,8 +6,8 @@
 # neue Serverbild und startet wieder — samt Anbindung an das Netz des
 # Reverse-Proxys, damit SWAG den Server nach dem Neustart wieder findet.
 #
-#   ./update.sh                 aktualisieren
-#   ./update.sh --aufraeumen    danach alte Bilder loeschen
+#   ./update.sh                 aktualisieren, danach alte Bilder loeschen
+#   ./update.sh --behalte-bilder  alte Bilder stehen lassen
 #   ./update.sh --ohne-git      nur Container, Repository unveraendert
 #
 # Der Netzname des Proxys laesst sich ueberschreiben:
@@ -35,11 +35,18 @@ fehler() {
   exit 1
 }
 
-aufraeumen=0
+# Aufraeumen ist die Vorgabe und nicht mehr die Ausnahme.
+#
+# Jede Aktualisierung laesst das vorige Bild als verwaistes zurueck, und auf
+# einer SD-Karte summiert sich das zu genau dem Ausfall, den die Pruefung oben
+# jetzt abfaengt. Wer die alten Bilder braucht — etwa um schnell
+# zurueckzurollen —, schaltet es ab.
+aufraeumen=1
 mit_git=1
 for arg in "$@"; do
   case "$arg" in
     --aufraeumen) aufraeumen=1 ;;
+    --behalte-bilder) aufraeumen=0 ;;
     --ohne-git) mit_git=0 ;;
     -h | --help)
       # Der Kopfkommentar *ist* die Hilfe. Ein fester Zeilenbereich waere
@@ -75,6 +82,34 @@ grep -qE '^AURELITH_INTERNAL_SECRET=.+' .env ||
   fehler 'In der .env fehlt AURELITH_INTERNAL_SECRET (oder es ist leer).
 Frei waehlbar, lang, und nicht dasselbe wie das Datenbankpasswort:
   echo "AURELITH_INTERNAL_SECRET=$(head -c 24 /dev/urandom | base64)" >> .env'
+
+# --- Platz auf der Platte ---------------------------------------------------
+#
+# **Vor** dem Ziehen und lange vor `compose down`: geht der Platz erst
+# mitten im Neustart aus, steht der Stapel unten und die Meldung sagt
+# irgendetwas. Genau so ist es einmal gewesen — PostgreSQL beendete sich sechs
+# Zehntelsekunden nach dem Start, und Compose meldete nur „is unhealthy".
+#
+# Gemessen wird dort, wo Docker seine Daten hat, und nicht hier im
+# Repository: auf einem Pi liegen beide oft auf derselben Karte, aber eben
+# nicht immer.
+platz_frei_mb() {
+  wo="$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo /var/lib/docker)"
+  [ -d "$wo" ] || wo=/
+  df -Pm "$wo" 2>/dev/null | awk 'NR==2 { print $4 }'
+}
+
+frei="$(platz_frei_mb)"
+if [ -n "$frei" ] && [ "$frei" -lt 2048 ]; then
+  fehler "Nur noch ${frei} MB frei, wo Docker seine Daten haelt.
+Ein Bild ziehen und eine Datenbank starten braucht mehr — und geht der Platz
+mitten im Neustart aus, steht der Stapel unten.
+
+Platz schaffen, dann noch einmal:
+  docker image prune -af      # Bilder ohne Container
+  docker builder prune -af    # Baucache
+  docker volume ls            # nachsehen, ob verwaiste Baender dabei sind"
+fi
 
 docker network inspect "$SWAG_NETWORK" >/dev/null 2>&1 ||
   fehler "Das Netz \"$SWAG_NETWORK\" gibt es nicht. Vorhandene Netze: $(docker network ls --format '{{.Name}}' | tr '\n' ' ')"
