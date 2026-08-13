@@ -16,6 +16,9 @@ import {
   QUESTS,
   QuestStatus,
   clockText,
+  attributeDef,
+  formatAttribute,
+  formatBeitrag,
   getItem,
   tuning,
   tuningLoaded,
@@ -797,15 +800,43 @@ export class UI {
     const pct = next > 0 ? (stats.exp / next) * 100 : 100;
     this.setBar(this.expBar, stats.exp, next || 1, `${pct.toFixed(1)} %`);
 
-    this.characterStats.replaceChildren(
+    // Erst der Steckbrief, dann **alles**, was auf die Figur wirkt.
+    //
+    // Die Liste der Attribute steht nicht hier, sondern kommt vom Server:
+    // eine abgeschriebene Aufzählung zeigt irgendwann sechs von acht Werten,
+    // und die zwei fehlenden sind die, an denen das Gleichgewicht kippt.
+    const zeilen: HTMLElement[] = [
       ...this.statRow('Stufe', String(stats.level)),
       ...this.statRow('Erfahrung', next > 0 ? `${stats.exp} / ${next}` : 'Höchststufe'),
       ...this.statRow('Leben', `${Math.round(stats.hp)} / ${stats.maxHp}`),
       ...this.statRow('Mana', `${Math.round(stats.mp)} / ${stats.maxMp}`),
-      ...this.statRow('Angriff', String(stats.attackDamage)),
-      ...this.statRow('Verteidigung', String(stats.defense)),
       ...this.statRow('Gold', stats.gold.toLocaleString('de-DE')),
-    );
+    ];
+
+    for (const attribut of stats.attributes) {
+      const def = attributeDef(attribut.id);
+      // Unbekannte Kennung: dann eben die Kennung. Ein Attribut, das der
+      // Server kennt und der Client nicht, soll sichtbar sein und nicht
+      // verschluckt werden — es ist genau das neue, um das es gerade geht.
+      const name = def?.name ?? attribut.id;
+      const [dt, dd] = this.statRow(name, formatAttribute(attribut.id, attribut.gesamt));
+
+      // Die Herkunft steht darunter, klein: Grundwert und jedes Stück, das
+      // etwas beisteuert. Beim Ausbalancieren ist die Summe allein wertlos.
+      if (attribut.quellen.length > 0) {
+        const herkunft = [
+          `Grundwert ${formatAttribute(attribut.id, attribut.basis)}`,
+          ...attribut.quellen.map((q) => formatBeitrag(attribut.id, q)),
+        ].join(' · ');
+        dd.appendChild(el('span', 'stat-herkunft', herkunft));
+        dt.title = def?.hinweis ?? '';
+      } else if (def?.hinweis) {
+        dt.title = def.hinweis;
+      }
+      zeilen.push(dt, dd);
+    }
+
+    this.characterStats.replaceChildren(...zeilen);
   }
 
   /** Aktualisiert nur die Lebensanzeige — kommt mit jedem Snapshot. */

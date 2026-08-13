@@ -27,6 +27,7 @@ import {
   TICK_MS,
   TICK_SECONDS,
   attackProfileFor,
+  AttributeSheet,
   baseStatsForLevel,
   ClientOp,
   decodeClientChat,
@@ -50,6 +51,8 @@ import {
   encodeCombatEvent,
   encodeInventory,
   encodeKick,
+  EmoteKind,
+  encodeEmote,
   encodeLobby,
   encodeLobbyError,
   encodeServerVersion,
@@ -1751,6 +1754,10 @@ export class GameServer {
     const character = session.character;
     if (!character) return;
 
+    // Gebückt hat sie sich in jedem Fall — auch wenn gleich der Beutel voll
+    // ist. Die Geste gehört zur Handlung, nicht zum Ergebnis.
+    this.broadcastNear(instance, self.x, self.z, encodeEmote(session.entityId, EmoteKind.Pickup));
+
     if (pile.gold > 0) {
       character.gold += pile.gold;
       instance.loot.take(pile.id);
@@ -1887,39 +1894,87 @@ export class GameServer {
     return attackProfileFor(this.mainhandOf(session));
   }
 
-  private statsFor(session: Session): ReturnType<typeof baseStatsForLevel> {
+  /**
+   * Die vollständige Attributtafel einer Figur.
+   *
+   * **Die** Rechnung — es gibt keine zweite. Was hier herauskommt, geht in die
+   * Simulation *und* ins Charakterfenster; eine Anzeige, die ihre Zahlen
+   * anderswo herholt, zeigt früher oder später etwas anderes an, als gilt.
+   *
+   * Jeder Beitrag nennt seine Quelle. Zum Ausbalancieren ist die Summe allein
+   * wertlos: die Frage ist immer, welches Stück sie treibt.
+   */
+  private sheetFor(session: Session): AttributeSheet {
     const level = session.character?.level ?? 1;
-    const stats = baseStatsForLevel(level);
+    const basis = baseStatsForLevel(level);
+    const sheet = new AttributeSheet();
+
+    sheet.basis('maxHp', basis.maxHp);
+    sheet.basis('maxMp', basis.maxMp);
+    sheet.basis('attackDamage', basis.attackDamage);
+    sheet.basis('defense', basis.defense);
+    sheet.basis('moveSpeed', basis.moveSpeed);
+    sheet.basis('critChance', basis.critChance);
+    sheet.basis('critMultiplier', basis.critMultiplier);
+
     for (const entry of session.items) {
       if (!entry.equipped) continue;
       const def = getItem(entry.itemId);
       if (!def) continue;
-      stats.attackDamage += def.attackDamage;
-      stats.defense += def.defense;
-      stats.maxHp += def.maxHp;
-      stats.maxMp += def.maxMp;
-      stats.critChance += def.critChance;
 
-      // Die Aufwertung kommt obendrauf und wird nicht eingerechnet: `+7` ist
-      // ein Zuschlag auf das Stück, keine andere Waffe.
+      // Die Aufwertung gehört zum Stück und steht deshalb in derselben Zeile:
+      // „Eisenklinge +7" ist ein Gegenstand, nicht zwei.
       const bonus = upgradeBonus(def, entry.upgrade);
-      stats.attackDamage += bonus.attackDamage;
-      stats.defense += bonus.defense;
+      const name = upgradeName(def, entry.upgrade);
+      sheet.fuege('attackDamage', name, def.attackDamage + bonus.attackDamage);
+      sheet.fuege('defense', name, def.defense + bonus.defense);
+      sheet.fuege('maxHp', name, def.maxHp);
+      sheet.fuege('maxMp', name, def.maxMp);
+      sheet.fuege('critChance', name, def.critChance);
     }
 
     // Und ganz zum Schluss der Satz. Er wird auf die Summe der Teile addiert
     // und nicht in sie hinein: der Satzbonus ist die Belohnung dafür, dass
-    // alle vier zusammen getragen werden, kein vierteltes Extra je Stück.
+    // alle Teile zusammen getragen werden, kein geteiltes Extra je Stück.
     const satz = this.activeSetOf(session);
     if (satz) {
       const b = satz.set.bonus;
-      stats.attackDamage += b.attackDamage;
-      stats.defense += b.defense;
-      stats.maxHp += b.maxHp;
-      stats.maxMp += b.maxMp;
-      stats.critChance += b.critChance;
+      sheet.fuege('attackDamage', satz.set.name, b.attackDamage);
+      sheet.fuege('defense', satz.set.name, b.defense);
+      sheet.fuege('maxHp', satz.set.name, b.maxHp);
+      sheet.fuege('maxMp', satz.set.name, b.maxMp);
+      sheet.fuege('critChance', satz.set.name, b.critChance);
     }
-    return stats;
+
+    // Reichweite und Schlagpause kommen von der Waffe, und zwar ersetzend:
+    // ein Schwert *hat* seine Reichweite, es addiert sie nicht. Als Beitrag
+    // steht deshalb der Unterschied zur blossen Faust — die Summe ist damit
+    // genau der Wert der Waffe, und die Zeile sagt trotzdem, woher er kommt.
+    const faust = attackProfileFor(undefined);
+    const profil = this.attackProfileOf(session);
+    const waffe = this.mainhandOf(session);
+    sheet.basis('attackRange', faust.range);
+    sheet.basis('attackCooldown', faust.cooldownSec);
+    if (waffe) {
+      sheet.fuege('attackRange', waffe.name, profil.range - faust.range);
+      sheet.fuege('attackCooldown', waffe.name, profil.cooldownSec - faust.cooldownSec);
+    }
+
+    return sheet;
+  }
+
+  /** Was die Simulation braucht — aus derselben Tafel wie die Anzeige. */
+  private statsFor(session: Session): ReturnType<typeof baseStatsForLevel> {
+    const sheet = this.sheetFor(session);
+    return {
+      maxHp: sheet.wert('maxHp'),
+      maxMp: sheet.wert('maxMp'),
+      attackDamage: sheet.wert('attackDamage'),
+      defense: sheet.wert('defense'),
+      moveSpeed: sheet.wert('moveSpeed'),
+      critChance: sheet.wert('critChance'),
+      critMultiplier: sheet.wert('critMultiplier'),
+    };
   }
 
   /** Die angelegten Stücke, so wie die Satzrechnung sie sehen will. */
@@ -1939,7 +1994,10 @@ export class GameServer {
     if (!character) return;
     const instance = this.instances.get(session.mapId);
     const row = instance?.entity(session.entityId);
-    const stats = this.statsFor(session);
+    // Eine Tafel, zwei Nutzer: die Balken oben und die Liste im
+    // Charakterfenster. Zweimal rechnen hiesse, zwei Zahlen für dieselbe
+    // Sache zu schicken.
+    const sheet = this.sheetFor(session);
 
     session.send(
       encodeStats({
@@ -1947,12 +2005,11 @@ export class GameServer {
         exp: character.exp,
         expForNext: expForLevel(character.level),
         hp: row?.hp ?? character.hp,
-        maxHp: row?.maxHp ?? stats.maxHp,
+        maxHp: row?.maxHp ?? sheet.wert('maxHp'),
         mp: character.mp,
-        maxMp: stats.maxMp,
+        maxMp: sheet.wert('maxMp'),
         gold: character.gold,
-        attackDamage: stats.attackDamage,
-        defense: stats.defense,
+        attributes: sheet.alle(),
       }),
     );
   }

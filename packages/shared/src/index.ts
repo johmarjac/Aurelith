@@ -25,6 +25,7 @@ export * from './content/terrainWorld.ts';
 export * from './content/database.ts';
 export * from './content/equipment.ts';
 export * from './content/armorSets.ts';
+export * from './content/attributes.ts';
 export * from './content/progression.ts';
 export * from './content/quests.ts';
 export * from './content/tuning.ts';

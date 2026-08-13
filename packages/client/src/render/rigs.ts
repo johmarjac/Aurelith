@@ -21,6 +21,14 @@ export interface RigState {
   speed: number;
   /** 0..1 während eines Schlags, sonst negativ. */
   attackPhase: number;
+  /**
+   * 0..1 während des Bückens, sonst negativ.
+   *
+   * Eine Geste und kein Zustand: sie kommt als Ereignis vom Server, die
+   * Simulation weiss nichts davon. Rigs, die sich nicht bücken können —
+   * Schleim, Vierbeiner —, sehen einfach weg.
+   */
+  pickupPhase: number;
   dead: boolean;
   /** Sekunden seit Spielstart, für Leerlaufbewegung mit fester Frequenz. */
   time: number;
@@ -728,23 +736,41 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
       gaitPhase += state.dt * 9 * Math.max(0.35, gait);
       const swing = Math.sin(gaitPhase) * 0.65 * gait;
 
-      legL.rotation.x = swing;
-      legR.rotation.x = -swing;
       armL.rotation.x = -swing * 0.8;
+
+      // Bücken. Hin und zurück in einer Bewegung: `sin(p·π)` ist bei null und
+      // eins genau null, die Figur steht also am Anfang und am Ende ohne
+      // Übergang wieder gerade.
+      const beugung = state.pickupPhase >= 0 ? Math.sin(state.pickupPhase * Math.PI) : 0;
 
       if (state.attackPhase >= 0) {
         // Ausholen und Durchziehen: die erste Hälfte hebt, die zweite schlägt.
         const p = state.attackPhase;
         armR.rotation.x = p < 0.45 ? -2.4 * (p / 0.45) : -2.4 + 3.4 * ((p - 0.45) / 0.55);
         body.rotation.y = p < 0.45 ? 0.35 * (p / 0.45) : 0.35 - 0.75 * ((p - 0.45) / 0.55);
+      } else if (beugung > 0) {
+        // Der rechte Arm greift nach unten, der linke geht zum Ausgleich nach
+        // hinten — so, wie man sich tatsächlich nach etwas bückt.
+        armR.rotation.x = beugung * 1.5;
+        armL.rotation.x = -beugung * 0.5;
+        body.rotation.y = 0;
       } else {
         armR.rotation.x = swing * 0.8;
         body.rotation.y = 0;
       }
 
+      // Der Oberkörper kippt nach vorn. Die Beine hängen am selben Knoten und
+      // würden mitkippen — die ganze Figur fiele wie ein Brett nach vorn —,
+      // deshalb halten sie dagegen und bleiben fast senkrecht.
+      body.rotation.x = beugung * 0.95;
+      legL.rotation.x = swing - beugung * 0.8;
+      legR.rotation.x = -swing - beugung * 0.8;
+
       // Leichtes Wippen — ohne das wirkt eine stehende Figur wie ein Möbelstück.
+      // Beim Bücken geht die Figur zusätzlich in die Knie.
       body.position.y = Math.abs(Math.sin(gaitPhase)) * 0.05 * gait +
-        Math.sin(state.time * 1.8) * 0.012;
+        Math.sin(state.time * 1.8) * 0.012 -
+        beugung * 0.18;
     },
     dispose() {
       for (const g of disposables) g.dispose();

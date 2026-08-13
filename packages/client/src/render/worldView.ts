@@ -38,6 +38,14 @@ import type { CharacterRig } from './rigs.ts';
 
 /** Wie lange die Schlaganimation läuft, unabhängig von der Serverabklingzeit. */
 export const ATTACK_ANIM_SECONDS = 0.45;
+/**
+ * Wie lange das Bücken dauert.
+ *
+ * Länger als ein Schlag: greifen, fassen, aufrichten. Kürzer als eine
+ * Sekunde, weil man sonst beim Einsammeln einer Wiese mehr wartet als läuft —
+ * und weil die Geste nichts blockiert, ist sie reine Zierde.
+ */
+export const PICKUP_ANIM_SECONDS = 0.7;
 
 /**
  * Flugzeit eines Pfeils, unabhängig von der Entfernung.
@@ -98,6 +106,14 @@ export interface EntityVisual {
 
   /** Sekunden seit Beginn der Schlaganimation, oder negativ. */
   attackTimer: number;
+  /**
+   * Läuft während einer Geste — Sekunden seit ihrem Beginn, sonst negativ.
+   *
+   * Getrennt vom Schlag, weil beides zugleich vorkommen kann und weil eine
+   * Geste nichts mit dem Kampf zu tun hat: sie kommt vom Server als Ereignis
+   * und nicht aus dem Zustand der Simulation.
+   */
+  pickupTimer: number;
   /** Geschätztes Tempo für die Laufanimation. */
   speed: number;
 
@@ -409,6 +425,7 @@ export class WorldView {
       targetZ: row.z,
       targetYaw: row.yaw,
       attackTimer: -1,
+      pickupTimer: -1,
       speed: 0,
       rig,
       weapon: row.weapon,
@@ -697,15 +714,32 @@ export class WorldView {
         e.attackTimer += dt;
         if (e.attackTimer > ATTACK_ANIM_SECONDS) e.attackTimer = -1;
       }
+      if (e.pickupTimer >= 0) {
+        e.pickupTimer += dt;
+        if (e.pickupTimer > PICKUP_ANIM_SECONDS) e.pickupTimer = -1;
+      }
 
       e.rig.update({
         speed: e.speed,
         attackPhase: e.attackTimer >= 0 ? e.attackTimer / ATTACK_ANIM_SECONDS : -1,
+        pickupPhase: e.pickupTimer >= 0 ? e.pickupTimer / PICKUP_ANIM_SECONDS : -1,
         dead: e.state === EntityState.Dead,
         time: this.elapsed,
         dt,
       });
     }
+  }
+
+  /**
+   * Lässt eine Figur sich nach etwas bücken.
+   *
+   * Läuft die Geste schon, beginnt sie nicht von vorn: wer zwei Haufen kurz
+   * hintereinander aufhebt, soll nicht zucken.
+   */
+  playPickup(entityId: number): void {
+    const e = this.entities.get(entityId);
+    if (!e || e.pickupTimer >= 0) return;
+    e.pickupTimer = 0;
   }
 
   /** Entfernt alle Figuren, behält aber Boden und Props. Für Serverwechsel. */

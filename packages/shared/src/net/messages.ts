@@ -7,6 +7,7 @@
 import type { ByteReader } from './bytes.ts';
 import { packet } from './frame.ts';
 import { ClientOp, ServerOp } from './opcodes.ts';
+import type { AttributeValue } from '../content/attributes.ts';
 import type { BuildStamp } from '../build/stamp.ts';
 import type { EntityState, EntityType } from '../sim/types.ts';
 
@@ -744,6 +745,21 @@ export function decodeLobbyError(r: ByteReader): { text: string } {
   return { text: r.str() };
 }
 
+/** Gesten, die eine Figur zeigen kann. Die Nummern sind Teil des Vertrags. */
+export const EmoteKind = {
+  /** Bückt sich und greift nach etwas am Boden. */
+  Pickup: 0,
+} as const;
+export type EmoteKind = (typeof EmoteKind)[keyof typeof EmoteKind];
+
+export function encodeEmote(entityId: number, kind: number): Uint8Array {
+  return packet(ServerOp.Emote, 16).u32(entityId).u8(kind).finish();
+}
+
+export function decodeEmote(r: ByteReader): { entityId: number; kind: number } {
+  return { entityId: r.u32(), kind: r.u8() };
+}
+
 export function encodeKick(reason: number, message: string): Uint8Array {
   return packet(ServerOp.Kick, 128).u8(reason).str(message).finish();
 }
@@ -752,6 +768,17 @@ export function decodeKick(r: ByteReader): { reason: number; message: string } {
   return { reason: r.u8(), message: r.str() };
 }
 
+/**
+ * Der Zustand der eigenen Figur.
+ *
+ * Zwei Teile mit verschiedenem Takt: vorn das, was sich dauernd ändert und in
+ * den Balken landet (Leben, Mana, Erfahrung, Gold), hinten die **Attributtafel**
+ * — jede Eigenschaft mit Grundwert, Herkunft und Summe.
+ *
+ * Angriff und Verteidigung stehen bewusst **nur** in der Tafel und nicht mehr
+ * als eigene Felder davor: zwei Zahlen für dieselbe Sache gehen auseinander,
+ * sobald eine der beiden Stellen etwas dazurechnet.
+ */
 export interface StatsMsg {
   level: number;
   exp: number;
@@ -761,23 +788,30 @@ export interface StatsMsg {
   mp: number;
   maxMp: number;
   gold: number;
-  attackDamage: number;
-  defense: number;
+  /** Alles, was auf die Figur wirkt — samt Herkunft. Siehe `attributes.ts`. */
+  attributes: AttributeValue[];
 }
 
 export function encodeStats(m: StatsMsg): Uint8Array {
-  return packet(ServerOp.Stats, 48)
-    .u16(m.level)
+  const w = packet(ServerOp.Stats, 2048);
+  w.u16(m.level)
     .u32(m.exp)
     .u32(Number.isFinite(m.expForNext) ? m.expForNext : 0xffffffff)
     .u32(Math.round(m.hp))
     .u32(Math.round(m.maxHp))
     .u32(Math.round(m.mp))
     .u32(Math.round(m.maxMp))
-    .u32(m.gold)
-    .u16(Math.round(m.attackDamage))
-    .u16(Math.round(m.defense))
-    .finish();
+    .u32(m.gold);
+
+  // Die Tafel als Liste: Kennung, Grundwert, Summe, dann die Beiträge. Als
+  // `f32`, weil Anteile und Chancen keine ganzen Zahlen sind — eine gerundete
+  // kritische Chance wäre beim Ausbalancieren wertlos.
+  w.u8(m.attributes.length);
+  for (const a of m.attributes) {
+    w.str(a.id).f32(a.basis).f32(a.gesamt).u8(a.quellen.length);
+    for (const q of a.quellen) w.str(q.quelle).f32(q.flach).f32(q.prozent);
+  }
+  return w.finish();
 }
 
 export interface InventoryRow {
@@ -890,7 +924,7 @@ export function decodeQuestLog(r: ByteReader): QuestLogRow[] {
 }
 
 export function decodeStats(r: ByteReader): StatsMsg {
-  return {
+  const kopf = {
     level: r.u16(),
     exp: r.u32(),
     expForNext: r.u32(),
@@ -899,7 +933,21 @@ export function decodeStats(r: ByteReader): StatsMsg {
     mp: r.u32(),
     maxMp: r.u32(),
     gold: r.u32(),
-    attackDamage: r.u16(),
-    defense: r.u16(),
   };
+
+  const anzahl = r.u8();
+  const attributes: AttributeValue[] = [];
+  for (let i = 0; i < anzahl; i++) {
+    const id = r.str();
+    const basis = r.f32();
+    const gesamt = r.f32();
+    const quellenZahl = r.u8();
+    const quellen = [];
+    for (let q = 0; q < quellenZahl; q++) {
+      quellen.push({ quelle: r.str(), flach: r.f32(), prozent: r.f32() });
+    }
+    attributes.push({ id, basis, quellen, gesamt });
+  }
+
+  return { ...kopf, attributes };
 }

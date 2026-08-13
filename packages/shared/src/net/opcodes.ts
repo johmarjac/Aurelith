@@ -7,7 +7,7 @@
  * ändert, zählt PROTOCOL_VERSION hoch.
  */
 
-export const PROTOCOL_VERSION = 9;
+export const PROTOCOL_VERSION = 10;
 
 export const ClientOp = {
   Hello: 0x01,
@@ -75,6 +75,15 @@ export const ServerOp = {
    * es gibt.
    */
   LobbyError: 0x8e,
+  /**
+   * Eine Geste einer Figur — etwas, das man **sieht** und das die Simulation
+   * nicht berührt.
+   *
+   * Aufheben ist keine Bewegung und kein Schlag: der Kern kennt es nicht, und
+   * er soll es auch nicht kennen. Trotzdem sollen die Umstehenden sehen, wie
+   * sich jemand nach etwas bückt.
+   */
+  Emote: 0x8f,
 } as const;
 export type ServerOp = (typeof ServerOp)[keyof typeof ServerOp];
 

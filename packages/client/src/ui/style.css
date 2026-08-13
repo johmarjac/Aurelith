@@ -863,6 +863,16 @@ body {
   padding: 0.25rem;
 }
 
+/* Woher ein Attributwert kommt — klein unter der Zahl. Die Summe allein
+   nützt beim Ausbalancieren nichts. */
+.stat-herkunft {
+  display: block;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--ink-dim);
+  font-weight: 400;
+}
+
 /* --- Anmeldung und Charakterverwaltung ------------------------------------ */
 /*
    Liegt über der schon gezeichneten Welt: der Client lädt Kern, Inhalte und

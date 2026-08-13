@@ -32,6 +32,7 @@ import {
   TICK_MS,
   TICK_SECONDS,
   attackProfileFor,
+  EmoteKind,
   clockText,
   formatBuild,
   getItem,
@@ -767,6 +768,12 @@ export class Game {
               'Mit  /connect ws://localhost:8787/ws  eine Adresse setzen.',
           );
         }
+      },
+
+      // Eine Geste — Aufheben ist die einzige, die es bisher gibt. Sie kommt
+      // vom Server, damit auch die Umstehenden sie sehen.
+      onEmote: (entityId, kind) => {
+        if (kind === EmoteKind.Pickup) this.view.playPickup(entityId);
       },
 
       onLobby: (msg) => {

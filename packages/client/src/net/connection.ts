@@ -17,6 +17,7 @@ import {
   PROTOCOL_VERSION,
   ServerOp,
   decodeCombatEvent,
+  decodeEmote,
   decodeFrame,
   decodeInventory,
   decodeKick,
@@ -86,6 +87,8 @@ export interface ConnectionHandlers {
   onKick?: (reason: number, message: string) => void;
   /** Antwort auf `sendVersionRequest`. */
   onVersion?: (stamp: BuildStamp) => void;
+  /** Eine Geste einer Figur — siehe `EmoteKind`. */
+  onEmote?: (entityId: number, kind: number) => void;
   /** Der Stand der Charakterverwaltung — nach dem Anmelden und nach jeder Änderung. */
   onLobby?: (msg: LobbyMsg) => void;
   /** Was an einer Anmeldung oder einer Figurenänderung nicht ging. */
@@ -223,6 +226,11 @@ export class Connection {
         case ServerOp.Version:
           this.handlers.onVersion?.(decodeServerVersion(reader));
           break;
+        case ServerOp.Emote: {
+          const { entityId, kind } = decodeEmote(reader);
+          this.handlers.onEmote?.(entityId, kind);
+          break;
+        }
         case ServerOp.Lobby:
           this.handlers.onLobby?.(decodeLobby(reader));
           break;

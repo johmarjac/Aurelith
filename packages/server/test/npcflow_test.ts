@@ -650,8 +650,30 @@ check((stats?.gold ?? 0) < goldBeimSchmied, 'und kostet Gold', `${goldBeimSchmie
 
 // Der Schaden steigt mit. Die angelegte Waffe ist das Holzschwert, also muss
 // sich der Angriffswert geändert haben, sobald sie aufgewertet ist.
-const angriffMitPlus = stats?.attackDamage ?? 0;
+//
+// Abgelesen wird er aus der Attributtafel — dort, wo auch das
+// Charakterfenster ihn hernimmt. Ein eigenes Feld daneben wäre eine zweite
+// Zahl für dieselbe Sache.
+const attribut = (id: string): number =>
+  stats?.attributes.find((a) => a.id === id)?.gesamt ?? 0;
+const angriffMitPlus = attribut('attackDamage');
 check(angriffMitPlus > 0, 'der Angriffswert steht', String(angriffMitPlus));
+
+// Und die Tafel nennt, woher er kommt: Grundwert plus das Stück in der Hand.
+const angriffsZeile = stats?.attributes.find((a) => a.id === 'attackDamage');
+check(
+  (angriffsZeile?.quellen ?? []).some((q) => q.quelle.includes('Holzschwert')),
+  'und die Tafel nennt das Holzschwert als Quelle',
+  (angriffsZeile?.quellen ?? []).map((q) => `${q.quelle} +${q.flach}`).join(', '),
+);
+check(
+  Math.abs(
+    (angriffsZeile?.basis ?? 0) +
+      (angriffsZeile?.quellen ?? []).reduce((sum, q) => sum + q.flach, 0) -
+      (angriffsZeile?.gesamt ?? 0),
+  ) < 0.001,
+  'Grundwert und Beiträge ergeben genau die Summe',
+);
 
 // Bregans Ausstellungsstück: ein Holzschwert +10 für ein Goldstück. Es geht
 // mit seiner Aufwertung in den Beutel — nicht als +0, das ein Sonderfall im

@@ -84,7 +84,7 @@ function run(startTime: number, profile: (t: number) => number, seconds = 4): nu
       // trägt die Schwingung — genau wie vorher.
       const gait = Math.min(1, speed / 6);
       const swing = Math.sin(time * 9 * Math.max(0.35, gait)) * 0.65 * gait;
-      rig.update({ speed, attackPhase: -1, dead: false, time, dt: 0 });
+      rig.update({ speed, attackPhase: -1, pickupPhase: -1, dead: false, time, dt: 0 });
       // Von Hand überschreiben, was die Fabrik jetzt richtig macht.
       rig.root.traverse((o) => {
         if (o.children.length === 1 && o.children[0] instanceof THREE.Mesh) {
@@ -92,7 +92,7 @@ function run(startTime: number, profile: (t: number) => number, seconds = 4): nu
         }
       });
     } else {
-      rig.update({ speed, attackPhase: -1, dead: false, time, dt: DT });
+      rig.update({ speed, attackPhase: -1, pickupPhase: -1, dead: false, time, dt: DT });
     }
 
     const p = pose(rig);
@@ -182,6 +182,7 @@ if (!BUG) {
       rig.update({
         speed: wende(local),
         attackPhase: -1,
+        pickupPhase: -1,
         dead: false,
         time: 1800 + local,
         dt: DT,
@@ -194,6 +195,50 @@ if (!BUG) {
     // Krabbler schwingen schneller (13 rad/s bei 0,5 Ausschlag ≈ 0,11).
     check(worst <= 0.16, `${key} bleibt stetig`, `groesster Sprung ${worst.toFixed(3)} rad`);
   }
+}
+
+// --- Aufheben --------------------------------------------------------------
+//
+// Die Geste soll man sehen: die Figur beugt sich, greift nach unten und steht
+// danach wieder wie vorher. Gemessen wird die rechte Hand in Weltkoordinaten
+// — eine Drehung in Bogenmass sagt nichts darüber, ob die Hand tatsächlich am
+// Boden ankommt.
+
+console.log('\nAufheben');
+if (!BUG) {
+  const rig = createRig('player', new THREE.MeshBasicMaterial());
+  const stand = { speed: 0, attackPhase: -1, dead: false, dt: DT };
+
+  /** Tiefster Punkt der rechten Hand über den Verlauf einer Phase. */
+  const handHoehe = (phase: number): number => {
+    rig.update({ ...stand, pickupPhase: phase, time: 10 });
+    rig.root.updateMatrixWorld(true);
+    let tiefste = Infinity;
+    rig.root.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      const p = new THREE.Vector3();
+      o.getWorldPosition(p);
+      tiefste = Math.min(tiefste, p.y);
+    });
+    return tiefste;
+  };
+
+  const ruhe = handHoehe(-1);
+  const mitte = handHoehe(0.5);
+  check(mitte < ruhe - 0.1, 'in der Mitte der Geste greift die Figur nach unten',
+    `${ruhe.toFixed(2)} → ${mitte.toFixed(2)}`);
+
+  // Anfang und Ende sind die Ruhestellung — sonst ruckt es beim Übergang.
+  const anfang = handHoehe(0);
+  const ende = handHoehe(1);
+  check(Math.abs(anfang - ruhe) < 0.01, 'am Anfang steht sie noch gerade');
+  check(Math.abs(ende - ruhe) < 0.01, 'und am Ende wieder');
+
+  // Gegenprobe: ohne Geste passiert nichts. Ohne sie zeigte die Prüfung oben
+  // nur, dass die Figur überhaupt Teile hat, die tief liegen.
+  check(Math.abs(handHoehe(-1) - ruhe) < 1e-6, 'ohne Geste bleibt alles, wie es ist');
+
+  rig.dispose();
 }
 
 console.log(
