@@ -176,6 +176,10 @@ export class Connection {
     socket.onopen = () => {
       this.retries = 0;
       this.txSeq.reset();
+      // Der Handschlag steht. Die Zeile trennt zwei Fälle, die von aussen
+      // gleich aussehen: „kommt gar nicht hin" und „kommt hin und fliegt
+      // gleich wieder raus".
+      console.log(`[netz] verbunden mit ${this.url}`);
       this.send(
         encodeHello({
           protocolVersion: PROTOCOL_VERSION,
@@ -210,15 +214,38 @@ export class Connection {
       }
     };
 
-    socket.onclose = () => {
+    /*
+     * Warum die Leitung zuging.
+     *
+     * Der Schliesscode ist die einzige Auskunft, die ein Browser über ein
+     * gescheitertes WebSocket herausgibt — die eigentliche Ursache
+     * (Zertifikat, Zeitüberschreitung, abgewiesen) bleibt aus
+     * Sicherheitsgründen verborgen. Ihn wegzuwerfen hiess, aus jedem
+     * Fehlschlag dasselbe „getrennt" zu machen.
+     *
+     * Was die Zahlen bedeuten:
+     *
+     *   1000/1001  ordentlich geschlossen — normalerweise wir selbst
+     *   1002       Protokollfehler, meist ein unlesbarer Rahmen
+     *   1006       gar nicht erst zustande gekommen: kein Handschlag, kein
+     *              Zertifikat, keine Antwort. Der häufigste bei falscher
+     *              Adresse oder fehlender Route.
+     *   1008/1011  der Server hat abgewiesen oder ist gestolpert
+     */
+    socket.onclose = (event) => {
       this.stopPinging();
+      const grund = event.reason ? `${event.code} ${event.reason}` : String(event.code);
+      if (!this.disposed) {
+        console.warn(`[netz] Leitung zu (${grund}) — ${this.url}`);
+      }
       if (this.disposed) return;
-      this.setStatus('getrennt');
+      this.setStatus('getrennt', `Code ${grund}`);
       if (!this.closedByUs) this.scheduleRetry();
     };
 
     socket.onerror = () => {
-      // `onclose` folgt ohnehin — hier nur nicht in die Konsole schreien.
+      // `onclose` folgt ohnehin und bringt den Schliesscode mit — hier nur
+      // nicht zusätzlich in die Konsole schreien.
     };
   }
 

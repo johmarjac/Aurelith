@@ -899,9 +899,13 @@ export class Game {
           this.connection?.close();
           this.resetSession();
           this.lobby.zuruecksetzen();
+          // Der Schliesscode gehört in die Meldung und nicht nur in die
+          // Konsole: er ist der Unterschied zwischen „kommt nicht hin" (1006)
+          // und „wurde abgewiesen" (1002, 1008), und niemand öffnet die
+          // Konsole, bevor er weiss, dass dort etwas steht.
           this.lobby.zeigeFehler(
-            `Der Kanal unter ${url} antwortet nicht. Prüfe, ob er von aussen ` +
-              'erreichbar ist, und melde dich neu an.',
+            `Der Kanal unter ${url} antwortet nicht${detail ? ` (${detail})` : ''}. ` +
+              'Prüfe, ob er von aussen erreichbar ist, und melde dich neu an.',
           );
           this.ui.debug(`[kanal] ${url} nicht erreichbar${detail ? ` — ${detail}` : ''}`, 'fehler');
           this.connect();
