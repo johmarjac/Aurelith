@@ -97,6 +97,12 @@ void World::respawnMonster(Entity& e) {
   e.mp = e.maxMp;
   e.state = kStateIdle;
   e.targetId = 0;
+  // Frisch erschienen wird erst einmal gestanden — sonst setzt sich ein
+  // ganzer Schwung gleichzeitig in Bewegung, weil alle im selben Takt
+  // erscheinen. Die Pause ist unterschiedlich lang, aus demselben Grund: wer
+  // zusammen erlegt wurde, erscheint zusammen wieder.
+  e.wanderWalking = false;
+  e.wanderTimer = rng_.next() * kWanderRest;
   e.swingTimer = -1.0f;
   e.attackCooldown = 0.0f;
   e.hitStun = 0.0f;

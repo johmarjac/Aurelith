@@ -37,6 +37,24 @@ constexpr float kHitStunSpeedFactor = 0.40f;
 // Regeneration außerhalb des Kampfes, Anteil des Maximums je Sekunde.
 constexpr float kOutOfCombatRegen = 0.04f;
 
+// --- Umherwandern ----------------------------------------------------------
+//
+// Kürzeste und längste Wanderung, und die Pause dazwischen. Die Pause ist
+// länger als der Weg, und das ist Absicht: eine Wiese, auf der alles
+// gleichzeitig unterwegs ist, wirkt unruhig. Wer stehenbleibt, gibt der
+// Bewegung der anderen einen Hintergrund.
+//
+// Stehen hier und nicht in `ai.cpp`, weil das Erscheinen die Pause ebenfalls
+// braucht: ein frisch erschienenes Monster rastet erst einmal.
+constexpr float kWanderWalkMin = 3.0f;
+constexpr float kWanderWalkMax = 8.0f;
+constexpr float kWanderRest = 10.0f;
+// Wandern ist ein Spaziergang, kein Sprint. Knapp ein Drittel des Laufschritts
+// — bei knapp der Hälfte sah es aus, als hätte das Wesen einen Termin.
+constexpr float kWanderSpeedFactor = 0.3f;
+// So nah am Ziel gilt es als erreicht.
+constexpr float kWanderArrive = 0.6f;
+
 // Ab so vielen Entities wird die paarweise Trennung übersprungen.
 constexpr int kSeparationEntityLimit = 400;
 
@@ -209,6 +227,25 @@ struct Entity {
   float height = 1.8f;
 
   float homeX = 0.0f, homeZ = 0.0f;
+
+  // --- Umherwandern ---------------------------------------------------------
+  //
+  // Ein Monster ohne Ziel stand vorher still. Das sah aus wie eine Puppe im
+  // Regal und nicht wie ein Tier auf einer Wiese. Es läuft deshalb eine Weile
+  // zu einem Punkt in seinem Feld, bleibt dann stehen, und sucht sich danach
+  // den nächsten — mehr Verhalten braucht es dafür nicht.
+  //
+  // `wanderTimer` zählt die Restzeit des laufenden Abschnitts herunter,
+  // `wanderWalking` sagt, welcher Abschnitt das ist. Beides gehört zur Figur
+  // und nicht in eine Tabelle daneben: eine zweite Liste, die dieselben
+  // Wesen adressiert, läuft beim Entfernen eines Monsters auseinander.
+  float wanderTimer = 0.0f;
+  float wanderX = 0.0f, wanderZ = 0.0f;
+  // Wie weit vom Feldmittelpunkt es sich entfernen darf. Null heisst: gar
+  // nicht — dann bleibt es, wo es steht.
+  float wanderRadius = 0.0f;
+  bool wanderWalking = false;
+
   uint32_t spawnerIndex = kNoSpawner;
   uint32_t defIndex = kNoDef;
   uint32_t respawnTick = 0;

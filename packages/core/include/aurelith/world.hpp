@@ -188,6 +188,20 @@ class World {
   // Tick-Abschnitte
   void advanceTimers(Entity& e, float dt);
   void updateMonsterAi(Entity& e, float dt);
+  /**
+   * Wo ein Wesen hingehört: Mitte seines Feldes und dessen Radius.
+   *
+   * Eine Antwort für die Leine und für das Umherwandern. Gäbe es zwei — die
+   * Leine am eigenen Erscheinungsort, das Wandern am Feld —, dann zöge das
+   * eine hinaus, was das andere zurückholt: ein Monster am Feldrand käme
+   * beim Wandern auf den doppelten Radius und liefe genau dort in die Leine.
+   *
+   * Ohne Feld (von Hand gesetzte Wesen) bleibt es beim eigenen Standort, und
+   * der Radius ist null — dann wandert nichts.
+   */
+  void homeOf(const Entity& e, float& x, float& z, float& radius) const;
+  /** Ziellos im eigenen Feld umhergehen — siehe `ai.cpp`. */
+  void wander(Entity& e, float dt);
   void resolveOverlaps();
   void regenerate(float dt);
   void handleRespawns();

@@ -17,16 +17,109 @@ constexpr float kLeashRegenPerSecond = 0.25f;
 
 }  // namespace
 
+// Bezugspunkt eines Wesens — warum es einer für alle ist, steht an der
+// Deklaration in `world.hpp`.
+void World::homeOf(const Entity& e, float& x, float& z, float& radius) const {
+  const Spawner* feld =
+      e.spawnerIndex < spawners_.size() ? &spawners_[e.spawnerIndex] : nullptr;
+  x = feld != nullptr ? feld->x : e.homeX;
+  z = feld != nullptr ? feld->z : e.homeZ;
+  radius = e.wanderRadius > 0.0f ? e.wanderRadius
+                                 : (feld != nullptr ? feld->radius : 0.0f);
+}
+
+/**
+ * Umherwandern im eigenen Feld.
+ *
+ * Der Ablauf ist ein Zweitakter: eine Weile zu einem Punkt laufen, dann eine
+ * Weile stehen, dann von vorn. Das Ziel wird **gleichverteilt in der
+ * Kreisfläche** um den Feldmittelpunkt gezogen — die Wurzel im Radius ist der
+ * Grund dafür; ohne sie drängte sich alles in der Mitte.
+ *
+ * Der Mittelpunkt ist der des Feldes und nicht der eigene Erscheinungsort.
+ * Sonst dürfte ein Monster, das am Rand des Feldes erschienen ist, um seinen
+ * Rand herum wandern und käme auf den doppelten Abstand vom Feld — genau das,
+ * was ein Wanderradius verhindern soll.
+ */
+void World::wander(Entity& e, float dt) {
+  float mitteX = 0.0f;
+  float mitteZ = 0.0f;
+  float radius = 0.0f;
+  homeOf(e, mitteX, mitteZ, radius);
+
+  if (radius <= 0.0f || e.moveSpeed <= 0.0f) {
+    e.vx = 0.0f;
+    e.vz = 0.0f;
+    if (e.state != kStateAttack) e.state = kStateIdle;
+    return;
+  }
+
+  e.wanderTimer -= dt;
+
+  // Ausserhalb des Feldes hat das Wandern Vorrang vor der Pause: der Weg
+  // zurück ist das nächste Ziel, und zwar sofort. Ohne das bliebe ein Monster,
+  // das gerade von der Leine zurückgekommen ist, zehn Sekunden draussen stehen.
+  const float weg = dist2D(e.x, e.z, mitteX, mitteZ);
+  if (weg > radius) {
+    e.wanderWalking = true;
+    e.wanderX = mitteX;
+    e.wanderZ = mitteZ;
+    if (e.wanderTimer <= 0.0f) e.wanderTimer = kWanderWalkMax;
+  }
+
+  if (e.wanderTimer <= 0.0f) {
+    if (e.wanderWalking) {
+      e.wanderWalking = false;
+      e.wanderTimer = kWanderRest;
+    } else {
+      const float winkel = rng_.next() * kTau;
+      const float r = std::sqrt(rng_.next()) * radius;
+      e.wanderX = mitteX + std::cos(winkel) * r;
+      e.wanderZ = mitteZ + std::sin(winkel) * r;
+      e.wanderWalking = true;
+      e.wanderTimer = kWanderWalkMin + rng_.next() * (kWanderWalkMax - kWanderWalkMin);
+    }
+  }
+
+  if (!e.wanderWalking) {
+    e.vx = 0.0f;
+    e.vz = 0.0f;
+    if (e.state != kStateAttack) e.state = kStateIdle;
+    return;
+  }
+
+  // Angekommen, bevor die Zeit um war: dann fängt die Pause eben früher an.
+  // Ein Monster, das auf der Stelle „läuft", ist schlimmer als eines, das
+  // steht.
+  if (dist2D(e.x, e.z, e.wanderX, e.wanderZ) <= kWanderArrive) {
+    e.wanderWalking = false;
+    e.wanderTimer = kWanderRest;
+    e.vx = 0.0f;
+    e.vz = 0.0f;
+    if (e.state != kStateAttack) e.state = kStateIdle;
+    return;
+  }
+
+  moveTowards(e, e.wanderX, e.wanderZ, dt, kWanderSpeedFactor);
+  e.state = kStateMove;
+}
+
 void World::updateMonsterAi(Entity& e, float dt) {
   if (e.type != kEntityMonster || !isAlive(e)) return;
 
-  const float homeDist = dist2D(e.x, e.z, e.homeX, e.homeZ);
+  // Gemessen wird vom Feld und nicht vom eigenen Erscheinungsort — derselbe
+  // Bezugspunkt, den auch das Umherwandern nimmt. Siehe `homeOf`.
+  float heimX = 0.0f;
+  float heimZ = 0.0f;
+  float heimRadius = 0.0f;
+  homeOf(e, heimX, heimZ, heimRadius);
+  const float homeDist = dist2D(e.x, e.z, heimX, heimZ);
 
   // An der Leine: Ziel fallenlassen, zurücklaufen, dabei heilen.
   if (homeDist > e.leashRange) {
     e.targetId = 0;
     e.hp = std::min(e.maxHp, e.hp + e.maxHp * kLeashRegenPerSecond * dt);
-    moveTowards(e, e.homeX, e.homeZ, dt, 1.35f);
+    moveTowards(e, heimX, heimZ, dt, 1.35f);
     e.state = kStateMove;
     return;
   }
@@ -38,7 +131,7 @@ void World::updateMonsterAi(Entity& e, float dt) {
   }
   // Ziel zu weit vom eigenen Zuhause entfernt — es hat sich herausgezogen.
   if (target != nullptr &&
-      dist2D(target->x, target->z, e.homeX, e.homeZ) > e.leashRange * 1.25f) {
+      dist2D(target->x, target->z, heimX, heimZ) > e.leashRange * 1.25f) {
     target = nullptr;
     e.targetId = 0;
   }
@@ -61,15 +154,7 @@ void World::updateMonsterAi(Entity& e, float dt) {
   }
 
   if (target == nullptr) {
-    // Kein Ziel: zurück zum Standort, sonst stehenbleiben.
-    if (homeDist > 1.5f) {
-      moveTowards(e, e.homeX, e.homeZ, dt, 0.6f);
-      e.state = kStateMove;
-    } else {
-      e.vx = 0.0f;
-      e.vz = 0.0f;
-      if (e.state != kStateAttack) e.state = kStateIdle;
-    }
+    wander(e, dt);
     return;
   }
 

@@ -4,6 +4,7 @@
 // Zeilen auskommt. Wichtig ist nur, dass diese Prüfungen ohne Emscripten
 // laufen: sie geben in Sekunden Rückmeldung, wo der wasm-Weg Minuten braucht.
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -498,6 +499,134 @@ void testCritProfile() {
 
 }  // namespace
 
+void testWandering() {
+  std::printf("Umherwandern\n");
+  aur::MobRegistry mobs;
+  // Friedlich: ein wahrnehmendes Monster liefe zum Spieler und nicht umher.
+  const uint32_t mobIndex = registerTestMob(mobs, false);
+  aur::World world(23u, flatTerrain(), &mobs);
+
+  aur::Spawner spawner;
+  spawner.x = 5.0f;
+  spawner.z = -4.0f;
+  spawner.radius = 6.0f;
+  spawner.respawnSec = 60.0f;
+  spawner.mobIndex = mobIndex;
+  const uint32_t spawnerIndex = world.addSpawner(spawner);
+
+  world.spawnMob(10, mobIndex, spawner.x + 1.0f, spawner.z, -1, spawnerIndex);
+
+  const aur::Entity* e = world.find(10);
+  float maxDist = 0.0f;
+  int schritte = 0;   // Takte mit Bewegung
+  int stehend = 0;    // Takte ohne
+  // Sechzig Sekunden: genug für mehrere Runden aus Wandern und Pause.
+  for (int i = 0; i < aur::kTickRate * 60; ++i) {
+    world.step(aur::kTickSeconds);
+    const float d = aur::dist2D(e->x, e->z, spawner.x, spawner.z);
+    if (d > maxDist) maxDist = d;
+    if (e->vx != 0.0f || e->vz != 0.0f) ++schritte;
+    else ++stehend;
+  }
+
+  check(schritte > 0, "das Monster setzt sich in Bewegung");
+  check(stehend > 0, "und bleibt zwischendurch stehen");
+  // Beides in nennenswertem Umfang — ein einzelner Takt Bewegung wäre kein
+  // Wandern, sondern ein Zucken.
+  check(schritte > aur::kTickRate * 5, "es wandert über mehrere Sekunden");
+  check(stehend > aur::kTickRate * 5, "und rastet über mehrere Sekunden");
+  // Der Wanderradius ist die eigentliche Zusage. Ein Zehntel Toleranz für den
+  // Schritt, mit dem es die Grenze überquert.
+  check(maxDist <= spawner.radius * 1.1f, "es bleibt in seinem Feld");
+
+  // Gegenprobe: ohne Spawner gibt es kein Feld, und dann wandert nichts.
+  // Ohne sie zeigten die Prüfungen oben nur, dass sich überhaupt etwas regt.
+  world.spawnMob(11, mobIndex, -20.0f, -20.0f, -1, aur::kNoSpawner);
+  const aur::Entity* allein = world.find(11);
+  const float x0 = allein->x;
+  const float z0 = allein->z;
+  for (int i = 0; i < aur::kTickRate * 30; ++i) world.step(aur::kTickSeconds);
+  check(aur::dist2D(allein->x, allein->z, x0, z0) < 0.01f,
+        "ein Monster ohne Feld bleibt stehen");
+
+  // Kein Gleichschritt: ein Feld erscheint im selben Takt, darf sich aber
+  // nicht im selben Takt in Bewegung setzen. Geprüft wird der erste Takt mit
+  // Bewegung je Monster — sind die alle gleich, marschiert die Wiese.
+  aur::World feld(77u, flatTerrain(), &mobs);
+  const uint32_t feldIndex = feld.addSpawner(spawner);
+  for (uint32_t i = 0; i < 6u; ++i) {
+    feld.spawnMob(100u + i, mobIndex, spawner.x + static_cast<float>(i) * 0.5f, spawner.z,
+                  -1, feldIndex);
+  }
+
+  int ersterZug[6] = {-1, -1, -1, -1, -1, -1};
+  for (int i = 0; i < aur::kTickRate * 20; ++i) {
+    feld.step(aur::kTickSeconds);
+    for (uint32_t k = 0; k < 6u; ++k) {
+      const aur::Entity* m = feld.find(100u + k);
+      if (ersterZug[k] < 0 && (m->vx != 0.0f || m->vz != 0.0f)) ersterZug[k] = i;
+    }
+  }
+
+  int verschieden = 0;
+  for (uint32_t k = 0; k < 6u; ++k) {
+    bool neu = ersterZug[k] >= 0;
+    for (uint32_t j = 0; j < k; ++j) {
+      if (ersterZug[j] == ersterZug[k]) neu = false;
+    }
+    if (neu) ++verschieden;
+  }
+  check(verschieden >= 4, "ein Feld setzt sich nicht im Gleichschritt in Bewegung");
+
+  // --- Leine und Wanderradius ziehen nicht gegeneinander --------------------
+  //
+  // Der Fall, der beides gegeneinanderstellt: ein Feld, das weiter reicht als
+  // die Leine des Wesens darin. Ein Wanderziel am Feldrand liegt dann
+  // ausserhalb der Leine — das Monster liefe los, würde auf halbem Weg
+  // zurückgerissen, liefe wieder los, und das für immer. Sichtbar wird das an
+  // zweierlei: es käme weiter hinaus als die Leine reicht, und es täte das im
+  // Leinentempo, das dreimal so schnell ist wie ein Spaziergang.
+  aur::MobDef eng;
+  eng.maxHp = 100.0f;
+  eng.moveSpeed = 4.0f;
+  eng.aggroRange = 0.0f;
+  eng.leashRange = 8.0f;
+  eng.attackRange = 2.0f;
+  eng.attackArc = aur::kPi;
+  eng.attackCooldownSec = 1.0f;
+  eng.radius = 0.6f;
+  eng.height = 1.6f;
+  eng.level = 1;
+  const uint32_t engIndex = mobs.add(eng);
+
+  aur::Spawner weit;
+  weit.x = 0.0f;
+  weit.z = 0.0f;
+  weit.radius = 12.0f;  // grösser als die Leine
+  weit.respawnSec = 60.0f;
+  weit.mobIndex = engIndex;
+
+  aur::World knapp(31u, flatTerrain(), &mobs);
+  const uint32_t weitIndex = knapp.addSpawner(weit);
+  // Innerhalb der Leine erschienen — sonst holt sie es zuerst einmal
+  // zurück, und gemessen wäre der Heimweg statt des Wanderns.
+  knapp.spawnMob(20, engIndex, 7.0f, 0.0f, -1, weitIndex);
+
+  const aur::Entity* rand = knapp.find(20);
+  float weiteste = 0.0f;
+  float schnellste = 0.0f;
+  for (int i = 0; i < aur::kTickRate * 120; ++i) {
+    knapp.step(aur::kTickSeconds);
+    weiteste = std::max(weiteste, aur::dist2D(rand->x, rand->z, weit.x, weit.z));
+    schnellste = std::max(schnellste, std::sqrt(rand->vx * rand->vx + rand->vz * rand->vz));
+  }
+  // Der Wanderradius ist auf die Leine gekürzt, nicht auf den Feldradius.
+  check(weiteste <= eng.leashRange * 1.1f,
+        "ein Feld grösser als die Leine schränkt das Wandern ein");
+  check(schnellste <= eng.moveSpeed * (aur::kWanderSpeedFactor + 0.05f),
+        "und niemand wird dabei ins Leinentempo gerissen");
+}
+
 int main() {
   std::printf("Aurelith-Kern — native Prüfungen\n\n");
 
@@ -514,6 +643,7 @@ int main() {
   testHeal();
   testMoveSpeedFromStats();
   testCritProfile();
+  testWandering();
 
   std::printf("\n%d Prüfungen, %d fehlgeschlagen\n", g_checks, g_failures);
   return g_failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;

@@ -128,6 +128,24 @@ bool World::spawnMob(uint32_t id, uint32_t mobIndex, float x, float z, int32_t l
   e.height = def->height;
   e.homeX = x;
   e.homeZ = z;
+  // Wandern im eigenen Feld: der Radius kommt vom Spawner, damit ein Monster
+  // dort bleibt, wo es hingehört. Ohne Spawner — von Hand gesetzte Wesen —
+  // bleibt er null, und dann wandert nichts.
+  //
+  // Höchstens so weit wie die Leine reicht. Ein Feld, das grösser gezeichnet
+  // ist als die Leine des Wesens darin, ergäbe sonst ein Monster, das sein
+  // Wanderziel ansteuert und auf halbem Weg zurückgerissen wird — es liefe
+  // dieselbe Strecke ewig hin und her, ohne je anzukommen.
+  e.wanderRadius =
+      spawnerIndex < spawners_.size()
+          ? std::min(spawners_[spawnerIndex].radius, e.leashRange)
+          : 0.0f;
+  // Versetzt anfangen. Beim Aufbau der Karte erscheint ein ganzes Feld im
+  // selben Takt; stünde die Uhr überall auf null, liefe der halbe Schwarm
+  // gleichzeitig los und bliebe gleichzeitig stehen. Ein zufälliger Rest der
+  // ersten Pause bricht den Gleichschritt, bevor er entsteht.
+  e.wanderWalking = false;
+  e.wanderTimer = rng_.next() * kWanderRest;
   e.spawnerIndex = spawnerIndex;
   e.defIndex = mobIndex;
   e.expReward = def->expReward;
