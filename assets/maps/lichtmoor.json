@@ -8958,7 +8958,7 @@
       ],
       "radius": 26,
       "count": 7,
-      "respawnMs": 9000
+      "respawnMs": 75000
     },
     {
       "id": "s_mote_b",
@@ -8969,7 +8969,7 @@
       ],
       "radius": 24,
       "count": 6,
-      "respawnMs": 9000
+      "respawnMs": 75000
     },
     {
       "id": "s_mote_c",
@@ -8980,7 +8980,7 @@
       ],
       "radius": 28,
       "count": 7,
-      "respawnMs": 9000
+      "respawnMs": 75000
     },
     {
       "id": "s_pup_a",
@@ -8991,7 +8991,7 @@
       ],
       "radius": 26,
       "count": 6,
-      "respawnMs": 13000
+      "respawnMs": 75000
     },
     {
       "id": "s_pup_b",
@@ -9002,7 +9002,7 @@
       ],
       "radius": 26,
       "count": 6,
-      "respawnMs": 13000
+      "respawnMs": 75000
     },
     {
       "id": "s_boar",
@@ -9013,7 +9013,7 @@
       ],
       "radius": 30,
       "count": 5,
-      "respawnMs": 20000
+      "respawnMs": 75000
     }
   ],
   "npcs": [

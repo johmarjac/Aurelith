@@ -346,8 +346,9 @@ void testDeathAndRespawn() {
   check(sawExp, "Erfahrungsereignis gemeldet");
   check(world.find(10)->state == aur::kStateDead, "Monster ist tot");
 
-  // Respawn nach einer Sekunde plus etwas Reserve.
-  for (int i = 0; i < aur::kTickRate + 4; ++i) world.step(aur::kTickSeconds);
+  // Respawn nach einer Sekunde — plus Reserve für die Streuung: die Zeit
+  // schwankt um ±20 %, im schlechtesten Fall sind es also 1,2 Sekunden.
+  for (int i = 0; i < aur::kTickRate * 2; ++i) world.step(aur::kTickSeconds);
   check(world.find(10)->state != aur::kStateDead, "Monster kehrt zurück");
   checkNear(world.find(10)->hp, 100.0f, 0.01f, "Rückkehr mit vollen Lebenspunkten");
 }

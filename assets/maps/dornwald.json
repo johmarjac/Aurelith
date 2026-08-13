@@ -12060,7 +12060,7 @@
       ],
       "radius": 30,
       "count": 7,
-      "respawnMs": 16000
+      "respawnMs": 75000
     },
     {
       "id": "s_boar_b",
@@ -12071,7 +12071,7 @@
       ],
       "radius": 30,
       "count": 7,
-      "respawnMs": 16000
+      "respawnMs": 75000
     },
     {
       "id": "s_bandit_a",
@@ -12082,7 +12082,7 @@
       ],
       "radius": 28,
       "count": 6,
-      "respawnMs": 22000
+      "respawnMs": 75000
     },
     {
       "id": "s_bandit_b",
@@ -12093,7 +12093,7 @@
       ],
       "radius": 28,
       "count": 6,
-      "respawnMs": 22000
+      "respawnMs": 75000
     },
     {
       "id": "s_bandit_c",
@@ -12104,7 +12104,7 @@
       ],
       "radius": 26,
       "count": 5,
-      "respawnMs": 22000
+      "respawnMs": 75000
     }
   ],
   "npcs": [

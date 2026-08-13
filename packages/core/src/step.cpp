@@ -170,8 +170,11 @@ void World::handleRespawns() {
     if (e.respawnTick == 0) {
       const Spawner* spawner =
           e.spawnerIndex < spawners_.size() ? &spawners_[e.spawnerIndex] : nullptr;
-      const float respawnSec = spawner != nullptr ? spawner->respawnSec : 12.0f;
-      uint32_t delay = static_cast<uint32_t>(respawnSec * static_cast<float>(kTickRate));
+      const float respawnSec = spawner != nullptr ? spawner->respawnSec : kDefaultRespawnSec;
+      // Gestreut um den Vorgabewert — siehe `kRespawnSpread`.
+      const float gestreut =
+          respawnSec * (1.0f - kRespawnSpread + rng_.next() * kRespawnSpread * 2.0f);
+      uint32_t delay = static_cast<uint32_t>(gestreut * static_cast<float>(kTickRate));
       if (delay < 1u) delay = 1u;
       e.respawnTick = tick_ + delay;
       continue;

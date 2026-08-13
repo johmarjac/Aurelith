@@ -280,12 +280,12 @@ function lichtmoor() {
   ];
 
   const spawners = [
-    { id: 's_mote_a', mob: 'mote', position: [-46, 38], radius: 26, count: 7, respawnMs: 9000 },
-    { id: 's_mote_b', mob: 'mote', position: [52, 30], radius: 24, count: 6, respawnMs: 9000 },
-    { id: 's_mote_c', mob: 'mote', position: [-8, 78], radius: 28, count: 7, respawnMs: 9000 },
-    { id: 's_pup_a', mob: 'burrow_pup', position: [70, 96], radius: 26, count: 6, respawnMs: 13000 },
-    { id: 's_pup_b', mob: 'burrow_pup', position: [-84, 104], radius: 26, count: 6, respawnMs: 13000 },
-    { id: 's_boar', mob: 'thistle_boar', position: [12, 150], radius: 30, count: 5, respawnMs: 20000 },
+    { id: 's_mote_a', mob: 'mote', position: [-46, 38], radius: 26, count: 7, respawnMs: 75000 },
+    { id: 's_mote_b', mob: 'mote', position: [52, 30], radius: 24, count: 6, respawnMs: 75000 },
+    { id: 's_mote_c', mob: 'mote', position: [-8, 78], radius: 28, count: 7, respawnMs: 75000 },
+    { id: 's_pup_a', mob: 'burrow_pup', position: [70, 96], radius: 26, count: 6, respawnMs: 75000 },
+    { id: 's_pup_b', mob: 'burrow_pup', position: [-84, 104], radius: 26, count: 6, respawnMs: 75000 },
+    { id: 's_boar', mob: 'thistle_boar', position: [12, 150], radius: 30, count: 5, respawnMs: 75000 },
   ];
 
   // Das Dorf: alles von Hand gesetzt, damit es nach Absicht aussieht.
@@ -448,11 +448,11 @@ function dornwald() {
   ];
 
   const spawners = [
-    { id: 's_boar_a', mob: 'thistle_boar', position: [-58, -60], radius: 30, count: 7, respawnMs: 16000 },
-    { id: 's_boar_b', mob: 'thistle_boar', position: [64, -20], radius: 30, count: 7, respawnMs: 16000 },
-    { id: 's_bandit_a', mob: 'bandit_scout', position: [-40, 60], radius: 28, count: 6, respawnMs: 22000 },
-    { id: 's_bandit_b', mob: 'bandit_scout', position: [30, 110], radius: 28, count: 6, respawnMs: 22000 },
-    { id: 's_bandit_c', mob: 'bandit_scout', position: [110, 60], radius: 26, count: 5, respawnMs: 22000 },
+    { id: 's_boar_a', mob: 'thistle_boar', position: [-58, -60], radius: 30, count: 7, respawnMs: 75000 },
+    { id: 's_boar_b', mob: 'thistle_boar', position: [64, -20], radius: 30, count: 7, respawnMs: 75000 },
+    { id: 's_bandit_a', mob: 'bandit_scout', position: [-40, 60], radius: 28, count: 6, respawnMs: 75000 },
+    { id: 's_bandit_b', mob: 'bandit_scout', position: [30, 110], radius: 28, count: 6, respawnMs: 75000 },
+    { id: 's_bandit_c', mob: 'bandit_scout', position: [110, 60], radius: 26, count: 5, respawnMs: 75000 },
   ];
 
   // Dornwald ist nicht bewohnt, sondern durchzogen: ein Grenzposten am Tor,
@@ -600,9 +600,9 @@ function gruft() {
   ];
 
   const spawners = [
-    { id: 's_crawler_a', mob: 'cave_crawler', position: [-30, -20], radius: 22, count: 6, respawnMs: 25000 },
-    { id: 's_crawler_b', mob: 'cave_crawler', position: [34, 18], radius: 22, count: 6, respawnMs: 25000 },
-    { id: 's_crawler_c', mob: 'cave_crawler', position: [-8, 56], radius: 20, count: 5, respawnMs: 25000 },
+    { id: 's_crawler_a', mob: 'cave_crawler', position: [-30, -20], radius: 22, count: 6, respawnMs: 75000 },
+    { id: 's_crawler_b', mob: 'cave_crawler', position: [34, 18], radius: 22, count: 6, respawnMs: 75000 },
+    { id: 's_crawler_c', mob: 'cave_crawler', position: [-8, 56], radius: 20, count: 5, respawnMs: 75000 },
     { id: 's_warden', mob: 'dungeon_warden', position: [0, 92], radius: 6, count: 1, respawnMs: 120000 },
   ];
 

@@ -62,6 +62,18 @@ constexpr float kWanderSpeedFactor = 0.3f;
 // So nah am Ziel gilt es als erreicht.
 constexpr float kWanderArrive = 0.6f;
 
+// --- Wiederkehr ------------------------------------------------------------
+//
+// Wie lange ein erlegtes Monster wegbleibt, wenn die Karte nichts anderes
+// sagt, und wie weit die Zeit dabei streut.
+//
+// Die Streuung ist kein Beiwerk: wer ein Feld leerräumt, erlegt alles
+// innerhalb einer Minute — und ohne Streuung stünde die ganze Gruppe eine
+// Minute später auf die Sekunde genau wieder da. Mit ±20 % tröpfeln sie
+// zurück, und die Wiese füllt sich, statt umzuspringen.
+constexpr float kDefaultRespawnSec = 75.0f;
+constexpr float kRespawnSpread = 0.2f;
+
 // Ab so vielen Entities wird die paarweise Trennung übersprungen.
 constexpr int kSeparationEntityLimit = 400;
 

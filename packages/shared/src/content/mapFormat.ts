@@ -407,7 +407,8 @@ export function parseMapDocument(raw: unknown, source = 'map'): MapDocument {
       position: vec2(req(o, 'position', path), `${path}.position`),
       radius: optNum(o, 'radius', 20, path),
       count: optNum(o, 'count', 4, path),
-      respawnMs: optNum(o, 'respawnMs', 12000, path),
+      // Wie im Kern: eine gute Minute, wenn die Karte nichts sagt.
+      respawnMs: optNum(o, 'respawnMs', 75000, path),
       ...(o.level === undefined ? {} : { level: num(o.level, `${path}.level`) }),
     };
   });

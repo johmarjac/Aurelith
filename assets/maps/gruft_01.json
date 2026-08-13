@@ -3623,7 +3623,7 @@
       ],
       "radius": 22,
       "count": 6,
-      "respawnMs": 25000
+      "respawnMs": 75000
     },
     {
       "id": "s_crawler_b",
@@ -3634,7 +3634,7 @@
       ],
       "radius": 22,
       "count": 6,
-      "respawnMs": 25000
+      "respawnMs": 75000
     },
     {
       "id": "s_crawler_c",
@@ -3645,7 +3645,7 @@
       ],
       "radius": 20,
       "count": 5,
-      "respawnMs": 25000
+      "respawnMs": 75000
     },
     {
       "id": "s_warden",
