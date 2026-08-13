@@ -489,7 +489,28 @@ export class Game {
     this.lobby.onCreateAccount = (name, pass) => this.connection?.sendCreateAccount(name, pass);
     this.lobby.onCreateCharacter = (name) => this.connection?.sendCreateCharacter(name);
     this.lobby.onDeleteCharacter = (id) => this.connection?.sendDeleteCharacter(id);
-    this.lobby.onEnterChannel = (url, ticket) => this.connect(url, ticket);
+    /*
+     * Einen Kanal betreten.
+     *
+     * Die Adresse kommt vom Anmeldeserver und wird trotzdem geprüft — mit
+     * derselben Prüfung wie eine von Hand eingegebene. Der häufigste Fall ist
+     * kein Angriff, sondern ein Tippfehler in der Serverkonfiguration: steht
+     * dort `ws://localhost:8787/ws`, verweigert der Browser die Verbindung
+     * wortlos, sobald die Seite über HTTPS kam. Ohne diese Prüfung sieht der
+     * Spieler nur „getrennt" und hat nichts, woran er es festmachen könnte.
+     */
+    this.lobby.onEnterChannel = (url, ticket) => {
+      const geprueft = checkServerUrl(url);
+      if (!geprueft.ok) {
+        this.lobby.zeigeFehler(
+          `Dieser Kanal ist nicht erreichbar: ${geprueft.error ?? 'Adresse unbrauchbar.'}`,
+        );
+        this.ui.debug(`[kanal] Adresse vom Anmeldeserver unbrauchbar: ${url}`, 'fehler');
+        return;
+      }
+      if (geprueft.warning) this.ui.debug(`[kanal] ${geprueft.warning}`, 'warnung');
+      this.connect(geprueft.url, ticket);
+    };
     this.lobby.onRefreshRealms = () => this.connection?.sendRealmList();
     // Zurück zur Kanalauswahl heisst: zurück zum Anmeldeserver. Die
     // Eintrittskarte für den nächsten Kanal gibt es nur dort, und sie wird

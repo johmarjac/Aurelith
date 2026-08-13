@@ -96,6 +96,34 @@ const loginClient = new LoginClient();
  *
  * **Ohne** einen: Alleinbetrieb, und dann ist dieselbe Datenbank beides.
  */
+/*
+ * Die Adresse, die der Anmeldeserver an die Clients weitergibt.
+ *
+ * Sie ist der einzige Wert in der Konfiguration, den dieser Prozess selbst nie
+ * benutzt — und deshalb der einzige, dessen Fehler er nie bemerkt. Steht dort
+ * der Vorgabewert, bekommen alle Spieler `ws://localhost:8787/ws` als Kanal
+ * angeboten und landen bei sich selbst; kommt der Client über HTTPS, verweigert
+ * der Browser die Verbindung ausserdem wortlos.
+ *
+ * Nur eine Warnung und keine Absage: hinter einem Tunnel oder im Heimnetz ist
+ * `ws://` richtig, und wer das tut, weiss es.
+ */
+if (loginClient.aktiv) {
+  if (config.publicUrl.includes('localhost') || config.publicUrl.includes('127.0.0.1')) {
+    console.warn(
+      `[kanal] AURELITH_PUBLIC_URL ist "${config.publicUrl}" — das ist der\n` +
+        '        Vorgabewert. Genau diese Adresse geben wir an jeden Client weiter,\n' +
+        '        und jeder von ihnen landet damit bei sich selbst.',
+    );
+  } else if (!config.publicUrl.startsWith('wss://')) {
+    console.warn(
+      `[kanal] AURELITH_PUBLIC_URL ist "${config.publicUrl}" — ohne wss://.\n` +
+        '        Ein Client, der über HTTPS geladen wurde, darf dorthin nicht\n' +
+        '        verbinden; der Browser lehnt es ohne Meldung ab.',
+    );
+  }
+}
+
 const alleinbetrieb = !loginClient.aktiv;
 // Im Alleinbetrieb **ein** Speicher für beides. Zwei getrennt gebaute wären
 // bei PostgreSQL zwei Pools auf dieselbe Adresse und beim Speicher-Backend
