@@ -2,8 +2,8 @@
 #
 # Ein Proxy im Container erreicht `127.0.0.1:8787` nicht — das ist für ihn
 # sein eigener Container, nicht der Wirt. Beide müssen an einem gemeinsamen
-# Netz hängen. Diese Datei hängt den Spielserver zusätzlich an das Netz, in
-# dem SWAG schon steht.
+# Netz hängen. Diese Datei hängt Anmeldeserver und Kanäle zusätzlich an das
+# Netz, in dem SWAG schon steht.
 #
 #   SWAG_NETWORK=<netz> docker compose -f docker-compose.yml -f docker-compose.swag.yml up -d
 #
@@ -11,20 +11,52 @@
 #
 #   docker inspect swag --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}'
 #
-# Danach erreicht SWAG den Server unter `aurelith-server:8787`. Ein nach außen
-# veröffentlichter Port ist dann nicht mehr nötig — wer ihn ganz schließen
-# will, setzt AURELITH_BIND=127.0.0.1:8787 (Standard) und lässt ihn einfach
-# unbenutzt, oder streicht die Portzeile aus docker-compose.yml.
+# Danach erreicht SWAG sie unter diesen Namen:
+#
+#   aurelith-login:8790     Anmeldeserver — hier verbindet sich der Client zuerst
+#   aurelith-kanal1:8787    Kanal 1
+#   aurelith-kanal2:8788    Kanal 2
+#
+# **Jeder** davon braucht einen eigenen öffentlichen Weg, denn der Client
+# verbindet sich nacheinander mit zweien: erst mit dem Anmeldeserver, dann mit
+# dem Kanal, den er sich ausgesucht hat. Die Adresse, die er dafür nimmt, ist
+# nicht die hier — sie steht in `AURELITH_KANAL1_URL` und muss von aussen
+# erreichbar sein, also `wss://…`.
+#
+# Was **nicht** nach aussen darf: die internen Wege des Anmeldeservers unter
+# `/intern/`. Wer sie erreicht, kann einen Kanal in die Liste stellen und
+# Spieler auf seinen Rechner locken. In der Proxy-Konfiguration also entweder
+# nur `/ws` durchreichen oder `/intern/` ausdrücklich sperren. Die Kanäle
+# selbst erreichen den Anmeldeserver über das interne Netz dieses Stapels und
+# brauchen den Weg von aussen nicht.
 
 services:
-  server:
+  login:
     networks:
       default:
         aliases:
-          - aurelith-server
+          - aurelith-login
       proxy:
         aliases:
-          - aurelith-server
+          - aurelith-login
+
+  kanal1:
+    networks:
+      default:
+        aliases:
+          - aurelith-kanal1
+      proxy:
+        aliases:
+          - aurelith-kanal1
+
+  kanal2:
+    networks:
+      default:
+        aliases:
+          - aurelith-kanal2
+      proxy:
+        aliases:
+          - aurelith-kanal2
 
 networks:
   proxy:

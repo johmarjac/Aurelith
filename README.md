@@ -455,6 +455,40 @@ DATABASE_URL=…welt   npm run db:migrate:welt   # Figuren
 Beide Sätze laufen auch beim Hochfahren mit, unter einer Sperre — bei mehreren
 gleichzeitig startenden Kanälen migriert genau einer, die anderen warten.
 
+#### Von einer Datenbank auf zwei
+
+Wer schon einen Stapel aus der Zeit davor laufen hat: `db-master` liegt
+absichtlich auf dem **alten** Band (`db-data`). Die Konten bleiben damit, wo
+sie sind, und man meldet sich nach dem Umstieg wie gewohnt an.
+
+Die Figuren liegen dort ebenfalls noch, werden aber nicht mehr gelesen — die
+Weltdatenbank ist neu und leer. Wer sie mitnehmen will, kopiert sie einmalig
+hinüber (Compose-Stapel läuft dabei):
+
+```
+docker compose exec -T db-master psql -U aurelith -d aurelith -c "\copy ( \
+  SELECT id, account_id, name, class, level, exp, gold, hp, mp, \
+         map_id, pos_x, pos_z, yaw, created_at, updated_at \
+    FROM characters) TO STDOUT" \
+| docker compose exec -T db-eu psql -U aurelith -d aurelith -c "\copy characters ( \
+  id, account_id, name, class, level, exp, gold, hp, mp, \
+  map_id, pos_x, pos_z, yaw, created_at, updated_at) FROM STDIN"
+```
+
+Beutel und Aufträge gehen genauso, mit `character_items` und
+`character_quests` und deren Spalten. Danach die Zählerstände nachziehen —
+sonst vergibt die neue Datenbank Kennungen, die es schon gibt:
+
+```
+docker compose exec -T db-eu psql -U aurelith -d aurelith \
+  -c "SELECT setval('characters_id_seq', COALESCE((SELECT max(id) FROM characters), 1));"
+```
+
+Die Spalte `server` aus der alten Tabelle wird dabei nicht mitgenommen: in
+einer Weltdatenbank ist sie gegenstandslos. Wer mehrere Server in der alten
+Tabelle hatte, filtert beim Kopieren nach ihr — je Region ein Durchlauf in die
+Datenbank dieser Region.
+
 Ohne `AURELITH_LOGIN_URL` läuft ein Spielserver im **Alleinbetrieb**: er prüft
 Passwörter selbst und steht in keiner Liste. Das ist der bequeme Fall für
 Entwicklung und Prüfungen — ein Prozess statt zwei, `npm run dev:server` und

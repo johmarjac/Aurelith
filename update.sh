@@ -68,6 +68,14 @@ docker info >/dev/null 2>&1 ||
 grep -qE '^POSTGRES_PASSWORD=.+' .env ||
   fehler 'In der .env fehlt POSTGRES_PASSWORD (oder es ist leer).'
 
+# Seit es den Anmeldeserver gibt, weisen sich die Kanäle bei ihm mit einem
+# gemeinsamen Geheimnis aus. Fehlt es, bricht Compose mit einer Meldung ab,
+# die nicht sagt, was zu tun ist — deshalb hier, mit Satz.
+grep -qE '^AURELITH_INTERNAL_SECRET=.+' .env ||
+  fehler 'In der .env fehlt AURELITH_INTERNAL_SECRET (oder es ist leer).
+Frei waehlbar, lang, und nicht dasselbe wie das Datenbankpasswort:
+  echo "AURELITH_INTERNAL_SECRET=$(head -c 24 /dev/urandom | base64)" >> .env'
+
 docker network inspect "$SWAG_NETWORK" >/dev/null 2>&1 ||
   fehler "Das Netz \"$SWAG_NETWORK\" gibt es nicht. Vorhandene Netze: $(docker network ls --format '{{.Name}}' | tr '\n' ' ')"
 
@@ -106,19 +114,35 @@ compose up -d
 schritt 'Zustand'
 compose ps
 
-# Der Server braucht ein paar Sekunden: er wartet auf die Datenbank und
-# bringt das Schema auf Stand, bevor er zu horchen anfaengt.
-printf '\nWarte auf den Server '
-for _ in $(seq 1 30); do
-  if compose exec -T server wget -qO- http://127.0.0.1:8787/health >/dev/null 2>&1; then
-    printf '\n\033[32m✓ Server antwortet.\033[0m\n'
-    compose exec -T server wget -qO- http://127.0.0.1:8787/health
-    printf '\n'
-    break
-  fi
-  printf '.'
-  sleep 2
-done
+# Die Dienste brauchen ein paar Sekunden: sie warten auf ihre Datenbank und
+# bringen das Schema auf Stand, bevor sie zu horchen anfangen.
+#
+# Gefragt wird bei **jedem** — ein Stapel, in dem der Anmeldeserver läuft und
+# ein Kanal nicht, sieht von aussen gesund aus, und niemand kommt hinein.
+warte_auf() {
+  dienst="$1"
+  port="$2"
+  printf '\nWarte auf %s ' "$dienst"
+  for _ in $(seq 1 30); do
+    if compose exec -T "$dienst" wget -qO- "http://127.0.0.1:$port/health" >/dev/null 2>&1; then
+      printf '\n\033[32m✓ %s antwortet:\033[0m ' "$dienst"
+      compose exec -T "$dienst" wget -qO- "http://127.0.0.1:$port/health"
+      printf '\n'
+      return 0
+    fi
+    printf '.'
+    sleep 2
+  done
+  printf '\n\033[31m✗ %s antwortet nicht.\033[0m Protokoll: docker compose logs %s\n' \
+    "$dienst" "$dienst"
+  return 1
+}
+
+fehlt=0
+warte_auf login 8790 || fehlt=1
+warte_auf kanal1 8787 || fehlt=1
+warte_auf kanal2 8788 || fehlt=1
+[ "$fehlt" -eq 0 ] || fehler 'Nicht alle Dienste sind hochgekommen.'
 
 if [ "$aufraeumen" -eq 1 ]; then
   schritt 'Alte Bilder loeschen'
