@@ -1755,6 +1755,11 @@ export class Game {
       attackRange: playerProfile().attackRange,
       attackCooldownSec: playerProfile().attackCooldownSec,
       attackWindupSec: playerProfile().attackWindupSec,
+      // Die Vorhersage heilt nicht. Leben kommt vom Server, und eine Figur,
+      // die im Client nebenher regeneriert, zeigt eine Leiste, die es nicht
+      // gibt.
+      hpRegen: 0,
+      mpRegen: 0,
       attackStyle: 0,
       radius: playerProfile().radius,
       height: playerProfile().height,

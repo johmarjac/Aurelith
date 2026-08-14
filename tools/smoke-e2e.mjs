@@ -213,6 +213,7 @@ const state = await page.evaluate(() => {
     hpLabel: document.querySelector('.bar.hp .bar-label')?.textContent ?? '',
     level: document.querySelector('.vitals-level')?.textContent ?? '',
     inventoryFilled: document.querySelectorAll('.item-slot:not(.item-empty)').length,
+    equipFilled: document.querySelectorAll('.equip-slot[data-filled="true"]').length,
     status: document.querySelector('.status')?.textContent ?? '',
   };
 });
@@ -224,7 +225,22 @@ check(/\d+ \/ \d+/.test(state.hpLabel), `Lebensanzeige gefüllt (${state.hpLabel
 // Vorher stand hier `includes('Stufe')`, und das prüfte die Beschriftung
 // statt der Auskunft.
 check(/^\d+$/.test(state.level.trim()), `Stufe angezeigt (${state.level})`);
-check(state.inventoryFilled >= 3, `Startausrüstung im Inventar (${state.inventoryFilled} Plätze)`);
+/*
+ * Die Startausrüstung — im Beutel **und** am Körper.
+ *
+ * Beides zusammen, weil sie an beiden Orten liegt: Schwert und Weste sind
+ * angelegt und nehmen deshalb keine Kachel im Raster weg. Ein Blick allein
+ * auf den Beutel zählte nur die Tränke und hielte eine leere Ausrüstung für
+ * in Ordnung.
+ */
+check(
+  state.inventoryFilled >= 1,
+  `Startausrüstung im Beutel (${state.inventoryFilled} Kacheln)`,
+);
+check(
+  state.equipFilled >= 2,
+  `und am Körper (${state.equipFilled} Plätze belegt)`,
+);
 check(state.chatLines > 0, `Systemnachricht angekommen (${state.chatLines})`);
 check(state.nameplates > 0, `Namensschilder gezeichnet (${state.nameplates})`);
 

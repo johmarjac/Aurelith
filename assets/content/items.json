@@ -360,13 +360,15 @@
       "effectValue": 0,
       "stackable": false,
       "maxStack": 1,
-      "value": 28,
+      "value": 90,
       "model": "armor_necklace",
       "iconColor": "#7fd8e8",
-      "description": "Ein Splitter Irrlichtessenz an einer Lederschnur. Kühl auf der Haut.",
+      "description": "Ein Splitter Irrlichtessenz an einer Lederschnur. Er zehrt nach, was der Kampf genommen hat — solange keiner mehr auf dich aus ist.",
       "maxMp": 15,
       "maxHp": 8,
-      "icon": "icons/moor_pendant.webp"
+      "icon": "icons/moor_pendant.webp",
+      "hpRegen": 1,
+      "mpRegen": 0.5
     },
     {
       "id": "moor_earring",
@@ -416,83 +418,13 @@
       "equipped": true
     },
     {
-      "item": "wooden_bow",
-      "count": 1,
-      "equipped": false
-    },
-    {
       "item": "training_vest",
       "count": 1,
       "equipped": true
     },
     {
       "item": "potion_hp_small",
-      "count": 3,
-      "equipped": false
-    },
-    {
-      "item": "leather_cap",
-      "count": 1,
-      "equipped": false
-    },
-    {
-      "item": "leather_tunic",
-      "count": 1,
-      "equipped": false
-    },
-    {
-      "item": "leather_pants",
-      "count": 1,
-      "equipped": false
-    },
-    {
-      "item": "leather_boots",
-      "count": 1,
-      "equipped": false
-    },
-    {
-      "item": "wanderer_cloak",
-      "count": 1,
-      "equipped": false
-    },
-    {
-      "item": "reading_glasses",
-      "count": 1,
-      "equipped": false
-    },
-    {
-      "item": "moor_pendant",
-      "count": 1,
-      "equipped": false
-    },
-    {
-      "item": "copper_ring",
-      "count": 1,
-      "equipped": false
-    },
-    {
-      "item": "copper_ring",
-      "count": 1,
-      "equipped": false
-    },
-    {
-      "item": "leather_gloves",
-      "count": 1,
-      "equipped": false
-    },
-    {
-      "item": "reisemantel",
-      "count": 1,
-      "equipped": false
-    },
-    {
-      "item": "moor_earring",
-      "count": 1,
-      "equipped": false
-    },
-    {
-      "item": "moor_earring",
-      "count": 1,
+      "count": 10,
       "equipped": false
     }
   ]

@@ -82,6 +82,14 @@ export interface CorePlayerSpawn {
   attackRange: number;
   attackCooldownSec: number;
   attackWindupSec: number;
+  /**
+   * Regeneration in Punkten je Sekunde, ausserhalb des Kampfes.
+   *
+   * Null heisst: keine. Das ist der Regelfall — geheilt wird durch Tränke und
+   * durch Ausrüstung, die es ausdrücklich mitbringt.
+   */
+  hpRegen: number;
+  mpRegen: number;
   /** 0 = Nahkampf, 1 = Fernkampf. Unterscheidet nur Reichweite und Bild. */
   attackStyle: number;
   radius: number;
@@ -169,6 +177,8 @@ interface RawWorld {
     attackDamage: number,
     defense: number,
     moveSpeed: number,
+    hpRegen: number,
+    mpRegen: number,
   ): void;
   setCritProfile(id: number, chance: number, multiplier: number): void;
   heal(id: number, hp: number, mp: number): number;
@@ -361,8 +371,20 @@ export class CoreWorld {
     attackDamage: number,
     defense: number,
     moveSpeed: number,
+    hpRegen: number,
+    mpRegen: number,
   ): void {
-    this.raw.setPlayerStats(id, level, maxHp, maxMp, attackDamage, defense, moveSpeed);
+    this.raw.setPlayerStats(
+      id,
+      level,
+      maxHp,
+      maxMp,
+      attackDamage,
+      defense,
+      moveSpeed,
+      hpRegen,
+      mpRegen,
+    );
   }
 
   /**

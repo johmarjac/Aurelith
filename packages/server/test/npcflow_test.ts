@@ -266,6 +266,24 @@ check(
 const beutelZeilen = () => inventory.filter((i) => !i.equipped);
 const belegteSlots = () => new Set(beutelZeilen().map((i) => i.slot));
 
+/*
+ * Zum Tauschen braucht es zwei belegte Kacheln — der Startbeutel hat nur eine.
+ *
+ * Er enthält Schwert und Weste (beide angelegt) und einen Stapel Tränke. Also
+ * wird der Bogen... nein: das Schwert kurz abgelegt. Es landet im Beutel, und
+ * damit gibt es zwei Zeilen zum Vertauschen. Das ist keine Verrenkung für den
+ * Test, sondern die ehrlichere Vorbereitung: er soll nicht davon abhängen, wie
+ * viele Sachen eine frische Figur zufällig mitbekommt.
+ */
+const schwertAmKoerper = inventory.find((i) => i.equipped && i.itemId === 'wooden_sword');
+if (schwertAmKoerper) {
+  send(encodeEquipItem(schwertAmKoerper.slot));
+  const bisAbgelegt = Date.now() + 3000;
+  while (Date.now() < bisAbgelegt && inventory.find((i) => i.itemId === 'wooden_sword')?.equipped)
+    await sleep(50);
+}
+check(beutelZeilen().length >= 2, 'zwei Kacheln belegt', `${beutelZeilen().length} Zeilen`);
+
 const erste = beutelZeilen()[0]!;
 const freieKachel = (() => {
   const belegt = belegteSlots();
@@ -287,6 +305,10 @@ check(
 const a = beutelZeilen()[0]!;
 const b = beutelZeilen().find((i) => i.slot !== a.slot)!;
 const vorTausch = { a: { id: a.itemId, slot: a.slot }, b: { id: b.itemId, slot: b.slot } };
+// Gezählt vorher und nicht als feste Zahl: wie viel eine frische Figur
+// mitbekommt, steht in der Gegenstandstabelle und ändert sich dort — eine 17
+// im Test wäre eine zweite Angabe darüber.
+const zeilenVorTausch = inventory.length;
 send(encodeMoveItem(vorTausch.a.slot, vorTausch.b.slot));
 await sleep(500);
 check(
@@ -296,20 +318,48 @@ check(
   `${vorTausch.a.id}↔${vorTausch.b.id}`,
 );
 check(
-  inventory.length === 17,
+  inventory.length === zeilenVorTausch,
   'und dabei geht nichts verloren',
-  `${inventory.length} Zeilen`,
+  `${inventory.length} von ${zeilenVorTausch} Zeilen`,
 );
 
-// Gegenprobe: das angelegte Schwert liegt ausserhalb des Beutels und bleibt
+// Gegenprobe: ein angelegtes Stück liegt ausserhalb des Beutels und bleibt
 // dort. Ginge das, könnte man sich per Paket ausziehen, ohne abzulegen.
-const schwertSlot = inventory.find((i) => i.equipped && i.itemId === 'wooden_sword')?.slot ?? -1;
-send(encodeMoveItem(schwertSlot, freieKachel));
+//
+// Genommen wird die Weste — das Schwert hängt seit dem Tauschversuch oben im
+// Beutel, und ein Stück, das gar nicht angelegt ist, prüft hier nichts.
+const westeSlot = inventory.find((i) => i.equipped)?.slot ?? -1;
+const westeId = inventory.find((i) => i.equipped)?.itemId ?? '';
+send(encodeMoveItem(westeSlot, freieKachel));
 await sleep(500);
 check(
-  inventory.find((i) => i.itemId === 'wooden_sword' && i.equipped)?.slot === schwertSlot,
+  inventory.find((i) => i.itemId === westeId && i.equipped)?.slot === westeSlot,
   'ein angelegtes Stück lässt sich nicht ins Raster schieben',
-  `Platz ${schwertSlot}`,
+  `${westeId} auf Platz ${westeSlot}`,
+);
+
+/*
+ * Das Schwert zurück an die Hand.
+ *
+ * Es lag nur für den Tauschversuch im Beutel. Alles Weitere in dieser Datei
+ * ist Kampf — Irrlichter erlegen, Beute, Erfahrung —, und mit blossen Fäusten
+ * dauert das so lange, dass die Fristen darunter reissen. Der Fehlschlag sähe
+ * dann aus wie ein Fehler im Kampf und wäre einer im Aufräumen.
+ */
+const schwertImBeutel = inventory.find((i) => !i.equipped && i.itemId === 'wooden_sword');
+if (schwertImBeutel) {
+  send(encodeEquipItem(schwertImBeutel.slot));
+  const bisAngelegt = Date.now() + 3000;
+  while (
+    Date.now() < bisAngelegt &&
+    !inventory.find((i) => i.itemId === 'wooden_sword')?.equipped
+  ) {
+    await sleep(50);
+  }
+}
+check(
+  inventory.find((i) => i.itemId === 'wooden_sword')?.equipped === true,
+  'das Schwert ist wieder angelegt',
 );
 
 // Gegenprobe: eine Nummer ausserhalb des Beutels ist kein Ziel.

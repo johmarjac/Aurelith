@@ -54,6 +54,9 @@ struct PlayerSpawn {
   float attackRange = 3.0f;
   float attackCooldownSec = 0.62f;
   float attackWindupSec = 0.15f;
+  /** Punkte je Sekunde ausserhalb des Kampfes. Null heisst: keine Heilung. */
+  float hpRegen = 0.0f;
+  float mpRegen = 0.0f;
   /** 0 = Nahkampf, 1 = Fernkampf. Unterscheidet nur Reichweite und Bild. */
   uint32_t attackStyle = 0u;
   float radius = 0.45f;
@@ -127,7 +130,7 @@ class World {
    */
   void areaAttack(uint32_t id, float radius, float damageFactor);
   void setPlayerStats(uint32_t id, uint16_t level, float maxHp, float maxMp, float attackDamage,
-                      float defense, float moveSpeed);
+                      float defense, float moveSpeed, float hpRegen, float mpRegen);
 
   /**
    * Setzt Aussicht und Wucht kritischer Treffer.
@@ -216,6 +219,8 @@ class World {
   void wander(Entity& e, float dt);
   void resolveOverlaps();
   void regenerate(float dt);
+  /** Ist dieses Wesen im Kampf? Die Regel steht bei der Definition. */
+  bool inCombat(const Entity& e) const;
   void handleRespawns();
   void respawnMonster(Entity& e);
 

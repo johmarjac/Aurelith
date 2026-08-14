@@ -74,6 +74,8 @@ bool World::spawnPlayer(const PlayerSpawn& seed) {
   e.attackRange = seed.attackRange;
   e.attackCooldownSec = seed.attackCooldownSec;
   e.attackWindupSec = seed.attackWindupSec;
+  e.hpRegen = seed.hpRegen;
+  e.mpRegen = seed.mpRegen;
   e.attackStyle = seed.attackStyle == 0u ? kAttackMelee : kAttackRanged;
   e.radius = seed.radius;
   e.height = seed.height;
@@ -270,7 +272,8 @@ void World::setAttackProfile(uint32_t id, uint32_t style, float range,
 }
 
 void World::setPlayerStats(uint32_t id, uint16_t level, float maxHp, float maxMp,
-                           float attackDamage, float defense, float moveSpeed) {
+                           float attackDamage, float defense, float moveSpeed, float hpRegen,
+                           float mpRegen) {
   Entity* e = find(id);
   if (e == nullptr) return;
   const float hpRatio = e->maxHp > 0.0f ? e->hp / e->maxHp : 1.0f;
@@ -282,6 +285,8 @@ void World::setPlayerStats(uint32_t id, uint16_t level, float maxHp, float maxMp
   e->mp = std::min(maxMp, e->mp);
   e->attackDamage = attackDamage;
   e->defense = defense;
+  e->hpRegen = hpRegen;
+  e->mpRegen = mpRegen;
   // Tempo kam bisher nicht durch die Brücke. Es stand auf der TypeScript-Seite
   // in den abgeleiteten Werten, wurde gerechnet und dann weggeworfen — Stiefel
   // konnten niemanden schneller machen, weil die Zahl nie ankam.

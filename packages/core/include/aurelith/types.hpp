@@ -45,8 +45,18 @@ constexpr float kHitStunSeconds = 0.18f;
 constexpr float kWindupSpeedFactor = 0.25f;
 constexpr float kHitStunSpeedFactor = 0.40f;
 
-// Regeneration außerhalb des Kampfes, Anteil des Maximums je Sekunde.
-constexpr float kOutOfCombatRegen = 0.04f;
+/*
+ * Regeneration gibt es nicht von selbst.
+ *
+ * Hier stand einmal ein Anteil des Maximums je Sekunde, für jeden gleich. Vier
+ * Prozent klingen wenig und füllen eine Leiste in fünfundzwanzig Sekunden —
+ * damit war Heilung nie eine Frage der Ausrüstung, sondern eine des Wartens,
+ * und ein Trank hatte gegen das blosse Danebenstehen keine Aufgabe mehr.
+ *
+ * Was jetzt regeneriert, steht an der Figur: `hpRegen` und `mpRegen`, in
+ * Punkten je Sekunde, und die kommen aus dem, was sie trägt. Ohne ein Stück
+ * mit dieser Eigenschaft heilt niemand von selbst.
+ */
 
 // --- Umherwandern ----------------------------------------------------------
 //
@@ -255,6 +265,13 @@ struct Entity {
   float attackRange = 2.0f;
   float attackCooldownSec = 0.9f;
   float attackWindupSec = 0.2f;
+
+  // Regeneration in **Punkten je Sekunde** und nicht als Anteil: „+2 Leben je
+  // Sekunde" steht so auf einem Ring und lässt sich addieren. Ein Anteil
+  // wüchse mit der Stufe von selbst mit, und ein Ring wäre auf Stufe 60 das
+  // Zehnfache dessen, was er auf Stufe 6 war.
+  float hpRegen = 0.0f;
+  float mpRegen = 0.0f;
 
   float aggroRange = 0.0f;
   float leashRange = 0.0f;

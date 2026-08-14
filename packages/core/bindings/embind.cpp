@@ -180,6 +180,8 @@ EMSCRIPTEN_BINDINGS(aurelith_core) {
       .field("attackRange", &aur::PlayerSpawn::attackRange)
       .field("attackCooldownSec", &aur::PlayerSpawn::attackCooldownSec)
       .field("attackWindupSec", &aur::PlayerSpawn::attackWindupSec)
+      .field("hpRegen", &aur::PlayerSpawn::hpRegen)
+      .field("mpRegen", &aur::PlayerSpawn::mpRegen)
       .field("attackStyle", &aur::PlayerSpawn::attackStyle)
       .field("radius", &aur::PlayerSpawn::radius)
       .field("height", &aur::PlayerSpawn::height);

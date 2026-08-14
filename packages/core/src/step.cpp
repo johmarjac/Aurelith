@@ -99,21 +99,42 @@ void World::resolveOverlaps() {
   }
 }
 
+/*
+ * Wer ist im Kampf?
+ *
+ * **Ein Spieler ist im Kampf, solange irgendein Monster ihn jagt.** Das ist
+ * die ganze Regel, und sie ist absichtlich so kurz.
+ *
+ * Vorher hing es an drei Merkern der eigenen Figur — Trefferpause, laufender
+ * Schlag, laufende Abklingzeit. Die sind nach dem letzten Schlag in einer
+ * Sekunde alle abgelaufen, und wer neben einem Keiler stand, der ihn gerade
+ * anfiel, heilte munter weiter, solange er selbst nicht zuschlug. „Im Kampf"
+ * heisst aber nicht „ich schlage gerade", sondern „mir will jemand ans
+ * Leder" — und das steht am Verfolger und nicht am Verfolgten.
+ *
+ * Für ein Monster bleibt es umgekehrt: es ist im Kampf, wenn es selbst ein
+ * Ziel hat. Ein Monster klickt niemanden versehentlich an.
+ */
+bool World::inCombat(const Entity& e) const {
+  if (e.type == kEntityMonster) return e.targetId != 0;
+
+  for (const Entity& anderer : entities_) {
+    if (anderer.type != kEntityMonster || !isAlive(anderer)) continue;
+    if (anderer.targetId == e.id) return true;
+  }
+  return false;
+}
+
 void World::regenerate(float dt) {
   for (Entity& e : entities_) {
     if (!isAlive(e) || e.type == kEntityNpc) continue;
-    // Im Kampf heilt niemand. Was „im Kampf" heisst, unterscheidet sich seit
-    // dem Zielsystem nach Art des Wesens: ein Monster mit Ziel *jagt*, ein
-    // Spieler mit Ziel hat nur jemanden angeklickt. Die Auswahl bleibt nach
-    // dem Kampf stehen — hinge die Regeneration daran, heilte ein Spieler
-    // nie wieder, bis er irgendwo ins Leere klickt.
-    const bool inCombat = e.hitStun > 0.0f || e.swingTimer >= 0.0f ||
-                          e.attackCooldown > 0.0f ||
-                          (e.type == kEntityMonster && e.targetId != 0);
-    if (inCombat) continue;
+    // Ohne Eigenschaft keine Regeneration. Der häufigste Fall, und er kostet
+    // damit auch nichts — die Suche nach Verfolgern läuft gar nicht erst an.
+    if (e.hpRegen <= 0.0f && e.mpRegen <= 0.0f) continue;
+    if (inCombat(e)) continue;
 
-    if (e.hp < e.maxHp) e.hp = std::min(e.maxHp, e.hp + e.maxHp * kOutOfCombatRegen * dt);
-    if (e.mp < e.maxMp) e.mp = std::min(e.maxMp, e.mp + e.maxMp * kOutOfCombatRegen * dt);
+    if (e.hp < e.maxHp) e.hp = std::min(e.maxHp, e.hp + e.hpRegen * dt);
+    if (e.mp < e.maxMp) e.mp = std::min(e.maxMp, e.mp + e.mpRegen * dt);
   }
 }
 

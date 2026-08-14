@@ -35,6 +35,18 @@ export interface AttributeDef {
 export const ATTRIBUTES: readonly AttributeDef[] = [
   { id: 'maxHp', name: 'Leben', form: 'zahl' },
   { id: 'maxMp', name: 'Mana', form: 'zahl' },
+  {
+    id: 'hpRegen',
+    name: 'Lebensregeneration',
+    form: 'zahl',
+    hinweis: 'Leben je Sekunde ausserhalb des Kampfes. Ohne ein Stück, das sie mitbringt, gibt es keine.',
+  },
+  {
+    id: 'mpRegen',
+    name: 'Manaregeneration',
+    form: 'zahl',
+    hinweis: 'Mana je Sekunde ausserhalb des Kampfes.',
+  },
   { id: 'attackDamage', name: 'Angriff', form: 'zahl' },
   { id: 'defense', name: 'Verteidigung', form: 'zahl' },
   {

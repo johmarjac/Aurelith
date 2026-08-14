@@ -174,6 +174,15 @@ export interface ItemDef {
   maxMp: number;
   /** Zuschlag auf die Aussicht auf kritische Treffer, als Anteil (0,03 = 3 %). */
   critChance: number;
+  /**
+   * Lebens- und Manaregeneration, in Punkten je Sekunde.
+   *
+   * Von selbst heilt niemand — nur was ein Stück (später ein Begleiter)
+   * ausdrücklich mitbringt. Deshalb ist die Null hier keine Auslassung,
+   * sondern die Regel.
+   */
+  hpRegen: number;
+  mpRegen: number;
   /** Aktionswert für Verbrauchsgegenstände, z. B. geheilte Lebenspunkte. */
   effectValue: number;
   stackable: boolean;
@@ -251,6 +260,8 @@ export interface ArmorSetDef {
     maxHp: number;
     maxMp: number;
     critChance: number;
+    hpRegen: number;
+    mpRegen: number;
   };
 }
 

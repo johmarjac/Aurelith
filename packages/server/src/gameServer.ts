@@ -810,6 +810,8 @@ export class GameServer {
       attackRange: profile.range,
       attackCooldownSec: profile.cooldownSec,
       attackWindupSec: profile.windupSec,
+      hpRegen: stats.hpRegen,
+      mpRegen: stats.mpRegen,
       attackStyle: profile.style,
       radius: playerProfile().radius,
       height: playerProfile().height,
@@ -1306,6 +1308,8 @@ export class GameServer {
       attackRange: profile.range,
       attackCooldownSec: profile.cooldownSec,
       attackWindupSec: profile.windupSec,
+      hpRegen: stats.hpRegen,
+      mpRegen: stats.mpRegen,
       attackStyle: profile.style,
       radius: playerProfile().radius,
       height: playerProfile().height,
@@ -1729,6 +1733,8 @@ export class GameServer {
       stats.attackDamage,
       stats.defense,
       stats.moveSpeed,
+      stats.hpRegen,
+      stats.mpRegen,
     );
     instance.world.setAttackProfile(
       session.entityId,
@@ -2361,6 +2367,8 @@ export class GameServer {
       stats.attackDamage,
       stats.defense,
       stats.moveSpeed,
+      stats.hpRegen,
+      stats.mpRegen,
     );
     this.systemMessage(session, `Stufe ${character.level} erreicht.`);
   }
@@ -2517,6 +2525,10 @@ export class GameServer {
     sheet.basis('moveSpeed', basis.moveSpeed);
     sheet.basis('critChance', basis.critChance);
     sheet.basis('critMultiplier', basis.critMultiplier);
+    // Null, und das ist die Aussage: ohne ein Stück, das Regeneration
+    // mitbringt, heilt niemand von selbst.
+    sheet.basis('hpRegen', basis.hpRegen);
+    sheet.basis('mpRegen', basis.mpRegen);
 
     for (const entry of session.items) {
       if (!entry.equipped) continue;
@@ -2532,6 +2544,8 @@ export class GameServer {
       sheet.fuege('maxHp', name, def.maxHp);
       sheet.fuege('maxMp', name, def.maxMp);
       sheet.fuege('critChance', name, def.critChance);
+      sheet.fuege('hpRegen', name, def.hpRegen);
+      sheet.fuege('mpRegen', name, def.mpRegen);
     }
 
     // Und ganz zum Schluss der Satz. Er wird auf die Summe der Teile addiert
@@ -2545,6 +2559,8 @@ export class GameServer {
       sheet.fuege('maxHp', satz.set.name, b.maxHp);
       sheet.fuege('maxMp', satz.set.name, b.maxMp);
       sheet.fuege('critChance', satz.set.name, b.critChance);
+      sheet.fuege('hpRegen', satz.set.name, b.hpRegen);
+      sheet.fuege('mpRegen', satz.set.name, b.mpRegen);
     }
 
     // Reichweite und Schlagpause kommen von der Waffe, und zwar ersetzend:
@@ -2575,6 +2591,8 @@ export class GameServer {
       moveSpeed: sheet.wert('moveSpeed'),
       critChance: sheet.wert('critChance'),
       critMultiplier: sheet.wert('critMultiplier'),
+      hpRegen: sheet.wert('hpRegen'),
+      mpRegen: sheet.wert('mpRegen'),
     };
   }
 

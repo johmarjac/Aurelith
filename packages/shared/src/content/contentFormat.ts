@@ -199,6 +199,8 @@ export function parseItems(raw: unknown, source = 'items.json'): {
       attackDamage: optNum(o, 'attackDamage', 0, path),
       defense: optNum(o, 'defense', 0, path),
       critChance: optNum(o, 'critChance', 0, path),
+      hpRegen: optNum(o, 'hpRegen', 0, path),
+      mpRegen: optNum(o, 'mpRegen', 0, path),
       maxHp: optNum(o, 'maxHp', 0, path),
       maxMp: optNum(o, 'maxMp', 0, path),
       effectValue: optNum(o, 'effectValue', 0, path),
@@ -268,6 +270,8 @@ export function parseItems(raw: unknown, source = 'items.json'): {
         maxHp: optNum(bonus, 'maxHp', 0, `${path}.bonus`),
         maxMp: optNum(bonus, 'maxMp', 0, `${path}.bonus`),
         critChance: optNum(bonus, 'critChance', 0, `${path}.bonus`),
+        hpRegen: optNum(bonus, 'hpRegen', 0, `${path}.bonus`),
+        mpRegen: optNum(bonus, 'mpRegen', 0, `${path}.bonus`),
       },
     };
     return def;

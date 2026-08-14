@@ -527,7 +527,7 @@ void testHeal() {
   aur::MobRegistry mobs;
   aur::World world(3u, flatTerrain(), &mobs);
   world.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
-  world.setPlayerStats(1, 1, 100.0f, 50.0f, 10.0f, 0.0f, 6.0f);
+  world.setPlayerStats(1, 1, 100.0f, 50.0f, 10.0f, 0.0f, 6.0f, 0.0f, 0.0f);
 
   aur::Entity* p = world.find(1);
   p->hp = 40.0f;
@@ -555,6 +555,60 @@ void testHeal() {
   check(world.heal(999, 10.0f, 0.0f) == 0.0f, "eine erfundene Kennung heilt nichts");
 }
 
+/*
+ * Regeneration — und wann sie schweigt.
+ *
+ * Zwei Aussagen, und die zweite ist die eigentliche: ohne die Eigenschaft
+ * heilt niemand, und mit ihr heilt niemand, solange ein Monster hinter ihm her
+ * ist. „Im Kampf" hing früher an den eigenen Merkern (Trefferpause, Schlag,
+ * Abklingzeit); die laufen eine Sekunde nach dem letzten Schlag ab, und wer
+ * dann neben einem angreifenden Keiler stand, heilte munter weiter.
+ */
+void testRegeneration() {
+  std::printf("Regeneration\n");
+  aur::MobRegistry mobs;
+  const uint32_t aggressive = registerTestMob(mobs, true);
+  aur::World world(23u, flatTerrain(), &mobs);
+  world.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+  world.setPlayerStats(1, 1, 100.0f, 50.0f, 10.0f, 0.0f, 6.0f, 0.0f, 0.0f);
+
+  aur::Entity* p = world.find(1);
+  p->hp = 40.0f;
+  p->mp = 10.0f;
+
+  // Ohne Eigenschaft passiert eine Sekunde lang nichts.
+  for (int i = 0; i < aur::kTickRate; ++i) world.step(aur::kTickSeconds);
+  check(p->hp == 40.0f, "ohne Eigenschaft heilt niemand von selbst");
+  check(p->mp == 10.0f, "und Mana kommt auch nicht wieder");
+
+  // Mit Eigenschaft: zwei Leben je Sekunde, eine Sekunde lang.
+  world.setPlayerStats(1, 1, 100.0f, 50.0f, 10.0f, 0.0f, 6.0f, 2.0f, 1.0f);
+  p = world.find(1);
+  const float vorher = p->hp;
+  for (int i = 0; i < aur::kTickRate; ++i) world.step(aur::kTickSeconds);
+  check(p->hp > vorher + 1.5f && p->hp < vorher + 2.5f, "mit Eigenschaft kommt sie an");
+
+  // Und jetzt ein Monster, das ihn jagt: ab hier steht die Heilung still,
+  // obwohl der Spieler selbst gar nichts tut.
+  world.spawnMob(10, aggressive, 0.0f, 3.0f, -1, aur::kNoSpawner);
+  world.step(aur::kTickSeconds);
+  check(world.find(10)->targetId == 1, "das Monster hat den Spieler im Blick");
+
+  p = world.find(1);
+  p->hp = 40.0f;
+  const float imKampf = p->hp;
+  for (int i = 0; i < aur::kTickRate; ++i) world.step(aur::kTickSeconds);
+  check(world.find(1)->hp <= imKampf, "wer gejagt wird, heilt nicht");
+
+  // Gegenprobe: ohne Verfolger läuft sie sofort wieder an. Ohne diese Zeile
+  // wüsste man nicht, ob die Heilung *steht* oder überhaupt nicht mehr geht.
+  world.removeEntity(10);
+  p = world.find(1);
+  const float nachher = p->hp;
+  for (int i = 0; i < aur::kTickRate; ++i) world.step(aur::kTickSeconds);
+  check(world.find(1)->hp > nachher, "ohne Verfolger geht es weiter");
+}
+
 void testMoveSpeedFromStats() {
   std::printf("Tempo aus den Werten\n");
   aur::MobRegistry mobs;
@@ -562,7 +616,7 @@ void testMoveSpeedFromStats() {
   world.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
 
   // Langsam laufen, Strecke messen; schnell laufen, Strecke messen.
-  world.setPlayerStats(1, 1, 100.0f, 0.0f, 10.0f, 0.0f, 2.0f);
+  world.setPlayerStats(1, 1, 100.0f, 0.0f, 10.0f, 0.0f, 2.0f, 0.0f, 0.0f);
   for (int i = 0; i < 20; ++i) {
     world.applyInput(1, 0.0f, 1.0f, 0.0f, 0u, aur::kTickSeconds);
     world.step(aur::kTickSeconds);
@@ -570,7 +624,7 @@ void testMoveSpeedFromStats() {
   const float langsam = world.find(1)->z;
 
   world.teleport(1, 0.0f, 0.0f, 0.0f);
-  world.setPlayerStats(1, 1, 100.0f, 0.0f, 10.0f, 0.0f, 8.0f);
+  world.setPlayerStats(1, 1, 100.0f, 0.0f, 10.0f, 0.0f, 8.0f, 0.0f, 0.0f);
   for (int i = 0; i < 20; ++i) {
     world.applyInput(1, 0.0f, 1.0f, 0.0f, 0u, aur::kTickSeconds);
     world.step(aur::kTickSeconds);
@@ -803,6 +857,7 @@ int main() {
   testSculpt();
   testRangedAttack();
   testHeal();
+  testRegeneration();
   testMoveSpeedFromStats();
   testAreaAttack();
   testCritProfile();

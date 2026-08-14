@@ -170,6 +170,21 @@ async function schiesse(ms: number): Promise<void> {
   await sleep(300);
 }
 
+console.log('\nEinkauf');
+
+// Der Startbeutel enthält Schwert, Weste und Tränke — sonst nichts. Bogen und
+// Pfeile kommen von Iselda, und genau das ist der Weg, den ein Spieler auch
+// geht.
+send(encodeClientChat(0, '/gg 100'));
+await sleep(600);
+check((stats?.gold ?? 0) >= 100, 'Gold für den Handel da', String(stats?.gold));
+check(bogen() === undefined, 'ein frischer Beutel hat keinen Bogen');
+
+send(encodeShopTrade(0, 'wooden_bow', 1));
+const bisBogen = Date.now() + 5000;
+while (Date.now() < bisBogen && bogen() === undefined) await sleep(50);
+check(bogen() !== undefined, 'der Holzbogen ist gekauft');
+
 console.log('\nAusrüsten über die Aktionsleiste');
 
 // Ein Bogen ist kein Trank — „benutzen" heisst hier anlegen. Auf der
@@ -183,10 +198,15 @@ check(
   'und keine Absage dabei',
   chat.filter((z) => z.includes('benutzen')).join(' | '),
 );
+// Und das Schwert ist damit abgelegt — eine Hand, eine Waffe.
+check(
+  inventory.find((i) => i.itemId === 'wooden_sword')?.equipped === false,
+  'das Holzschwert ist dabei in den Beutel gewandert',
+);
 
 console.log('\nOhne Pfeile');
 
-check(zaehle('arrow') === 0, 'der Startbeutel enthält keine Pfeile');
+check(zaehle('arrow') === 0, 'im Beutel liegen keine Pfeile');
 const vorher = chat.length;
 await schiesse(1200);
 check(
@@ -195,11 +215,7 @@ check(
   chat.slice(vorher).join(' | ') || '(nichts gesagt)',
 );
 
-console.log('\nKaufen');
-
-send(encodeClientChat(0, '/gg 50'));
-await sleep(600);
-check((stats?.gold ?? 0) >= 50, 'Gold für den Handel da', String(stats?.gold));
+console.log('\nPfeile kaufen');
 
 const goldVorKauf = stats?.gold ?? 0;
 send(encodeShopTrade(0, 'arrow', 20));

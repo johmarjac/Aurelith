@@ -84,6 +84,8 @@ world.spawnPlayer({
   attackRange: 3,
   attackCooldownSec: 0.62,
   attackWindupSec: 0.15,
+  hpRegen: 0,
+  mpRegen: 0,
   attackStyle: 0,
   radius: 0.45,
   height: 1.8,

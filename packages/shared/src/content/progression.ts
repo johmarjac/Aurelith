@@ -38,6 +38,10 @@ export interface DerivedStats {
   critChance: number;
   /** Womit der Schaden dabei malgenommen wird. */
   critMultiplier: number;
+  /** Leben je Sekunde ausserhalb des Kampfes. Grundwert null. */
+  hpRegen: number;
+  /** Mana je Sekunde ausserhalb des Kampfes. Grundwert null. */
+  mpRegen: number;
 }
 
 /** Grundwerte allein aus der Stufe, ohne Ausrüstung. */
@@ -52,6 +56,10 @@ export function baseStatsForLevel(level: number): DerivedStats {
     moveSpeed: p.moveSpeed,
     critChance: p.critChance,
     critMultiplier: p.critMultiplier,
+    // Der Grundwert ist null: eine Figur heilt nicht von selbst. Was heilt,
+    // hängt an ihr — siehe `hpRegen` in der Gegenstandstabelle.
+    hpRegen: 0,
+    mpRegen: 0,
   };
 }
 
