@@ -1905,6 +1905,10 @@ body.aktion-zuweisen .action-slot {
  * nicht an unsere Variablen angepasst — wer sie „aufräumt", räumt die Vorgabe
  * weg.
  *
+ * Es ist die **helle neutrale** Fassung: grauer Grund, kein Rahmen. Von den
+ * zulässigen Varianten die, die auf hellem Pergament nicht als weisser Kasten
+ * im weissen Kasten steht.
+ *
  * Zwei Abweichungen, beide absichtlich: `width: 100%` statt `auto`, damit er
  * so breit steht wie die Felder darüber; und keine Schriftart von aussen —
  * `Roboto` wird nicht geladen, es bleibt bei der Ersatzkette. Eine Schrift von
@@ -1916,9 +1920,9 @@ body.aktion-zuweisen .action-slot {
   -webkit-user-select: none;
   user-select: none;
   -webkit-appearance: none;
-  background-color: white;
+  background-color: #f2f2f2;
   background-image: none;
-  border: 1px solid #747775;
+  border: none;
   border-radius: 4px;
   box-sizing: border-box;
   color: #1f1f1f;
@@ -1985,7 +1989,10 @@ body.aktion-zuweisen .action-slot {
 .gsi-material-button:disabled {
   cursor: default;
   background-color: #ffffff61;
-  border-color: #1f1f1f1f;
+}
+
+.gsi-material-button:disabled .gsi-material-button-state {
+  background-color: #1f1f1f1f;
 }
 
 .gsi-material-button:disabled .gsi-material-button-contents,
@@ -1995,7 +2002,7 @@ body.aktion-zuweisen .action-slot {
 
 .gsi-material-button:not(:disabled):active .gsi-material-button-state,
 .gsi-material-button:not(:disabled):focus .gsi-material-button-state {
-  background-color: #303030;
+  background-color: #001d35;
   opacity: 12%;
 }
 
@@ -2006,7 +2013,7 @@ body.aktion-zuweisen .action-slot {
 }
 
 .gsi-material-button:not(:disabled):hover .gsi-material-button-state {
-  background-color: #303030;
+  background-color: #001d35;
   opacity: 8%;
 }
 
