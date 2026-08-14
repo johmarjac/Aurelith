@@ -30,6 +30,53 @@ export function googleBereit(): boolean {
 }
 
 /**
+ * Sieht die Google-Konfiguration überhaupt nach einer aus?
+ *
+ * Gemeldet wird beim Start, nicht beim ersten Spieler. Der Anlass ist ein
+ * Fehlschlag, der nichts über sich verrät: Google antwortet auf eine Kennung
+ * mit einem Anführungszeichen darin mit `401 invalid_client`, und dieselbe
+ * Antwort kommt bei einem falschen Geheimnis. Wer beides für richtig hält,
+ * weil es in der `.env` richtig **aussieht**, sucht lange.
+ *
+ * Bewusst nur gemeldet und nicht behoben. Anführungszeichen wegzuschneiden
+ * hiesse, eine falsche Datei zum Laufen zu bringen — und beim nächsten Wert,
+ * der wirklich eines enthält, stünde man vor demselben Rätsel, nur andersherum.
+ *
+ * Das Geheimnis selbst steht in keiner Zeile. Was daran auffällt, lässt sich
+ * auch ohne es sagen.
+ */
+export function meldeGoogleAuffaelligkeiten(): void {
+  const g = loginConfig.google;
+  const auffaellig = (wert: string): string | undefined => {
+    if (wert !== wert.trim()) return 'hat Leerzeichen am Rand';
+    if (/^["'].*["']$/.test(wert)) return 'steht in Anführungszeichen';
+    return undefined;
+  };
+
+  for (const [name, wert] of [
+    ['AURELITH_GOOGLE_CLIENT_ID', g.clientId],
+    ['AURELITH_GOOGLE_CLIENT_SECRET', g.clientSecret],
+    ['AURELITH_GOOGLE_REDIRECT_URI', g.redirectUri],
+  ] as const) {
+    const was = auffaellig(wert);
+    if (was) console.warn(`[anmelde] ${name} ${was} — Google wird das ablehnen.`);
+  }
+
+  if (!g.clientId.endsWith('.apps.googleusercontent.com')) {
+    console.warn(
+      '[anmelde] AURELITH_GOOGLE_CLIENT_ID endet nicht auf .apps.googleusercontent.com — ' +
+        'das ist die Kennung, nicht das Geheimnis.',
+    );
+  }
+  if (!g.redirectUri.endsWith('/auth/google/callback')) {
+    console.warn(
+      `[anmelde] AURELITH_GOOGLE_REDIRECT_URI endet nicht auf /auth/google/callback: ` +
+        `${g.redirectUri}`,
+    );
+  }
+}
+
+/**
  * Darf der Browser nach dem Anmelden dorthin zurück?
  *
  * Geprüft wird die **Herkunft**, nicht die ganze Adresse: der Client hängt an

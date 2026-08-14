@@ -148,7 +148,15 @@ export async function googleProfil(
      * Das ist eine Protokollzeile auf dem Server und keine Auskunft an den
      * Browser: dem Spieler bleibt „das hat nicht geklappt".
      */
-    const grund = await antwort.text().catch(() => '');
+    /*
+     * Und alles in **eine** Zeile.
+     *
+     * Google antwortet mit umgebrochenem JSON. Mehrzeilig protokolliert
+     * überlebt davon nur die erste Zeile ein `grep [anmelde]` — und die
+     * enthält bloss die öffnende Klammer. Genau die Auskunft, für die diese
+     * Zeile da ist, fiele damit hinten herunter.
+     */
+    const grund = (await antwort.text().catch(() => '')).replace(/\s+/g, ' ').trim();
     console.warn(
       `[anmelde] Google lehnt den Code ab (${antwort.status}): ${grund.slice(0, 300)}`,
     );

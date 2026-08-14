@@ -20,7 +20,11 @@ import { createKontoStore } from '../db/index.ts';
 import { KanalRegister } from './registry.ts';
 import { Kartenstapel } from './tickets.ts';
 import { behandleIntern } from './internal.ts';
-import { behandleAnbieterweg, googleBereit } from './anbieterweg.ts';
+import {
+  behandleAnbieterweg,
+  googleBereit,
+  meldeGoogleAuffaelligkeiten,
+} from './anbieterweg.ts';
 import { LoginServer } from './loginServer.ts';
 
 function baueHttpServer(): { server: Server; scheme: 'ws' | 'wss' } {
@@ -93,6 +97,7 @@ server.listen(loginConfig.port, loginConfig.host, () => {
   console.log(
     `[anmelde] Anmeldearten: Passwort${googleBereit() ? ', Google' : ''}`,
   );
+  if (googleBereit()) meldeGoogleAuffaelligkeiten();
   if (googleBereit() && loginConfig.ziele.length === 0) {
     // Ohne Freigabeliste geht der Google-Weg nirgendwohin zurück — der Knopf
     // wäre da und führte in eine Sackgasse. Lieber laut beim Start als still
