@@ -608,6 +608,22 @@ ist schlechter als keiner. Beide zugleich gehen genauso wie nur einer.
 | `AURELITH_FACEBOOK_REDIRECT_URI` | `https://<anmeldeserver>/auth/facebook/callback` — im Produkt „Facebook Login" unter „Gültige OAuth-Redirect-URIs" eingetragen |
 | `AURELITH_ANMELDE_ZIELE` | Herkünfte, zu denen zurückgeschickt werden darf, mit Komma getrennt |
 
+Facebook verlangt zusätzlich, dass die **Domain** der Rückadresse in der App
+hinterlegt ist — sonst lädt es sie gar nicht erst und sagt „Die Domain dieser
+URL ist nicht in den Domains der App vorhanden". Zwei Felder unter
+Einstellungen → Allgemein:
+
+- **App-Domains**: die Domain des Anmeldeservers, nur der Name, ohne `https://`
+  und ohne Pfad.
+- ganz unten **+ Plattform hinzufügen → Website** mit derselben Domain als
+  Site-URL. Ohne eine Plattform nimmt Facebook die App-Domain nicht an.
+
+Gemeint ist dabei immer die Domain, auf der der **Anmeldeserver** steht, und
+nicht die des Clients. Zurückgeschickt wird an `/auth/facebook/callback`, und
+nur diese Adresse sieht Facebook — dass der Client auf GitHub Pages liegt, geht
+den Anbieter nichts an. Wohin es von dort aus weitergeht, entscheidet allein
+`AURELITH_ANMELDE_ZIELE`.
+
 Der Ablauf ist bei beiden derselbe und läuft über HTTP, nicht über den
 Spiel-WebSocket: der Browser muss zum Anbieter und zurück, und das kann eine
 Spielverbindung nicht für ihn tun. Am Ende bekommt der Client eine
