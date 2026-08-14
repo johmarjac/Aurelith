@@ -558,6 +558,8 @@ export function parseTuning(raw: unknown, source = 'tuning.json'): Tuning {
       manaProWeisheit: num(p, 'manaProWeisheit', pPath),
       pausenkuerzungProGeschick: num(p, 'pausenkuerzungProGeschick', pPath),
       maxPausenkuerzung: num(p, 'maxPausenkuerzung', pPath),
+      lebensregenerationAnteil: num(p, 'lebensregenerationAnteil', pPath),
+      manaregenerationAnteil: num(p, 'manaregenerationAnteil', pPath),
     },
     player: {
       attackRange: num(sp, 'attackRange', spPath),

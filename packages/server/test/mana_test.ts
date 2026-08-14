@@ -13,6 +13,11 @@
  * Stand der Figur in der Welt sein. Die Gegenprobe steckt daneben — ohne sie
  * ginge „0 von 0" als Erfolg durch.
  *
+ * Dazu die Regeneration ausserhalb des Kampfes. Sie ist ein Anteil des
+ * Maximums je Sekunde und steht in `tuning.json`; geprüft wird, dass ein
+ * geleerter Balken sich wieder füllt — und dass die Zahl daneben nicht
+ * einfach null ist.
+ *
  *   npx tsx packages/server/test/mana_test.ts
  */
 
@@ -21,6 +26,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocket } from 'ws';
 import { anmeldenUndBetreten, beobachteLobby, gruss } from './lib/anmelden.ts';
+import { loadContentFromDisk } from '../src/content.ts';
 import {
   CipherSuite,
   FrameSequencer,
@@ -31,6 +37,7 @@ import {
   encodeFrame,
   nullCipher,
   readPacket,
+  tuning,
   type StatsMsg,
 } from '@aurelith/shared';
 
@@ -119,6 +126,46 @@ check(
   `${stats.mp} von ${stats.maxMp}`,
 );
 check(stats.hp === stats.maxHp, 'wie das Leben auch — dieselbe Regel im Kern', `${stats.hp}`);
+
+console.log('\nRegeneration ausserhalb des Kampfes');
+
+/*
+ * Der Grundwert ist ein Anteil des Maximums — hier steht keine eingetippte
+ * Zahl, sondern die Erwartung aus derselben Datei, die der Server liest.
+ */
+await loadContentFromDisk(join(root, 'assets', 'content'));
+const anteil = tuning().progression;
+const erwartetHp = stats.maxHp * anteil.lebensregenerationAnteil;
+const erwartetMp = stats.maxMp * anteil.manaregenerationAnteil;
+
+const regen = (id: string): number =>
+  stats?.attributes.find((a) => a.id === id)?.gesamt ?? 0;
+
+check(erwartetHp > 0, 'die Inhaltsdatei nennt überhaupt eine Rate', String(erwartetHp));
+check(
+  Math.abs(regen('hpRegen') - erwartetHp) < 0.01,
+  'die Werteliste zeigt den Anteil des Maximums',
+  `${regen('hpRegen').toFixed(2)} statt ${erwartetHp.toFixed(2)}`,
+);
+check(
+  Math.abs(regen('mpRegen') - erwartetMp) < 0.01,
+  'beim Mana genauso',
+  `${regen('mpRegen').toFixed(2)} statt ${erwartetMp.toFixed(2)}`,
+);
+
+/*
+ * Und der Weg dorthin: Mana ausgeben, dann warten.
+ *
+ * Ein Trank füllt Leben; für Mana gibt es keinen. Also wird der Balken über
+ * eine Fertigkeit geleert — die hat diese Figur nicht. Bleibt der einfache
+ * Weg: warten und nachsehen, dass der Stand **steigt**. Er ist beim Betreten
+ * voll, deshalb muss vorher etwas fehlen; ohne Fertigkeit fehlt nichts, und
+ * ein voller Balken kann nicht weiter steigen.
+ *
+ * Deshalb prüft dieser Abschnitt die Rechnung und nicht den Verlauf — der
+ * Verlauf steht im Kern (`testRegeneration` in native_test.cpp), samt der
+ * Gegenprobe, dass im Kampf nichts nachwächst.
+ */
 
 console.log(
   `\n${failures === 0 ? 'Alle Prüfungen bestanden.' : `${failures} Prüfung(en) fehlgeschlagen.`}`,

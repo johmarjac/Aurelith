@@ -39,7 +39,9 @@ export const ATTRIBUTES: readonly AttributeDef[] = [
     id: 'hpRegen',
     name: 'Lebensregeneration',
     form: 'zahl',
-    hinweis: 'Leben je Sekunde ausserhalb des Kampfes. Ohne ein Stück, das sie mitbringt, gibt es keine.',
+    hinweis:
+      'Leben je Sekunde ausserhalb des Kampfes. Im Kampf ist man, sobald ein ' +
+      'Monster einen zum Ziel hat.',
   },
   {
     id: 'mpRegen',

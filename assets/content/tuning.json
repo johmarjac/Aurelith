@@ -30,7 +30,9 @@
     "kritProGeschick": 0.0015,
     "manaProWeisheit": 4,
     "pausenkuerzungProGeschick": 0.0015,
-    "maxPausenkuerzung": 0.4
+    "maxPausenkuerzung": 0.4,
+    "lebensregenerationAnteil": 0.015,
+    "manaregenerationAnteil": 0.02
   },
   "player": {
     "attackRange": 3,

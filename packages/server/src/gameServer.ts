@@ -2936,6 +2936,22 @@ export class GameServer {
       sheet.fuege('mpRegen', satz.set.name, b.mpRegen);
     }
 
+    /*
+     * Und ganz zuletzt die Regeneration — sie hängt am fertigen Maximum.
+     *
+     * Der Grundwert ist ein Anteil davon, und der lässt sich erst ausrechnen,
+     * wenn Stufe, Ausdauer, Ausrüstung und Satz zusammengezählt sind. Weiter
+     * oben gesetzt wäre es der Anteil eines Maximums, das noch nicht feststeht
+     * — und damit bei jedem Rüstungswechsel ein anderer als der angezeigte.
+     *
+     * `basis` und nicht `fuege`: was die Stücke beitragen, steht schon als
+     * Beitrag da und bleibt stehen. Hier wird nur der Sockel gesetzt, auf dem
+     * sie sitzen.
+     */
+    const p = tuning().progression;
+    sheet.basis('hpRegen', sheet.wert('maxHp') * p.lebensregenerationAnteil);
+    sheet.basis('mpRegen', sheet.wert('maxMp') * p.manaregenerationAnteil);
+
     // Reichweite und Schlagpause kommen von der Waffe, und zwar ersetzend:
     // ein Schwert *hat* seine Reichweite, es addiert sie nicht. Als Beitrag
     // steht deshalb der Unterschied zur blossen Faust — die Summe ist damit

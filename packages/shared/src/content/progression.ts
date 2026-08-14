@@ -56,8 +56,15 @@ export function baseStatsForLevel(level: number): DerivedStats {
     moveSpeed: p.moveSpeed,
     critChance: p.critChance,
     critMultiplier: p.critMultiplier,
-    // Der Grundwert ist null: eine Figur heilt nicht von selbst. Was heilt,
-    // hängt an ihr — siehe `hpRegen` in der Gegenstandstabelle.
+    /*
+     * Null — und das ist hier richtig, obwohl es Regeneration gibt.
+     *
+     * Sie ist ein Anteil des **fertigen** Maximums, und das steht erst fest,
+     * wenn Ausdauer, Ausrüstung und Satzbonus zusammengezählt sind. Gesetzt
+     * wird sie deshalb in der Attributtafel des Servers (`sheetFor`), nicht
+     * hier: eine Zahl, die sich auf ein Maximum von vorhin bezieht, wäre bei
+     * jedem Rüstungswechsel eine andere als die angezeigte.
+     */
     hpRegen: 0,
     mpRegen: 0,
   };

@@ -90,6 +90,26 @@ export interface ProgressionTuning {
    */
   pausenkuerzungProGeschick: number;
   maxPausenkuerzung: number;
+
+  /**
+   * Regeneration ausserhalb des Kampfes — als **Anteil des Maximums** je
+   * Sekunde, nicht als feste Zahl.
+   *
+   * Der Grund ist die Spanne: eine Figur hat auf Stufe 1 zweihundert Leben und
+   * auf Stufe 60 gut vierzehnhundert. Zwei Leben je Sekunde wären am Anfang
+   * grosszügig und am Ende bedeutungslos — dieselbe Zahl hiesse zwei völlig
+   * verschiedene Dinge. Als Anteil dauert das Auffüllen immer gleich lang.
+   *
+   * Gegenstände bringen weiterhin einen **flachen** Zuschlag mit (`hpRegen` in
+   * der Gegenstandstabelle). Das ist kein Widerspruch, sondern die Aufgabe der
+   * beiden: der Anteil trägt den Grundrhythmus, das Stück ist ein Vorsprung
+   * darauf.
+   *
+   * Wann „ausserhalb des Kampfes" gilt, entscheidet der Kern: sobald kein
+   * Monster einen zum Ziel hat.
+   */
+  lebensregenerationAnteil: number;
+  manaregenerationAnteil: number;
 }
 
 export interface PlayerTuning {
