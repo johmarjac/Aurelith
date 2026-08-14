@@ -21,6 +21,26 @@ import { config } from './config.ts';
 /** Wie oft ein Lebenszeichen geht. Der Anmeldeserver verfällt nach 35 s. */
 const HERZSCHLAG_MS = 10_000;
 
+/**
+ * Was aus einem `/accesslevel` wurde.
+ *
+ * `ok: false` heisst „das Konto gibt es nicht" — nicht „der Anmeldeserver war
+ * weg". Der zweite Fall kommt als `undefined` zurück, und die beiden sollen
+ * sich nicht anfühlen wie derselbe: einmal hat sich jemand vertippt, einmal
+ * ist ein Server aus.
+ */
+export type StufenAuskunft =
+  | { ok: false }
+  | {
+      ok: true;
+      /** Wie das Konto wirklich heisst — Grossschreibung wie in der Datenbank. */
+      name: string;
+      vorher: string;
+      nachher: string;
+      /** Steht der Name in `AURELITH_ADMINS`? Dann gewinnt sie beim nächsten Mal. */
+      inListe: boolean;
+    };
+
 export interface TicketAuskunft {
   accountId: number;
   accountName: string;
@@ -113,6 +133,28 @@ export class LoginClient {
       channel: config.channelName,
       drin,
     });
+  }
+
+  /**
+   * Setzt die Zugriffsstufe eines Kontos beim Anmeldeserver — für
+   * `/accesslevel`.
+   *
+   * Dieser Kanal kann das nicht selbst: im Verbund sieht er die Konten nie.
+   * Gibt zurück, was der Anmeldeserver dazu gesagt hat, oder nichts, wenn er
+   * nicht erreichbar war. „Nichts" heisst hier ausdrücklich nicht „ging schon
+   * irgendwie" — der Befehl soll melden, dass er nichts bewirkt hat.
+   */
+  async setzeStufe(name: string, stufe: string): Promise<StufenAuskunft | undefined> {
+    const antwort = await this.ruf('/intern/stufe', { name, stufe });
+    if (!antwort) return undefined;
+    if (antwort.ok !== true) return { ok: false };
+    return {
+      ok: true,
+      name: String(antwort.name ?? name),
+      vorher: String(antwort.vorher ?? ''),
+      nachher: String(antwort.nachher ?? stufe),
+      inListe: antwort.inListe === true,
+    };
   }
 
   /** Nimmt den Kanal aus der Liste. Beim geordneten Herunterfahren. */

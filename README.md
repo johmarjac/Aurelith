@@ -250,14 +250,35 @@ passt zu keiner Eingabe. Das ist Absicht: ein Konto ohne Nachweis darf sich
 nicht anmelden, nur weil es alt ist.
 
 Jedes Konto hat eine Zugriffsstufe: `player`, `gamemaster`, `developer`,
-`admin`. Sie entscheidet über die Chatbefehle, die der **Server** ausführt —
-`/gg <menge>` schreibt Gold gut und steht ab `gamemaster` zu. `/help` im Spiel
-zeigt jedem genau die Befehle, die ihm zustehen.
+`admin`. Sie sind aufsteigend — wer eine hat, darf alles, was die Stufen
+darunter dürfen — und entscheiden über die Chatbefehle, die der **Server**
+ausführt: `/gg <menge>` und `/sys <text>` ab `gamemaster`, `/accesslevel` ab
+`admin`. `/help` im Spiel zeigt jedem genau die Befehle, die ihm zustehen.
 
-Auf einem frischen Server gibt es niemanden, der jemandem etwas geben könnte.
-Deshalb `AURELITH_ADMINS="name1,name2"`: diese Konten bekommen bei jeder
-Anmeldung die Stufe `admin`. Der Weg gilt in beide Richtungen — wer aus der
-Liste verschwindet, ist beim nächsten Anmelden wieder gewöhnlicher Spieler.
+Vergeben wird auf zwei Wegen, und sie haben eine klare Rangfolge.
+
+**Die Liste in der Konfiguration** ist der erste. Sie muss es sein: auf einem
+frischen Server gibt es sonst niemanden, der jemandem etwas geben könnte.
+
+```
+AURELITH_ADMINS=johmarjac,helferlein:gamemaster,tester:developer
+```
+
+Ohne Doppelpunkt gilt `admin`. Die Liste greift bei **jeder** Anmeldung, also
+in beide Richtungen: wer daraus verschwindet, behält beim nächsten Anmelden,
+was in der Datenbank steht, und ein ausdrückliches `:player` nimmt eine Stufe
+zurück. Ein vertipptes Stufenwort gilt nicht und wird beim Serverstart
+gemeldet — sonst würde daraus stillschweigend eine Herabstufung.
+
+**`/accesslevel <konto> <stufe>`** ist der zweite, ab `admin`, und schreibt
+dauerhaft in die Datenbank. Als `<konto>` geht auch der Name einer Figur, die
+gerade im selben Kanal spielt: im Spiel sieht man Figurennamen, und über einer
+Figur mit Google-Konto steht nirgends deren Adresse. Wer gerade online ist,
+bekommt die neue Stufe sofort, ohne sich neu anzumelden.
+
+Steht der Name **in der Liste**, gewinnt die Liste bei der nächsten Anmeldung.
+Der Befehl sagt das dann auch — eine Zuweisung, die zehn Minuten später von
+selbst zurückspringt, wäre schlimmer als eine, die gar nicht erst geht.
 
 ### Startpunkt für Prüfungen
 

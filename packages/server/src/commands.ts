@@ -11,7 +11,7 @@
  * in einem.
  */
 
-import { AccessLevel, accessName } from '@aurelith/shared';
+import { ACCESS_NAMES, AccessLevel, accessName } from '@aurelith/shared';
 import type { Session } from './session.ts';
 
 /**
@@ -31,6 +31,15 @@ export interface CommandHost {
    * hat — der Absender soll sehen, ob sie angekommen ist.
    */
   ansage(text: string): number;
+  /**
+   * Setzt die Zugriffsstufe eines Kontos — dauerhaft, in der Datenbank.
+   *
+   * Nimmt keine Antwort entgegen und gibt keine zurück: der Weg dorthin führt
+   * im Verbund über den Anmeldeserver und ist damit ein Netzruf. Ein Befehl,
+   * der darauf wartet, hielte den Tick auf. Der Host meldet dem Absender
+   * selbst, wie es ausgegangen ist.
+   */
+  setzeStufe(session: Session, name: string, stufe: AccessLevel): void;
 }
 
 export interface CommandDef {
@@ -80,6 +89,37 @@ export const COMMANDS: readonly CommandDef[] = [
       }
       const erreicht = host.ansage(text);
       host.systemMessage(session, `Ansage an ${erreicht} Spieler geschickt.`);
+    },
+  },
+  {
+    name: 'accesslevel',
+    // Nur Verwalter. Ein Spielleiter, der Spielleiter ernennen darf, ernennt
+    // sich früher oder später jemanden, der ihn ernennt — die Stufe wäre dann
+    // keine Ordnung mehr, sondern eine Kettenreaktion.
+    minLevel: AccessLevel.Admin,
+    hilfe: `/accesslevel <konto> <${Object.keys(ACCESS_NAMES).join('|')}> — Stufe setzen (ab Verwalter)`,
+    run(host, session, args) {
+      const [wen, wort] = args;
+      if (!wen || !wort) {
+        host.systemMessage(session, 'Erwartet: /accesslevel <konto> <stufe>.');
+        return;
+      }
+      /*
+       * Gegen die bekannten Wörter und nicht über `accessFromName`.
+       *
+       * Das gibt für alles Unbekannte „player" zurück. Ein vertipptes
+       * `gamemster` würde damit stillschweigend zur Herabstufung — und zwar zu
+       * einer, die genau so aussieht wie ein gelungener Befehl.
+       */
+      const stufenwort = wort.trim().toLowerCase();
+      if (!(stufenwort in ACCESS_NAMES)) {
+        host.systemMessage(
+          session,
+          `„${wort}" ist keine Stufe. Erlaubt: ${Object.keys(ACCESS_NAMES).join(', ')}.`,
+        );
+        return;
+      }
+      host.setzeStufe(session, wen, ACCESS_NAMES[stufenwort]!);
     },
   },
 ];

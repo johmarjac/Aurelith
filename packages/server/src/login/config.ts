@@ -12,6 +12,7 @@
  */
 
 import { ermittleBuildStamp } from '@aurelith/shared/build/ermitteln.node.ts';
+import { leseZugriffsliste, type Zugriffsliste } from '@aurelith/shared';
 
 function env(name: string, fallback: string): string {
   const v = process.env[name];
@@ -88,10 +89,29 @@ export const loginConfig = {
     .map((z) => z.trim())
     .filter((z) => z.length > 0),
 
-  admins: env('AURELITH_ADMINS', '')
-    .split(',')
-    .map((n) => n.trim().toLowerCase())
-    .filter((n) => n.length > 0),
+  /**
+   * Wer welche Zugriffsstufe bekommt — durch Komma getrennt.
+   *
+   *   AURELITH_ADMINS=johmarjac,helferlein:gamemaster,tester:developer
+   *
+   * Ohne Doppelpunkt gilt „admin"; das war die Bedeutung dieses Werts von
+   * Anfang an und bleibt sie, damit bestehende Konfigurationen weiterlaufen.
+   *
+   * Die Stufe wird bei jeder Anmeldung nachgezogen: so lässt sie sich vergeben
+   * und wieder entziehen, ohne in der Datenbank zu schreiben. Ohne diesen Weg
+   * gäbe es auf einem frischen Server niemanden, der jemandem etwas geben
+   * könnte — das erste Konto muss von aussen benannt werden.
+   *
+   * `zugriffFehler` steht daneben und nicht in einem `console.warn` hier
+   * drin: eine Konfiguration soll sich lesen lassen, ohne dass beim Lesen
+   * etwas passiert. Gemeldet wird beim Start, wo jemand hinsieht.
+   */
+  ...((): { zugriff: Zugriffsliste; zugriffFehler: readonly string[] } => {
+    // Einmal lesen, beides herausgeben. Zwei Aufrufe wären zwei Läufe über
+    // denselben Text, und beim nächsten Feilen würde einer davon vergessen.
+    const { liste, fehler } = leseZugriffsliste(env('AURELITH_ADMINS', ''));
+    return { zugriff: liste, zugriffFehler: fehler };
+  })(),
 
   tls: ((): { keyPath: string; certPath: string } | undefined => {
     const keyPath = process.env.AURELITH_LOGIN_TLS_KEY ?? '';

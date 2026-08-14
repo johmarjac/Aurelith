@@ -115,7 +115,7 @@ import { CoreEventType, CoreButton } from '@aurelith/core';
 import { hashPassword, verifyPassword } from './passwords.ts';
 import { runCommand } from './commands.ts';
 import { anmelden } from './accounts.ts';
-import type { LoginClient } from './loginClient.ts';
+import type { LoginClient, StufenAuskunft } from './loginClient.ts';
 import { config } from './config.ts';
 import {
   protokolliereOpcodeFehler,
@@ -549,7 +549,7 @@ export class GameServer {
       daten.name,
       daten.password,
       anlegen,
-      config.admins,
+      config.zugriff,
     );
     if (!ergebnis.ok) {
       session.send(encodeLobbyError(ergebnis.fehler));
@@ -2461,6 +2461,96 @@ export class GameServer {
       erreicht++;
     }
     return erreicht;
+  }
+
+  /**
+   * Setzt die Zugriffsstufe eines Kontos — für `/accesslevel`.
+   *
+   * Wen der Name meint, wird in dieser Reihenfolge beantwortet:
+   *
+   *   1. Eine **Figur, die gerade hier spielt**. Im Spiel sieht man
+   *      Figurennamen, nicht Kontonamen, und über einer Figur mit Google-Konto
+   *      steht nirgends deren E-Mail-Adresse. Ohne diesen Schritt wäre der
+   *      Befehl für den häufigsten Fall — „der da drüben soll Spielleiter
+   *      werden" — nicht zu benutzen.
+   *   2. Sonst gilt der Name als **Kontoname**. So erreicht man auch, wer
+   *      gerade nicht da ist.
+   *
+   * Geschrieben wird immer beim Anmeldeserver, denn dort stehen die Konten.
+   * Nur im Alleinbetrieb gibt es keinen, und dann liegen sie hier.
+   */
+  setzeStufe(session: Session, name: string, stufe: AccessLevel): void {
+    const gesucht = name.trim().toLowerCase();
+    const hier = [...this.sessions].find(
+      (s) =>
+        s.state === 'playing' &&
+        (s.character?.name.toLowerCase() === gesucht || s.accountName.toLowerCase() === gesucht),
+    );
+    const konto = hier?.accountName ?? name.trim();
+    const wort = accessName(stufe);
+
+    void (async () => {
+      const auskunft = this.login.aktiv
+        ? await this.login.setzeStufe(konto, wort)
+        : await this.setzeStufeAllein(konto, wort);
+
+      if (!auskunft) {
+        this.systemMessage(session, 'Der Anmeldeserver antwortet nicht — nichts geändert.');
+        return;
+      }
+      if (!auskunft.ok) {
+        this.systemMessage(session, `Ein Konto namens „${konto}" gibt es nicht.`);
+        return;
+      }
+
+      this.systemMessage(
+        session,
+        `${auskunft.name}: Stufe ${auskunft.vorher} → ${auskunft.nachher}.`,
+      );
+      if (auskunft.inListe) {
+        // Die Liste zieht bei jeder Anmeldung nach. Ohne diesen Hinweis stünde
+        // der Verwalter vor einer Zuweisung, die beim nächsten Anmelden von
+        // selbst zurückspringt — und suchte den Fehler bei sich.
+        this.systemMessage(
+          session,
+          `Achtung: „${auskunft.name}" steht in AURELITH_ADMINS. Diese Liste gilt ` +
+            'bei jeder Anmeldung neu und setzt die Stufe dann wieder zurück.',
+        );
+      }
+
+      /*
+       * Wer gerade hier spielt, bekommt die Stufe sofort.
+       *
+       * Sonst gälte in der Datenbank das eine und in der Sitzung das andere,
+       * bis derjenige sich neu anmeldet — zwei Wahrheiten über dieselbe Zahl,
+       * und die sichtbare wäre die veraltete. Herabstufen muss ohnehin sofort
+       * wirken, sonst nimmt man einem Befehl das, was ihn nötig machte.
+       */
+      if (hier && hier.state === 'playing') {
+        hier.access = stufe;
+        this.systemMessage(hier, `Deine Zugriffsstufe ist jetzt „${wort}".`);
+      }
+    })();
+  }
+
+  /**
+   * Dasselbe im Alleinbetrieb — dort stehen die Konten in diesem Prozess.
+   *
+   * Die Antwort hat absichtlich dieselbe Form wie die vom Anmeldeserver: der
+   * Aufrufer soll die beiden Betriebsarten nicht auseinanderhalten müssen.
+   */
+  private async setzeStufeAllein(name: string, wort: string): Promise<StufenAuskunft | undefined> {
+    if (!this.konten) return undefined;
+    const konto = await this.konten.findAccount(name);
+    if (!konto) return { ok: false };
+    if (konto.accessLevel !== wort) await this.konten.setAccessLevel(konto.id, wort);
+    return {
+      ok: true,
+      name: konto.name,
+      vorher: konto.accessLevel,
+      nachher: wort,
+      inListe: config.zugriff.has(konto.name.toLowerCase()),
+    };
   }
 
   /**

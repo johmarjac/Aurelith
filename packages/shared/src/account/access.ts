@@ -45,6 +45,70 @@ export function accessName(level: AccessLevel): string {
 }
 
 /**
+ * Wer welche Stufe bekommt — aus `AURELITH_ADMINS`.
+ *
+ * Kontoname zu Stufe, Name kleingeschrieben. Was hier drinsteht, gilt bei
+ * **jeder** Anmeldung neu: so lässt sich eine Stufe durch Eintragen vergeben
+ * und durch Streichen wieder entziehen, ohne je in der Datenbank zu schreiben.
+ * Ohne diesen Weg gäbe es auf einem frischen Server auch niemanden, der
+ * jemandem etwas geben könnte.
+ */
+export type Zugriffsliste = ReadonlyMap<string, AccessLevel>;
+
+/**
+ * Liest die Liste. `name` allein heisst Verwalter, `name:stufe` die genannte.
+ *
+ *   AURELITH_ADMINS=johmarjac,helferlein:gamemaster,tester:developer
+ *
+ * Die Kurzform ohne Doppelpunkt ist kein Schmuck, sondern der Grund, warum
+ * bestehende Konfigurationen weiterlaufen: der Wert bedeutete immer schon
+ * „Verwalter", und das bleibt so.
+ *
+ * `:player` ist erlaubt und nimmt eine Stufe ausdrücklich zurück — schärfer
+ * als Streichen, denn Streichen lässt stehen, was in der Datenbank steht.
+ *
+ * Gibt die Beanstandungen mit zurück, statt sie zu schlucken. Ein vertipptes
+ * `:gamemster` würde sonst zu `player` — die Stufe wäre still weg, und wer den
+ * Wert liest, sähe nur, dass er richtig aussieht.
+ */
+export function leseZugriffsliste(text: string): {
+  liste: Map<string, AccessLevel>;
+  fehler: string[];
+} {
+  const liste = new Map<string, AccessLevel>();
+  const fehler: string[] = [];
+
+  for (const roh of text.split(',')) {
+    const eintrag = roh.trim();
+    if (eintrag.length === 0) continue;
+
+    const doppelpunkt = eintrag.lastIndexOf(':');
+    const name = (doppelpunkt < 0 ? eintrag : eintrag.slice(0, doppelpunkt)).trim().toLowerCase();
+    const wort = doppelpunkt < 0 ? '' : eintrag.slice(doppelpunkt + 1).trim().toLowerCase();
+
+    if (name.length === 0) {
+      fehler.push(`„${eintrag}" nennt keinen Namen.`);
+      continue;
+    }
+    // Bewusst gegen die bekannten Wörter und nicht über `accessFromName`: das
+    // gibt für alles Unbekannte „player" zurück, und genau diese Stille ist
+    // hier der Fehler, den niemand bemerkt.
+    if (wort.length > 0 && !(wort in ACCESS_NAMES)) {
+      fehler.push(
+        `„${eintrag}" nennt keine bekannte Stufe — erlaubt sind ` +
+          `${Object.keys(ACCESS_NAMES).join(', ')}. Der Eintrag gilt nicht.`,
+      );
+      continue;
+    }
+    if (liste.has(name)) fehler.push(`„${name}" steht mehrfach in der Liste; der letzte gilt.`);
+
+    liste.set(name, wort.length > 0 ? ACCESS_NAMES[wort]! : AccessLevel.Admin);
+  }
+
+  return { liste, fehler };
+}
+
+/**
  * Was ein Kontoname sein darf.
  *
  * Gleiche Regel für Konto und Charakter: Buchstaben, Ziffern und ein paar

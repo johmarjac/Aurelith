@@ -1,7 +1,7 @@
 /**
  * Die internen Wege zwischen Spielserver und Anmeldeserver.
  *
- * Vier Nachrichten, alle in dieselbe Richtung — vom Spielserver zum
+ * Fünf Nachrichten, alle in dieselbe Richtung — vom Spielserver zum
  * Anmeldeserver:
  *
  *   `register`   „Ich bin Kanal 2 auf Aurelith und nehme unter dieser
@@ -9,6 +9,7 @@
  *   `heartbeat`  „Ich bin noch da, und es spielen gerade so viele."
  *   `ticket`     „Zu wem gehört diese Eintrittskarte?"
  *   `presence`   „Dieses Konto ist bei mir drin / wieder draussen."
+ *   `stufe`      „Setz die Zugriffsstufe dieses Kontos." — für /accesslevel.
  *
  * Der Anmeldeserver ruft **nie** von sich aus an. Er weiss nicht, wo die
  * Spielserver stehen — er weiss nur, was sie über sich gesagt haben. Deshalb
@@ -17,7 +18,7 @@
  * Als HTTP und nicht über einen zweiten WebSocket: es sind Frage-und-Antwort-
  * Paare ohne Verlauf, und genau dafür ist HTTP gebaut. Ein dauerhafter Socket
  * müsste Wiederverbinden, Anfragenummern und Zeitüberschreitungen selbst
- * mitbringen — alles davon nur, um dieselben vier Nachrichten zu übertragen.
+ * mitbringen — alles davon nur, um dieselben fünf Nachrichten zu übertragen.
  *
  * Ausgewiesen wird sich mit einem gemeinsamen Geheimnis im Kopf. Diese Wege
  * gehören **nicht** ins offene Netz: wer sie erreicht, kann Kanäle in die
@@ -26,7 +27,9 @@
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { ACCESS_NAMES } from '@aurelith/shared';
 import { loginConfig } from './config.ts';
+import type { KontoStore } from '../db/index.ts';
 import type { KanalRegister } from './registry.ts';
 import type { Kartenstapel } from './tickets.ts';
 
@@ -76,6 +79,7 @@ export async function behandleIntern(
   res: ServerResponse,
   register: KanalRegister,
   karten: Kartenstapel,
+  store: KontoStore,
 ): Promise<boolean> {
   const pfad = (req.url ?? '').split('?')[0] ?? '';
   if (!pfad.startsWith('/intern/')) return false;
@@ -148,6 +152,48 @@ export async function behandleIntern(
         accountId: konto.accountId,
         accountName: konto.accountName,
         accessLevel: konto.accessLevel,
+      });
+      return true;
+    }
+
+    /*
+     * Die Zugriffsstufe eines Kontos setzen — für `/accesslevel` im Spiel.
+     *
+     * Der Kanal kann das nicht selbst: im Verbund kennt er die Konten gar
+     * nicht, die stehen in der Masterdatenbank neben diesem Server. Genau
+     * dafür ist dieser Weg da, und er ist der einzige — ein zweiter Ort, an
+     * dem Stufen geschrieben werden, wäre eine zweite Wahrheit über eine
+     * Angabe, an der Befehlsrechte hängen.
+     *
+     * Zurück geht auch, ob der Name in `AURELITH_ADMINS` steht. Der Kanal soll
+     * das dem Absender sagen können: die Liste gewinnt bei der nächsten
+     * Anmeldung, und eine Zuweisung, die zehn Minuten später von selbst
+     * zurückspringt, ist schlimmer als eine, die gar nicht erst geht.
+     */
+    case '/intern/stufe': {
+      const name = text(body, 'name').trim();
+      const stufe = text(body, 'stufe').trim().toLowerCase();
+      if (!name || !(stufe in ACCESS_NAMES)) {
+        json(res, 400, { fehler: 'name und eine bekannte stufe müssen dastehen.' });
+        return true;
+      }
+
+      const konto = await store.findAccount(name);
+      if (!konto) {
+        json(res, 200, { ok: false, grund: 'unbekannt' });
+        return true;
+      }
+      if (konto.accessLevel !== stufe) await store.setAccessLevel(konto.id, stufe);
+
+      console.log(
+        `[konto] ${konto.name}: Stufe ${konto.accessLevel} → ${stufe} (über /accesslevel)`,
+      );
+      json(res, 200, {
+        ok: true,
+        name: konto.name,
+        vorher: konto.accessLevel,
+        nachher: stufe,
+        inListe: loginConfig.zugriff.has(konto.name.toLowerCase()),
       });
       return true;
     }

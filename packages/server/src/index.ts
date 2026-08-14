@@ -187,6 +187,9 @@ server.listen(config.port, config.host, () => {
   // Dieselbe Zeile, die `/version` im Chat zeigt. Wer ein Protokoll liest,
   // soll nicht raten müssen, welcher Stand da lief.
   console.log(`[server] Fassung ${formatBuild(config.build)}`);
+  // Ein vertippter Eintrag in AURELITH_ADMINS wäre sonst still: die Stufe
+  // käme nie an, und der Wert sähe beim Lesen richtig aus.
+  for (const zeile of config.zugriffFehler) console.warn(`[server] AURELITH_ADMINS: ${zeile}`);
   if (!config.tls) {
     console.log('[server] Ohne TLS. Für wss: AURELITH_TLS_KEY und AURELITH_TLS_CERT setzen.');
   }

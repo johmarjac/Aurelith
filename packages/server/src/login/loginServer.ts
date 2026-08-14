@@ -267,7 +267,7 @@ export class LoginServer {
       daten.name,
       daten.password,
       anlegenWollen,
-      loginConfig.admins,
+      loginConfig.zugriff,
     );
     if (!ergebnis.ok) {
       sitzung.send(encodeLobbyError(ergebnis.fehler));

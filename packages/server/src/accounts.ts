@@ -17,6 +17,7 @@ import {
   MIN_PASSWORD_LENGTH,
   accessName,
   isValidName,
+  type Zugriffsliste,
 } from '@aurelith/shared';
 import { hashPassword, verifyPassword } from './passwords.ts';
 import type { AccountRecord, KontoStore } from './db/index.ts';
@@ -37,64 +38,79 @@ export type AnmeldeErgebnis =
  * `anmelden` weist eine Passwortanmeldung für so ein Konto ab — der leere Hash
  * passt zu keiner Eingabe.
  *
- * Der **Name** ist die einzige heikle Stelle. Google liefert einen Vornamen,
- * und der ist weder eindeutig noch immer brauchbar („Jörg", „李"). Daraus wird
- * ein zulässiger Vorschlag gemacht und, wenn er vergeben ist, durchnummeriert.
- * Dass der Spieler ihn nicht selbst wählt, ist eine bewusste Verkürzung für
- * den Anfang: die Alternative wäre eine zweite Maske im Anmeldeweg, und die
- * gehört gebaut, wenn die Anmeldung selbst steht.
+ * **Der Kontoname ist die E-Mail-Adresse.** Sie ist beim Anbieter eindeutig,
+ * und damit fällt der ganze Umweg weg, der vorher nötig war: aus Googles
+ * Vornamen einen zulässigen Namen basteln, feststellen, dass „Jonas" schon
+ * vergeben ist, und „Jonas2" daraus machen. Zwei Menschen namens Jonas bekamen
+ * so Namen, die keiner von beiden gewählt hat; zwei Adressen kollidieren gar
+ * nicht erst.
+ *
+ * Deshalb gilt `isValidName` hier **nicht**. Die Regel — drei bis sechzehn
+ * Zeichen ohne `@` und `.` — ist für selbstgewählte Namen da: sie hält
+ * Verwechslungen und unsichtbare Zeichen draussen, wo jemand sich einen Namen
+ * ausdenkt. Eine Adresse denkt sich niemand aus, sie wird nachgewiesen. Und
+ * weil ein Passwortkonto wegen dieser Regel niemals ein `@` enthalten kann,
+ * können die beiden Sorten sich auch nicht ins Gehege kommen.
+ *
+ * Der **Identitätsschlüssel** bleibt trotzdem `subject` und nicht die Adresse:
+ * die kann sich ändern, weitergegeben und in manchen Verzeichnissen sogar neu
+ * vergeben werden. Wer seine Adresse bei Google ändert, behält hier sein Konto
+ * — nur der angezeigte Name bleibt der alte.
  */
 export async function anmeldenMitIdentitaet(
   store: KontoStore,
   provider: string,
   subject: string,
-  vorschlag: string,
   email: string,
-  admins: readonly string[],
+  zugriff: Zugriffsliste,
 ): Promise<AnmeldeErgebnis> {
   const vorhanden = await store.findeIdentitaet(provider, subject);
-  if (vorhanden) return { ok: true, account: await ziehStufeNach(store, vorhanden, admins) };
+  if (vorhanden) return { ok: true, account: await ziehStufeNach(store, vorhanden, zugriff) };
 
-  const basis = machNamen(vorschlag || email.split('@')[0] || 'Held');
-  for (let versuch = 0; versuch < 20; versuch++) {
-    // Der erste Versuch ohne Anhängsel: „Jonas" ist schöner als „Jonas1".
-    const name = versuch === 0 ? basis : `${basis}${versuch + 1}`.slice(0, 16);
-    const istAdmin = admins.includes(name.toLowerCase());
-    const konto = await store.legeKontoMitIdentitaet(
-      name,
-      accessName(istAdmin ? AccessLevel.Admin : AccessLevel.Player),
-      provider,
-      subject,
-      email,
-    );
-    if (konto) return { ok: true, account: konto };
-  }
+  /*
+   * Ohne Adresse ein Ersatzname aus der Kennung des Anbieters.
+   *
+   * Google liefert sie mit dem angefragten Bereich immer mit; „immer" heisst
+   * hier aber „bisher immer". Ein Konto ohne Namen ginge gar nicht anzulegen,
+   * und ein leerer Name wäre in jeder Liste eine Lücke, die niemand erklären
+   * kann.
+   */
+  const name = email.trim().toLowerCase() || `${provider}-${subject}`.slice(0, 64);
 
-  return { ok: false, fehler: 'Es liess sich kein freier Name finden. Versuch es noch einmal.' };
+  const konto = await store.legeKontoMitIdentitaet(
+    name,
+    accessName(zugriff.get(name) ?? AccessLevel.Player),
+    provider,
+    subject,
+    email,
+  );
+  if (konto) return { ok: true, account: konto };
+
+  /*
+   * Den Namen gibt es schon, die Identität aber nicht — sonst hätte die
+   * Abfrage oben sie gefunden.
+   *
+   * Das heisst: dieselbe Adresse, andere Kennung beim Anbieter. Bei Google
+   * kommt das praktisch nicht vor; wenn doch, ist Anlegen genau das Falsche.
+   * Ein zweites Konto unter demselben Namen ginge nicht, und das bestehende zu
+   * übernehmen hiesse, ein Konto an eine Adresse zu hängen, die jemand anderes
+   * nachgewiesen hat.
+   */
+  console.warn(`[konto] „${name}" existiert bereits, gehört aber zu einer anderen Identität.`);
+  return {
+    ok: false,
+    fehler: 'Zu dieser Adresse gibt es schon ein Konto. Wende dich an die Serververwaltung.',
+  };
 }
 
-/**
- * Macht aus einem beliebigen Namen einen zulässigen.
- *
- * Dieselben Regeln wie `isValidName` — drei bis sechzehn Zeichen aus
- * Buchstaben, Ziffern, Strich und Unterstrich. Was übrig bleibt, wird
- * aufgefüllt: ein Name aus lauter Zeichen, die hier nicht zählen, ergäbe
- * sonst einen leeren.
- */
-function machNamen(roh: string): string {
-  const sauber = roh.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 16);
-  return sauber.length >= 3 ? sauber : `Held${sauber}`.slice(0, 16);
-}
-
-/** Die Verwalterliste gilt auch hier — eine Regel, ein Ort. */
+/** Die Zugriffsliste gilt auch hier — eine Regel, ein Ort. */
 async function ziehStufeNach(
   store: KontoStore,
   account: AccountRecord,
-  admins: readonly string[],
+  zugriff: Zugriffsliste,
 ): Promise<AccountRecord> {
-  const gewuenscht = admins.includes(account.name.toLowerCase())
-    ? accessName(AccessLevel.Admin)
-    : account.accessLevel;
+  const stufe = zugriff.get(account.name.toLowerCase());
+  const gewuenscht = stufe === undefined ? account.accessLevel : accessName(stufe);
   if (gewuenscht === account.accessLevel) return account;
   await store.setAccessLevel(account.id, gewuenscht);
   return { ...account, accessLevel: gewuenscht };
@@ -103,17 +119,21 @@ async function ziehStufeNach(
 /**
  * Meldet an oder legt an.
  *
- * `admins` ist die Liste der Verwalterkonten aus der Konfiguration. Sie gilt
- * bei **jeder** Anmeldung: so lässt sich eine Stufe vergeben und wieder
- * entziehen, ohne in der Datenbank zu schreiben — und ohne diesen Weg gäbe es
- * auf einem frischen Server niemanden, der jemandem etwas geben könnte.
+ * `zugriff` ist die Zugriffsliste aus der Konfiguration. Sie gilt bei **jeder**
+ * Anmeldung: so lässt sich eine Stufe vergeben und wieder entziehen, ohne in
+ * der Datenbank zu schreiben — und ohne diesen Weg gäbe es auf einem frischen
+ * Server niemanden, der jemandem etwas geben könnte.
+ *
+ * Wer **nicht** in der Liste steht, behält, was in der Datenbank steht. Das
+ * ist der Unterschied zwischen „nicht genannt" und `:player`: das eine lässt
+ * in Ruhe, das andere nimmt ausdrücklich zurück.
  */
 export async function anmelden(
   store: KontoStore,
   name: string,
   passwort: string,
   anlegen: boolean,
-  admins: readonly string[],
+  zugriff: Zugriffsliste,
 ): Promise<AnmeldeErgebnis> {
   const sauber = name.trim();
 
@@ -127,7 +147,7 @@ export async function anmelden(
     return { ok: false, fehler: `Das Passwort braucht mindestens ${MIN_PASSWORD_LENGTH} Zeichen.` };
   }
 
-  const istAdmin = admins.includes(sauber.toLowerCase());
+  const gewuenschteStufe = zugriff.get(sauber.toLowerCase());
   let account = await store.findAccount(sauber);
 
   if (anlegen) {
@@ -135,7 +155,7 @@ export async function anmelden(
     account = await store.createAccount(
       sauber,
       await hashPassword(passwort),
-      accessName(istAdmin ? AccessLevel.Admin : AccessLevel.Player),
+      accessName(gewuenschteStufe ?? AccessLevel.Player),
     );
     // Zwischen Nachsehen und Anlegen war jemand schneller.
     if (!account) return { ok: false, fehler: 'Diesen Namen gibt es schon.' };
@@ -156,7 +176,8 @@ export async function anmelden(
     if (!account || !passt) return { ok: false, fehler: 'Name oder Passwort stimmt nicht.' };
   }
 
-  const gewuenscht = istAdmin ? accessName(AccessLevel.Admin) : account.accessLevel;
+  const gewuenscht =
+    gewuenschteStufe === undefined ? account.accessLevel : accessName(gewuenschteStufe);
   if (gewuenscht !== account.accessLevel) {
     await store.setAccessLevel(account.id, gewuenscht);
     account = { ...account, accessLevel: gewuenscht };

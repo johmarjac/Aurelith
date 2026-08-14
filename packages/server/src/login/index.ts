@@ -57,7 +57,7 @@ const { server, scheme } = baueHttpServer();
 
 server.on('request', (req, res) => {
   void (async () => {
-    if (await behandleIntern(req, res, register, karten)) return;
+    if (await behandleIntern(req, res, register, karten, store)) return;
     if (await behandleAnbieterweg(req, res, store, anmeldekarten)) return;
 
     // Lesbar auch von einer anderen Herkunft — siehe die gleiche Stelle im
@@ -97,6 +97,9 @@ server.listen(loginConfig.port, loginConfig.host, () => {
   console.log(
     `[anmelde] Anmeldearten: Passwort${googleBereit() ? ', Google' : ''}`,
   );
+  for (const zeile of loginConfig.zugriffFehler) {
+    console.warn(`[anmelde] AURELITH_ADMINS: ${zeile}`);
+  }
   if (googleBereit()) meldeGoogleAuffaelligkeiten();
   if (googleBereit() && loginConfig.ziele.length === 0) {
     // Ohne Freigabeliste geht der Google-Weg nirgendwohin zurück — der Knopf

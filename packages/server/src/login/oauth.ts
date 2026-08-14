@@ -47,9 +47,16 @@ export interface AnbieterConfig {
 export interface Profil {
   /** Die Kennung des Anbieters für diesen Menschen. Ändert sich nie. */
   subject: string;
+  /**
+   * Die Adresse — und zugleich der Kontoname.
+   *
+   * Der Anzeigename des Anbieters steht hier bewusst **nicht** mehr. Er war
+   * einmal der Vorschlag für den Kontonamen und musste dafür zurechtgestutzt
+   * und durchnummeriert werden, weil zwei Menschen denselben Vornamen haben
+   * können. Eine Adresse ist beim Anbieter eindeutig; damit fällt der ganze
+   * Umweg weg, und ein Feld, das niemand mehr liest, steht auch nicht mehr da.
+   */
   email: string;
-  /** Was auf der Visitenkarte steht. Nur ein Vorschlag für den Kontonamen. */
-  name: string;
 }
 
 /**
@@ -95,8 +102,10 @@ export function googleStartUrl(cfg: AnbieterConfig, state: string): string {
   url.searchParams.set('client_id', cfg.clientId);
   url.searchParams.set('redirect_uri', cfg.redirectUri);
   url.searchParams.set('response_type', 'code');
-  // Mehr als Name und Adresse brauchen wir nicht, also fragen wir nicht mehr.
-  url.searchParams.set('scope', 'openid email profile');
+  // Nur die Adresse — sie ist der Kontoname, und mehr brauchen wir nicht.
+  // `profile` stand hier, solange der Anzeigename den Namen ergab; wer weniger
+  // erfragt, muss weniger aufbewahren und weniger erklären.
+  url.searchParams.set('scope', 'openid email');
   url.searchParams.set('state', state);
   // Kein `prompt=consent`: wer schon einmal zugestimmt hat, soll beim zweiten
   // Mal einfach angemeldet sein.
@@ -147,14 +156,10 @@ export async function googleProfil(
      *
      * Das ist eine Protokollzeile auf dem Server und keine Auskunft an den
      * Browser: dem Spieler bleibt „das hat nicht geklappt".
-     */
-    /*
-     * Und alles in **eine** Zeile.
      *
-     * Google antwortet mit umgebrochenem JSON. Mehrzeilig protokolliert
-     * überlebt davon nur die erste Zeile ein `grep [anmelde]` — und die
-     * enthält bloss die öffnende Klammer. Genau die Auskunft, für die diese
-     * Zeile da ist, fiele damit hinten herunter.
+     * Und alles in **eine** Zeile: Google antwortet mit umgebrochenem JSON,
+     * und mehrzeilig protokolliert überlebt davon nur die erste Zeile ein
+     * `grep [anmelde]` — die mit der öffnenden Klammer darin.
      */
     const grund = (await antwort.text().catch(() => '')).replace(/\s+/g, ' ').trim();
     console.warn(
@@ -196,12 +201,6 @@ export async function googleProfil(
   return {
     subject: nutzlast.sub,
     email: typeof nutzlast.email === 'string' ? nutzlast.email : '',
-    name:
-      typeof nutzlast.given_name === 'string' && nutzlast.given_name.length > 0
-        ? nutzlast.given_name
-        : typeof nutzlast.name === 'string'
-          ? nutzlast.name
-          : '',
   };
 }
 

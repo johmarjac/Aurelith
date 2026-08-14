@@ -20,6 +20,7 @@ import {
   ServerOp,
   accessFromName,
   accessName,
+  leseZugriffsliste,
   decodeFrame,
   decodeServerChat,
   decodeStats,
@@ -103,6 +104,62 @@ check(
 );
 
 // ---------------------------------------------------------------------------
+// Die Zugriffsliste aus AURELITH_ADMINS
+// ---------------------------------------------------------------------------
+//
+// Der Wert entscheidet, wer Befehle ausführen darf. Ein stiller Fehler darin
+// ist deshalb keiner von der harmlosen Sorte: er vergibt entweder zu viel oder
+// zu wenig, und beides fällt erst auf, wenn jemand es braucht.
+
+console.log('\nZugriffsliste');
+
+const einfach = leseZugriffsliste('johmarjac');
+check(einfach.liste.get('johmarjac') === AccessLevel.Admin, 'ein blosser Name heisst Verwalter');
+check(einfach.fehler.length === 0, 'und ist keine Beanstandung wert');
+
+const gemischt = leseZugriffsliste(' Chef , helfer:gamemaster,Tester:developer , weg:player ');
+check(gemischt.liste.get('chef') === AccessLevel.Admin, 'Leerzeichen stören nicht');
+check(gemischt.liste.get('helfer') === AccessLevel.Gamemaster, 'die genannte Stufe gilt');
+check(gemischt.liste.get('tester') === AccessLevel.Developer, 'Namen werden kleingeschrieben');
+check(
+  gemischt.liste.get('weg') === AccessLevel.Player,
+  '`:player` nimmt eine Stufe ausdrücklich zurück',
+);
+check(gemischt.fehler.length === 0, 'und nichts davon ist zu beanstanden', gemischt.fehler[0]);
+
+/*
+ * Die Gegenprobe, um die es hier eigentlich geht.
+ *
+ * `accessFromName` gibt für jedes unbekannte Wort „player" zurück. Wäre die
+ * Liste darüber gebaut, würde aus `:gamemster` stillschweigend eine
+ * Herabstufung — und der Wert in der `.env` sähe dabei völlig richtig aus.
+ */
+const vertippt = leseZugriffsliste('helfer:gamemster');
+check(!vertippt.liste.has('helfer'), 'ein vertipptes Stufenwort gilt gar nicht');
+check(
+  vertippt.fehler.some((f) => f.includes('gamemster')),
+  'und wird benannt',
+  vertippt.fehler[0] ?? '(stumm)',
+);
+
+const leer = leseZugriffsliste('');
+check(leer.liste.size === 0 && leer.fehler.length === 0, 'ein leerer Wert ergibt eine leere Liste');
+
+const doppelt = leseZugriffsliste('wer:gamemaster,wer:admin');
+check(doppelt.liste.get('wer') === AccessLevel.Admin, 'bei zwei Einträgen gilt der letzte');
+check(doppelt.fehler.length === 1, 'und der Widerspruch wird gemeldet', doppelt.fehler[0]);
+
+// Eine E-Mail-Adresse als Kontoname — so heissen die Konten aus dem
+// Google-Weg. Der Doppelpunkt trennt von hinten, sonst zerschnitte ein Name
+// mit Doppelpunkt darin sich selbst.
+const perMail = leseZugriffsliste('jemand@example.com:gamemaster');
+check(
+  perMail.liste.get('jemand@example.com') === AccessLevel.Gamemaster,
+  'eine Adresse geht als Name genauso',
+  [...perMail.liste.keys()][0],
+);
+
+// ---------------------------------------------------------------------------
 // Befehle
 // ---------------------------------------------------------------------------
 //
@@ -113,6 +170,7 @@ console.log('\nBefehle');
 
 const gesagt: string[] = [];
 const ansagen: string[] = [];
+const stufenrufe: Array<{ name: string; stufe: AccessLevel }> = [];
 let gutgeschrieben = 0;
 const wirt: CommandHost = {
   systemMessage: (_s, text) => gesagt.push(text),
@@ -122,6 +180,9 @@ const wirt: CommandHost = {
   ansage: (text) => {
     ansagen.push(text);
     return 3;
+  },
+  setzeStufe: (_s, name, stufe) => {
+    stufenrufe.push({ name, stufe });
   },
 };
 
@@ -186,6 +247,62 @@ check(
   'und sagt das auch',
 );
 check(!runCommand(wirt, sitzung(AccessLevel.Admin), 'Hallo zusammen'), 'gewöhnlicher Text ist kein Befehl');
+
+/*
+ * `/accesslevel` — wer ihn darf und was er weiterreicht.
+ *
+ * Die Zuweisung selbst steht hier nicht auf dem Prüfstand: sie schreibt in
+ * eine Datenbank, und dieser Abschnitt kommt ohne Server aus. Geprüft wird die
+ * Schwelle davor — und die ist die eigentliche Gefahrenstelle: ein Spielleiter,
+ * der Stufen vergeben darf, ernennt sich irgendwann jemanden, der ihn ernennt.
+ */
+gesagt.length = 0;
+stufenrufe.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Gamemaster), '/accesslevel helfer gamemaster');
+check(stufenrufe.length === 0, 'ein Spielleiter setzt keine Stufen');
+check(
+  gesagt.some((t) => t.includes('admin')),
+  'und erfährt, ab welcher Stufe es ginge',
+  gesagt[0] ?? '(stumm)',
+);
+
+gesagt.length = 0;
+stufenrufe.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Admin), '/accesslevel Helfer gamemaster');
+check(
+  stufenrufe.length === 1 && stufenrufe[0]!.stufe === AccessLevel.Gamemaster,
+  'ein Verwalter schon — und die Stufe kommt richtig an',
+  accessName(stufenrufe[0]?.stufe ?? AccessLevel.Player),
+);
+check(
+  stufenrufe[0]?.name === 'Helfer',
+  'der Name geht unverändert weiter — die Datenbank entscheidet über Gross und Klein',
+  stufenrufe[0]?.name,
+);
+
+/*
+ * Die Gegenprobe, auf die es ankommt: ein vertipptes Stufenwort darf **nicht**
+ * durchgehen. `accessFromName` gäbe dafür „player" zurück, und aus einem
+ * Vertipper würde eine Herabstufung, die wie ein gelungener Befehl aussieht.
+ */
+gesagt.length = 0;
+stufenrufe.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Admin), '/accesslevel Helfer gamemster');
+check(stufenrufe.length === 0, 'ein vertipptes Stufenwort wird nicht ausgeführt');
+check(
+  gesagt.some((t) => t.includes('keine Stufe')),
+  'und benannt',
+  gesagt[0] ?? '(stumm)',
+);
+
+gesagt.length = 0;
+stufenrufe.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Admin), '/accesslevel Helfer');
+check(stufenrufe.length === 0, 'ohne Stufe passiert nichts');
+check(
+  gesagt.some((t) => t.includes('Erwartet')),
+  'und der Befehl sagt, was er erwartet',
+);
 
 // ---------------------------------------------------------------------------
 // Über das Protokoll
@@ -447,6 +564,48 @@ const chefGold = chefin.gold();
 chefin.send(encodeClientChat(1, '/gg 500'));
 await sleep(800);
 check(chefin.gold() === chefGold + 500, 'eine Verwalterin schon', `${chefGold} → ${chefin.gold()}`);
+
+/*
+ * `/accesslevel` bis in die Datenbank — und wieder heraus.
+ *
+ * Der Weg ist erst dann geprüft, wenn die Stufe eine **neue Anmeldung**
+ * übersteht: geschrieben wird ins Konto, gelesen wird beim nächsten Anmelden,
+ * und dazwischen liegt genau die Stelle, an der eine Zuweisung verloren gehen
+ * kann. Ein Blick in dieselbe Sitzung würde das nicht zeigen.
+ *
+ * `${name}` ist das Konto von oben — ein gewöhnlicher Spieler, der eben noch
+ * eine Absage auf `/gg` bekommen hat. Das ist die Gegenprobe, und sie steht
+ * schon da.
+ */
+chefin.chat.length = 0;
+chefin.send(encodeClientChat(1, `/accesslevel ${name} gamemaster`));
+await sleep(1200);
+check(
+  chefin.chat.some((t) => t.includes('player') && t.includes('gamemaster')),
+  'der Befehl meldet den Wechsel',
+  chefin.chat.join(' | ') || '(stumm)',
+);
+
+const nochmal = await verbinde();
+nochmal.send(encodeLogin({ name, password: 'geheimnis' }));
+await warte(nochmal);
+check(
+  nochmal.lobby()?.accessLevel === AccessLevel.Gamemaster,
+  'und die Stufe gilt nach dem nächsten Anmelden',
+  accessName((nochmal.lobby()?.accessLevel ?? AccessLevel.Player) as AccessLevel),
+);
+nochmal.close();
+
+// Ein Konto, das es nicht gibt, ändert nichts — und sagt das auch.
+chefin.chat.length = 0;
+chefin.send(encodeClientChat(1, '/accesslevel GibtsNicht admin'));
+await sleep(1200);
+check(
+  chefin.chat.some((t) => t.includes('gibt es nicht')),
+  'ein unbekanntes Konto wird als solches gemeldet',
+  chefin.chat.join(' | ') || '(stumm)',
+);
+
 chefin.close();
 
 await sleep(200);

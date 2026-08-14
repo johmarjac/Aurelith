@@ -488,10 +488,23 @@ try {
   imSprung = await page.evaluate(() => window.aurelith.playerSim.y);
 }
 
+/*
+ * Landen heisst „wieder unten", nicht „auf denselben Zentimeter".
+ *
+ * Die Figur läuft vor dem Sprung ein Stück und rollt danach noch aus — das
+ * Gelände unter ihr ist dabei nicht mehr dasselbe. Auf `Math.abs(...) < 0.05`
+ * geprüft hing der Ausgang daran, ob sie zufällig auf gleicher Höhe zum Stehen
+ * kam, und das war mal so und mal so.
+ *
+ * Die Aussage, um die es geht, hält der Vergleich mit dem Scheitelpunkt: sie
+ * war oben (Prüfung darüber) und ist wieder auf Absprunghöhe herunter. Ein
+ * Fingerbreit Toleranz für die Bodenwelle, auf der sie ausrollt — weit unter
+ * den 0,3, die sie überhaupt erst als „abgehoben" gelten lassen.
+ */
 let gelandet = true;
 try {
   await page.waitForFunction(
-    (boden) => Math.abs(window.aurelith.playerSim.y - boden) < 0.05,
+    (boden) => window.aurelith.playerSim.y < boden + 0.15,
     vorSprung,
     { timeout: 10000, polling: 50 },
   );

@@ -237,9 +237,8 @@ export async function behandleAnbieterweg(
         store,
         'google',
         profil.subject,
-        profil.name,
         profil.email,
-        loginConfig.admins,
+        loginConfig.zugriff,
       );
     } catch (err) {
       console.error('[anmelde] Konto zu Google-Identität nicht abrufbar:', err);
