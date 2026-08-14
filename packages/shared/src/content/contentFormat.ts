@@ -548,6 +548,16 @@ export function parseTuning(raw: unknown, source = 'tuning.json'): Tuning {
       expMalusPerLevel: num(p, 'expMalusPerLevel', pPath),
       expFarMalusPerLevel: num(p, 'expFarMalusPerLevel', pPath),
       expFloor: num(p, 'expFloor', pPath),
+
+      startEigenschaft: num(p, 'startEigenschaft', pPath),
+      punkteJeStufe: num(p, 'punkteJeStufe', pPath),
+      angriffProStaerke: num(p, 'angriffProStaerke', pPath),
+      lebenProAusdauer: num(p, 'lebenProAusdauer', pPath),
+      verteidigungProAusdauer: num(p, 'verteidigungProAusdauer', pPath),
+      kritProGeschick: num(p, 'kritProGeschick', pPath),
+      manaProWeisheit: num(p, 'manaProWeisheit', pPath),
+      pausenkuerzungProGeschick: num(p, 'pausenkuerzungProGeschick', pPath),
+      maxPausenkuerzung: num(p, 'maxPausenkuerzung', pPath),
     },
     player: {
       attackRange: num(sp, 'attackRange', spPath),

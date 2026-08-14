@@ -36,6 +36,26 @@ export function accessFromName(name: string): AccessLevel {
   return ACCESS_NAMES[name.trim().toLowerCase()] ?? AccessLevel.Player;
 }
 
+/**
+ * Kurzzeichen für das Schild über dem Kopf — leer für gewöhnliche Spieler.
+ *
+ * Kurz, weil es dort in eckigen Klammern vor dem Namen steht und die Zeile
+ * sonst breiter wird als die Figur darunter. Und getrennt von `accessName`,
+ * weil das die Kennung für die Datenbank ist: dort steht `gamemaster`, und
+ * dabei bleibt es, auch wenn über dem Kopf irgendwann etwas anderes stehen
+ * soll.
+ */
+export const ACCESS_LABELS: Record<AccessLevel, string> = {
+  [AccessLevel.Player]: '',
+  [AccessLevel.Gamemaster]: 'GM',
+  [AccessLevel.Developer]: 'Dev',
+  [AccessLevel.Admin]: 'Admin',
+};
+
+export function accessLabel(level: AccessLevel): string {
+  return ACCESS_LABELS[level] ?? '';
+}
+
 /** Stufe zum Wort, für Datenbank und Anzeige. */
 export function accessName(level: AccessLevel): string {
   for (const [wort, stufe] of Object.entries(ACCESS_NAMES)) {

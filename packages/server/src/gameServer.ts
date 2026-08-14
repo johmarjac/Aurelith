@@ -14,6 +14,7 @@ import {
   AktionsArt,
   skillsFor,
   decodeSetActionSlot,
+  decodeSetzePunkt,
   encodeActionBar,
   leereLeiste,
   normalisiereLeiste,
@@ -109,6 +110,9 @@ import {
   type UpdateRow,
   accessFromName,
   accessName,
+  eigenschaftsWirkung,
+  istEigenschaft,
+  offenePunkte,
   isValidName,
 } from '@aurelith/shared';
 import { CoreEventType, CoreButton } from '@aurelith/core';
@@ -442,6 +446,12 @@ export class GameServer {
           if (session.state !== 'playing') break;
           const { index, art, id } = decodeSetActionSlot(reader);
           this.setzeAktionsplatz(session, index, art, id);
+          break;
+        }
+        case ClientOp.SetzePunkt: {
+          if (session.state !== 'playing') break;
+          const { eigenschaft, anzahl } = decodeSetzePunkt(reader);
+          this.setzePunkt(session, eigenschaft, anzahl);
           break;
         }
         case ClientOp.Logout:
@@ -809,7 +819,7 @@ export class GameServer {
       defense: stats.defense,
       moveSpeed: stats.moveSpeed,
       attackRange: profile.range,
-      attackCooldownSec: profile.cooldownSec,
+      attackCooldownSec: stats.attackCooldown,
       attackWindupSec: profile.windupSec,
       hpRegen: stats.hpRegen,
       mpRegen: stats.mpRegen,
@@ -1313,7 +1323,7 @@ export class GameServer {
       defense: stats.defense,
       moveSpeed: stats.moveSpeed,
       attackRange: profile.range,
-      attackCooldownSec: profile.cooldownSec,
+      attackCooldownSec: stats.attackCooldown,
       attackWindupSec: profile.windupSec,
       hpRegen: stats.hpRegen,
       mpRegen: stats.mpRegen,
@@ -1747,7 +1757,9 @@ export class GameServer {
       session.entityId,
       profile.style,
       profile.range,
-      profile.cooldownSec,
+      // Siehe `statsFor`: die Pause kommt aus der Tafel, weil Geschick sie
+      // kürzt. Reichweite und Vorlauf gehören dagegen allein der Waffe.
+      stats.attackCooldown,
       profile.windupSec,
     );
     instance.world.setCritProfile(session.entityId, stats.critChance, stats.critMultiplier);
@@ -2365,6 +2377,78 @@ export class GameServer {
     }
     if (!levelled) return;
 
+    this.uebernehmeWerte(session);
+    this.systemMessage(session, `Stufe ${character.level} erreicht.`);
+
+    const offen = offenePunkte(character.level, character);
+    if (offen > 0) {
+      // Ein Aufstieg, der Punkte bringt, soll das sagen. Sonst liegen sie im
+      // Charakterfenster und niemand sieht nach.
+      this.systemMessage(session, `${offen} Punkt(e) zu verteilen — im Charakterfenster (C).`);
+    }
+  }
+
+  /**
+   * Setzt die Stufe einer Figur — für `/level`.
+   *
+   * Erfahrung wird dabei auf null gesetzt und nicht umgerechnet: „Stufe 30"
+   * heisst der Anfang von Stufe 30. Alles andere wäre eine Rechnung, deren
+   * Ergebnis niemand vorhersagen kann, und der Befehl ist ein Werkzeug zum
+   * Ausprobieren.
+   *
+   * Verteilte Punkte bleiben stehen — auch beim Herabstufen. Sie wieder
+   * einzusammeln hiesse zu entscheiden, welche wegfallen, und diese
+   * Entscheidung gehört niemandem hier. `offenePunkte` kommt mit dem Überhang
+   * zurecht und meldet dann schlicht null.
+   */
+  private setzeStufeVon(session: Session, stufe: number): void {
+    const character = session.character;
+    if (!character) return;
+    character.level = stufe;
+    character.exp = 0;
+    this.uebernehmeWerte(session);
+    this.systemMessage(session, `Du bist jetzt Stufe ${stufe}.`);
+  }
+
+  /**
+   * Legt offene Punkte auf eine Grundeigenschaft.
+   *
+   * Der Server rechnet nach, wie viele offen sind — der Client schickt nur
+   * den Wunsch. Anders wäre es eine Bitte, der man folgt: wer die Zahl selbst
+   * mitschickte, könnte sich zwanzig Punkte je Stufe nehmen.
+   *
+   * Zuviel verlangt heisst nicht abgelehnt, sondern gekürzt: wer zweimal
+   * schnell klickt, während die Antwort unterwegs ist, soll den zweiten Klick
+   * verlieren und nicht den ganzen Vorgang.
+   */
+  private setzePunkt(session: Session, eigenschaft: string, anzahl: number): void {
+    const character = session.character;
+    if (!character || !istEigenschaft(eigenschaft)) return;
+
+    const offen = offenePunkte(character.level, character);
+    const nehmen = Math.min(Math.max(0, Math.floor(anzahl)), offen);
+    if (nehmen === 0) {
+      if (offen === 0) this.systemMessage(session, 'Du hast keine Punkte zu verteilen.');
+      return;
+    }
+
+    character[eigenschaft] += nehmen;
+    this.uebernehmeWerte(session);
+  }
+
+  /**
+   * Rechnet die Werte neu und schiebt sie überall hin, wo sie gebraucht werden.
+   *
+   * An einer Stelle, weil es drei Anlässe gibt — Stufenaufstieg, verteilter
+   * Punkt, `/level`. Drei Abschriften wären drei Gelegenheiten, eine der
+   * Stellen zu vergessen; die vergessene wäre dann die, an der die Anzeige und
+   * die Simulation auseinanderlaufen.
+   */
+  private uebernehmeWerte(session: Session): void {
+    const character = session.character;
+    const instance = this.instances.get(session.mapId);
+    if (!character || !instance) return;
+
     const stats = this.statsFor(session);
     instance.world.setPlayerStats(
       session.entityId,
@@ -2377,7 +2461,30 @@ export class GameServer {
       stats.hpRegen,
       stats.mpRegen,
     );
-    this.systemMessage(session, `Stufe ${character.level} erreicht.`);
+    instance.world.setCritProfile(session.entityId, stats.critChance, stats.critMultiplier);
+
+    // Die Schlagpause hängt an Geschick und gehört deshalb hierher — sonst
+    // gälte der neue Wert erst nach dem nächsten Ausrüstungswechsel.
+    const profil = this.attackProfileOf(session);
+    instance.world.setAttackProfile(
+      session.entityId,
+      profil.style,
+      profil.range,
+      stats.attackCooldown,
+      profil.windupSec,
+    );
+
+    // Um das Leben ist nicht zu kümmern: `setPlayerStats` behält im Kern den
+    // **Anteil** — wer mit halbem Leben eine Stufe verliert, hat danach die
+    // Hälfte der kleineren Höchstzahl und nicht mehr, als möglich ist.
+
+    // Die Stufe steht über dem Kopf. Ohne das trägt die Figur ihre alte, bis
+    // sie jemand neu kennenlernt.
+    const meta = instance.metaFor(session.entityId);
+    if (meta) Object.assign(meta, this.playerMeta(session, meta.name));
+    for (const other of this.sessions) other.known.delete(session.entityId);
+
+    this.sendStats(session);
   }
 
   // -------------------------------------------------------------------------
@@ -2534,6 +2641,37 @@ export class GameServer {
   }
 
   /**
+   * Setzt die Stufe einer Figur — für `/level`.
+   *
+   * Ohne Namen die eigene. Mit Namen gemeint ist eine **Figur**, nicht ein
+   * Konto: das ist der Name, der im Spiel über dem Kopf steht, und der
+   * Befehl wird im Spiel getippt. Gesucht wird nur unter denen, die gerade
+   * hier spielen — die Werte einer schlafenden Figur zu ändern hiesse, an
+   * einem Spielstand zu drehen, der beim nächsten Laden ohnehin überschrieben
+   * wird.
+   */
+  setzeLevel(session: Session, figur: string, level: number): boolean {
+    if (figur === '') {
+      this.setzeStufeVon(session, level);
+      return true;
+    }
+
+    const gesucht = figur.trim().toLowerCase();
+    const ziel = [...this.sessions].find(
+      (s) => s.state === 'playing' && s.character?.name.toLowerCase() === gesucht,
+    );
+    if (!ziel) return false;
+
+    this.setzeStufeVon(ziel, level);
+    // Der Ausführende bekommt seine eigene Zeile — sonst sieht er nur, dass
+    // nichts passiert ist, während die Meldung beim anderen steht.
+    if (ziel !== session) {
+      this.systemMessage(session, `${ziel.character?.name} ist jetzt Stufe ${level}.`);
+    }
+    return true;
+  }
+
+  /**
    * Dasselbe im Alleinbetrieb — dort stehen die Konten in diesem Prozess.
    *
    * Die Antwort hat absichtlich dieselbe Form wie die vom Anmeldeserver: der
@@ -2677,6 +2815,24 @@ export class GameServer {
     sheet.basis('hpRegen', basis.hpRegen);
     sheet.basis('mpRegen', basis.mpRegen);
 
+    /*
+     * Die Grundeigenschaften — vor der Ausrüstung und nach dem Grundwert.
+     *
+     * Als Beitrag und nicht in den Grundwert hinein: die Zeile im
+     * Charakterfenster soll sagen, wie viel Leben von der Stufe kommt und wie
+     * viel von der Ausdauer. In einen Grundwert verrechnet wäre beides
+     * dieselbe Zahl, und die Frage „lohnen sich Punkte in Ausdauer?" liesse
+     * sich nicht mehr am Fenster beantworten.
+     *
+     * Was welche Eigenschaft bewirkt, steht in `eigenschaftsWirkung` — an
+     * einer Stelle, weil das Charakterfenster dieselbe Auskunft anzeigt.
+     */
+    if (session.character) {
+      for (const w of eigenschaftsWirkung(session.character)) {
+        sheet.fuege(w.attribut, w.quelle, w.flach, w.prozent);
+      }
+    }
+
     for (const entry of session.items) {
       if (!entry.equipped) continue;
       const def = getItem(entry.itemId);
@@ -2728,9 +2884,20 @@ export class GameServer {
   }
 
   /** Was die Simulation braucht — aus derselben Tafel wie die Anzeige. */
-  private statsFor(session: Session): ReturnType<typeof baseStatsForLevel> {
+  private statsFor(session: Session): ReturnType<typeof baseStatsForLevel> & {
+    attackCooldown: number;
+  } {
     const sheet = this.sheetFor(session);
     return {
+      /*
+       * Die Schlagpause **aus der Tafel** und nicht aus der Waffe.
+       *
+       * Sie steht in beiden: die Waffe bringt sie mit, und Geschick kürzt sie.
+       * Wer hier `profile.cooldownSec` nähme, hätte im Charakterfenster den
+       * einen Wert und im Kampf den anderen — und zwar genau bei den Figuren,
+       * die Punkte in Geschick gesteckt haben.
+       */
+      attackCooldown: sheet.wert('attackCooldown'),
       maxHp: sheet.wert('maxHp'),
       maxMp: sheet.wert('maxMp'),
       attackDamage: sheet.wert('attackDamage'),
@@ -2776,6 +2943,13 @@ export class GameServer {
         mp: character.mp,
         maxMp: sheet.wert('maxMp'),
         gold: character.gold,
+        eigenschaften: {
+          staerke: character.staerke,
+          ausdauer: character.ausdauer,
+          geschick: character.geschick,
+          weisheit: character.weisheit,
+        },
+        offenePunkte: offenePunkte(character.level, character),
         attributes: sheet.alle(),
       }),
     );

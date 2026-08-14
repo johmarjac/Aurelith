@@ -38,6 +38,7 @@ import {
   decodeWelcome,
   encodeClientChat,
   encodeCreateAccount,
+  encodeSetzePunkt,
   encodeSocialLogin,
   encodeCreateCharacter,
   encodeDeleteCharacter,
@@ -71,6 +72,7 @@ import {
   type BuildStamp,
   type ChatMsg,
   type CombatEventMsg,
+  type EigenschaftId,
   type InputMsg,
   type InventoryRow,
   type LobbyMsg,
@@ -416,6 +418,16 @@ export class Connection {
    */
   sendSocialLogin(code: string): void {
     this.send(encodeSocialLogin(code));
+  }
+
+  /**
+   * Einen offenen Punkt auf eine Grundeigenschaft legen.
+   *
+   * Wie viele offen sind, rechnet der Server — hier geht nur der Wunsch hin.
+   * Anders wäre es eine Bitte, der man folgt.
+   */
+  sendSetzePunkt(eigenschaft: EigenschaftId): void {
+    this.send(encodeSetzePunkt(eigenschaft, 1));
   }
 
   sendCreateCharacter(name: string): void {

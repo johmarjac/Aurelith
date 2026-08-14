@@ -21,8 +21,11 @@ import {
   getNpc,
   QuestStatus,
   clockText,
+  EIGENSCHAFTEN,
   attributeDef,
+  eigenschaftsWirkung,
   formatAttribute,
+  type EigenschaftId,
   formatBeitrag,
   getItem,
   tuning,
@@ -279,6 +282,8 @@ export class UI {
    * abgelehnten Zug etwas da, das es nirgends gibt.
    */
   onSetActionSlot?: (index: number, art: number, id: string) => void;
+  /** Einen offenen Punkt auf eine Grundeigenschaft legen. */
+  onSetzePunkt?: (eigenschaft: EigenschaftId) => void;
   /**
    * Einen Gegenstand über seine Kennung benutzen.
    *
@@ -346,6 +351,7 @@ export class UI {
   /** Die Kästchen um die Figur, in der Reihenfolge von `LINKE_/RECHTE_PLAETZE`. */
   private readonly equipCells = new Map<string, HTMLElement>();
   private readonly characterWindow: GameWindow;
+  private readonly eigenschaftenBlock: HTMLDivElement;
   private readonly characterStats: HTMLElement;
   /** Das Menü unten links und sein Knopf. */
   private readonly menuPanel: HTMLDivElement;
@@ -680,6 +686,17 @@ export class UI {
       { left: window.innerWidth - 300, top: 340 },
       true,
     );
+    /*
+     * Die vier Grundeigenschaften — über der Werteliste und nicht darin.
+     *
+     * Sie gehören dorthin, weil sie etwas anderes sind: die Liste darunter
+     * zeigt, was **folgt**, dieser Block, was man **setzt**. In dieselbe
+     * Liste gemischt wäre nicht mehr zu sehen, an welchen Zahlen man drehen
+     * kann und an welchen nicht.
+     */
+    this.eigenschaftenBlock = el('div', 'eigenschaften');
+    this.characterWindow.body.appendChild(this.eigenschaftenBlock);
+
     this.characterStats = el('dl', 'stat-list');
     this.characterWindow.body.appendChild(this.characterStats);
 
@@ -1306,6 +1323,69 @@ export class UI {
     }
   }
 
+  /**
+   * Zeichnet die vier Grundeigenschaften — mit einem Knopf je Zeile.
+   *
+   * Der Knopf steht **immer** da und ist gesperrt, solange nichts zu
+   * verteilen ist. Ein Knopf, der erscheint und wieder verschwindet, lässt
+   * die Zeilen springen, und man drückt daneben, sobald der letzte Punkt weg
+   * ist.
+   *
+   * Was eine Eigenschaft bewirkt, steht nicht hier, sondern kommt aus
+   * `eigenschaftsWirkung` — derselben Rechnung, mit der der Server die Werte
+   * bildet. Eine hier eingetippte Erklärung wäre beim nächsten Drehen an
+   * `tuning.json` falsch, ohne dass es jemand merkt.
+   */
+  private zeichneEigenschaften(stats: StatsMsg): void {
+    const kopf = el('div', 'eigenschaften-kopf');
+    kopf.append(
+      el('span', 'eigenschaften-titel', 'Eigenschaften'),
+      el(
+        'span',
+        'eigenschaften-punkte',
+        stats.offenePunkte > 0 ? `${stats.offenePunkte} frei` : 'nichts zu verteilen',
+      ),
+    );
+    kopf.dataset.frei = stats.offenePunkte > 0 ? '1' : '0';
+
+    const zeilen = EIGENSCHAFTEN.map((def) => {
+      const zeile = el('div', 'eigenschaft');
+      const wert = stats.eigenschaften[def.id];
+
+      const knopf = el('button', 'btn eigenschaft-plus', '＋');
+      knopf.type = 'button';
+      knopf.disabled = stats.offenePunkte === 0;
+      knopf.title = `Einen Punkt auf ${def.name} legen`;
+      knopf.addEventListener('click', () => this.onSetzePunkt?.(def.id));
+
+      const name = el('span', 'eigenschaft-name', def.name);
+      name.title = def.hinweis;
+
+      /*
+       * Was dieser Wert gerade beiträgt — als Zeile darunter.
+       *
+       * Ausgerechnet und nicht beschrieben: „mehr Leben" sagt niemandem, ob
+       * sich der nächste Punkt lohnt. „+120 Leben" schon.
+       */
+      const wirkt = eigenschaftsWirkung(stats.eigenschaften)
+        .filter((w) => w.quelle === def.name)
+        .map((w) => {
+          const a = attributeDef(w.attribut);
+          if (w.prozent !== 0) {
+            return `${a?.name ?? w.attribut} ${(w.prozent * 100).toFixed(0)} %`;
+          }
+          return `${a?.name ?? w.attribut} +${formatAttribute(w.attribut, w.flach)}`;
+        })
+        .join(' · ');
+
+      zeile.append(name, el('span', 'eigenschaft-wert', String(wert)), knopf);
+      if (wirkt) zeile.appendChild(el('span', 'eigenschaft-wirkung', wirkt));
+      return zeile;
+    });
+
+    this.eigenschaftenBlock.replaceChildren(kopf, ...zeilen);
+  }
+
   setStats(stats: StatsMsg): void {
     this.lastStats = stats;
     // Das Gold steht im Laden — wer eben etwas verkauft hat, soll den neuen
@@ -1372,6 +1452,7 @@ export class UI {
       zeilen.push(dt, dd);
     }
 
+    this.zeichneEigenschaften(stats);
     this.characterStats.replaceChildren(...zeilen);
   }
 

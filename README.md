@@ -280,6 +280,38 @@ Steht der Name **in der Liste**, gewinnt die Liste bei der nächsten Anmeldung.
 Der Befehl sagt das dann auch — eine Zuweisung, die zehn Minuten später von
 selbst zurückspringt, wäre schlimmer als eine, die gar nicht erst geht.
 
+### Stufen, Eigenschaften und Punkte
+
+Die Grundwerte einer Figur folgen aus ihrer **Stufe** — Leben, Mana, Angriff
+und Verteidigung wachsen linear mit ihr, die Zahlen stehen unter
+`progression` in `assets/content/tuning.json`. Gespeichert wird davon nichts:
+alles entsteht bei jedem Laden neu aus Stufe, Eigenschaften und Ausrüstung.
+Deshalb wirkt eine Änderung an der Datei sofort auf alle Figuren.
+
+Dazu kommen vier **Grundeigenschaften**, die der Spieler selbst setzt:
+
+| | wirkt auf |
+| --- | --- |
+| Stärke | Angriff |
+| Ausdauer | Leben, Verteidigung |
+| Geschick | Kritische Chance, Schlagpause |
+| Weisheit | Mana |
+
+Jeder Stufenaufstieg bringt Punkte (`punkteJeStufe`), verteilt wird im
+Charakterfenster mit `C`. Was ein Punkt bewirkt, steht in
+`eigenschaftsWirkung` — an **einer** Stelle, weil der Server damit die Werte
+bildet und das Fenster dieselbe Auskunft anzeigt.
+
+Die offenen Punkte stehen in keiner Spalte: sie sind Stufe minus dem, was
+verteilt ist. Eine eigene Spalte wäre eine zweite Wahrheit über dieselbe Zahl
+— und die eine, die man beim Zurücksetzen einer Stufe vergisst. Wer über seine
+Stufe hinaus verteilt hat (nach `/level` nach unten), behält alles und hat
+schlicht nichts mehr offen.
+
+`/level <stufe>` setzt die eigene Stufe, `/level <figur> <stufe>` die einer
+Figur, die gerade im selben Kanal spielt — beides ab `gamemaster`. Die
+Erfahrung fällt dabei auf null: „Stufe 30" heisst der Anfang von Stufe 30.
+
 ### Startpunkt für Prüfungen
 
 `AURELITH_START_POS="x,z"` (oder `"x,z,blickrichtung"`) setzt, wo eine **neu

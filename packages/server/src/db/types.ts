@@ -37,6 +37,18 @@ export interface CharacterRecord {
   x: number;
   z: number;
   yaw: number;
+  /*
+   * Die vier Grundeigenschaften. Was daraus folgt, steht nirgends in der
+   * Datenbank — Leben, Angriff und der Rest werden bei jedem Laden neu
+   * gerechnet, aus Stufe, diesen vier Zahlen und der Ausrüstung.
+   *
+   * Auch die offenen Punkte stehen nicht hier: sie sind Stufe minus dem, was
+   * verteilt ist. Siehe `offenePunkte` im geteilten Paket.
+   */
+  staerke: number;
+  ausdauer: number;
+  geschick: number;
+  weisheit: number;
 }
 
 export interface ItemRecord {

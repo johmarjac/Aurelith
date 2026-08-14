@@ -8,6 +8,7 @@ import type { ByteReader } from './bytes.ts';
 import { packet } from './frame.ts';
 import { ClientOp, ServerOp } from './opcodes.ts';
 import type { AttributeValue } from '../content/attributes.ts';
+import type { EigenschaftId, Eigenschaften } from '../content/eigenschaften.ts';
 import type { BuildStamp } from '../build/stamp.ts';
 import type { EntityState, EntityType } from '../sim/types.ts';
 
@@ -116,6 +117,22 @@ export function encodeUseSkill(skillId: string): Uint8Array {
 
 export function decodeUseSkill(r: ByteReader): { skillId: string } {
   return { skillId: r.str() };
+}
+
+/**
+ * Einen offenen Punkt auf eine Grundeigenschaft legen.
+ *
+ * Die Kennung als Text und nicht als Zahl: eine Reihenfolge, die im Protokoll
+ * steht, muss beide Seiten für immer binden — und die vier stehen im
+ * Charakterfenster in einer Reihenfolge, an der jemand irgendwann drehen will.
+ * Vier Buchstabenfolgen kosten nichts und überleben das.
+ */
+export function encodeSetzePunkt(eigenschaft: EigenschaftId, anzahl: number): Uint8Array {
+  return packet(ClientOp.SetzePunkt, 32).str(eigenschaft).u16(anzahl).finish();
+}
+
+export function decodeSetzePunkt(r: ByteReader): { eigenschaft: string; anzahl: number } {
+  return { eigenschaft: r.str(), anzahl: r.u16() };
 }
 
 export function encodeDeleteCharacter(characterId: number): Uint8Array {
@@ -971,6 +988,16 @@ export interface StatsMsg {
   mp: number;
   maxMp: number;
   gold: number;
+  /**
+   * Die vier Grundeigenschaften und was davon noch zu verteilen ist.
+   *
+   * In derselben Nachricht wie die Attribute und nicht in einer eigenen: die
+   * einen folgen aus den anderen, und sie kommen immer zusammen zustande. Zwei
+   * Pakete wären zwei Zeitpunkte, und zwischen ihnen zeigte das Fenster
+   * Eigenschaften, zu denen die Werte daneben noch nicht passen.
+   */
+  eigenschaften: Eigenschaften;
+  offenePunkte: number;
   /** Alles, was auf die Figur wirkt — samt Herkunft. Siehe `attributes.ts`. */
   attributes: AttributeValue[];
 }
@@ -985,7 +1012,12 @@ export function encodeStats(m: StatsMsg): Uint8Array {
     .u32(Math.round(m.maxHp))
     .u32(Math.round(m.mp))
     .u32(Math.round(m.maxMp))
-    .u32(m.gold);
+    .u32(m.gold)
+    .u16(m.eigenschaften.staerke)
+    .u16(m.eigenschaften.ausdauer)
+    .u16(m.eigenschaften.geschick)
+    .u16(m.eigenschaften.weisheit)
+    .u16(m.offenePunkte);
 
   // Die Tafel als Liste: Kennung, Grundwert, Summe, dann die Beiträge. Als
   // `f32`, weil Anteile und Chancen keine ganzen Zahlen sind — eine gerundete
@@ -1168,6 +1200,13 @@ export function decodeStats(r: ByteReader): StatsMsg {
     mp: r.u32(),
     maxMp: r.u32(),
     gold: r.u32(),
+    eigenschaften: {
+      staerke: r.u16(),
+      ausdauer: r.u16(),
+      geschick: r.u16(),
+      weisheit: r.u16(),
+    } satisfies Eigenschaften,
+    offenePunkte: r.u16(),
   };
 
   const anzahl = r.u8();

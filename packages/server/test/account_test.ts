@@ -21,6 +21,7 @@ import {
   accessFromName,
   accessName,
   leseZugriffsliste,
+  maxLevel,
   decodeFrame,
   decodeServerChat,
   decodeStats,
@@ -37,6 +38,7 @@ import {
   type LobbyMsg,
 } from '@aurelith/shared';
 import { hashPassword, verifyPassword } from '../src/passwords.ts';
+import { loadContentFromDisk } from '../src/content.ts';
 import { COMMANDS, runCommand, type CommandHost } from '../src/commands.ts';
 import { Session } from '../src/session.ts';
 import { beobachteLobby, gruss } from './lib/anmelden.ts';
@@ -166,11 +168,21 @@ check(
 // Ohne Server: die Tabelle bekommt einen Wirt, der nur mitschreibt. Damit
 // lässt sich prüfen, wer was darf, ohne eine Welt zu bauen.
 
+/*
+ * Die Inhalte müssen vorher geladen sein.
+ *
+ * `/level` liest die Höchststufe aus `tuning.json` — es gibt keine zweite,
+ * hier eingetippte Zahl dafür. Ohne geladene Inhalte wirft das, und zwar mit
+ * genau der Meldung, die es soll: „noch nichts geladen".
+ */
+await loadContentFromDisk(join(root, 'assets', 'content'));
+
 console.log('\nBefehle');
 
 const gesagt: string[] = [];
 const ansagen: string[] = [];
 const stufenrufe: Array<{ name: string; stufe: AccessLevel }> = [];
+const levelrufe: Array<{ figur: string; level: number }> = [];
 let gutgeschrieben = 0;
 const wirt: CommandHost = {
   systemMessage: (_s, text) => gesagt.push(text),
@@ -183,6 +195,12 @@ const wirt: CommandHost = {
   },
   setzeStufe: (_s, name, stufe) => {
     stufenrufe.push({ name, stufe });
+  },
+  setzeLevel: (_s, figur, level) => {
+    levelrufe.push({ figur, level });
+    // „Es gibt sie" — die Suche nach der Figur prüft der Server, nicht die
+    // Befehlstabelle. Hier geht es um das, was **vor** ihr passiert.
+    return true;
   },
 };
 
@@ -303,6 +321,56 @@ check(
   gesagt.some((t) => t.includes('Erwartet')),
   'und der Befehl sagt, was er erwartet',
 );
+
+/*
+ * `/level` — ein Wort meint einen selbst, zwei jemand anderen.
+ *
+ * Die Unterscheidung hängt an der **Anzahl** der Wörter und nicht daran, ob
+ * das erste eine Zahl ist. Eine Figur darf „7" heissen, und dann entschiede
+ * eine Zeichenprüfung falsch: `/level 7` würde zu „setz die Figur 7 auf ...
+ * nichts". Die Gegenprobe dazu steht unten.
+ */
+gesagt.length = 0;
+levelrufe.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Gamemaster), '/level 30');
+check(
+  levelrufe.length === 1 && levelrufe[0]!.figur === '' && levelrufe[0]!.level === 30,
+  'ein Wort setzt die eigene Stufe',
+  JSON.stringify(levelrufe[0]),
+);
+
+levelrufe.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Gamemaster), '/level Aurel 12');
+check(
+  levelrufe.length === 1 && levelrufe[0]!.figur === 'Aurel' && levelrufe[0]!.level === 12,
+  'zwei Wörter setzen die einer anderen Figur',
+  JSON.stringify(levelrufe[0]),
+);
+
+// Die Gegenprobe zur Regel oben: eine Figur, die wie eine Zahl heisst.
+levelrufe.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Gamemaster), '/level 7 12');
+check(
+  levelrufe.length === 1 && levelrufe[0]!.figur === '7' && levelrufe[0]!.level === 12,
+  'eine Figur namens „7" wird als Figur gelesen',
+  JSON.stringify(levelrufe[0]),
+);
+
+gesagt.length = 0;
+levelrufe.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Gamemaster), '/level 0');
+check(levelrufe.length === 0, 'Stufe null gibt es nicht');
+runCommand(wirt, sitzung(AccessLevel.Gamemaster), `/level ${maxLevel() + 1}`);
+check(levelrufe.length === 0, 'und über der Höchststufe auch nicht');
+check(
+  gesagt.every((t) => t.includes('ganze Zahl')),
+  'beides wird mit der erlaubten Spanne beantwortet',
+  gesagt[0] ?? '(stumm)',
+);
+
+levelrufe.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Player), '/level 30');
+check(levelrufe.length === 0, 'und ein gewöhnlicher Spieler setzt gar keine Stufe');
 
 // ---------------------------------------------------------------------------
 // Über das Protokoll

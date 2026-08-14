@@ -4,7 +4,12 @@
  * Neustart weg, und der Server sagt das beim Hochfahren.
  */
 
-import { leereLeiste, normalisiereLeiste, type AktionsPlatz } from '@aurelith/shared';
+import {
+  leereLeiste,
+  normalisiereLeiste,
+  startEigenschaften,
+  type AktionsPlatz,
+} from '@aurelith/shared';
 import { starterRows } from '../inventory.ts';
 import type {
   AccountRecord,
@@ -111,6 +116,7 @@ export class MemoryStore implements GameStore {
       x: spawn.x,
       z: spawn.z,
       yaw: spawn.yaw,
+      ...startEigenschaften(),
     };
     this.figuren.set(character.id, {
       character,

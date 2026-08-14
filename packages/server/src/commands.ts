@@ -11,7 +11,7 @@
  * in einem.
  */
 
-import { ACCESS_NAMES, AccessLevel, accessName } from '@aurelith/shared';
+import { ACCESS_NAMES, AccessLevel, accessName, maxLevel } from '@aurelith/shared';
 import type { Session } from './session.ts';
 
 /**
@@ -40,6 +40,14 @@ export interface CommandHost {
    * selbst, wie es ausgegangen ist.
    */
   setzeStufe(session: Session, name: string, stufe: AccessLevel): void;
+  /**
+   * Setzt die Stufe einer Figur.
+   *
+   * `figur` leer heisst: die eigene. Gibt zurück, ob es geklappt hat — anders
+   * als bei der Zugriffsstufe geht das ohne Netzruf, denn Figuren stehen in
+   * der Weltdatenbank dieses Servers und die gesuchte spielt gerade hier.
+   */
+  setzeLevel(session: Session, figur: string, level: number): boolean;
 }
 
 export interface CommandDef {
@@ -120,6 +128,35 @@ export const COMMANDS: readonly CommandDef[] = [
         return;
       }
       host.setzeStufe(session, wen, ACCESS_NAMES[stufenwort]!);
+    },
+  },
+  {
+    name: 'level',
+    minLevel: AccessLevel.Gamemaster,
+    hilfe: '/level [figur] <stufe> — Stufe setzen (ab Spielleiter)',
+    run(host, session, args) {
+      /*
+       * Ein oder zwei Wörter, und die Stufe steht immer hinten.
+       *
+       * `/level 30` meint einen selbst, `/level Aurel 30` jemand anderen. Die
+       * Unterscheidung an der **Anzahl** und nicht daran, ob das erste Wort
+       * eine Zahl ist: eine Figur darf „7" heissen, und dann entschiede eine
+       * Zeichenprüfung falsch.
+       */
+      if (args.length === 0 || args.length > 2) {
+        host.systemMessage(session, 'Erwartet: /level <stufe> oder /level <figur> <stufe>.');
+        return;
+      }
+      const figur = args.length === 2 ? args[0]! : '';
+      const stufe = Number(args[args.length - 1]);
+
+      if (!Number.isInteger(stufe) || stufe < 1 || stufe > maxLevel()) {
+        host.systemMessage(session, `Erwartet: eine ganze Zahl von 1 bis ${maxLevel()}.`);
+        return;
+      }
+      if (!host.setzeLevel(session, figur, stufe)) {
+        host.systemMessage(session, `„${figur}" spielt hier gerade nicht.`);
+      }
     },
   },
 ];

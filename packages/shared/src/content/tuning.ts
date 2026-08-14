@@ -61,6 +61,35 @@ export interface ProgressionTuning {
   expFarMalusPerLevel: number;
   /** Was darunter übrigbleibt. */
   expFloor: number;
+
+  /*
+   * Die vier Grundeigenschaften — siehe `eigenschaften.ts`.
+   *
+   * Sie stehen hier und nicht dort, weil hier alles steht, woran man beim
+   * Ausbalancieren dreht. Was ein Punkt wert ist, ist eine Zahl zum Drehen;
+   * dass Ausdauer auf Leben und Verteidigung wirkt, ist eine Festlegung und
+   * steht im Code.
+   */
+  /** Womit jede der vier bei einer neuen Figur anfängt. */
+  startEigenschaft: number;
+  /** Wie viele Punkte ein Stufenaufstieg bringt. */
+  punkteJeStufe: number;
+
+  angriffProStaerke: number;
+  lebenProAusdauer: number;
+  verteidigungProAusdauer: number;
+  kritProGeschick: number;
+  manaProWeisheit: number;
+
+  /**
+   * Wie viel kürzer die Schlagpause je Punkt Geschick wird — als Anteil.
+   *
+   * Und wie viel höchstens: ohne Deckel führte genug Geschick zu einer Pause
+   * von null, und der Kern kennt dafür keinen Sonderfall. Aus „schnell" würde
+   * „unendlich oft je Bild".
+   */
+  pausenkuerzungProGeschick: number;
+  maxPausenkuerzung: number;
 }
 
 export interface PlayerTuning {

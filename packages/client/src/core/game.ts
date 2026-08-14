@@ -25,6 +25,8 @@ import * as THREE from 'three';
 import { CoreButton, type CoreEntityRow, type CoreWorld } from '@aurelith/core';
 import {
   ChatChannel,
+  accessLabel,
+  type AccessLevel,
   normalisiereLeiste,
   type InventoryRow,
   angleDelta,
@@ -617,6 +619,7 @@ export class Game {
     this.ui.onUpgradeItem = (slot) => this.connection?.sendUpgradeItem(slot);
     this.ui.onUsePortal = () => this.usePortal();
     this.ui.onUseItem = (slot) => this.connection?.sendUseItem(slot);
+    this.ui.onSetzePunkt = (eigenschaft) => this.connection?.sendSetzePunkt(eigenschaft);
     this.ui.onSetActionSlot = (index, art, id) =>
       this.connection?.sendSetActionSlot(index, art, id);
     /*
@@ -1189,6 +1192,10 @@ export class Game {
         this.resetSession();
         this.lobby.setStand(msg);
         this.accessLevel = msg.accessLevel;
+        // Das Kurzzeichen fürs Schild über dem eigenen Kopf. Hier und nicht
+        // beim Betreten: die Stufe gehört zum Konto und steht schon fest,
+        // bevor eine Figur gewählt ist.
+        this.ui.overlay.setzeRang(accessLabel(msg.accessLevel as AccessLevel));
       },
 
       /**
@@ -1295,6 +1302,10 @@ export class Game {
       onStats: (msg) => {
         this.stats = msg;
         this.ui.setStats(msg);
+        // Die Tafel enthält die Schlagpause, und die kann sich mit jedem
+        // verteilten Punkt ändern. Ohne diese Zeile griffe der neue Wert erst
+        // beim nächsten Ausrüstungswechsel.
+        this.applyProfileToPrediction();
       },
 
       onInventory: (rows) => {
@@ -2579,9 +2590,25 @@ export class Game {
       this.localId,
       this.profile.style,
       this.profile.range,
-      this.profile.cooldownSec,
+      this.pauseAusTafel() ?? this.profile.cooldownSec,
       this.profile.windupSec,
     );
+  }
+
+  /**
+   * Die Schlagpause, wie der Server sie rechnet — aus der Attributtafel.
+   *
+   * Die Waffe allein reicht dafür nicht mehr: Geschick kürzt die Pause, und
+   * der Server rechnet damit. Nähme die Vorhersage weiter den Wert der Waffe,
+   * schlüge die Figur hier langsamer zu als dort — sichtbar als Zucken bei
+   * jedem Schlag, und zwar nur bei Figuren mit Punkten in Geschick.
+   *
+   * Nichts, solange keine Werte da sind: beim Erscheinen ist die Tafel noch
+   * nicht angekommen, und dann gilt die Waffe, bis sie es ist.
+   */
+  private pauseAusTafel(): number | undefined {
+    const zeile = this.stats?.attributes.find((a) => a.id === 'attackCooldown');
+    return zeile && zeile.gesamt > 0 ? zeile.gesamt : undefined;
   }
 
   /** Schickt die Bitte, das Tor zu benutzen, in dem die Figur steht. */

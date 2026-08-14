@@ -15,7 +15,9 @@ import {
   AktionsArt,
   KEIN_BERUF,
   leereLeiste,
+  leseEigenschaften,
   normalisiereLeiste,
+  startEigenschaften,
   type AktionsPlatz,
 } from '@aurelith/shared';
 import { starterRows } from '../inventory.ts';
@@ -178,7 +180,8 @@ export class PostgresWelt extends PostgresBasis implements WeltStore {
 
   async listCharacters(accountId: number): Promise<CharacterRecord[]> {
     const res = await this.pool.query(
-      `SELECT id, account_id, name, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw
+      `SELECT id, account_id, name, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw,
+              staerke, ausdauer, geschick, weisheit
          FROM characters
         WHERE account_id = $1
         ORDER BY id`,
@@ -193,6 +196,7 @@ export class PostgresWelt extends PostgresBasis implements WeltStore {
     beruf: string,
     spawn: SpawnPoint,
   ): Promise<CharacterRecord | undefined> {
+    const start = startEigenschaften();
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -200,11 +204,29 @@ export class PostgresWelt extends PostgresBasis implements WeltStore {
         // Der Name kollidiert nur **in dieser Welt** — der Index liegt auf
         // lower(name), und die Datenbank ist der Server. Eine andere Region
         // darf denselben Namen noch einmal vergeben.
-        `INSERT INTO characters (account_id, name, class, map_id, pos_x, pos_z, yaw)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        // Die Startwerte kommen aus `tuning.json` und nicht aus der
+        // Spaltenvorgabe: die steht in einer Migration und lässt sich nicht
+        // nachträglich ändern, ohne dass alte und neue Figuren verschieden
+        // anfangen.
+        `INSERT INTO characters (account_id, name, class, map_id, pos_x, pos_z, yaw,
+                                 staerke, ausdauer, geschick, weisheit)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          ON CONFLICT DO NOTHING
-         RETURNING id, account_id, name, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw`,
-        [accountId, name, beruf, spawn.mapId, spawn.x, spawn.z, spawn.yaw],
+         RETURNING id, account_id, name, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw,
+              staerke, ausdauer, geschick, weisheit`,
+        [
+          accountId,
+          name,
+          beruf,
+          spawn.mapId,
+          spawn.x,
+          spawn.z,
+          spawn.yaw,
+          start.staerke,
+          start.ausdauer,
+          start.geschick,
+          start.weisheit,
+        ],
       );
       if (inserted.rowCount === 0) {
         await client.query('ROLLBACK');
@@ -246,7 +268,8 @@ export class PostgresWelt extends PostgresBasis implements WeltStore {
     characterId: number,
   ): Promise<LoadedCharacter | undefined> {
     const res = await this.pool.query(
-      `SELECT id, account_id, name, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw
+      `SELECT id, account_id, name, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw,
+              staerke, ausdauer, geschick, weisheit
          FROM characters
         WHERE id = $1 AND account_id = $2`,
       [characterId, accountId],
@@ -314,9 +337,27 @@ export class PostgresWelt extends PostgresBasis implements WeltStore {
       // ihn hiesse, dass der frisch gelernte Beruf beim Abmelden verfällt.
       `UPDATE characters
           SET class = $2, level = $3, exp = $4, gold = $5, hp = $6, mp = $7,
-              map_id = $8, pos_x = $9, pos_z = $10, yaw = $11, updated_at = now()
+              map_id = $8, pos_x = $9, pos_z = $10, yaw = $11,
+              staerke = $12, ausdauer = $13, geschick = $14, weisheit = $15,
+              updated_at = now()
         WHERE id = $1`,
-      [c.id, c.beruf, c.level, c.exp, c.gold, c.hp, c.mp, c.mapId, c.x, c.z, c.yaw],
+      [
+        c.id,
+        c.beruf,
+        c.level,
+        c.exp,
+        c.gold,
+        c.hp,
+        c.mp,
+        c.mapId,
+        c.x,
+        c.z,
+        c.yaw,
+        c.staerke,
+        c.ausdauer,
+        c.geschick,
+        c.weisheit,
+      ],
     );
   }
 
@@ -419,5 +460,13 @@ function toCharacter(row: Record<string, unknown> | undefined): CharacterRecord 
     x: Number(row.pos_x),
     z: Number(row.pos_z),
     yaw: Number(row.yaw),
+    // Über `leseEigenschaften`, damit eine Zeile aus der Zeit vor der
+    // Migration nicht mit vier `NaN` weiterläuft.
+    ...leseEigenschaften({
+      staerke: Number(row.staerke),
+      ausdauer: Number(row.ausdauer),
+      geschick: Number(row.geschick),
+      weisheit: Number(row.weisheit),
+    }),
   };
 }

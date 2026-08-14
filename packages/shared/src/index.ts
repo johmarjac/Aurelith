@@ -29,6 +29,7 @@ export * from './content/attributes.ts';
 export * from './content/aktionen.ts';
 export * from './content/classes.ts';
 export * from './content/progression.ts';
+export * from './content/eigenschaften.ts';
 export * from './content/quests.ts';
 export * from './content/tuning.ts';
 export * from './content/contentFormat.ts';

@@ -74,6 +74,21 @@ export class Overlay {
   private readonly projected = new THREE.Vector3();
 
   /**
+   * Das Kurzzeichen der eigenen Zugriffsstufe — leer für gewöhnliche Spieler.
+   *
+   * Nur die **eigene**: die Stufe eines fremden Kontos steht in keinem
+   * Schnappschuss, und sie gehört auch nicht hinein. Wer wissen will, wer hier
+   * Spielleiter ist, soll das im Spiel erfahren und nicht am Namensschild
+   * ablesen können.
+   */
+  private eigenerRang = '';
+
+  /** Setzt das Kurzzeichen. Aus der Zugriffsstufe des angemeldeten Kontos. */
+  setzeRang(kurz: string): void {
+    this.eigenerRang = kurz;
+  }
+
+  /**
    * Was gerade über wessen Kopf steht — Kennung des Wesens auf Text und Frist.
    *
    * Am **Wesen** und nicht am Namen: über einem Kopf steht der Figurenname,
@@ -196,7 +211,14 @@ export class Overlay {
     const candidates: Array<{ e: EntityVisual; dist: number }> = [];
 
     for (const e of entities) {
-      if (e.id === localId) continue;
+      /*
+       * Die eigene Figur bekommt **auch** ein Schild.
+       *
+       * Sie hatte lange keines, und die Begründung war naheliegend: man weiss
+       * ja, wer man ist. Nur sieht man in einer Menge nicht mehr, welche der
+       * Figuren die eigene ist — und wer eine Zugriffsstufe hat, soll sie über
+       * dem Kopf tragen, so wie andere sie an ihm sehen würden.
+       */
       if (e.state === EntityState.Dead) continue;
       const dist = camera.position.distanceTo(this.projected.set(e.x, e.y, e.z));
       if (dist > NAMEPLATE_RANGE) continue;
@@ -242,7 +264,20 @@ export class Overlay {
       if (mark.textContent !== markText) mark.textContent = markText;
       mark.dataset.kind = markKind ?? '';
 
-      const label = e.type === EntityType.Monster ? `${e.name} (${e.level})` : e.name;
+      /*
+       * Der eigene Rang steht in eckigen Klammern vor dem Namen, und dann ist
+       * die ganze Zeile rot — nicht nur die Klammer. Ein Schild, bei dem nur
+       * das Präfix gefärbt ist, liest sich wie zwei Angaben; gemeint ist eine.
+       */
+      const eigen = e.id === localId;
+      const rang = eigen ? this.eigenerRang : '';
+      el.dataset.rang = rang;
+      const label =
+        e.type === EntityType.Monster
+          ? `${e.name} (${e.level})`
+          : rang
+            ? `[${rang}] ${e.name}`
+            : e.name;
       if (name.textContent !== label) name.textContent = label;
 
       const bar = el.lastElementChild as HTMLElement;

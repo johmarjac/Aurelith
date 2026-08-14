@@ -21,7 +21,16 @@
     "expFarMalusPerLevel": 0.08,
     "expFloor": 0.05,
     "critChance": 0.12,
-    "critMultiplier": 1.75
+    "critMultiplier": 1.75,
+    "startEigenschaft": 15,
+    "punkteJeStufe": 2,
+    "angriffProStaerke": 0.8,
+    "lebenProAusdauer": 8,
+    "verteidigungProAusdauer": 0.5,
+    "kritProGeschick": 0.0015,
+    "manaProWeisheit": 4,
+    "pausenkuerzungProGeschick": 0.0015,
+    "maxPausenkuerzung": 0.4
   },
   "player": {
     "attackRange": 3,

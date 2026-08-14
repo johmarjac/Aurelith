@@ -2213,6 +2213,82 @@ body.aktion-zuweisen .action-slot {
   text-align: right;
 }
 
+/* --- Grundeigenschaften ---------------------------------------------------
+ *
+ * Ein eigener Block über der Werteliste, mit Trennlinie darunter. Sie stehen
+ * dort, weil sie etwas anderes sind als die Liste: hier setzt man, dort folgt
+ * es. Ineinandergeschoben wäre nicht mehr zu sehen, woran man drehen kann.
+ */
+.eigenschaften {
+  display: grid;
+  gap: 0.3rem;
+  margin-bottom: 0.7rem;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid var(--panel-edge);
+}
+
+.eigenschaften-kopf {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.eigenschaften-titel {
+  font-weight: 700;
+  font-size: 0.86rem;
+}
+
+/* Offene Punkte fallen ins Auge, „nichts zu verteilen" nicht. Der Unterschied
+   ist der ganze Zweck der Zeile. */
+.eigenschaften-punkte {
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+}
+
+.eigenschaften-kopf[data-frei='1'] .eigenschaften-punkte {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.eigenschaft {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 0.3rem 0.5rem;
+  font-size: 0.84rem;
+}
+
+.eigenschaft-name {
+  color: var(--ink-dim);
+}
+
+.eigenschaft-wert {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  text-align: right;
+  min-width: 2.2rem;
+}
+
+/* Quadratisch und klein — er steht viermal untereinander und soll die Zeile
+   nicht führen. */
+.eigenschaft-plus {
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+}
+
+/* Die Wirkung läuft über alle drei Spalten und steht unter der Zeile. */
+.eigenschaft-wirkung {
+  grid-column: 1 / -1;
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+}
+
 /* --- Einstellungen -------------------------------------------------------- */
 
 .settings-group {
@@ -2643,6 +2719,22 @@ body.aktion-zuweisen .action-slot {
 
 .nameplate[data-target='true'] .np-name {
   color: var(--accent);
+}
+
+/*
+ * Ein Rang färbt die ganze Zeile rot — Klammer und Name zusammen.
+ *
+ * Nur das Präfix zu färben läse sich wie zwei Angaben nebeneinander; gemeint
+ * ist eine. Die Regel steht **vor** der für Aggro und für das Ziel: die eigene
+ * Figur ist weder das eine noch das andere, also kommen die beiden hier nie in
+ * die Quere — und stünde sie danach, gewänne sie gegen Regeln, die dringender
+ * sind als sie.
+ */
+.nameplate[data-rang]:not([data-rang='']) .np-name {
+  color: var(--danger);
+  text-shadow:
+    0 0 4px rgba(0, 0, 0, 0.9),
+    0 1px 2px rgba(0, 0, 0, 0.8);
 }
 
 /*

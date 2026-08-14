@@ -7,7 +7,7 @@
  * ändert, zählt PROTOCOL_VERSION hoch.
  */
 
-export const PROTOCOL_VERSION = 16;
+export const PROTOCOL_VERSION = 17;
 
 export const ClientOp = {
   Hello: 0x01,
@@ -117,6 +117,15 @@ export const ClientOp = {
    * miteinander zu tun.
    */
   SocialLogin: 0x1e,
+  /**
+   * Einen offenen Punkt auf eine Grundeigenschaft legen.
+   *
+   * Nur hinzufügen, nie wegnehmen: ein Punkt, der einmal liegt, liegt. Das ist
+   * eine Festlegung fürs Spiel und keine technische — wer sie zurücknehmen
+   * will, braucht dafür etwas im Spiel, das es kostet, und nicht einen Knopf,
+   * der alles beliebig macht.
+   */
+  SetzePunkt: 0x1f,
 } as const;
 export type ClientOp = (typeof ClientOp)[keyof typeof ClientOp];
 

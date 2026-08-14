@@ -9,14 +9,32 @@
  *   npx tsx packages/server/test/attributes_test.ts
  */
 
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   ATTRIBUTES,
   AttributeSheet,
+  EIGENSCHAFTEN,
   attributeDef,
+  eigenschaftsWirkung,
   formatAttribute,
   formatBeitrag,
+  offenePunkte,
+  startEigenschaften,
   summiere,
+  verteiltePunkte,
 } from '@aurelith/shared';
+import { loadContentFromDisk } from '../src/content.ts';
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+
+/**
+ * Die Eigenschaften rechnen mit `tuning.json` — was ein Punkt wert ist, steht
+ * dort und nicht hier. Eine im Test eingetippte Zahl wäre beim nächsten Drehen
+ * an der Datei falsch, ohne dass jemand es merkt.
+ */
+const ladeInhalte = (): Promise<unknown> =>
+  loadContentFromDisk(join(root, 'assets', 'content'));
 
 let failures = 0;
 function check(ok: boolean, what: string, detail = ''): void {
@@ -157,6 +175,74 @@ check(
   attributeDef('attackDamage')?.wenigerIstBesser !== true,
   'beim Angriff nicht',
 );
+
+// ---------------------------------------------------------------------------
+// Die vier Grundeigenschaften
+// ---------------------------------------------------------------------------
+//
+// Sie sind der einzige Teil der Werte, an dem der Spieler dreht. Was ein Punkt
+// bewirkt, steht in `eigenschaftsWirkung` — an einer Stelle, weil Server und
+// Charakterfenster dieselbe Auskunft brauchen.
+
+console.log('\nGrundeigenschaften');
+
+await ladeInhalte();
+
+const start = startEigenschaften();
+check(
+  EIGENSCHAFTEN.every((d) => start[d.id] === start.staerke),
+  'eine frische Figur beginnt auf allen vieren gleich',
+  JSON.stringify(start),
+);
+check(verteiltePunkte(start) === 0, 'und hat nichts verteilt');
+check(offenePunkte(1, start) === 0, 'auf Stufe eins gibt es nichts zu verteilen');
+
+const zehn = offenePunkte(10, start);
+check(zehn > 0, `Stufe zehn bringt Punkte (${zehn})`);
+check(
+  offenePunkte(20, start) > zehn,
+  'und Stufe zwanzig mehr — die Gegenprobe zu „irgendeine Zahl"',
+);
+
+// Verteilen zieht ab, und zwar genau so viel, wie es kostet.
+const verteilt = { ...start, ausdauer: start.ausdauer + 3 };
+check(verteiltePunkte(verteilt) === 3, 'drei Punkte gelten als drei verteilte');
+check(offenePunkte(10, verteilt) === zehn - 3, 'und fehlen dann bei den offenen');
+
+/*
+ * Der Fall, um den es bei `/level` nach unten geht.
+ *
+ * Wer auf Stufe 30 verteilt hat und dann auf Stufe 2 gesetzt wird, hat mehr
+ * ausgegeben, als seine Stufe hergibt. Eine Zahl mit Minus davor wäre in der
+ * Anzeige unbrauchbar und im Server gefährlich — `setzePunkt` rechnet damit,
+ * wie viele offen sind.
+ */
+const ueberzogen = { ...start, staerke: start.staerke + 40 };
+check(offenePunkte(2, ueberzogen) === 0, 'mehr verteilt als verdient ergibt null offene');
+
+// Und die Wirkung: Ausdauer muss Leben bringen, sonst ist der Punkt sinnlos.
+const ohne = eigenschaftsWirkung(start).find((w) => w.attribut === 'maxHp')?.flach ?? 0;
+const mit = eigenschaftsWirkung({ ...start, ausdauer: start.ausdauer + 10 }).find(
+  (w) => w.attribut === 'maxHp',
+)?.flach ?? 0;
+check(mit > ohne, `zehn Punkte Ausdauer geben Leben (${ohne} → ${mit})`);
+
+check(
+  eigenschaftsWirkung(start).some((w) => w.attribut === 'attackDamage' && w.quelle === 'Stärke'),
+  'und jeder Beitrag nennt seine Eigenschaft — dafür die Herkunftszeile',
+);
+
+/*
+ * Die Schlagpause ist der einzige Anteil statt Zuschlag — und sie ist
+ * gedeckelt. Ohne Deckel führte genug Geschick zu einer Pause von null, und
+ * der Kern kennt dafür keinen Sonderfall.
+ */
+const pause = (geschick: number): number =>
+  eigenschaftsWirkung({ ...start, geschick }).find((w) => w.attribut === 'attackCooldown')
+    ?.prozent ?? 0;
+check(pause(100) < pause(10), 'mehr Geschick kürzt die Schlagpause stärker');
+check(pause(100000) === pause(1000000), 'aber nur bis zum Deckel');
+check(pause(100000) > -1, 'und nie so weit, dass die Pause verschwindet', String(pause(100000)));
 
 console.log(
   failures === 0 ? '\nAlle Prüfungen bestanden.\n' : `\n${failures} Prüfung(en) fehlgeschlagen.\n`,
