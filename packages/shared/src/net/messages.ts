@@ -1025,6 +1025,20 @@ export function decodeInventory(r: ByteReader): InventoryRow[] {
 }
 
 /**
+ * Die Anmeldekarte aus dem Anbieterweg — siehe `ClientOp.SocialLogin`.
+ *
+ * Wie die Eintrittskarte ein Stück Text und sonst nichts: was dahintersteht,
+ * weiss allein der Server, der sie ausgestellt hat.
+ */
+export function encodeSocialLogin(code: string): Uint8Array {
+  return packet(ClientOp.SocialLogin, 96).str(code).finish();
+}
+
+export function decodeSocialLogin(r: ByteReader): { code: string } {
+  return { code: r.str() };
+}
+
+/**
  * Ein Platz der Aktionsleiste wird belegt oder geräumt.
  *
  * Geräumt heisst `art = Leer`; eine eigene Nachricht dafür wäre ein zweiter

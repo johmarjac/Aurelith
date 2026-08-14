@@ -459,26 +459,56 @@ check(
 // Springen. Die Leertaste greift seit dem Zielsystem nicht mehr an — sie hebt
 // die Figur vom Boden. Gemessen an der Höhe der eigenen Figur: sie steigt und
 // kommt danach wieder auf dieselbe Höhe zurück.
+/*
+ * Nicht nach fester Frist nachsehen, sondern warten, bis es passiert ist.
+ *
+ * Die Vorhersage rechnet einen Schritt je Tick, und wie viele Ticks in einer
+ * Viertelsekunde vergehen, hängt daran, wie schnell dieser Rechner zeichnet.
+ * Ohne Grafikkarte sind das mitunter zwei statt zwanzig — dann steht die Figur
+ * nach 250 ms noch am Boden und nach 900 ms mitten in der Luft, und der Test
+ * meldet einen Fehler, der keiner ist. Umgekehrt gilt dasselbe: erscheint die
+ * Figur nie oben oder kommt sie nie zurück, läuft die Frist ab, und das ist
+ * dann ein echter Fehlschlag.
+ */
 const vorSprung = await page.evaluate(() => window.aurelith.playerSim.y);
 await page.keyboard.press('Space');
-await page.waitForTimeout(250);
-const imSprung = await page.evaluate(() => window.aurelith.playerSim.y);
-await page.waitForTimeout(900);
+
+let imSprung = vorSprung;
+let hobAb = true;
+try {
+  imSprung = await page
+    .waitForFunction(
+      (boden) => (window.aurelith.playerSim.y > boden + 0.3 ? window.aurelith.playerSim.y : false),
+      vorSprung,
+      { timeout: 8000, polling: 50 },
+    )
+    .then((h) => h.jsonValue());
+} catch {
+  hobAb = false;
+  imSprung = await page.evaluate(() => window.aurelith.playerSim.y);
+}
+
+let gelandet = true;
+try {
+  await page.waitForFunction(
+    (boden) => Math.abs(window.aurelith.playerSim.y - boden) < 0.05,
+    vorSprung,
+    { timeout: 10000, polling: 50 },
+  );
+} catch {
+  gelandet = false;
+}
+
 const nachSprung = await page.evaluate(() => ({
   y: window.aurelith.playerSim.y,
   auftrag: { ...window.aurelith.auftrag },
   status: document.querySelector('.status')?.textContent ?? '',
 }));
 
+check(hobAb, `die Leertaste hebt die Figur vom Boden (${vorSprung.toFixed(2)} → ${imSprung.toFixed(2)})`);
 check(
-  imSprung > vorSprung + 0.3,
-  'die Leertaste hebt die Figur vom Boden',
-  `${vorSprung.toFixed(2)} → ${imSprung.toFixed(2)}`,
-);
-check(
-  Math.abs(nachSprung.y - vorSprung) < 0.05,
-  'und sie landet wieder',
-  `${imSprung.toFixed(2)} → ${nachSprung.y.toFixed(2)}`,
+  gelandet,
+  `und sie landet wieder (${imSprung.toFixed(2)} → ${nachSprung.y.toFixed(2)})`,
 );
 // Die Gegenprobe zum alten Verhalten: ein Sprung ist kein Angriff.
 check(

@@ -66,6 +66,14 @@ export class LobbyView {
   onLogin?: (name: string, password: string) => void;
   /** Konto anlegen — Name und Passwort wie beim Anmelden. */
   onCreateAccount?: (name: string, password: string) => void;
+  /**
+   * Anmeldung über einen fremden Anbieter beginnen.
+   *
+   * Was dann passiert, weiss die Maske nicht: der Browser verlässt die Seite,
+   * kommt bei Google vorbei und landet wieder hier — mit einer Anmeldekarte in
+   * der Adresse. Für die Maske ist das ein Knopf und danach nichts mehr.
+   */
+  onSocialLogin?: (anbieter: 'google') => void;
   onCreateCharacter?: (name: string) => void;
   onDeleteCharacter?: (characterId: number) => void;
   onEnterWorld?: (characterId: number) => void;
@@ -93,6 +101,7 @@ export class LobbyView {
   private readonly neuSeite: HTMLDivElement;
 
   private readonly loginForm: HTMLFormElement;
+  private readonly anbieterBereich: HTMLDivElement;
   private readonly nameInput: HTMLInputElement;
   private readonly passInput: HTMLInputElement;
   private readonly liste: HTMLDivElement;
@@ -248,6 +257,22 @@ export class LobbyView {
       this.onCreateAccount?.(this.nameInput.value.trim(), this.passInput.value);
     });
     this.anmeldungSeite.appendChild(this.loginForm);
+
+    /*
+     * Der zweite Weg hinein — versteckt, bis der Server sagt, dass es ihn gibt.
+     *
+     * `zeigeAnbieter` schaltet ihn frei, und gefragt wird der Server selbst
+     * (`/anmeldearten`). Ein Knopf, der auf eine Fehlerseite führt, weil hinten
+     * die Zugangsdaten fehlen, ist schlechter als kein Knopf — und ein
+     * Schalter im Client wäre eine zweite Wahrheit über dieselbe Sache.
+     */
+    this.anbieterBereich = el('div', 'lobby-anbieter');
+    this.anbieterBereich.hidden = true;
+    const googleKnopf = el('button', 'btn btn-anbieter', 'Mit Google anmelden');
+    googleKnopf.type = 'button';
+    googleKnopf.addEventListener('click', () => this.onSocialLogin?.('google'));
+    this.anbieterBereich.append(el('p', 'lobby-oder', 'oder'), googleKnopf);
+    this.anmeldungSeite.appendChild(this.anbieterBereich);
 
     // --- Maske 2: Figuren --------------------------------------------------
     this.figurenSeite = el('div', 'lobby-box panel lobby-auswahl');
@@ -426,6 +451,18 @@ export class LobbyView {
     // mehr, sondern das Einzige, woran man sieht, was los war.
     if (art === 'fehler') this.protokoll.open = true;
     this.protokollText.scrollTop = this.protokollText.scrollHeight;
+  }
+
+  /**
+   * Schaltet die Anbieterknöpfe frei — oder eben nicht.
+   *
+   * Wird gerufen, nachdem der Server auf `/anmeldearten` geantwortet hat.
+   * Bleibt die Antwort aus, bleibt der Bereich verborgen: dann ist der Server
+   * alt oder nicht erreichbar, und der Weg mit Name und Passwort ist der, der
+   * dann noch geht.
+   */
+  zeigeAnbieter(arten: { google: boolean }): void {
+    this.anbieterBereich.hidden = !arten.google;
   }
 
   /** Den Protokolltext markieren — der Weg zurück, wenn die Ablage fehlt. */

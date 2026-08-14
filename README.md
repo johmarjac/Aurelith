@@ -524,6 +524,43 @@ Die internen Wege des Anmeldeservers liegen unter `/intern/` und sind mit
 wer sie erreicht, kann einen Kanal in die Liste stellen und Spieler auf seinen
 Rechner locken. Der Proxy soll sie nicht durchreichen.
 
+### Anmeldung über Google
+
+Neben Name und Passwort kann sich ein Spieler über einen fremden Anbieter
+ausweisen. Vier Werte am **Anmeldeserver** schalten das frei; fehlt einer,
+bietet der Server die Anmeldeart nicht an und der Knopf im Client erscheint
+gar nicht erst — ein Knopf, der auf eine Fehlerseite führt, ist schlechter als
+keiner.
+
+| Variable | Was hinein gehört |
+| --- | --- |
+| `AURELITH_GOOGLE_CLIENT_ID` | OAuth-Client-ID aus der Google Cloud Console (Typ „Webanwendung") |
+| `AURELITH_GOOGLE_CLIENT_SECRET` | das zugehörige Geheimnis |
+| `AURELITH_GOOGLE_REDIRECT_URI` | `https://<anmeldeserver>/auth/google/callback` — bei Google **wörtlich** so eingetragen |
+| `AURELITH_ANMELDE_ZIELE` | Herkünfte, zu denen zurückgeschickt werden darf, mit Komma getrennt |
+
+Der Ablauf ist der übliche von OpenID Connect und läuft über HTTP, nicht über
+den Spiel-WebSocket: der Browser muss zu Google und zurück, und das kann eine
+Spielverbindung nicht für ihn tun. Am Ende bekommt der Client eine
+**Anmeldekarte** im Ankerteil der Adresse (`#anmeldung=…`) und zeigt sie über
+den WebSocket vor — zwei Minuten gültig, einmal einlösbar, wie die
+Eintrittskarte für einen Kanal.
+
+`AURELITH_ANMELDE_ZIELE` ist dabei die eigentliche Sicherung und keine
+Bequemlichkeit. Die Karte ist so lange so gut wie ein Passwort; ginge das Ziel
+ungeprüft aus der Anfrage hervor, liesse sich jeder Spieler mit einem Link auf
+eine fremde Seite schicken, die die Karte aus der Adresse liest. Dort gehört
+die Herkunft des Clients hinein, bei GitHub Pages also
+`https://<benutzer>.github.io`.
+
+Die drei Wege `/anmeldearten`, `/auth/google/start` und
+`/auth/google/callback` gehören dem Browser des Spielers und müssen — anders
+als `/intern/` — vom Proxy durchgereicht werden.
+
+Ein Konto aus diesem Weg hat **kein** Passwort. Die Passwortanmeldung lehnt es
+ausdrücklich ab und sagt auch, warum; wer über Google kam, soll nicht raten
+müssen, welches Passwort er nie gesetzt hat.
+
 `update.sh` prüft vor dem Ziehen, ob dort, wo Docker seine Daten hält, noch
 zwei Gigabyte frei sind, und räumt nach jeder Aktualisierung die verwaisten
 Bilder weg (`--behalte-bilder` schaltet das ab). Beides aus einem Anlass: eine

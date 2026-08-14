@@ -66,6 +66,14 @@ services:
       AURELITH_LOGIN_PORT: 8790
       AURELITH_INTERNAL_SECRET: ${AURELITH_INTERNAL_SECRET:?AURELITH_INTERNAL_SECRET fehlt — .env anlegen}
       AURELITH_ADMINS: ${AURELITH_ADMINS:-}
+      # Anmeldung über Google. Leer heisst: gibt es auf diesem Server nicht,
+      # und der Knopf im Client erscheint erst gar nicht. Nur der
+      # Anmeldeserver braucht das — die Kanäle sehen nie ein Passwort und
+      # nie einen Anbieter, sondern nur Eintrittskarten.
+      AURELITH_GOOGLE_CLIENT_ID: ${AURELITH_GOOGLE_CLIENT_ID:-}
+      AURELITH_GOOGLE_CLIENT_SECRET: ${AURELITH_GOOGLE_CLIENT_SECRET:-}
+      AURELITH_GOOGLE_REDIRECT_URI: ${AURELITH_GOOGLE_REDIRECT_URI:-}
+      AURELITH_ANMELDE_ZIELE: ${AURELITH_ANMELDE_ZIELE:-}
     # Nur der Anmeldeserver muss von aussen erreichbar sein — und die Kanäle,
     # deren Adressen er ausgibt. Die internen Wege unter /intern/ gehören
     # **nicht** ins offene Netz: wer sie erreicht, kann Kanäle in die Liste

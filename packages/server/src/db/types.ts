@@ -117,6 +117,32 @@ export interface KontoStore extends StoreBasis {
   setAccessLevel(accountId: number, accessLevel: string): Promise<void>;
   /** Merkt sich, wann zuletzt angemeldet wurde. Reine Buchführung. */
   touchLogin(accountId: number): Promise<void>;
+
+  /**
+   * Das Konto hinter einer fremden Identität — Google und was folgt.
+   *
+   * `subject` ist die Kennung des Anbieters, nicht die E-Mail-Adresse: die
+   * ändert sich, wird weitergegeben und lässt sich mancherorts neu vergeben.
+   */
+  findeIdentitaet(provider: string, subject: string): Promise<AccountRecord | undefined>;
+
+  /**
+   * Legt ein Konto **ohne Passwort** an und verbindet es mit dieser Identität.
+   *
+   * Beides in einem Aufruf, weil beides zusammengehört: ein Konto ohne
+   * Identität, dessen Anlegen zur Hälfte scheitert, hat kein Passwort und
+   * keinen Anbieter — dort käme nie wieder jemand hinein.
+   *
+   * Nichts, wenn der Name schon vergeben ist. Der Aufrufer probiert dann den
+   * nächsten.
+   */
+  legeKontoMitIdentitaet(
+    name: string,
+    accessLevel: string,
+    provider: string,
+    subject: string,
+    email: string,
+  ): Promise<AccountRecord | undefined>;
 }
 
 /**

@@ -190,6 +190,20 @@ export default defineConfig({
         ws: true,
         changeOrigin: true,
       },
+      /*
+       * Die Anmeldearten fragt der Client über HTTP, nicht über den
+       * WebSocket — er muss sie wissen, bevor er die Maske zeigt, und da gibt
+       * es noch keine Sitzung. Im Entwicklungsbetrieb spricht er mit Vite und
+       * nicht mit dem Server, also muss der Weg hier durch.
+       *
+       * `ws:` als Ziel ist kein Versehen: derselbe Server hört auf beides, und
+       * die Adresse steht schon oben. `http` daraus zu machen ist die Aufgabe
+       * des Proxys.
+       */
+      '/anmeldearten': {
+        target: (process.env.AURELITH_SERVER ?? 'ws://127.0.0.1:8787').replace(/^ws/, 'http'),
+        changeOrigin: true,
+      },
     },
   },
 

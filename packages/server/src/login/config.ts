@@ -52,6 +52,42 @@ export const loginConfig = {
    */
   internalSecret: env('AURELITH_INTERNAL_SECRET', 'aurelith-entwicklung'),
 
+  /**
+   * Anmeldung über Google — leer heisst: gibt es hier nicht.
+   *
+   * Alle drei Angaben stammen aus der Google Cloud Console. `redirectUri` muss
+   * dort **wörtlich** eingetragen sein: ein fehlender Schrägstrich reicht für
+   * eine Absage, und die kommt dann von Google und nicht von uns.
+   *
+   * Ohne Kennung und Geheimnis bietet der Server diese Anmeldeart gar nicht
+   * erst an — der Knopf im Client erscheint nicht. Ein Knopf, der zu einer
+   * Fehlerseite führt, ist schlechter als keiner.
+   */
+  google: {
+    clientId: env('AURELITH_GOOGLE_CLIENT_ID', ''),
+    clientSecret: env('AURELITH_GOOGLE_CLIENT_SECRET', ''),
+    redirectUri: env('AURELITH_GOOGLE_REDIRECT_URI', ''),
+  },
+
+  /**
+   * Wohin der Anmeldeweg zurückschicken darf — Herkünfte, mit Komma getrennt.
+   *
+   * Am Ende des Weges hängt eine **Anmeldekarte** in der Adresse, und die ist
+   * so gut wie ein Passwort. Käme das Ziel ungeprüft aus der Anfrage, liesse
+   * sich jeder Spieler mit einem Link auf eine fremde Seite schicken, die die
+   * Karte aus der Adresse liest und sich damit anmeldet — ein offener
+   * Weiterleiter ist hier keine Unschönheit, sondern das Loch selbst.
+   *
+   * Der Client liegt auf GitHub Pages und damit auf einer anderen Herkunft als
+   * dieser Server; deshalb eine Liste und nicht „dieselbe Herkunft".
+   *
+   *   AURELITH_ANMELDE_ZIELE=https://johmarjac.github.io,http://localhost:5173
+   */
+  ziele: env('AURELITH_ANMELDE_ZIELE', '')
+    .split(',')
+    .map((z) => z.trim())
+    .filter((z) => z.length > 0),
+
   admins: env('AURELITH_ADMINS', '')
     .split(',')
     .map((n) => n.trim().toLowerCase())

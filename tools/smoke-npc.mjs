@@ -214,8 +214,25 @@ check(
   'das Inventar geht auf',
 );
 
+/*
+ * Die Startausrüstung ist knapp: zehn Tränke im Beutel, dazu ein Holzschwert
+ * und eine Übungsweste — beide **angelegt**, also nicht im Beutel, sondern auf
+ * den Kästchen um die Figur.
+ *
+ * Deshalb zwei Zählungen statt einer. „Mindestens drei Kacheln im Beutel"
+ * ginge durch, solange irgendetwas herumliegt, und schlug fehl, ohne zu sagen,
+ * was fehlt. Getrennt gezählt nennt der Fehlschlag die Seite, die leer ist.
+ */
 const belegte = inventar.locator('.item-slot:not(.item-empty)');
-check((await belegte.count()) >= 3, 'es liegen Gegenstände darin', String(await belegte.count()));
+check(
+  (await belegte.count()) >= 1,
+  `im Beutel liegen die Tränke (${await belegte.count()} Stapel)`,
+);
+check(
+  (await inventar.locator('.equip-slot[data-filled="true"]').count()) >= 2,
+  `Schwert und Weste sind angelegt ` +
+    `(${await inventar.locator('.equip-slot[data-filled="true"]').count()} Kästchen)`,
+);
 
 // Die Kacheln zeigen gerenderte Symbole, keine Farbflächen mehr. Geprüft wird
 // nicht nur, dass ein `<img>` dasteht, sondern dass auch etwas darin ankam —
@@ -461,21 +478,31 @@ check(
 );
 
 
-// Anlegen über den Knopf: der Doppelklick ist auf Touch unzuverlässig, und
-// vorher war er der einzige Weg.
-// Dieselbe erste Kachel: sie trägt den ersten Gegenstand, der nicht angelegt
-// beginnt, und der lässt sich anlegen. Vorher stand hier `.nth(1)` — die
-// zweite Kachel —, weil die erste vom angelegten Schwert belegt war.
+/*
+ * Der Knopf in der Sprechblase — er ist auf dem Telefon der einzige Weg. Der
+ * Doppelklick, der ihn ersetzte, ist mit dem Finger unzuverlässig.
+ *
+ * Welcher Knopf dasteht, hängt am Gegenstand, und das ist hier die Prüfung:
+ * im Beutel einer frischen Figur liegen nur Tränke, und ein Trank wird
+ * benutzt, nicht angezogen. Stünde dort „Anlegen", liesse sich ein Trank an
+ * den Gürtel schnallen — geprüft wird deshalb beides, der richtige Knopf und
+ * die Abwesenheit des falschen.
+ */
 await belegte.first().click();
+await waitUntil(async () => await detail.isVisible(), 3000);
+const benutzen = detail.getByRole('button', { name: 'Benutzen' });
 const anlegen = detail.getByRole('button', { name: 'Anlegen' });
-if (await anlegen.count()) {
-  await anlegen.click();
+check((await benutzen.count()) > 0, 'die Sprechblase eines Tranks bietet „Benutzen" an');
+check((await anlegen.count()) === 0, 'und kein „Anlegen" — ein Trank wird nicht getragen');
+
+if (await benutzen.count()) {
+  await benutzen.click();
   check(
     await waitUntil(
-      async () => ((await page.locator('.chat-log').textContent()) ?? '').includes('angelegt'),
+      async () => ((await page.locator('.chat-log').textContent()) ?? '').includes('Heiltrank'),
       5000,
     ),
-    'der Knopf legt den Gegenstand an',
+    'der Knopf benutzt den Gegenstand',
   );
 }
 
@@ -500,7 +527,35 @@ async function wert(name) {
   }, name);
 }
 
-if (satzDef) {
+/*
+ * Der Ledersatz liegt seit der schlanken Startausrüstung nicht mehr im Beutel
+ * einer frischen Figur — sie hat Tränke, ein Schwert und eine Weste, sonst
+ * nichts. Dieser Abschnitt setzt aber genau darauf auf: er legt vier Teile aus
+ * dem Beutel an und rechnet nach.
+ *
+ * Er läuft deshalb nur noch, wenn die Teile tatsächlich dabei sind, und sagt
+ * sonst laut, dass er es nicht tut. **Stillschweigend** übersprungen wäre er
+ * das Schlimmste von allem: der Test bliebe grün und prüfte nichts mehr.
+ *
+ * Was er prüft, ist damit nicht ungeprüft: die Rechnung „Teile plus Satzbonus"
+ * steht in `packages/server/test/sets_test.ts` und läuft dort ohne Browser
+ * gegen dieselbe Inhaltsdatei. Was hier fehlt, ist allein die Anzeige — die
+ * Zahl in der Werteliste und der Satzblock in der Sprechblase. Wer den Weg
+ * zurückholen will, muss die vier Teile beim Schmied kaufen lassen; er steht
+ * auf (16, −7), und der Weg dorthin ist der Grund, warum es hier noch nicht
+ * steht.
+ */
+const satzImBeutel =
+  satzDef !== undefined &&
+  satzDef.pieces.every((id) => inhalt.starter.some((s) => s.item === id && !s.equipped));
+if (satzDef && !satzImBeutel) {
+  console.log(
+    '  · Ledersatz übersprungen: eine frische Figur besitzt ihn nicht mehr. ' +
+      'Der Satzbonus selbst steht in packages/server/test/sets_test.ts.',
+  );
+}
+
+if (satzDef && satzImBeutel) {
   await page.keyboard.press('KeyC');
   const vorher = await wert('Verteidigung');
 

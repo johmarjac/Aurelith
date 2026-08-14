@@ -56,6 +56,7 @@ import {
   QUALITY,
   checkServerUrl,
   guessQuality,
+  httpAdresse,
   isServerConfigured,
   isTouchDevice,
   serverUrl,
@@ -131,6 +132,26 @@ const SICHT_LUFT = 0.35;
 
 const BODEN_SCHRITT = 0.5;
 const BODEN_WEITE = 260;
+
+/**
+ * Holt die Anmeldekarte aus dem Ankerteil der Adresse — und räumt sie weg.
+ *
+ * `#anmeldung=<karte>` kommt vom Rückweg des Anbieters. Der Anker wird nicht
+ * an einen Server geschickt und steht in keinem Protokoll; trotzdem wird er
+ * sofort aus der Adresszeile entfernt, denn dort landet er sonst im Verlauf
+ * und in jedem Lesezeichen, das jemand in diesem Moment setzt.
+ *
+ * Gibt auch die beiden Wörter zurück, die der Server statt einer Karte
+ * schicken kann: `abgebrochen` und `fehler`. Sie sind keine Karten, aber
+ * dieselbe Nachricht auf demselben Weg — der Aufrufer trennt sie.
+ */
+function lieskarte(): string {
+  const anker = location.hash.startsWith('#') ? location.hash.slice(1) : location.hash;
+  const wert = new URLSearchParams(anker).get('anmeldung');
+  if (!wert) return '';
+  history.replaceState(null, '', `${location.pathname}${location.search}`);
+  return wert;
+}
 
 /**
  * Was die Figur gerade von selbst tut.
@@ -544,6 +565,7 @@ export class Game {
     this.lobby = new LobbyView(uiHost);
     this.lobby.onLogin = (name, pass) => this.connection?.sendLogin(name, pass);
     this.lobby.onCreateAccount = (name, pass) => this.connection?.sendCreateAccount(name, pass);
+    this.lobby.onSocialLogin = (anbieter) => this.starteAnbieteranmeldung(anbieter);
     this.lobby.onCreateCharacter = (name) => this.connection?.sendCreateCharacter(name);
     this.lobby.onDeleteCharacter = (id) => this.connection?.sendDeleteCharacter(id);
     /*
@@ -977,6 +999,9 @@ export class Game {
     this.lobby.notiere(
       `Verbinde mit ${url}${ticket === undefined ? '' : ' (mit Eintrittskarte)'}`,
     );
+    // Nur der Anmeldeserver kennt Anmeldearten. Ein Kanal fragt keiner danach:
+    // dort ist man längst angemeldet und zeigt eine Eintrittskarte vor.
+    if (ticket === undefined) void this.frageAnmeldearten(url);
     /*
      * Eine Wache gegen die stumme Sitzung.
      *
@@ -1094,7 +1119,13 @@ export class Game {
         // Steht die Leitung, ist als Nächstes die Anmeldung dran. Sie erscheint
         // auch nach einem Verbindungsabriss wieder: es gibt kein Sitzungspapier,
         // das eine neue Verbindung ausweisen könnte, also wird neu angemeldet.
-        if (status === 'verbunden' && this.localId === 0) this.lobby.zeigeAnmeldung();
+        if (status === 'verbunden' && this.localId === 0) {
+          this.lobby.zeigeAnmeldung();
+          // Und wenn eine Karte vom Anbieter wartet, gleich weiter: der
+          // Spieler hat sich schon bei Google ausgewiesen und soll nicht davor
+          // sitzen und rätseln, ob er jetzt noch etwas tippen muss.
+          if (ticket === undefined) this.loeseAnmeldekarteEin();
+        }
         if (status === 'getrennt') {
           this.resetSession();
           this.lobby.zuruecksetzen();
@@ -1434,15 +1465,11 @@ export class Game {
    *   Ort für `/ws`, und die Spielverbindung kann gar nicht ankommen.
    */
   private async pruefeKanal(url: string): Promise<void> {
-    let ziel: URL;
-    try {
-      ziel = new URL(url);
-    } catch {
+    const ziel = httpAdresse(url);
+    if (!ziel) {
       this.lobby.notiere(`Adresse nicht lesbar: ${url}`, 'fehler');
       return;
     }
-    ziel.protocol = ziel.protocol === 'wss:' ? 'https:' : 'http:';
-    ziel.search = '';
     const wsPfad = ziel.pathname || '/ws';
 
     const gesund = await this.frageAb(new URL('/health', ziel).toString());
@@ -1618,6 +1645,101 @@ export class Game {
   private abmeldeWunsch = false;
   /** Notausgang, falls der Kanal auf das Abmelden nicht antwortet. */
   private abmeldeFrist = 0;
+  /**
+   * Eine Anmeldekarte, die im Ankerteil der Adresse zurückkam.
+   *
+   * Sie wird **einmal** eingelöst, sobald die Verbindung zum Anmeldeserver
+   * steht — deshalb hier gemerkt und nicht jedes Mal neu aus der Adresse
+   * gelesen: die Karte gilt einmal, und ein zweiter Versuch nach einem
+   * Verbindungsabriss wäre eine Absage, die niemand versteht.
+   */
+  private anmeldekarte = lieskarte();
+
+  // --- Anmeldung über einen Anbieter ---------------------------------------
+
+  /**
+   * Den Browser zum Anbieter schicken.
+   *
+   * Der Weg läuft über HTTP und nicht über diese Verbindung: es gibt eine
+   * Weiterleitung zu Google und eine zurück, und ein WebSocket kann kein
+   * Browserfenster umleiten. Danach ist diese Seite weg und kommt neu — mit
+   * einer Karte im Ankerteil, die `lieskarte` findet.
+   */
+  private starteAnbieteranmeldung(anbieter: 'google'): void {
+    const basis = httpAdresse(serverUrl());
+    if (!basis) {
+      this.lobby.zeigeFehler('Die Serveradresse ist unbrauchbar — Anmeldung nicht möglich.');
+      return;
+    }
+    // Das Ziel ist diese Seite ohne Anker: der alte Anker wäre sonst Teil des
+    // Ziels, und die neue Karte landete hinter der alten.
+    const ziel = `${location.origin}${location.pathname}${location.search}`;
+    const url = new URL(`/auth/${anbieter}/start`, basis);
+    url.searchParams.set('ziel', ziel);
+    this.lobby.zeigeHinweis('Weiterleitung zum Anbieter …');
+    location.assign(url.toString());
+  }
+
+  /**
+   * Fragt den Server, welche Anmeldearten er anbietet.
+   *
+   * Nur der Server weiss, ob die Zugangsdaten für Google hinterlegt sind.
+   * Bleibt die Antwort aus, bleibt der Knopf weg — ein alter Anmeldeserver
+   * kennt diesen Weg nicht, und ein Knopf ins Leere wäre schlechter als keiner.
+   */
+  private async frageAnmeldearten(url: string): Promise<void> {
+    /*
+     * Ohne hinterlegte Serveradresse gar nicht erst fragen.
+     *
+     * Dann zeigt `serverUrl()` auf die Seite selbst — auf einer statischen
+     * Auslieferung wie GitHub Pages ohne `VITE_SERVER_URL` also auf ein
+     * Verzeichnis mit HTML darin. Die Frage nach den Anmeldearten landete dort
+     * als 404 in der Konsole, und zwar bei jedem Aufruf: eine Fehlermeldung
+     * über etwas, das gar nicht schiefgehen kann, weil ohne Server ohnehin
+     * niemand anmelden wird.
+     */
+    if (!isServerConfigured()) return;
+    const basis = httpAdresse(url);
+    if (!basis) return;
+    try {
+      const antwort = await fetch(new URL('/anmeldearten', basis).toString(), {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(6000),
+      });
+      if (!antwort.ok) return;
+      const arten = (await antwort.json()) as { google?: boolean };
+      this.lobby.zeigeAnbieter({ google: arten.google === true });
+    } catch {
+      // Kein Grund für eine Meldung: die Anmeldung mit Name und Passwort geht
+      // weiterhin, und die läuft über den WebSocket und nicht über diesen Weg.
+    }
+  }
+
+  /**
+   * Die Karte aus der Adresse einlösen, sobald die Leitung steht.
+   *
+   * Erst hier und nicht beim Laden: eingelöst wird sie über den WebSocket, und
+   * den gibt es beim Laden noch nicht.
+   */
+  private loeseAnmeldekarteEin(): void {
+    const karte = this.anmeldekarte;
+    if (karte === '') return;
+    // Verbraucht, egal wie es ausgeht — sie gilt einmal.
+    this.anmeldekarte = '';
+
+    if (karte === 'abgebrochen') {
+      this.lobby.zeigeHinweis('Die Anmeldung beim Anbieter wurde abgebrochen.');
+      return;
+    }
+    if (karte === 'fehler') {
+      this.lobby.zeigeFehler('Die Anmeldung beim Anbieter hat nicht geklappt.');
+      return;
+    }
+
+    this.lobby.zeigeHinweis('Anmeldung wird geprüft …');
+    this.lobby.notiere('Anmeldekarte vom Anbieter wird eingelöst.');
+    this.connection?.sendSocialLogin(karte);
+  }
 
   private commandConnect(argument: string): void {
     if (!argument) {
@@ -1644,6 +1766,18 @@ export class Game {
     this.connection?.close();
     this.connection = undefined;
     this.resetSession();
+    /*
+     * Auch die Maske vergisst die Anmeldung.
+     *
+     * `close()` schweigt nach oben — das ist gewollt, sonst käme noch ein
+     * „getrennt" der alten Verbindung in die neue Sitzung. Der Preis ist, dass
+     * der Rückruf, der das sonst erledigt, hier nicht läuft: ohne diese Zeile
+     * bliebe die Maske „angemeldet", und die nächste Verbindung zeigte statt
+     * des Anmeldeformulars die Figurenliste der abgelaufenen Sitzung. Auf
+     * „Betreten" passierte dann nichts, denn dieses Konto ist am neuen Server
+     * gar nicht angemeldet.
+     */
+    this.lobby.zuruecksetzen();
     this.ui.setConnection('getrennt', 'getrennt');
     this.systemLine(
       stored ? `Getrennt, gespeicherte Adresse ${stored} geloescht.` : 'Getrennt.',

@@ -31,6 +31,76 @@ export type AnmeldeErgebnis =
   | { ok: false; fehler: string };
 
 /**
+ * Findet oder legt das Konto zu einer fremden Identität an.
+ *
+ * Kein Passwort im Spiel: wer über Google kommt, hat hier keines, und
+ * `anmelden` weist eine Passwortanmeldung für so ein Konto ab — der leere Hash
+ * passt zu keiner Eingabe.
+ *
+ * Der **Name** ist die einzige heikle Stelle. Google liefert einen Vornamen,
+ * und der ist weder eindeutig noch immer brauchbar („Jörg", „李"). Daraus wird
+ * ein zulässiger Vorschlag gemacht und, wenn er vergeben ist, durchnummeriert.
+ * Dass der Spieler ihn nicht selbst wählt, ist eine bewusste Verkürzung für
+ * den Anfang: die Alternative wäre eine zweite Maske im Anmeldeweg, und die
+ * gehört gebaut, wenn die Anmeldung selbst steht.
+ */
+export async function anmeldenMitIdentitaet(
+  store: KontoStore,
+  provider: string,
+  subject: string,
+  vorschlag: string,
+  email: string,
+  admins: readonly string[],
+): Promise<AnmeldeErgebnis> {
+  const vorhanden = await store.findeIdentitaet(provider, subject);
+  if (vorhanden) return { ok: true, account: await ziehStufeNach(store, vorhanden, admins) };
+
+  const basis = machNamen(vorschlag || email.split('@')[0] || 'Held');
+  for (let versuch = 0; versuch < 20; versuch++) {
+    // Der erste Versuch ohne Anhängsel: „Jonas" ist schöner als „Jonas1".
+    const name = versuch === 0 ? basis : `${basis}${versuch + 1}`.slice(0, 16);
+    const istAdmin = admins.includes(name.toLowerCase());
+    const konto = await store.legeKontoMitIdentitaet(
+      name,
+      accessName(istAdmin ? AccessLevel.Admin : AccessLevel.Player),
+      provider,
+      subject,
+      email,
+    );
+    if (konto) return { ok: true, account: konto };
+  }
+
+  return { ok: false, fehler: 'Es liess sich kein freier Name finden. Versuch es noch einmal.' };
+}
+
+/**
+ * Macht aus einem beliebigen Namen einen zulässigen.
+ *
+ * Dieselben Regeln wie `isValidName` — drei bis sechzehn Zeichen aus
+ * Buchstaben, Ziffern, Strich und Unterstrich. Was übrig bleibt, wird
+ * aufgefüllt: ein Name aus lauter Zeichen, die hier nicht zählen, ergäbe
+ * sonst einen leeren.
+ */
+function machNamen(roh: string): string {
+  const sauber = roh.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 16);
+  return sauber.length >= 3 ? sauber : `Held${sauber}`.slice(0, 16);
+}
+
+/** Die Verwalterliste gilt auch hier — eine Regel, ein Ort. */
+async function ziehStufeNach(
+  store: KontoStore,
+  account: AccountRecord,
+  admins: readonly string[],
+): Promise<AccountRecord> {
+  const gewuenscht = admins.includes(account.name.toLowerCase())
+    ? accessName(AccessLevel.Admin)
+    : account.accessLevel;
+  if (gewuenscht === account.accessLevel) return account;
+  await store.setAccessLevel(account.id, gewuenscht);
+  return { ...account, accessLevel: gewuenscht };
+}
+
+/**
  * Meldet an oder legt an.
  *
  * `admins` ist die Liste der Verwalterkonten aus der Konfiguration. Sie gilt
@@ -70,7 +140,19 @@ export async function anmelden(
     // Zwischen Nachsehen und Anlegen war jemand schneller.
     if (!account) return { ok: false, fehler: 'Diesen Namen gibt es schon.' };
   } else {
-    const passt = account ? await verifyPassword(passwort, account.passwordHash) : false;
+    // Ein Konto ohne Passwort gehört zu einem Anbieter. Der leere Hash passt
+    // zu keiner Eingabe, aber die Prüfung steht hier ausdrücklich: sonst hinge
+    // die Sicherheit daran, dass `verifyPassword` mit einem leeren Hash das
+    // Richtige tut, und das ist eine Zusicherung, die man nicht sieht.
+    const ohnePasswort = account !== undefined && account.passwordHash === '';
+    const passt =
+      account && !ohnePasswort ? await verifyPassword(passwort, account.passwordHash) : false;
+    if (ohnePasswort) {
+      return {
+        ok: false,
+        fehler: 'Dieses Konto meldet sich über einen Anbieter an — nimm den Knopf dafür.',
+      };
+    }
     if (!account || !passt) return { ok: false, fehler: 'Name oder Passwort stimmt nicht.' };
   }
 

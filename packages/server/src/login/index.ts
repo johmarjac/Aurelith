@@ -20,6 +20,7 @@ import { createKontoStore } from '../db/index.ts';
 import { KanalRegister } from './registry.ts';
 import { Kartenstapel } from './tickets.ts';
 import { behandleIntern } from './internal.ts';
+import { behandleAnbieterweg, googleBereit } from './anbieterweg.ts';
 import { LoginServer } from './loginServer.ts';
 
 function baueHttpServer(): { server: Server; scheme: 'ws' | 'wss' } {
@@ -39,11 +40,21 @@ const store = await createKontoStore(loginConfig.databaseUrl);
 const register = new KanalRegister();
 const karten = new Kartenstapel();
 
+/**
+ * Ein **zweiter** Stapel für die Anmeldung über einen Anbieter.
+ *
+ * Nicht derselbe wie `karten`: die Eintrittskarte öffnet einen Kanal, die
+ * Anmeldekarte öffnet eine Anmeldung. Aus einem gemeinsamen Stapel liesse sich
+ * eine Karte, die für das eine ausgestellt wurde, für das andere einlösen.
+ */
+const anmeldekarten = new Kartenstapel();
+
 const { server, scheme } = baueHttpServer();
 
 server.on('request', (req, res) => {
   void (async () => {
     if (await behandleIntern(req, res, register, karten)) return;
+    if (await behandleAnbieterweg(req, res, store, anmeldekarten)) return;
 
     // Lesbar auch von einer anderen Herkunft — siehe die gleiche Stelle im
     // Spielserver. `/intern/` ist davon ausgenommen: es wird oben schon
@@ -68,7 +79,7 @@ server.on('request', (req, res) => {
   })();
 });
 
-const login = new LoginServer(store, register, karten);
+const login = new LoginServer(store, register, karten, anmeldekarten);
 login.start(server);
 
 // Verwaiste Konten aufräumen: ein abgestürzter Spielserver meldet seine
@@ -79,6 +90,18 @@ const aufraeumer = setInterval(() => register.raeumeVerfallene(), 15_000);
 server.listen(loginConfig.port, loginConfig.host, () => {
   console.log(`[anmelde] ${scheme}://${loginConfig.host}:${loginConfig.port}/ws — bereit`);
   console.log(`[anmelde] Fassung ${formatBuild(loginConfig.build)}`);
+  console.log(
+    `[anmelde] Anmeldearten: Passwort${googleBereit() ? ', Google' : ''}`,
+  );
+  if (googleBereit() && loginConfig.ziele.length === 0) {
+    // Ohne Freigabeliste geht der Google-Weg nirgendwohin zurück — der Knopf
+    // wäre da und führte in eine Sackgasse. Lieber laut beim Start als still
+    // beim ersten Spieler.
+    console.warn(
+      '[anmelde] AURELITH_ANMELDE_ZIELE ist leer — die Anmeldung über Google ' +
+        'kann den Browser nirgends zurückschicken. Die Herkunft des Clients eintragen.',
+    );
+  }
   if (loginConfig.internalSecret === 'aurelith-entwicklung') {
     console.warn(
       '[anmelde] AURELITH_INTERNAL_SECRET ist nicht gesetzt — es gilt der ' +

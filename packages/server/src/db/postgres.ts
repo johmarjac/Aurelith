@@ -100,6 +100,59 @@ export class PostgresKonten extends PostgresBasis implements KontoStore {
     await this.pool.query('UPDATE accounts SET last_login_at = now() WHERE id = $1', [accountId]);
   }
 
+  async findeIdentitaet(provider: string, subject: string): Promise<AccountRecord | undefined> {
+    const res = await this.pool.query(
+      `SELECT a.id, a.name, a.password_hash, a.access_level
+         FROM account_identities i
+         JOIN accounts a ON a.id = i.account_id
+        WHERE i.provider = $1 AND i.subject = $2`,
+      [provider, subject],
+    );
+    const row = res.rows[0];
+    return row ? toAccount(row) : undefined;
+  }
+
+  async legeKontoMitIdentitaet(
+    name: string,
+    accessLevel: string,
+    provider: string,
+    subject: string,
+    email: string,
+  ): Promise<AccountRecord | undefined> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Ohne Passwort: `password_hash` bleibt leer, und `anmelden` weist eine
+      // Passwortanmeldung dafür ab. Ein leerer Hash ist kein Passwort, das
+      // man raten könnte — er passt zu nichts.
+      const konto = await client.query(
+        `INSERT INTO accounts (name, password_hash, access_level)
+         VALUES ($1, '', $2)
+         ON CONFLICT (name) DO NOTHING
+         RETURNING id, name, password_hash, access_level`,
+        [name, accessLevel],
+      );
+      const row = konto.rows[0];
+      if (!row) {
+        await client.query('ROLLBACK');
+        return undefined;
+      }
+      await client.query(
+        `INSERT INTO account_identities (provider, subject, account_id, email)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (provider, subject) DO NOTHING`,
+        [provider, subject, Number(row.id), email],
+      );
+      await client.query('COMMIT');
+      return toAccount(row);
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
 }
 
 /** Eine Weltdatenbank: Figuren, Beutel, Aufträge einer Region. */

@@ -35,6 +35,7 @@ import {
   CipherSuite,
   accessFromName,
   decodeCredentials,
+  decodeSocialLogin,
   decodeFrame,
   decodeHello,
   encodeFrame,
@@ -49,7 +50,7 @@ import {
 } from '@aurelith/shared';
 import { anmelden } from '../accounts.ts';
 import { loginConfig } from './config.ts';
-import type { KontoStore } from '../db/index.ts';
+import type { AccountRecord, KontoStore } from '../db/index.ts';
 import type { KanalRegister } from './registry.ts';
 import type { Kartenstapel } from './tickets.ts';
 
@@ -117,6 +118,14 @@ export class LoginServer {
     private readonly store: KontoStore,
     private readonly register: KanalRegister,
     private readonly karten: Kartenstapel,
+    /**
+     * Anmeldekarten aus dem Anbieterweg.
+     *
+     * Ein zweiter Stapel und nicht derselbe: die Eintrittskarte öffnet einen
+     * **Kanal**, diese hier öffnet eine **Anmeldung**. Aus einem Stapel
+     * könnte eine Karte, die für das eine gedacht war, das andere aufsperren.
+     */
+    private readonly anmeldekarten: Kartenstapel,
   ) {}
 
   start(httpServer: Server): void {
@@ -185,6 +194,10 @@ export class LoginServer {
         await this.onAnmeldung(sitzung, decodeCredentials(reader), true);
         return;
 
+      case ClientOp.SocialLogin:
+        await this.onAnbieterkarte(sitzung, decodeSocialLogin(reader).code);
+        return;
+
       case ClientOp.RealmList:
         // Eine neue Liste heisst eine neue Karte: die alte ist verbraucht,
         // sobald man einen Kanal betreten hat. Wer zurückkommt und wechseln
@@ -202,6 +215,37 @@ export class LoginServer {
         // Angreifer.
         return;
     }
+  }
+
+  /**
+   * Eine Anmeldekarte aus dem Anbieterweg einlösen.
+   *
+   * Der kurze Weg: die Karte **ist** der Ausweis. Wer sie hat, hat vorher bei
+   * Google gestanden — das hat der HTTP-Teil dieses Servers geprüft, bevor er
+   * sie ausgestellt hat. Hier bleibt nur, sie einzulösen und dasselbe zu tun
+   * wie am Ende einer Passwortanmeldung.
+   *
+   * Deshalb steht der gemeinsame Teil in `uebernehmeKonto` und nicht zweimal
+   * da: „ein Konto, eine Sitzung" und die Serverliste gelten unabhängig davon,
+   * wie sich jemand ausgewiesen hat.
+   */
+  private async onAnbieterkarte(sitzung: LoginSitzung, code: string): Promise<void> {
+    if (!sitzung.offen || sitzung.angemeldet) return;
+
+    const karte = this.anmeldekarten.loeseEin(code);
+    if (!karte) {
+      sitzung.send(
+        encodeLobbyError('Die Anmeldung ist abgelaufen. Versuch es noch einmal.'),
+      );
+      return;
+    }
+
+    await this.uebernehmeKonto(sitzung, {
+      id: karte.accountId,
+      name: karte.accountName,
+      accessLevel: karte.accessLevel,
+      passwordHash: '',
+    });
   }
 
   private async onAnmeldung(
@@ -230,8 +274,17 @@ export class LoginServer {
       return;
     }
 
-    const konto = ergebnis.account;
+    await this.uebernehmeKonto(sitzung, ergebnis.account);
+  }
 
+  /**
+   * Der gemeinsame Schluss jeder Anmeldung — mit Passwort wie mit Anbieter.
+   *
+   * Was danach kommt, hängt nicht mehr davon ab, wie sich jemand ausgewiesen
+   * hat: die Sperre „ein Konto, eine Sitzung" gilt für beide, und die
+   * Serverliste sieht für beide gleich aus.
+   */
+  private async uebernehmeKonto(sitzung: LoginSitzung, konto: AccountRecord): Promise<void> {
     /*
      * Ein Konto, eine Sitzung — über **alle** Kanäle hinweg.
      *

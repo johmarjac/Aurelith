@@ -147,6 +147,34 @@ export class MemoryStore implements GameStore {
     if (figur) figur.character = { ...character };
   }
 
+  /**
+   * Fremde Identitäten — Anbieter und Kennung auf Konto.
+   *
+   * Ein `Map` mit „anbieter:kennung" als Schlüssel: zwei verschachtelte Maps
+   * wären dieselbe Auskunft mit einer Ebene mehr.
+   */
+  private readonly identitaeten = new Map<string, number>();
+
+  async findeIdentitaet(provider: string, subject: string): Promise<AccountRecord | undefined> {
+    const id = this.identitaeten.get(`${provider}:${subject}`);
+    if (id === undefined) return undefined;
+    const konto = [...this.accounts.values()].find((k) => k.id === id);
+    return konto ? { ...konto } : undefined;
+  }
+
+  async legeKontoMitIdentitaet(
+    name: string,
+    accessLevel: string,
+    provider: string,
+    subject: string,
+    _email: string,
+  ): Promise<AccountRecord | undefined> {
+    const konto = await this.createAccount(name, '', accessLevel);
+    if (!konto) return undefined;
+    this.identitaeten.set(`${provider}:${subject}`, konto.id);
+    return konto;
+  }
+
   async saveInventory(characterId: number, items: ItemRecord[]): Promise<void> {
     const figur = this.figuren.get(characterId);
     if (figur) figur.items = items.map((i) => ({ ...i }));

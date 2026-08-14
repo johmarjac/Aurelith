@@ -107,6 +107,30 @@ export function serverUrl(): string {
   return `${scheme}//${location.host}/ws`;
 }
 
+/**
+ * Dieselbe Gegenstelle, aber über HTTP statt WebSocket.
+ *
+ * Der Server hört auf beides am selben Ort: `/ws` für das Spiel, daneben
+ * `/health`, `/kanaele` und der Anmeldeweg über Google. Diese Umrechnung steht
+ * an einer Stelle, weil sie an mehreren gebraucht wird — und weil ein zweiter
+ * Ort irgendwann `wss:` nach `http:` übersetzen würde und der Browser dann
+ * beim Mischen von Sicherem und Unsicherem abbricht.
+ *
+ * Gibt nichts zurück, wenn die Adresse nicht lesbar ist. Der Pfad bleibt
+ * stehen; wer `/health` will, hängt ihn selbst an.
+ */
+export function httpAdresse(wsUrl: string): URL | undefined {
+  let ziel: URL;
+  try {
+    ziel = new URL(wsUrl);
+  } catch {
+    return undefined;
+  }
+  ziel.protocol = ziel.protocol === 'wss:' || ziel.protocol === 'https:' ? 'https:' : 'http:';
+  ziel.search = '';
+  return ziel;
+}
+
 export interface ServerUrlCheck {
   ok: boolean;
   url: string;

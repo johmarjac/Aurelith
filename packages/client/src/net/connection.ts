@@ -38,6 +38,7 @@ import {
   decodeWelcome,
   encodeClientChat,
   encodeCreateAccount,
+  encodeSocialLogin,
   encodeCreateCharacter,
   encodeDeleteCharacter,
   encodeEnterWorld,
@@ -403,6 +404,18 @@ export class Connection {
   /** Konto anlegen. Bei Erfolg ist man damit auch angemeldet. */
   sendCreateAccount(name: string, password: string): void {
     this.send(encodeCreateAccount({ name, password }));
+  }
+
+  /**
+   * Eine Anmeldekarte vom Anbieterweg einlösen.
+   *
+   * Sie kam über die Adresszeile zurück und nicht über diese Verbindung — der
+   * Umweg über Google läuft im Browser, nicht im WebSocket. Ab hier ist der
+   * Ablauf derselbe wie nach `sendLogin`: es kommt `onLobby` oder
+   * `onLobbyError`.
+   */
+  sendSocialLogin(code: string): void {
+    this.send(encodeSocialLogin(code));
   }
 
   sendCreateCharacter(name: string): void {

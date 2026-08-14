@@ -7,7 +7,7 @@
  * ändert, zählt PROTOCOL_VERSION hoch.
  */
 
-export const PROTOCOL_VERSION = 15;
+export const PROTOCOL_VERSION = 16;
 
 export const ClientOp = {
   Hello: 0x01,
@@ -107,6 +107,16 @@ export const ClientOp = {
    * Leiste leer, und niemand versteht warum.
    */
   SetActionSlot: 0x1d,
+  /**
+   * Eine Anmeldekarte vom Anbieterweg vorzeigen.
+   *
+   * Das Gegenstück zu `Ticket`, nur eine Ebene höher: dort weist sich ein
+   * Spieler beim **Kanal** aus, hier beim **Anmeldeserver**. Die Karte
+   * entsteht, wenn Google jemanden zurückschickt, und der Browser reicht sie
+   * über diese Leitung weiter — die beiden Wege haben sonst nichts
+   * miteinander zu tun.
+   */
+  SocialLogin: 0x1e,
 } as const;
 export type ClientOp = (typeof ClientOp)[keyof typeof ClientOp];
 

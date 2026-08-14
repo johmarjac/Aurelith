@@ -1777,6 +1777,41 @@ body.aktion-zuweisen .action-slot {
 }
 
 /*
+ * Der zweite Weg hinein — Anmeldung über einen Anbieter.
+ *
+ * Abgesetzt und nicht in derselben Knopfreihe wie „Anmelden": das eine
+ * schickt ein Passwort über diese Verbindung, das andere verlässt die Seite.
+ * Zwei Knöpfe nebeneinander behaupteten, das sei dieselbe Art von Sache.
+ */
+.lobby-anbieter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+}
+
+.lobby-oder {
+  margin: 0;
+  text-align: center;
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+/*
+ * Heller als die anderen Knöpfe, weil er zu einer fremden Seite führt. Googles
+ * Vorgaben verlangen für ihre Marke einen weissen oder blauen Grund; ohne
+ * Wortmarke und Logo halten wir uns an den weissen und bleiben beim Wort.
+ */
+.btn-anbieter {
+  background: linear-gradient(180deg, #fdfaf2, #e6ddc8);
+  border-color: #b8ab8c;
+  color: #2b2317;
+  padding: 0.55rem 0.9rem;
+}
+
+/*
  * Wo man spielt — Server und Kanal, über der Figurenliste.
  *
  * Dunkle Tinte und nicht Gold: diese Zeile steht auf dem Pergament und nicht

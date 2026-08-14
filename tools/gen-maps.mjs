@@ -262,6 +262,11 @@ function lichtmoor() {
     { id: 'n_merchant', def: 'npc_merchant', position: [-12, 13], yaw: 2.2 },
     { id: 'n_smith', def: 'npc_smith', position: [16, -7], yaw: 4.4 },
     { id: 'n_gate', def: 'npc_gatekeeper', position: [4, 196], yaw: 3.14 },
+    // Der Kampfmeister, bei dem man ab Stufe 15 seinen Beruf lernt. Er stand
+    // eine Weile nur in der fertigen Kartendatei und nicht hier — und war nach
+    // dem nächsten `npm run maps` weg. Eine Karte hat eine Quelle, und das ist
+    // diese Datei; was nur im Erzeugnis steht, hält bis zum nächsten Lauf.
+    { id: 'n_master', def: 'npc_master', position: [-5, -9], yaw: 0.6 },
   ];
 
   const portals = [

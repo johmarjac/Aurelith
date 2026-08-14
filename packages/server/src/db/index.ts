@@ -114,6 +114,9 @@ export async function createStore(databaseUrl: string, serverName: string): Prom
     createAccount: (name, hash, stufe) => konten.createAccount(name, hash, stufe),
     setAccessLevel: (id, stufe) => konten.setAccessLevel(id, stufe),
     touchLogin: (id) => konten.touchLogin(id),
+    findeIdentitaet: (anbieter, kennung) => konten.findeIdentitaet(anbieter, kennung),
+    legeKontoMitIdentitaet: (name, stufe, anbieter, kennung, email) =>
+      konten.legeKontoMitIdentitaet(name, stufe, anbieter, kennung, email),
     beanspruche: (server) => welt.beanspruche(server),
     listCharacters: (accountId) => welt.listCharacters(accountId),
     createCharacter: (accountId, name, beruf, spawn) =>

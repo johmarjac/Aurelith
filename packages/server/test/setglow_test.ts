@@ -24,7 +24,7 @@
 
 import { anmeldenUndBetreten, beobachteLobby, gruss } from './lib/anmelden.ts';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -90,7 +90,14 @@ werte.upgrades.costMinValue = 0;
 
 writeFileSync(join(inhalt, 'items.json'), JSON.stringify(items));
 writeFileSync(join(inhalt, 'tuning.json'), JSON.stringify(werte));
-for (const name of ['mobs.json', 'npcs.json', 'quests.json']) {
+// Alles Übrige unverändert mitnehmen. **Vollständig** und nicht nur, was
+// dieser Test anfasst: fehlt eine Datei, kommt der Server gar nicht erst hoch,
+// und der Fehlschlag lautet dann „Server kam nicht hoch" statt „classes.json
+// fehlt". Wer eine neue Inhaltsdatei anlegt, soll sie hier nicht nachtragen
+// müssen — deshalb steht hier die Liste der Dateien, die es gibt, und keine
+// von Hand gepflegte.
+for (const name of readdirSync(quelle).filter((n) => n.endsWith('.json'))) {
+  if (name === 'items.json' || name === 'tuning.json') continue;
   writeFileSync(join(inhalt, name), JSON.stringify(lies(name)));
 }
 

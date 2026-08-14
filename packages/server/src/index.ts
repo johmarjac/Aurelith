@@ -89,6 +89,25 @@ server.on('request', (req, res) => {
     );
     return;
   }
+  /*
+   * Welche Anmeldearten es hier gibt.
+   *
+   * Derselbe Weg wie am Anmeldeserver, und die Antwort ist hier immer
+   * dieselbe: Name und Passwort, sonst nichts. Ein Kanal prüft im Verbund gar
+   * keine Passwörter, und im Alleinbetrieb prüft er nur sie — einen Umweg über
+   * Google mit Weiterleitungen gibt es an dieser Stelle nicht.
+   *
+   * Der Weg steht trotzdem hier, weil der Client ihn fragt, bevor er die
+   * Anmeldemaske zeigt, und er weiss nicht, welche Sorte Server am anderen
+   * Ende hängt. Ohne diese Antwort holte er sich bei jedem Start im
+   * Alleinbetrieb eine 404 in die Konsole — eine Fehlermeldung, die nichts
+   * bedeutet, und die die echten überdeckt.
+   */
+  if (req.url === '/anmeldearten') {
+    res.writeHead(200, { ...kopf, 'content-type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ passwort: true, google: false }));
+    return;
+  }
   res.writeHead(404, { ...kopf, 'content-type': 'text/plain; charset=utf-8' });
   res.end('Aurelith-Spielserver. Spielverkehr läuft über /ws.\n');
 });
