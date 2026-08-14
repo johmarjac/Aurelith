@@ -2323,6 +2323,121 @@ body.aktion-zuweisen .action-slot {
   text-align: right;
 }
 
+/* --- Fertigkeitenbaum ------------------------------------------------------
+ *
+ * Eine Liste und kein Geflecht aus Linien. Ein Baum mit Ästen setzt voraus,
+ * dass eine Fertigkeit eine andere bedingt — heute hängt jede nur an einer
+ * Stufe, und gezeichnete Verbindungen behaupteten eine Ordnung, die es nicht
+ * gibt. Kommen Voraussetzungen dazu, kommen auch die Linien.
+ */
+.skill-liste {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 17rem;
+}
+
+.skill-kopf {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--panel-edge);
+}
+
+.skill-kopf-glyph {
+  font-size: 1.1rem;
+}
+
+.skill-kopf-name {
+  font-weight: 700;
+  flex: 1;
+}
+
+.skill-kopf-stufe {
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+}
+
+.skill-leer {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--ink-dim);
+  max-width: 18rem;
+}
+
+/* Zwei Spalten: Zeichen links, alles andere rechts. Die Beschreibung läuft
+   unter Name und Kosten durch, damit lange Sätze die Zeile nicht sprengen. */
+.skill {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.15rem 0.5rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--kachel-rand);
+  border-radius: var(--radius);
+  background: var(--kachel);
+}
+
+.skill-glyph {
+  grid-row: 1 / 3;
+  font-size: 1.4rem;
+  width: 2rem;
+  text-align: center;
+}
+
+.skill-name {
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.skill-stufe {
+  font-size: 0.76rem;
+  color: var(--ink-faint);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.skill-text {
+  grid-column: 2 / 4;
+  font-size: 0.76rem;
+  color: var(--ink-dim);
+}
+
+/*
+ * Erlernt heisst: ziehbar. Das ist die einzige Auskunft, die diese Zeile über
+ * sich selbst geben muss — und der Zeiger sagt sie, bevor jemand es versucht.
+ */
+.skill[data-kann='1'] {
+  cursor: grab;
+  border-color: var(--panel-edge);
+}
+
+.skill[data-kann='1']:hover {
+  background: var(--kachel-hell);
+}
+
+/* Gesperrt: blass, und der Zeiger bleibt der gewöhnliche. */
+.skill[data-kann='0'] {
+  opacity: 0.55;
+}
+
+.skill[data-kann='0'] .skill-glyph {
+  filter: grayscale(1);
+}
+
+/* Das Schleppbild ist eine Kachel wie beim Beutel — nur mit Zeichen darin. */
+.skill-ghost {
+  display: grid;
+  place-items: center;
+  font-size: 1.4rem;
+}
+
+/* Beim Zuweisen tritt auch dieses Fenster zurück, nicht nur das Inventar. */
+body.aktion-zuweisen .window[data-window='skills'] {
+  opacity: 0.08;
+  pointer-events: none;
+}
+
 /* --- Grundeigenschaften ---------------------------------------------------
  *
  * Ein eigener Block über der Werteliste, mit Trennlinie darunter. Sie stehen

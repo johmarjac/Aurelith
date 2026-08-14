@@ -109,6 +109,23 @@ export function skillsFor(classId: string, level: number): SkillDef[] {
   return raus;
 }
 
+/**
+ * **Alle** Fertigkeiten eines Berufs — auch die, für die die Stufe fehlt.
+ *
+ * Der Unterschied zu `skillsFor` ist der Zweck: dort geht es darum, was eine
+ * Figur *kann*, hier darum, was sie *lernen wird*. Ein Fertigkeitenbaum, der
+ * nur das Erreichte zeigt, ist kein Baum, sondern eine Liste — und die
+ * eigentliche Auskunft, was als Nächstes kommt, fehlte darin.
+ *
+ * Nach Stufe sortiert: so steht oben, was man hat, und darunter, worauf man
+ * zugeht.
+ */
+export function alleSkillsVon(classId: string): SkillDef[] {
+  const raus: SkillDef[] = [];
+  for (const s of skills.values()) if (s.class === classId) raus.push(s);
+  return raus.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name, 'de'));
+}
+
 /** Kann diese Figur das? Die eine Frage, die der Server vor dem Wirken stellt. */
 export function canUseSkill(classId: string, level: number, skillId: string): boolean {
   const def = skills.get(skillId);

@@ -35,6 +35,7 @@ import {
   setOfItem,
   skillsFor,
   getSkill,
+  alleSkillsVon,
   getClass,
   type SkillDef,
   setProgress,
@@ -352,6 +353,8 @@ export class UI {
   private readonly equipCells = new Map<string, HTMLElement>();
   private readonly characterWindow: GameWindow;
   private readonly eigenschaftenBlock: HTMLDivElement;
+  private readonly skillWindow: GameWindow;
+  private readonly skillListe: HTMLDivElement;
   private readonly characterStats: HTMLElement;
   /** Das Menü unten links und sein Knopf. */
   private readonly menuPanel: HTMLDivElement;
@@ -700,6 +703,21 @@ export class UI {
     this.characterStats = el('dl', 'stat-list');
     this.characterWindow.body.appendChild(this.characterStats);
 
+    // --- Fertigkeiten -----------------------------------------------------
+    //
+    // Was der eigene Beruf kann und ab welcher Stufe. Ein eigenes Fenster und
+    // keine Reihe im Charakterblatt: dort stehen Zahlen, hier steht, was man
+    // tun kann — und von hier zieht man es auf die Leiste.
+    this.skillWindow = new GameWindow(
+      host,
+      'skills',
+      'Fertigkeiten',
+      { left: window.innerWidth - 320, top: 120 },
+      true,
+    );
+    this.skillListe = el('div', 'skill-liste');
+    this.skillWindow.body.appendChild(this.skillListe);
+
     // --- Einstellungen ----------------------------------------------------
     this.settingsWindow = new GameWindow(
       host,
@@ -791,7 +809,8 @@ export class UI {
       this.menuEntry('📜', 'Aufträge', 'J', () => this.questWindow.toggle()),
       this.menuEntry('💬', 'Chat', '⏎', () => this.setChatOpen(!this.chatOpen)),
       this.menuEntry('⚙', 'Einstellungen', 'O', () => this.settingsWindow.toggle()),
-      this.menuEntry('🐞', 'Konsole', 'K', () => this.konsole.fenster.toggle()),
+      this.menuEntry('🌀', 'Fertigkeiten', 'K', () => this.skillWindow.toggle()),
+      this.menuEntry('🐞', 'Konsole', '⇧^', () => this.konsole.fenster.toggle()),
       this.menuEntry('🚪', 'Abmelden', '', () => this.onLogout?.()),
     );
     host.appendChild(this.menuPanel);
@@ -1129,7 +1148,21 @@ export class UI {
       else if (e.code === 'KeyC') this.characterWindow.toggle();
       else if (e.code === 'KeyJ') this.questWindow.toggle();
       else if (e.code === 'KeyO') this.settingsWindow.toggle();
-      else if (e.code === 'KeyK') this.konsole.fenster.toggle();
+      /*
+       * Die Konsole liegt auf Umschalt + ^ und nicht mehr auf K.
+       *
+       * K gehört jetzt dem Fertigkeitenbaum — der wird im Spiel gebraucht, die
+       * Konsole beim Suchen eines Fehlers. Die Taste links der 1 ist für
+       * beides gut: sie liegt am Rand, wird beim Spielen nie getroffen, und
+       * mit Umschalt davor auch nicht versehentlich beim Tippen.
+       *
+       * `Backquote` ist die **Lage** der Taste, nicht ihr Zeichen: auf einer
+       * deutschen Tastatur steht dort `^`, auf einer amerikanischen ein
+       * Gravis. Über `key` geprüft hätte der Tastenkürzel je nach Belegung
+       * woanders gelegen.
+       */
+      else if (e.code === 'Backquote' && e.shiftKey) this.konsole.fenster.toggle();
+      else if (e.code === 'KeyK') this.skillWindow.toggle();
       else if (e.code === 'Escape') this.setMenuOpen(this.menuPanel.hidden);
       else if (e.code === 'Enter') {
         e.preventDefault();
@@ -1401,6 +1434,164 @@ export class UI {
     this.eigenschaftenBlock.replaceChildren(kopf, ...zeilen);
   }
 
+  /**
+   * Zeichnet den Fertigkeitenbaum des eigenen Berufs.
+   *
+   * Gezeigt wird **alles**, was der Beruf kann — auch, wofür die Stufe noch
+   * fehlt. Eine Liste, die nur das Erreichte zeigt, beantwortet die eine
+   * Frage nicht, die man vor ihr hat: was kommt als Nächstes.
+   *
+   * Ohne Beruf steht hier eine Zeile und keine leere Fläche. „Noch keiner" ist
+   * die Auskunft, dass es etwas zu holen gibt — eine leere Liste sähe aus wie
+   * ein Fehler.
+   */
+  private zeichneSkills(): void {
+    const beruf = this.lastStats?.beruf ?? '';
+    const stufe = this.lastStats?.level ?? 1;
+    const klasse = getClass(beruf);
+
+    if (!klasse) {
+      this.skillListe.replaceChildren(
+        el(
+          'p',
+          'skill-leer',
+          'Noch kein Beruf. Der Kampfmeister lehrt dich einen, sobald du Stufe 15 erreicht hast.',
+        ),
+      );
+      return;
+    }
+
+    const kopf = el('div', 'skill-kopf');
+    kopf.append(
+      el('span', 'skill-kopf-glyph', klasse.glyph),
+      el('span', 'skill-kopf-name', klasse.name),
+      el('span', 'skill-kopf-stufe', `Stufe ${stufe}`),
+    );
+
+    const zeilen = alleSkillsVon(klasse.id).map((def) => {
+      const kann = stufe >= def.level;
+      const zeile = el('div', 'skill');
+      zeile.dataset.kann = kann ? '1' : '0';
+      zeile.dataset.skill = def.id;
+      zeile.title = `${def.name} — ${def.beschreibung}\n${def.manaCost} Mana · ` +
+        `${(def.cooldownMs / 1000).toFixed(0)} s Abklingzeit`;
+
+      zeile.append(
+        el('span', 'skill-glyph', def.glyph),
+        el('span', 'skill-name', def.name),
+        el(
+          'span',
+          'skill-stufe',
+          kann ? `${def.manaCost} Mana` : `ab Stufe ${def.level}`,
+        ),
+        el('span', 'skill-text', def.beschreibung),
+      );
+
+      // Ziehen darf man nur, was man kann. Eine gesperrte Fertigkeit auf der
+      // Leiste wäre ein Platz, der nichts tut — und der Server räumte ihn beim
+      // nächsten Pflegen ohnehin wieder weg.
+      if (kann) this.bindSkillDrag(zeile, def.id);
+      return zeile;
+    });
+
+    this.skillListe.replaceChildren(kopf, ...zeilen);
+  }
+
+  /**
+   * Eine Fertigkeit auf einen Platz der Aktionsleiste ziehen.
+   *
+   * Ein eigener, schmaler Zug — nicht `bindDrag`. Der kennt drei Ziele
+   * (Mülleimer, Beutelkachel, Leiste) und zwei Absichten, weil ein Gegenstand
+   * all das sein kann. Eine Fertigkeit kann genau eines: auf einen Platz. Den
+   * grossen Zug dafür zu erweitern hiesse, seine Fallunterscheidungen um
+   * Zweige zu ergänzen, die für den halben Aufrufer nie zutreffen.
+   *
+   * Auf dem Telefon gilt dieselbe Geste wie beim Beutel: halten, dann ziehen.
+   * Und dasselbe Zurücktreten des Fensters — es deckt dort die Leiste zu,
+   * sonst zöge man auf etwas, das man nicht sieht.
+   */
+  private bindSkillDrag(zeile: HTMLElement, skillId: string): void {
+    zeile.addEventListener('pointerdown', (ev) => {
+      if (ev.button !== 0) return;
+      const maus = ev.pointerType === 'mouse';
+      const startX = ev.clientX;
+      const startY = ev.clientY;
+      let ghost: HTMLElement | undefined;
+      let halten: number | undefined;
+      let markiert: Element | undefined;
+
+      const beginne = (x: number, y: number): void => {
+        if (ghost) return;
+        const kasten = zeile.getBoundingClientRect();
+        ghost = el('div', 'item-slot item-ghost skill-ghost');
+        ghost.textContent = getSkill(skillId)?.glyph ?? '?';
+        ghost.style.width = `${Math.min(kasten.height, 48)}px`;
+        ghost.style.height = `${Math.min(kasten.height, 48)}px`;
+        document.body.appendChild(ghost);
+        zeile.classList.add('item-zieht');
+        // Das Fenster tritt zurück, damit die Leiste sichtbar wird. Am
+        // Schreibtisch ist beides ohnehin zu sehen; dort stört es nur.
+        if (!maus) document.body.classList.add('aktion-zuweisen');
+        setze(x, y);
+      };
+
+      const setze = (x: number, y: number): void => {
+        if (!ghost) return;
+        ghost.style.left = `${x}px`;
+        ghost.style.top = `${y}px`;
+      };
+
+      const markiere = (x: number, y: number): void => {
+        const ziel = this.aktionUnter(x, y);
+        if (ziel === markiert) return;
+        markiert?.classList.remove('item-ziel');
+        markiert = ziel ?? undefined;
+        markiert?.classList.add('item-ziel');
+      };
+
+      const aufraeumen = (): void => {
+        if (halten !== undefined) window.clearTimeout(halten);
+        ghost?.remove();
+        ghost = undefined;
+        markiert?.classList.remove('item-ziel');
+        markiert = undefined;
+        zeile.classList.remove('item-zieht');
+        document.body.classList.remove('aktion-zuweisen');
+        window.removeEventListener('pointermove', bewegen);
+        window.removeEventListener('pointerup', loslassen);
+        window.removeEventListener('pointercancel', aufraeumen);
+      };
+
+      const bewegen = (e: PointerEvent): void => {
+        if (e.pointerId !== ev.pointerId) return;
+        const weit = Math.hypot(e.clientX - startX, e.clientY - startY);
+        if (!ghost) {
+          if (maus && weit > 6) beginne(e.clientX, e.clientY);
+          else if (!maus && weit > 12) aufraeumen();
+          return;
+        }
+        e.preventDefault();
+        setze(e.clientX, e.clientY);
+        markiere(e.clientX, e.clientY);
+      };
+
+      const loslassen = (e: PointerEvent): void => {
+        if (e.pointerId !== ev.pointerId) return;
+        const aufPlatz = ghost ? this.aktionUnter(e.clientX, e.clientY)?.getAttribute('data-aktion') : null;
+        aufraeumen();
+        if (aufPlatz !== null && aufPlatz !== undefined) {
+          this.onSetActionSlot?.(Number(aufPlatz), AktionsArt.Fertigkeit, skillId);
+        }
+      };
+
+      window.addEventListener('pointermove', bewegen, { passive: false });
+      window.addEventListener('pointerup', loslassen);
+      window.addEventListener('pointercancel', aufraeumen);
+
+      if (!maus) halten = window.setTimeout(() => beginne(startX, startY), 300);
+    });
+  }
+
   setStats(stats: StatsMsg): void {
     this.lastStats = stats;
     // Das Gold steht im Laden — wer eben etwas verkauft hat, soll den neuen
@@ -1468,6 +1659,8 @@ export class UI {
     }
 
     this.zeichneEigenschaften(stats);
+    // Der Baum hängt an Beruf und Stufe — beides steht in dieser Nachricht.
+    this.zeichneSkills();
     this.characterStats.replaceChildren(...zeilen);
   }
 
