@@ -126,7 +126,23 @@ const page = await browser.newPage({ viewport: { width: 900, height: 600 } });
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log(`  [seite] ${m.text()}`); });
 page.on('pageerror', (e) => console.log(`  [seite] ${String(e)}`));
 await page.goto('http://127.0.0.1:5195/', { waitUntil: 'domcontentloaded' });
-await anmeldenUndBetreten(page, `Tor${Date.now() % 100000}`);
+/*
+ * Konto und Figur heissen hier **verschieden** — und das ist Absicht.
+ *
+ * Über dem Kopf steht der Figurenname. Solange beide gleich hiessen, konnte
+ * eine Stelle den Kontonamen nehmen, ohne dass es auffiel; genau das war beim
+ * Kartenwechsel der Fall und wurde erst sichtbar, als ein Konto aus dem
+ * Google-Weg eine E-Mail-Adresse als Namen bekam.
+ */
+const kontoName = `Tor${Date.now() % 100000}`;
+const figurName = `Held${Date.now() % 100000}`;
+await anmeldenUndBetreten(page, kontoName, 'pruefer-passwort', figurName);
+
+/** Was gerade über den Köpfen steht. */
+const schilder = () =>
+  page.evaluate(() => [...document.querySelectorAll('.nameplate')]
+    .filter((n) => n.style.display !== 'none')
+    .map((n) => n.querySelector('.np-name')?.textContent ?? ''));
 /**
  * Wartet, bis die Vorhersage die eigene Figur traegt.
  *
@@ -208,12 +224,32 @@ check(
 );
 check(stillThere.prompt.includes('Lichtmoor'), 'der Hinweis bleibt stehen, solange man drinsteht');
 
+// Noch vor dem Tor festhalten, was dasteht — danach ist es zu spät.
+const schilderVorTor = await schilder();
+
 await page.keyboard.press('KeyF');
 const arrived = await waitUntil(
   async () => (await page.evaluate(() => window.aurelith.mapId)) === 'lichtmoor',
   20000,
 );
 check(arrived, 'F betritt das Tor');
+
+// --- Der Name über dem Kopf ------------------------------------------------
+//
+// Vor und nach dem Wechsel derselbe. Nur „nach" zu prüfen sagte nichts: dann
+// wäre offen, ob er schon vorher falsch war.
+const nachherSchilder = await schilder();
+for (const [wann, liste] of [
+  ['beim Betreten', schilderVorTor],
+  ['nach dem Tor', nachherSchilder],
+]) {
+  check(liste.some((t) => t.includes(figurName)), `${wann} steht der Figurenname über dem Kopf`, liste.join(' | ') || '(keine Schilder)');
+  check(
+    liste.every((t) => !t.includes(kontoName)),
+    `${wann} steht der Kontoname nirgends`,
+    liste.join(' | ') || '(keine Schilder)',
+  );
+}
 
 if (!arrived) {
   console.log(`  (Chat: ${(await state()).chat})`);

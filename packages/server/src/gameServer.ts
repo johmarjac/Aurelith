@@ -827,7 +827,7 @@ export class GameServer {
       radius: playerProfile().radius,
       height: playerProfile().height,
     });
-    instance.meta.set(session.entityId, this.playerMeta(session, geladen.character.name));
+    instance.meta.set(session.entityId, this.playerMeta(session));
     instance.playerIds.add(session.entityId);
     this.sessionByEntity.set(session.entityId, session);
 
@@ -1331,7 +1331,7 @@ export class GameServer {
       radius: playerProfile().radius,
       height: playerProfile().height,
     });
-    to.meta.set(session.entityId, this.playerMeta(session, session.accountName));
+    to.meta.set(session.entityId, this.playerMeta(session));
     to.playerIds.add(session.entityId);
     this.sessionByEntity.set(session.entityId, session);
 
@@ -1709,12 +1709,19 @@ export class GameServer {
    * beim Erscheinen wurden nur Waffe und Name gesetzt. Wer sich anmeldete, sah
    * seine angelegte Rüstung deshalb erst, nachdem er sie einmal ab- und wieder
    * angelegt hatte: dann lief `applyLoadout`, und erst dort stand das Outfit.
+   *
+   * **Der Name kommt aus der Figur und nicht als Argument.** Er war einmal
+   * eines, und an einer der vier Aufrufstellen — dem Kartenwechsel — stand
+   * dort der **Konto**name. Solange Konten wie Figuren hiessen, fiel das
+   * niemandem auf; seit ein Konto aus dem Google-Weg eine E-Mail-Adresse ist,
+   * stand sie nach jedem Tor über dem Kopf. Ein Argument, das man an einer von
+   * vier Stellen falsch füllen kann, ist genau eine Stelle zu viel.
    */
-  private playerMeta(session: Session, name: string): EntityMeta {
+  private playerMeta(session: Session): EntityMeta {
     const profile = this.attackProfileOf(session);
     return {
       defId: 'player',
-      name,
+      name: session.character?.name ?? '',
       type: EntityType.Player,
       weapon: profile.rig,
       weaponUpgrade: this.mainhandEntry(session)?.upgrade ?? 0,
@@ -1765,7 +1772,7 @@ export class GameServer {
     instance.world.setCritProfile(session.entityId, stats.critChance, stats.critMultiplier);
 
     const meta = instance.metaFor(session.entityId);
-    if (meta) Object.assign(meta, this.playerMeta(session, meta.name));
+    if (meta) Object.assign(meta, this.playerMeta(session));
 
     // Der Snapshot schickt eine volle Zeile nur für Unbekanntes. Damit die
     // neue Waffe bei allen ankommt, muss die Figur einmal als neu gelten.
@@ -2481,7 +2488,7 @@ export class GameServer {
     // Die Stufe steht über dem Kopf. Ohne das trägt die Figur ihre alte, bis
     // sie jemand neu kennenlernt.
     const meta = instance.metaFor(session.entityId);
-    if (meta) Object.assign(meta, this.playerMeta(session, meta.name));
+    if (meta) Object.assign(meta, this.playerMeta(session));
     for (const other of this.sessions) other.known.delete(session.entityId);
 
     this.sendStats(session);

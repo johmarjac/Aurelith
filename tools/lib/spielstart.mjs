@@ -22,10 +22,19 @@ const IN = (maske, rest) => `.${maske}:not([hidden]) ${rest}`;
 /**
  * Meldet ein neues Konto an, legt eine Figur an und betritt mit ihr die Welt.
  *
- * `name` ist Konto- und Figurenname zugleich: im Spiel steht der Figurenname
- * über der Figur, und die Prüfungen suchen genau danach.
+ * `figur` ist standardmässig derselbe Name wie das Konto — für die meisten
+ * Prüfungen ist das die kürzeste Fassung. Wer die beiden **unterscheiden**
+ * muss, gibt sie an: solange sie gleich heissen, fällt eine Stelle nicht auf,
+ * die versehentlich den Kontonamen nimmt, wo der Figurenname hingehört. Genau
+ * so ist die E-Mail-Adresse eines Google-Kontos nach jedem Tor über dem Kopf
+ * gelandet.
  */
-export async function anmeldenUndBetreten(page, name, passwort = 'pruefer-passwort') {
+export async function anmeldenUndBetreten(
+  page,
+  name,
+  passwort = 'pruefer-passwort',
+  figur = name,
+) {
   await page.waitForSelector(IN('lobby-anmeldung', '.lobby-input'), { timeout: 40000 });
 
   await page.fill(IN('lobby-anmeldung', '.lobby-input[type="text"]'), name);
@@ -39,7 +48,7 @@ export async function anmeldenUndBetreten(page, name, passwort = 'pruefer-passwo
   await page.click(IN('lobby-auswahl', '.btn-gross')); // „＋ Neue Figur"
 
   await page.waitForSelector(IN('lobby-neu', '.lobby-input'), { timeout: 20000 });
-  await page.fill(IN('lobby-neu', '.lobby-input'), name);
+  await page.fill(IN('lobby-neu', '.lobby-input'), figur);
   await page.click(IN('lobby-neu', '.btn-gross')); // „Figur anlegen"
 
   await betreteErsteFigur(page);
