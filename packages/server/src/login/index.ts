@@ -21,10 +21,11 @@ import { KanalRegister } from './registry.ts';
 import { Kartenstapel } from './tickets.ts';
 import { behandleIntern } from './internal.ts';
 import {
+  anbieterBereit,
   behandleAnbieterweg,
-  googleBereit,
-  meldeGoogleAuffaelligkeiten,
+  meldeAnbieterAuffaelligkeiten,
 } from './anbieterweg.ts';
+import { ANBIETER } from './oauth.ts';
 import { LoginServer } from './loginServer.ts';
 
 function baueHttpServer(): { server: Server; scheme: 'ws' | 'wss' } {
@@ -94,19 +95,20 @@ const aufraeumer = setInterval(() => register.raeumeVerfallene(), 15_000);
 server.listen(loginConfig.port, loginConfig.host, () => {
   console.log(`[anmelde] ${scheme}://${loginConfig.host}:${loginConfig.port}/ws — bereit`);
   console.log(`[anmelde] Fassung ${formatBuild(loginConfig.build)}`);
+  const anbieter = ANBIETER.filter(anbieterBereit);
   console.log(
-    `[anmelde] Anmeldearten: Passwort${googleBereit() ? ', Google' : ''}`,
+    `[anmelde] Anmeldearten: Passwort${anbieter.map((a) => `, ${a.name}`).join('')}`,
   );
   for (const zeile of loginConfig.zugriffFehler) {
     console.warn(`[anmelde] AURELITH_ADMINS: ${zeile}`);
   }
-  if (googleBereit()) meldeGoogleAuffaelligkeiten();
-  if (googleBereit() && loginConfig.ziele.length === 0) {
-    // Ohne Freigabeliste geht der Google-Weg nirgendwohin zurück — der Knopf
-    // wäre da und führte in eine Sackgasse. Lieber laut beim Start als still
+  meldeAnbieterAuffaelligkeiten();
+  if (anbieter.length > 0 && loginConfig.ziele.length === 0) {
+    // Ohne Freigabeliste geht der Anbieterweg nirgendwohin zurück — die Knöpfe
+    // wären da und führten in eine Sackgasse. Lieber laut beim Start als still
     // beim ersten Spieler.
     console.warn(
-      '[anmelde] AURELITH_ANMELDE_ZIELE ist leer — die Anmeldung über Google ' +
+      '[anmelde] AURELITH_ANMELDE_ZIELE ist leer — die Anmeldung über einen Anbieter ' +
         'kann den Browser nirgends zurückschicken. Die Herkunft des Clients eintragen.',
     );
   }

@@ -2039,6 +2039,95 @@ body.aktion-zuweisen .action-slot {
 }
 
 /*
+ * Der Knopf von Facebook.
+ *
+ * Dieselben Masse wie der von Google darüber — Höhe, Radius, Schriftgrad,
+ * Breite: zwei Knöpfe untereinander, die verschieden hoch sind, sehen nicht
+ * nach zwei Wegen aus, sondern nach einem Fehler. Was Facebook vorgibt, ist
+ * die Farbe (`#1877F2`), das weisse Zeichen und die Beschriftung.
+ *
+ * Die Zustandsfläche ist dieselbe Bauart wie nebenan: eine durchsichtige
+ * Schicht über dem Knopf, die beim Überfahren und Drücken schwarz anläuft.
+ * Auf einem satten Blau ist das der einzige Weg zu einer Rückmeldung, die
+ * nicht nach einer zweiten Farbe aussieht.
+ */
+.fb-button {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-appearance: none;
+  background-color: #1877f2;
+  border: none;
+  border-radius: 4px;
+  box-sizing: border-box;
+  color: #fff;
+  cursor: pointer;
+  font-family: 'Helvetica Neue', helvetica, arial, sans-serif;
+  font-size: 14px;
+  height: 40px;
+  letter-spacing: 0.25px;
+  outline: none;
+  overflow: hidden;
+  padding: 0 12px;
+  position: relative;
+  text-align: center;
+  transition: box-shadow 0.218s;
+  vertical-align: middle;
+  white-space: nowrap;
+  width: 100%;
+  max-width: 400px;
+  min-width: min-content;
+}
+
+.fb-button .fb-button-icon {
+  height: 20px;
+  margin-right: 10px;
+  min-width: 20px;
+  width: 20px;
+}
+
+.fb-button .fb-button-content-wrapper {
+  align-items: center;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  height: 100%;
+  justify-content: space-between;
+  position: relative;
+  width: 100%;
+}
+
+.fb-button .fb-button-contents {
+  flex-grow: 1;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
+}
+
+.fb-button .fb-button-state {
+  transition: opacity 0.218s;
+  position: absolute;
+  inset: 0;
+  background-color: #001d35;
+  opacity: 0;
+}
+
+.fb-button:not(:disabled):hover .fb-button-state {
+  opacity: 8%;
+}
+
+.fb-button:not(:disabled):active .fb-button-state,
+.fb-button:not(:disabled):focus .fb-button-state {
+  opacity: 12%;
+}
+
+.fb-button:not(:disabled):hover {
+  box-shadow:
+    0 1px 2px 0 rgba(60, 64, 67, 0.3),
+    0 1px 3px 1px rgba(60, 64, 67, 0.15);
+}
+
+/*
  * Wo man spielt — Server und Kanal, über der Figurenliste.
  *
  * Dunkle Tinte und nicht Gold: diese Zeile steht auf dem Pergament und nicht

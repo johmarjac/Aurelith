@@ -590,27 +590,53 @@ Die internen Wege des Anmeldeservers liegen unter `/intern/` und sind mit
 wer sie erreicht, kann einen Kanal in die Liste stellen und Spieler auf seinen
 Rechner locken. Der Proxy soll sie nicht durchreichen.
 
-### Anmeldung über Google
+### Anmeldung über Google und Facebook
 
 Neben Name und Passwort kann sich ein Spieler über einen fremden Anbieter
-ausweisen. Vier Werte am **Anmeldeserver** schalten das frei; fehlt einer,
-bietet der Server die Anmeldeart nicht an und der Knopf im Client erscheint
-gar nicht erst — ein Knopf, der auf eine Fehlerseite führt, ist schlechter als
-keiner.
+ausweisen. Je Anbieter drei Werte am **Anmeldeserver** schalten das frei;
+fehlt einer, bietet der Server diese eine Anmeldeart nicht an und ihr Knopf im
+Client erscheint gar nicht erst — ein Knopf, der auf eine Fehlerseite führt,
+ist schlechter als keiner. Beide zugleich gehen genauso wie nur einer.
 
 | Variable | Was hinein gehört |
 | --- | --- |
 | `AURELITH_GOOGLE_CLIENT_ID` | OAuth-Client-ID aus der Google Cloud Console (Typ „Webanwendung") |
 | `AURELITH_GOOGLE_CLIENT_SECRET` | das zugehörige Geheimnis |
 | `AURELITH_GOOGLE_REDIRECT_URI` | `https://<anmeldeserver>/auth/google/callback` — bei Google **wörtlich** so eingetragen |
+| `AURELITH_FACEBOOK_CLIENT_ID` | App-ID aus dem Meta-Entwicklerportal (eine reine Zahl) |
+| `AURELITH_FACEBOOK_CLIENT_SECRET` | das App-Geheimnis, 32 Zeichen aus `0-9a-f` |
+| `AURELITH_FACEBOOK_REDIRECT_URI` | `https://<anmeldeserver>/auth/facebook/callback` — im Produkt „Facebook Login" unter „Gültige OAuth-Redirect-URIs" eingetragen |
 | `AURELITH_ANMELDE_ZIELE` | Herkünfte, zu denen zurückgeschickt werden darf, mit Komma getrennt |
 
-Der Ablauf ist der übliche von OpenID Connect und läuft über HTTP, nicht über
-den Spiel-WebSocket: der Browser muss zu Google und zurück, und das kann eine
+Der Ablauf ist bei beiden derselbe und läuft über HTTP, nicht über den
+Spiel-WebSocket: der Browser muss zum Anbieter und zurück, und das kann eine
 Spielverbindung nicht für ihn tun. Am Ende bekommt der Client eine
 **Anmeldekarte** im Ankerteil der Adresse (`#anmeldung=…`) und zeigt sie über
 den WebSocket vor — zwei Minuten gültig, einmal einlösbar, wie die
 Eintrittskarte für einen Kanal.
+
+Unterschieden wird nur, was sich wirklich unterscheidet: wohin der Browser
+geschickt wird, und wie aus dem Code eine Kennung samt Adresse wird. Beides
+steht je Anbieter einmal in `ANBIETER` (`packages/server/src/login/oauth.ts`);
+Zielprüfung, Zettel, Karte und Konto kennen nur eine Kennung. Ein dritter
+Anbieter ist ein Eintrag in dieser Tabelle und drei Umgebungsvariablen.
+
+Bei Facebook kommt eines von aussen dazu: die App muss im Entwicklerportal auf
+**Live** stehen, sonst kommt nur hinein, wer dort als Entwickler oder Tester
+eingetragen ist. Eine Prüfung durch Meta braucht es dafür nicht — `email` und
+`public_profile` sind die beiden Freigaben, die ohne sie gelten.
+
+Google ist OpenID Connect und liefert die Kennung im ID-Token gleich mit;
+Facebook ist es nicht, dort folgt auf den Tausch noch eine Frage an die
+Graph-API. Deren Fassung steht als Konstante in derselben Datei und muss von
+Zeit zu Zeit hochgezogen werden — Facebook nimmt jede Fassung nach etwa zwei
+Jahren ausser Betrieb.
+
+Ein Sonderfall gehört zu Facebook: die Freigabe der E-Mail-Adresse lässt sich
+im Anmeldedialog abwählen. Der Kontoname **ist** aber die Adresse, also endet
+der Weg dann mit `#anmeldung=ohne-adresse`, und der Client sagt, woran es lag.
+Ein Konto namens `facebook-10223…` anzulegen wäre der schlechtere Ausweg — es
+liesse sich später an keinen Menschen mehr binden.
 
 `AURELITH_ANMELDE_ZIELE` ist dabei die eigentliche Sicherung und keine
 Bequemlichkeit. Die Karte ist so lange so gut wie ein Passwort; ginge das Ziel
@@ -619,13 +645,13 @@ eine fremde Seite schicken, die die Karte aus der Adresse liest. Dort gehört
 die Herkunft des Clients hinein, bei GitHub Pages also
 `https://<benutzer>.github.io`.
 
-Die drei Wege `/anmeldearten`, `/auth/google/start` und
-`/auth/google/callback` gehören dem Browser des Spielers und müssen — anders
-als `/intern/` — vom Proxy durchgereicht werden.
+Die Wege `/anmeldearten`, `/auth/<anbieter>/start` und
+`/auth/<anbieter>/callback` gehören dem Browser des Spielers und müssen —
+anders als `/intern/` — vom Proxy durchgereicht werden.
 
 Ein Konto aus diesem Weg hat **kein** Passwort. Die Passwortanmeldung lehnt es
-ausdrücklich ab und sagt auch, warum; wer über Google kam, soll nicht raten
-müssen, welches Passwort er nie gesetzt hat.
+ausdrücklich ab und sagt auch, warum; wer über einen Anbieter kam, soll nicht
+raten müssen, welches Passwort er nie gesetzt hat.
 
 `update.sh` prüft vor dem Ziehen, ob dort, wo Docker seine Daten hält, noch
 zwei Gigabyte frei sind, und räumt nach jeder Aktualisierung die verwaisten

@@ -77,7 +77,7 @@ import { Mixer } from '../audio/mixer.ts';
 import { PRELOAD, SOUNDS, WEAPON_SWING, type SoundDef } from '../audio/sounds.ts';
 import { Connection } from '../net/connection.ts';
 import { UI } from '../ui/index.ts';
-import { LobbyView } from '../ui/lobby.ts';
+import { LobbyView, type Anbieterkennung } from '../ui/lobby.ts';
 
 /** Ab dieser Abweichung wird die Vorhersage hart korrigiert. */
 const RECONCILE_THRESHOLD = 1.2;
@@ -1672,11 +1672,15 @@ export class Game {
    * Den Browser zum Anbieter schicken.
    *
    * Der Weg läuft über HTTP und nicht über diese Verbindung: es gibt eine
-   * Weiterleitung zu Google und eine zurück, und ein WebSocket kann kein
+   * Weiterleitung zum Anbieter und eine zurück, und ein WebSocket kann kein
    * Browserfenster umleiten. Danach ist diese Seite weg und kommt neu — mit
    * einer Karte im Ankerteil, die `lieskarte` findet.
+   *
+   * Welcher Anbieter, steht nur in der Adresse: `/auth/<kennung>/start`. Der
+   * Client kennt den Ablauf dahinter nicht und soll ihn nicht kennen — sonst
+   * müsste er bei jedem neuen Anbieter mitwachsen.
    */
-  private starteAnbieteranmeldung(anbieter: 'google'): void {
+  private starteAnbieteranmeldung(anbieter: Anbieterkennung): void {
     const basis = httpAdresse(serverUrl());
     if (!basis) {
       this.lobby.zeigeFehler('Die Serveradresse ist unbrauchbar — Anmeldung nicht möglich.');
@@ -1694,8 +1698,8 @@ export class Game {
   /**
    * Fragt den Server, welche Anmeldearten er anbietet.
    *
-   * Nur der Server weiss, ob die Zugangsdaten für Google hinterlegt sind.
-   * Bleibt die Antwort aus, bleibt der Knopf weg — ein alter Anmeldeserver
+   * Nur der Server weiss, für welche Anbieter Zugangsdaten hinterlegt sind.
+   * Bleibt die Antwort aus, bleiben die Knöpfe weg — ein alter Anmeldeserver
    * kennt diesen Weg nicht, und ein Knopf ins Leere wäre schlechter als keiner.
    */
   private async frageAnmeldearten(url: string): Promise<void> {
@@ -1718,8 +1722,14 @@ export class Game {
         signal: AbortSignal.timeout(6000),
       });
       if (!antwort.ok) return;
-      const arten = (await antwort.json()) as { google?: boolean };
-      this.lobby.zeigeAnbieter({ google: arten.google === true });
+      // `=== true` je Feld und keine Übernahme des ganzen Objekts: was von
+      // aussen kommt, ist erst einmal nur JSON, und ein `"google": "nein"`
+      // wäre sonst ein sichtbarer Knopf.
+      const arten = (await antwort.json()) as Partial<Record<Anbieterkennung, boolean>>;
+      this.lobby.zeigeAnbieter({
+        google: arten.google === true,
+        facebook: arten.facebook === true,
+      });
     } catch {
       // Kein Grund für eine Meldung: die Anmeldung mit Name und Passwort geht
       // weiterhin, und die läuft über den WebSocket und nicht über diesen Weg.
@@ -1744,6 +1754,22 @@ export class Game {
     }
     if (karte === 'fehler') {
       this.lobby.zeigeFehler('Die Anmeldung beim Anbieter hat nicht geklappt.');
+      return;
+    }
+    /*
+     * Der eine Fehlschlag, den der Spieler selbst beheben kann.
+     *
+     * Facebook zeigt die Freigabe der Adresse als abwählbar an. Wer sie
+     * abwählt, kommt gültig angemeldet und ohne Adresse zurück — und die
+     * Adresse ist hier der Kontoname. „Hat nicht geklappt" wäre an dieser
+     * Stelle die unfreundlichste aller richtigen Antworten: es klappt auch
+     * beim zehnten Versuch nicht, solange niemand sagt, woran es liegt.
+     */
+    if (karte === 'ohne-adresse') {
+      this.lobby.zeigeFehler(
+        'Ohne E-Mail-Adresse geht es nicht — sie ist der Kontoname. ' +
+          'Beim Anbieter noch einmal versuchen und die Freigabe der Adresse stehen lassen.',
+      );
       return;
     }
 

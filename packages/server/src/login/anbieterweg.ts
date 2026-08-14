@@ -1,15 +1,21 @@
 /**
  * Der HTTP-Teil der Anbieteranmeldung.
  *
- * Drei Wege, und alle drei sind gewöhnliches HTTP mit Weiterleitungen — der
- * Grund steht in `oauth.ts`: der Browser muss zu Google und zurück, und das
- * kann ein WebSocket nicht für ihn tun.
+ * Gewöhnliches HTTP mit Weiterleitungen — der Grund steht in `oauth.ts`: der
+ * Browser muss zum Anbieter und zurück, und das kann ein WebSocket nicht für
+ * ihn tun.
  *
- *   GET /anmeldearten          Was dieser Server anbietet. Der Client fragt
- *                              das, bevor er einen Knopf zeigt.
- *   GET /auth/google/start     Losgehen — Weiterleitung zu Google.
- *   GET /auth/google/callback  Zurückkommen — Karte ausstellen und den
- *                              Browser ans Ziel schicken.
+ *   GET /anmeldearten             Was dieser Server anbietet. Der Client fragt
+ *                                 das, bevor er einen Knopf zeigt.
+ *   GET /auth/<anbieter>/start    Losgehen — Weiterleitung zum Anbieter.
+ *   GET /auth/<anbieter>/callback Zurückkommen — Karte ausstellen und den
+ *                                 Browser ans Ziel schicken.
+ *
+ * `<anbieter>` ist eine Kennung aus `ANBIETER` und keine Auswahl aus zwei
+ * fest verdrahteten Zeichenketten: die beiden Wege sehen für Google und
+ * Facebook Zeile für Zeile gleich aus, und zweimal dasselbe hinzuschreiben
+ * hiesse, jede künftige Änderung an der Zielprüfung oder der Karte an zwei
+ * Stellen zu machen — und eine davon zu vergessen.
  *
  * Diese Wege stehen **ausserhalb** von `/intern/`: sie gehören dem Spieler und
  * seinem Browser, nicht den Spielservern. Ein Proxy, der `/intern/` sperrt,
@@ -20,23 +26,31 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { anmeldenMitIdentitaet } from '../accounts.ts';
 import type { KontoStore } from '../db/index.ts';
 import { loginConfig } from './config.ts';
-import { baueState, googleProfil, googleStartUrl, pruefeState } from './oauth.ts';
+import { ANBIETER, anbieterMit, baueState, pruefeState, type Anbieter } from './oauth.ts';
 import type { Kartenstapel } from './tickets.ts';
 
-/** Ob dieser Server überhaupt über Google anmelden kann. */
-export function googleBereit(): boolean {
-  const g = loginConfig.google;
-  return g.clientId !== '' && g.clientSecret !== '' && g.redirectUri !== '';
+/** Ob dieser Server über diesen Anbieter anmelden kann. */
+export function anbieterBereit(a: Anbieter): boolean {
+  const cfg = loginConfig.anbieter[a.id];
+  return cfg.clientId !== '' && cfg.clientSecret !== '' && cfg.redirectUri !== '';
+}
+
+/** Was `/anmeldearten` sagt — und woran der Client seine Knöpfe hängt. */
+export function anmeldearten(): Record<string, boolean> {
+  const arten: Record<string, boolean> = { passwort: true };
+  for (const a of ANBIETER) arten[a.id] = anbieterBereit(a);
+  return arten;
 }
 
 /**
- * Sieht die Google-Konfiguration überhaupt nach einer aus?
+ * Sieht die Anbieterkonfiguration überhaupt nach einer aus?
  *
  * Gemeldet wird beim Start, nicht beim ersten Spieler. Der Anlass ist ein
  * Fehlschlag, der nichts über sich verrät: Google antwortet auf eine Kennung
  * mit einem Anführungszeichen darin mit `401 invalid_client`, und dieselbe
- * Antwort kommt bei einem falschen Geheimnis. Wer beides für richtig hält,
- * weil es in der `.env` richtig **aussieht**, sucht lange.
+ * Antwort kommt bei einem falschen Geheimnis. Facebook macht es genauso. Wer
+ * beides für richtig hält, weil es in der `.env` richtig **aussieht**, sucht
+ * lange.
  *
  * Bewusst nur gemeldet und nicht behoben. Anführungszeichen wegzuschneiden
  * hiesse, eine falsche Datei zum Laufen zu bringen — und beim nächsten Wert,
@@ -44,16 +58,18 @@ export function googleBereit(): boolean {
  *
  * Das Geheimnis selbst steht in keiner Zeile. Was daran auffällt, lässt sich
  * auch ohne es sagen.
+ *
+ * Geprüft wird nur, was eingerichtet ist: ein Server ohne Facebook soll nicht
+ * bei jedem Start erklärt bekommen, dass das leere Feld keine App-ID ist.
  */
-export function meldeGoogleAuffaelligkeiten(): void {
-  const g = loginConfig.google;
+export function meldeAnbieterAuffaelligkeiten(): void {
   /*
    * Zeichenweise und nicht paarweise.
    *
    * Der erste Anlauf suchte Anführungszeichen nur am Anfang **und** am Ende.
    * Genau der häufigste Fall fiel damit durch: eines von beiden bleibt beim
    * Kopieren hängen, der Wert ist ein Zeichen zu lang, und die Prüfung sagt
-   * nichts. Kennung und Geheimnis von Google bestehen aus Buchstaben, Ziffern,
+   * nichts. Kennungen und Geheimnisse bestehen aus Buchstaben, Ziffern,
    * Strich, Unterstrich und Punkt — alles andere darin ist ein Versehen, egal
    * wo es steht.
    */
@@ -64,45 +80,33 @@ export function meldeGoogleAuffaelligkeiten(): void {
     return `enthält das Zeichen „${stoerer}"`;
   };
 
-  for (const [name, wert] of [
-    ['AURELITH_GOOGLE_CLIENT_ID', g.clientId],
-    ['AURELITH_GOOGLE_CLIENT_SECRET', g.clientSecret],
-    ['AURELITH_GOOGLE_REDIRECT_URI', g.redirectUri],
-  ] as const) {
-    const was = auffaellig(wert);
-    if (was) console.warn(`[anmelde] ${name} ${was} — Google wird das ablehnen.`);
-  }
+  for (const a of ANBIETER) {
+    if (!anbieterBereit(a)) continue;
+    const cfg = loginConfig.anbieter[a.id];
+    const praefix = `AURELITH_${a.id.toUpperCase()}`;
 
-  /*
-   * Ein Geheimnis der heutigen Bauart hat eine feste Länge.
-   *
-   * `GOCSPX-` und achtundzwanzig Zeichen, zusammen fünfunddreissig. Weicht das
-   * ab, obwohl der Anfang stimmt, hängt etwas daran oder fehlt etwas — und
-   * Google sagt dazu nur `invalid_client`, dieselbe Antwort wie bei einem
-   * völlig falschen Wert. Die Länge steht hier, das Geheimnis nicht.
-   *
-   * Nur für diese eine Bauart. Ältere Geheimnisse haben kein Präfix und eine
-   * andere Länge; sie hier zu bemängeln wäre eine Warnung über etwas
-   * Richtiges, und die liest beim dritten Mal niemand mehr.
-   */
-  if (g.clientSecret.startsWith('GOCSPX-') && g.clientSecret.length !== 35) {
-    console.warn(
-      `[anmelde] AURELITH_GOOGLE_CLIENT_SECRET ist ${g.clientSecret.length} Zeichen lang, ` +
-        'erwartet sind 35 (GOCSPX- und 28 Zeichen).',
-    );
-  }
+    for (const [name, wert] of [
+      [`${praefix}_CLIENT_ID`, cfg.clientId],
+      [`${praefix}_CLIENT_SECRET`, cfg.clientSecret],
+      [`${praefix}_REDIRECT_URI`, cfg.redirectUri],
+    ] as const) {
+      const was = auffaellig(wert);
+      if (was) console.warn(`[anmelde] ${name} ${was} — ${a.name} wird das ablehnen.`);
+    }
 
-  if (!g.clientId.endsWith('.apps.googleusercontent.com')) {
-    console.warn(
-      '[anmelde] AURELITH_GOOGLE_CLIENT_ID endet nicht auf .apps.googleusercontent.com — ' +
-        'das ist die Kennung, nicht das Geheimnis.',
-    );
-  }
-  if (!g.redirectUri.endsWith('/auth/google/callback')) {
-    console.warn(
-      `[anmelde] AURELITH_GOOGLE_REDIRECT_URI endet nicht auf /auth/google/callback: ` +
-        `${g.redirectUri}`,
-    );
+    // Die Rückadresse muss auf den Weg zeigen, den dieser Server auch bedient.
+    // Zeigt sie woandershin, kommt der Browser nie an — und der Anbieter sagt
+    // dazu nur, dass die Adresse nicht eingetragen sei.
+    if (!cfg.redirectUri.endsWith(`/auth/${a.id}/callback`)) {
+      console.warn(
+        `[anmelde] ${praefix}_REDIRECT_URI endet nicht auf /auth/${a.id}/callback: ` +
+          `${cfg.redirectUri}`,
+      );
+    }
+
+    for (const was of a.auffaelligkeiten(cfg)) {
+      console.warn(`[anmelde] ${a.name}: ${was}.`);
+    }
   }
 }
 
@@ -149,9 +153,9 @@ export async function behandleAnbieterweg(
 
   if (url.pathname === '/anmeldearten') {
     /*
-     * Der Client fragt hier, bevor er den Google-Knopf zeigt.
+     * Der Client fragt hier, bevor er die Anbieterknöpfe zeigt.
      *
-     * Eine Wahrheit darüber, was geht: der Knopf hängt an dem, was der Server
+     * Eine Wahrheit darüber, was geht: die Knöpfe hängen an dem, was der Server
      * wirklich kann, und nicht an einem Schalter im Client, den jemand zu
      * setzen vergisst. Fehlt die Kennung, fehlt der Knopf.
      */
@@ -159,15 +163,25 @@ export async function behandleAnbieterweg(
       'access-control-allow-origin': '*',
       'content-type': 'application/json; charset=utf-8',
     });
-    res.end(JSON.stringify({ passwort: true, google: googleBereit() }));
+    res.end(JSON.stringify(anmeldearten()));
     return true;
   }
 
-  if (url.pathname === '/auth/google/start') {
-    if (!googleBereit()) {
-      sackgasse(res, 404, 'Dieser Server bietet keine Anmeldung über Google an.');
-      return true;
-    }
+  // `/auth/<kennung>/<schritt>` — die Kennung kommt aus der Tabelle, nicht aus
+  // einer Aufzählung an dieser Stelle. Ein unbekannter Name fällt durch und
+  // wird zur gewöhnlichen 404 des Anmeldeservers.
+  const weg = /^\/auth\/([a-z]+)\/(start|callback)$/.exec(url.pathname);
+  const anbieter = weg ? anbieterMit(weg[1]!) : undefined;
+  if (!weg || !anbieter) return false;
+  const schritt = weg[2];
+  const cfg = loginConfig.anbieter[anbieter.id];
+
+  if (!anbieterBereit(anbieter)) {
+    sackgasse(res, 404, `Dieser Server bietet keine Anmeldung über ${anbieter.name} an.`);
+    return true;
+  }
+
+  if (schritt === 'start') {
     const ziel = url.searchParams.get('ziel') ?? '';
     if (!zielErlaubt(ziel)) {
       // Absichtlich deutlich: das trifft im Betrieb niemanden ausser dem, der
@@ -178,20 +192,15 @@ export async function behandleAnbieterweg(
     }
 
     const state = baueState(ziel, loginConfig.internalSecret);
-    res.writeHead(302, { location: googleStartUrl(loginConfig.google, state) });
+    res.writeHead(302, { location: anbieter.startUrl(cfg, state) });
     res.end();
     return true;
   }
 
-  if (url.pathname === '/auth/google/callback') {
-    if (!googleBereit()) {
-      sackgasse(res, 404, 'Dieser Server bietet keine Anmeldung über Google an.');
-      return true;
-    }
-
+  {
     // Zuerst der `state`: er sagt, wohin es zurückgeht. Ohne ihn gibt es kein
-    // Ziel, und ohne Ziel keine Karte — auch dann nicht, wenn Google einen
-    // gültigen Code mitgeschickt hat.
+    // Ziel, und ohne Ziel keine Karte — auch dann nicht, wenn der Anbieter
+    // einen gültigen Code mitgeschickt hat.
     const ziel = pruefeZiel(url.searchParams.get('state') ?? '');
     if (!ziel) {
       sackgasse(res, 400, 'Diese Anmeldung ist abgelaufen oder gehört nicht hierher.');
@@ -200,7 +209,7 @@ export async function behandleAnbieterweg(
 
     const fehler = url.searchParams.get('error');
     if (fehler) {
-      // Der häufigste Fall ist `access_denied` — jemand hat bei Google auf
+      // Der häufigste Fall ist `access_denied` — jemand hat beim Anbieter auf
       // „Abbrechen" gedrückt. Kein Fehler, sondern eine Entscheidung.
       res.writeHead(302, { location: `${ziel}#anmeldung=abgebrochen` });
       res.end();
@@ -209,13 +218,32 @@ export async function behandleAnbieterweg(
 
     const code = url.searchParams.get('code') ?? '';
     if (code === '') {
-      sackgasse(res, 400, 'Google hat keinen Code mitgeschickt.');
+      sackgasse(res, 400, `${anbieter.name} hat keinen Code mitgeschickt.`);
       return true;
     }
 
-    const profil = await googleProfil(loginConfig.google, code);
+    const profil = await anbieter.profil(cfg, code);
     if (!profil) {
       res.writeHead(302, { location: `${ziel}#anmeldung=fehler` });
+      res.end();
+      return true;
+    }
+
+    /*
+     * Ohne Adresse geht es nicht weiter — und das wird gesagt.
+     *
+     * Der Kontoname **ist** die Adresse. Facebook gibt sie nur heraus, wenn
+     * der Spieler die Freigabe im Anmeldedialog stehen lässt; wer sie abwählt,
+     * kommt mit einem gültigen Code und ohne Adresse zurück.
+     *
+     * Das steht hier und nicht in `accounts.ts`, obwohl dort die Konten
+     * entstehen: an dieser Stelle gibt es einen Browser, den man mit einem
+     * eigenen Hinweis zurückschicken kann. Ein Konto anzulegen, das
+     * „facebook-10223…" heisst, wäre der schlechtere Ausweg — es liesse sich
+     * später an keinen Menschen mehr binden.
+     */
+    if (profil.email === '') {
+      res.writeHead(302, { location: `${ziel}#anmeldung=ohne-adresse` });
       res.end();
       return true;
     }
@@ -227,27 +255,29 @@ export async function behandleAnbieterweg(
      * Ohne diesen Fangblock endete eine fehlende Tabelle oder eine
      * weggebrochene Verbindung als abgewiesenes Versprechen im Rückruf des
      * HTTP-Servers: **keine** Antwort, kein Statuscode, nichts. Der Browser
-     * stünde mit einer weissen Seite auf `/auth/google/callback` und wartete,
-     * bis er selbst aufgibt — und im Protokoll stünde eine Ausnahme ohne
-     * Zusammenhang. Ein Fehlschlag muss zurückführen, nicht ins Nichts.
+     * stünde mit einer weissen Seite auf `/auth/<anbieter>/callback` und
+     * wartete, bis er selbst aufgibt — und im Protokoll stünde eine Ausnahme
+     * ohne Zusammenhang. Ein Fehlschlag muss zurückführen, nicht ins Nichts.
      */
     let ergebnis: Awaited<ReturnType<typeof anmeldenMitIdentitaet>>;
     try {
       ergebnis = await anmeldenMitIdentitaet(
         store,
-        'google',
+        anbieter.id,
         profil.subject,
         profil.email,
         loginConfig.zugriff,
       );
     } catch (err) {
-      console.error('[anmelde] Konto zu Google-Identität nicht abrufbar:', err);
+      console.error(`[anmelde] Konto zu ${anbieter.name}-Identität nicht abrufbar:`, err);
       res.writeHead(302, { location: `${ziel}#anmeldung=fehler` });
       res.end();
       return true;
     }
     if (!ergebnis.ok) {
-      console.warn(`[anmelde] Konto zu Google-Identität nicht möglich: ${ergebnis.fehler}`);
+      console.warn(
+        `[anmelde] Konto zu ${anbieter.name}-Identität nicht möglich: ${ergebnis.fehler}`,
+      );
       res.writeHead(302, { location: `${ziel}#anmeldung=fehler` });
       res.end();
       return true;
@@ -272,8 +302,6 @@ export async function behandleAnbieterweg(
     res.end();
     return true;
   }
-
-  return false;
 }
 
 /**

@@ -89,6 +89,48 @@ function baueGoogleKnopf(): HTMLButtonElement {
   return knopf;
 }
 
+/**
+ * Der Anmeldeknopf von Facebook.
+ *
+ * Dieselbe Überlegung wie beim Knopf daneben: Farbe, Zeichen und Beschriftung
+ * gibt Facebook vor — das Blau ist `#1877F2`, das „f" bleibt weiss, und der
+ * Text lautet „Weiter mit Facebook". Ein Knopf in Pergament und Messing wäre
+ * hier keine Gestaltung, sondern ein Verstoss.
+ *
+ * Anders als bei Google gibt es dafür keine fertige Vorlage zum Übernehmen,
+ * also ist der Aufbau unserer — aber mit denselben Massen wie der von Google.
+ * Zwei Knöpfe untereinander, die verschieden hoch sind, sehen nicht nach zwei
+ * Wegen aus, sondern nach einem Fehler.
+ *
+ * Das Zeichen steht als SVG im Markup und wird nicht geladen. Eine Grafik von
+ * Facebooks Servern wäre eine Anfrage dorthin, bevor irgendjemand auf den
+ * Knopf gedrückt hat — und damit eine Auskunft über jeden, der die
+ * Anmeldemaske nur ansieht.
+ */
+function baueFacebookKnopf(): HTMLButtonElement {
+  const knopf = el('button', 'fb-button');
+  knopf.type = 'button';
+
+  const zustand = el('div', 'fb-button-state');
+  const inhalt = el('div', 'fb-button-content-wrapper');
+  const symbol = el('div', 'fb-button-icon');
+
+  // Ein Pfad, der die Scheibe **und** das „f" beschreibt: weiss gefüllt bleibt
+  // das „f" als Aussparung stehen und zeigt das Blau des Knopfes. Das ist
+  // Facebooks Zeichen in seiner hellen Fassung, wie sie auf Blau gehört.
+  symbol.innerHTML =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" style="display: block;">' +
+    '<path fill="#fff" d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 ' +
+    '10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 ' +
+    '2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 ' +
+    '23.027 24 18.062 24 12.073z"></path>' +
+    '</svg>';
+
+  inhalt.append(symbol, el('span', 'fb-button-contents', 'Weiter mit Facebook'));
+  knopf.append(zustand, inhalt);
+  return knopf;
+}
+
 export interface LobbyStand {
   accountName: string;
   accessLevel: number;
@@ -111,6 +153,16 @@ function istVoll(r: RealmRow): boolean {
 /** Welche der Masken gerade gilt. */
 type Seite = 'anmeldung' | 'kanaele' | 'figuren' | 'neu';
 
+/**
+ * Die fremden Anbieter, über die man hereinkommt.
+ *
+ * Dieselben Wörter wie am Anmeldeserver: sie stehen im Pfad
+ * (`/auth/<kennung>/start`) und in seiner Antwort auf `/anmeldearten`. Eine
+ * eigene Aufzählung im Client wäre eine zweite Wahrheit über dieselbe Sache —
+ * und ein Tippfehler darin führte zu einem Knopf, der ins Leere greift.
+ */
+export type Anbieterkennung = 'google' | 'facebook';
+
 export class LobbyView {
   /** Anmelden mit Name und Passwort. */
   onLogin?: (name: string, password: string) => void;
@@ -123,7 +175,7 @@ export class LobbyView {
    * kommt bei Google vorbei und landet wieder hier — mit einer Anmeldekarte in
    * der Adresse. Für die Maske ist das ein Knopf und danach nichts mehr.
    */
-  onSocialLogin?: (anbieter: 'google') => void;
+  onSocialLogin?: (anbieter: Anbieterkennung) => void;
   onCreateCharacter?: (name: string) => void;
   onDeleteCharacter?: (characterId: number) => void;
   onEnterWorld?: (characterId: number) => void;
@@ -152,6 +204,8 @@ export class LobbyView {
 
   private readonly loginForm: HTMLFormElement;
   private readonly anbieterBereich: HTMLDivElement;
+  /** Je Anbieter ein Knopf. Sichtbar wird er erst, wenn der Server ihn kennt. */
+  private readonly anbieterKnoepfe: Map<Anbieterkennung, HTMLButtonElement>;
   private readonly nameInput: HTMLInputElement;
   private readonly passInput: HTMLInputElement;
   private readonly liste: HTMLDivElement;
@@ -330,9 +384,17 @@ export class LobbyView {
      */
     this.anbieterBereich = el('div', 'lobby-anbieter');
     this.anbieterBereich.hidden = true;
-    const googleKnopf = baueGoogleKnopf();
-    googleKnopf.addEventListener('click', () => this.onSocialLogin?.('google'));
-    this.anbieterBereich.append(el('p', 'lobby-oder', 'oder'), googleKnopf);
+    this.anbieterKnoepfe = new Map();
+    for (const [id, bauen] of [
+      ['google', baueGoogleKnopf],
+      ['facebook', baueFacebookKnopf],
+    ] as const) {
+      const knopf = bauen();
+      knopf.hidden = true;
+      knopf.addEventListener('click', () => this.onSocialLogin?.(id));
+      this.anbieterKnoepfe.set(id, knopf);
+    }
+    this.anbieterBereich.append(el('p', 'lobby-oder', 'oder'), ...this.anbieterKnoepfe.values());
     this.anmeldungSeite.appendChild(this.anbieterBereich);
 
     // --- Maske 2: Figuren --------------------------------------------------
@@ -515,15 +577,23 @@ export class LobbyView {
   }
 
   /**
-   * Schaltet die Anbieterknöpfe frei — oder eben nicht.
+   * Schaltet die Anbieterknöpfe frei — jeden für sich.
    *
    * Wird gerufen, nachdem der Server auf `/anmeldearten` geantwortet hat.
    * Bleibt die Antwort aus, bleibt der Bereich verborgen: dann ist der Server
    * alt oder nicht erreichbar, und der Weg mit Name und Passwort ist der, der
    * dann noch geht.
+   *
+   * Das „oder" darüber hängt daran, ob **irgendein** Knopf bleibt. Ein „oder"
+   * ohne etwas dahinter wäre ein angefangener Satz.
    */
-  zeigeAnbieter(arten: { google: boolean }): void {
-    this.anbieterBereich.hidden = !arten.google;
+  zeigeAnbieter(arten: Partial<Record<Anbieterkennung, boolean>>): void {
+    let einer = false;
+    for (const [id, knopf] of this.anbieterKnoepfe) {
+      knopf.hidden = arten[id] !== true;
+      if (!knopf.hidden) einer = true;
+    }
+    this.anbieterBereich.hidden = !einer;
   }
 
   /** Den Protokolltext markieren — der Weg zurück, wenn die Ablage fehlt. */

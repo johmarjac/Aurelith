@@ -95,7 +95,12 @@ server.on('request', (req, res) => {
    * Derselbe Weg wie am Anmeldeserver, und die Antwort ist hier immer
    * dieselbe: Name und Passwort, sonst nichts. Ein Kanal prüft im Verbund gar
    * keine Passwörter, und im Alleinbetrieb prüft er nur sie — einen Umweg über
-   * Google mit Weiterleitungen gibt es an dieser Stelle nicht.
+   * einen fremden Anbieter mit Weiterleitungen gibt es an dieser Stelle nicht.
+   *
+   * Die Anbieter stehen namentlich mit `false` darin und werden nicht
+   * weggelassen. Ein fehlendes Feld liest der Client als „unbekannt", und beim
+   * nächsten hinzugekommenen Anbieter wäre nicht mehr zu unterscheiden, ob der
+   * Server ihn nicht kann oder nur nicht kennt.
    *
    * Der Weg steht trotzdem hier, weil der Client ihn fragt, bevor er die
    * Anmeldemaske zeigt, und er weiss nicht, welche Sorte Server am anderen
@@ -105,7 +110,7 @@ server.on('request', (req, res) => {
    */
   if (req.url === '/anmeldearten') {
     res.writeHead(200, { ...kopf, 'content-type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({ passwort: true, google: false }));
+    res.end(JSON.stringify({ passwort: true, google: false, facebook: false }));
     return;
   }
   res.writeHead(404, { ...kopf, 'content-type': 'text/plain; charset=utf-8' });

@@ -13,6 +13,7 @@
 
 import { ermittleBuildStamp } from '@aurelith/shared/build/ermitteln.node.ts';
 import { leseZugriffsliste, type Zugriffsliste } from '@aurelith/shared';
+import { ANBIETER, type AnbieterConfig, type AnbieterId } from './oauth.ts';
 
 function env(name: string, fallback: string): string {
   const v = process.env[name];
@@ -54,21 +55,35 @@ export const loginConfig = {
   internalSecret: env('AURELITH_INTERNAL_SECRET', 'aurelith-entwicklung'),
 
   /**
-   * Anmeldung über Google — leer heisst: gibt es hier nicht.
+   * Anmeldung über fremde Anbieter — leer heisst: gibt es hier nicht.
    *
-   * Alle drei Angaben stammen aus der Google Cloud Console. `redirectUri` muss
-   * dort **wörtlich** eingetragen sein: ein fehlender Schrägstrich reicht für
-   * eine Absage, und die kommt dann von Google und nicht von uns.
+   * Je Anbieter dieselben drei Angaben, aus dessen Entwicklerkonsole:
    *
-   * Ohne Kennung und Geheimnis bietet der Server diese Anmeldeart gar nicht
-   * erst an — der Knopf im Client erscheint nicht. Ein Knopf, der zu einer
+   *   AURELITH_GOOGLE_CLIENT_ID / _SECRET / _REDIRECT_URI
+   *   AURELITH_FACEBOOK_CLIENT_ID / _SECRET / _REDIRECT_URI
+   *
+   * Die Namen sind absichtlich gleich gebaut, obwohl Facebook seine Werte
+   * „App-ID" und „App-Geheimnis" nennt: so entstehen sie aus der Kennung des
+   * Anbieters, und ein dritter braucht hier keine Zeile mehr.
+   *
+   * `redirectUri` muss beim Anbieter **wörtlich** eingetragen sein: ein
+   * fehlender Schrägstrich reicht für eine Absage, und die kommt dann von dort
+   * und nicht von uns.
+   *
+   * Ohne Kennung und Geheimnis bietet der Server die Anmeldeart gar nicht erst
+   * an — der Knopf im Client erscheint nicht. Ein Knopf, der zu einer
    * Fehlerseite führt, ist schlechter als keiner.
    */
-  google: {
-    clientId: env('AURELITH_GOOGLE_CLIENT_ID', ''),
-    clientSecret: env('AURELITH_GOOGLE_CLIENT_SECRET', ''),
-    redirectUri: env('AURELITH_GOOGLE_REDIRECT_URI', ''),
-  },
+  anbieter: Object.fromEntries(
+    ANBIETER.map((a) => [
+      a.id,
+      {
+        clientId: env(`AURELITH_${a.id.toUpperCase()}_CLIENT_ID`, ''),
+        clientSecret: env(`AURELITH_${a.id.toUpperCase()}_CLIENT_SECRET`, ''),
+        redirectUri: env(`AURELITH_${a.id.toUpperCase()}_REDIRECT_URI`, ''),
+      },
+    ]),
+  ) as Record<AnbieterId, AnbieterConfig>,
 
   /**
    * Wohin der Anmeldeweg zurückschicken darf — Herkünfte, mit Komma getrennt.
