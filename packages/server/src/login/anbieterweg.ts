@@ -143,14 +143,33 @@ export async function behandleAnbieterweg(
       return true;
     }
 
-    const ergebnis = await anmeldenMitIdentitaet(
-      store,
-      'google',
-      profil.subject,
-      profil.name,
-      profil.email,
-      loginConfig.admins,
-    );
+    /*
+     * Der Griff in die Datenbank kann werfen — und dann darf er den Rückweg
+     * nicht verschlucken.
+     *
+     * Ohne diesen Fangblock endete eine fehlende Tabelle oder eine
+     * weggebrochene Verbindung als abgewiesenes Versprechen im Rückruf des
+     * HTTP-Servers: **keine** Antwort, kein Statuscode, nichts. Der Browser
+     * stünde mit einer weissen Seite auf `/auth/google/callback` und wartete,
+     * bis er selbst aufgibt — und im Protokoll stünde eine Ausnahme ohne
+     * Zusammenhang. Ein Fehlschlag muss zurückführen, nicht ins Nichts.
+     */
+    let ergebnis: Awaited<ReturnType<typeof anmeldenMitIdentitaet>>;
+    try {
+      ergebnis = await anmeldenMitIdentitaet(
+        store,
+        'google',
+        profil.subject,
+        profil.name,
+        profil.email,
+        loginConfig.admins,
+      );
+    } catch (err) {
+      console.error('[anmelde] Konto zu Google-Identität nicht abrufbar:', err);
+      res.writeHead(302, { location: `${ziel}#anmeldung=fehler` });
+      res.end();
+      return true;
+    }
     if (!ergebnis.ok) {
       console.warn(`[anmelde] Konto zu Google-Identität nicht möglich: ${ergebnis.fehler}`);
       res.writeHead(302, { location: `${ziel}#anmeldung=fehler` });

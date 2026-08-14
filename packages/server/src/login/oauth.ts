@@ -136,7 +136,22 @@ export async function googleProfil(
   }
 
   if (!antwort.ok) {
-    console.warn(`[anmelde] Google lehnt den Code ab (${antwort.status}).`);
+    /*
+     * Googles Begründung mitschreiben, nicht nur die Zahl.
+     *
+     * Der Status allein ist hier fast wertlos: `400` steht gleichermassen für
+     * eine falsch eingetragene Rückadresse (`redirect_uri_mismatch`), einen
+     * bereits eingelösten Code (`invalid_grant`) und ein Geheimnis mit einem
+     * Anführungszeichen darin (`invalid_client` kommt als 401). Im Rumpf steht
+     * genau, welcher Fall es ist — und ohne ihn beginnt die Suche bei null.
+     *
+     * Das ist eine Protokollzeile auf dem Server und keine Auskunft an den
+     * Browser: dem Spieler bleibt „das hat nicht geklappt".
+     */
+    const grund = await antwort.text().catch(() => '');
+    console.warn(
+      `[anmelde] Google lehnt den Code ab (${antwort.status}): ${grund.slice(0, 300)}`,
+    );
     return undefined;
   }
 
@@ -153,7 +168,15 @@ export async function googleProfil(
   // trotzdem wertlos — sonst könnte jeder mit einer eigenen Google-App
   // Anmeldungen für diesen Server erzeugen.
   if (nutzlast.aud !== cfg.clientId) {
-    console.warn('[anmelde] ID-Token gehört zu einer anderen Anwendung.');
+    // Beide Werte in die Zeile. Eine Kennung ist kein Geheimnis — sie steht in
+    // jeder Adresse, die der Browser zu Google trägt —, und der häufigste
+    // Grund für diesen Fall ist kein Angriff, sondern ein Anführungszeichen
+    // oder ein Leerzeichen, das aus der `.env` mitgekommen ist. Das sieht man
+    // nur, wenn beide Zeichenketten nebeneinander stehen.
+    console.warn(
+      `[anmelde] ID-Token gehört zu einer anderen Anwendung: ` +
+        `Token nennt „${String(nutzlast.aud)}", konfiguriert ist „${cfg.clientId}".`,
+    );
     return undefined;
   }
   if (nutzlast.iss !== 'accounts.google.com' && nutzlast.iss !== 'https://accounts.google.com') {
