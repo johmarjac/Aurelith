@@ -132,6 +132,7 @@ import {
   normalizeSlots,
   removeItem,
   removeSlot,
+  zaehleMunition,
 } from './inventory.ts';
 import type { ItemRecord, KontoStore, WeltStore } from './db/index.ts';
 
@@ -937,6 +938,17 @@ export class GameServer {
       const budget =
         session.inputQueue.length >= INPUT_QUEUE_DRAIN_AT ? INPUT_QUEUE_DRAIN_MAX : 1;
 
+      /*
+       * Ein Bogen ohne Pfeile schiesst nicht.
+       *
+       * Entschieden wird hier und nicht im Kern: der Kern kennt keinen Beutel,
+       * und die Vorhersage im Client rechnet mit demselben Kern. Genommen wird
+       * die Angriffstaste, nicht der Schlag — wer keine Pfeile hat, bindet
+       * sich auch nicht in einen Vorlauf, der ins Leere läuft.
+       */
+      const munitionFehlt = this.brauchtMunition(session) && zaehleMunition(session.items) <= 0;
+      if (munitionFehlt) this.meldeLeerenKoecher(session);
+
       for (let i = 0; i < budget && session.inputQueue.length > 0; i++) {
         const input = session.inputQueue.shift()!;
         instance.world.applyInput(
@@ -944,11 +956,18 @@ export class GameServer {
           input.moveX,
           input.moveZ,
           input.yaw,
-          input.buttons & CoreButton.Attack,
+          munitionFehlt ? 0 : input.buttons & CoreButton.Attack,
           TICK_SECONDS,
         );
         session.lastInputSeq = input.seq;
       }
+    }
+
+    // Was ein Schuss kostet, wird abgezogen, sobald einer beginnt — siehe
+    // `verbraucheMunition`. Vor dem Schritt, nicht danach: der Zustand
+    // „schlägt gerade zu" entsteht beim Anwenden der Eingabe.
+    for (const session of this.sessions) {
+      if (session.state === 'playing') this.verbraucheMunition(session);
     }
 
     for (const instance of this.instances.values()) {
@@ -1537,8 +1556,25 @@ export class GameServer {
     if (!instance || !entry) return;
 
     const def = getItem(entry.itemId);
-    if (!def || def.kind !== 'consumable') {
-      this.systemMessage(session, 'Das lässt sich nicht benutzen.');
+    if (!def) return;
+
+    /*
+     * Etwas zum Anziehen „benutzen" heisst: anziehen.
+     *
+     * Auf der Aktionsleiste liegt ein Schwert genauso wie ein Trank, und ein
+     * Druck darauf ist ein Druck. „Das lässt sich nicht benutzen" wäre formal
+     * richtig und in der Sache unbrauchbar — man hat es ja gerade deshalb
+     * dorthin gelegt. Ein zweiter Druck legt es wieder ab; das entscheidet
+     * `equipItem`, und zwar an derselben Stelle wie beim Doppelklick im
+     * Beutel.
+     */
+    if (def.slot !== 'none') {
+      this.equipItem(session, slot);
+      return;
+    }
+
+    if (def.kind !== 'consumable') {
+      this.systemMessage(session, `${def.name} lässt sich nicht benutzen.`);
       return;
     }
 
@@ -2389,6 +2425,63 @@ export class GameServer {
       if (getItem(entry.itemId)?.slot === 'mainhand') return entry;
     }
     return undefined;
+  }
+
+  /**
+   * Braucht die angelegte Waffe Munition?
+   *
+   * An der Kampfart und nicht an einer Liste von Bögen: was aus der Ferne
+   * schiesst, schiesst etwas. Eine zweite Waffe mit `attackStyle: ranged`
+   * bekommt die Regel damit umsonst — und niemand muss daran denken.
+   */
+  private brauchtMunition(session: Session): boolean {
+    return this.mainhandOf(session)?.attackStyle === 'ranged';
+  }
+
+  /**
+   * Nimmt einen Pfeil, sobald ein Schuss beginnt.
+   *
+   * Gemessen wird die **Flanke**: eben noch nicht am Schlagen, jetzt schon.
+   * Der Kern setzt diesen Zustand in `tryStartSwing`, und zwar genau einmal je
+   * Schlag — ein eigener Zähler im Server wäre eine zweite Vorstellung davon,
+   * wann ein Schuss beginnt, und die beiden liefen bei jeder Änderung an der
+   * Abklingzeit auseinander.
+   *
+   * Abgezogen wird beim Beginn und nicht beim Treffer: ein Pfeil, der
+   * danebengeht, ist trotzdem weg. Alles andere hiesse, dass Zielen nichts
+   * kostet.
+   */
+  private verbraucheMunition(session: Session): void {
+    const schlaegt =
+      this.instances.get(session.mapId)?.entity(session.entityId)?.state === EntityState.Attack;
+    const beginnt = schlaegt && !session.schlugZuletzt;
+    session.schlugZuletzt = schlaegt;
+
+    if (!beginnt || !this.brauchtMunition(session)) return;
+
+    const munition = session.items.find((i) => getItem(i.itemId)?.kind === 'ammo');
+    if (!munition) return;
+
+    removeSlot(session.items, munition.slot, 1);
+    session.itemsDirty = true;
+    // Wer eben noch geschossen hat, darf sofort erfahren, dass es der letzte
+    // Pfeil war. Die Sperre gegen zwanzig Zeilen je Sekunde soll nicht dazu
+    // führen, dass der Hinweis nach dem Leerschiessen vier Sekunden schweigt.
+    session.koecherGemeldet = 0;
+    this.sendInventory(session);
+  }
+
+  /**
+   * Sagt einmal, dass der Köcher leer ist — und dann eine Weile nicht mehr.
+   *
+   * Die Prüfung läuft zwanzigmal je Sekunde. Ohne Sperre stünde die Zeile
+   * zwanzigmal je Sekunde im Fenster, und der Hinweis wäre unlesbar.
+   */
+  private meldeLeerenKoecher(session: Session): void {
+    const jetzt = Date.now();
+    if (jetzt - session.koecherGemeldet < 4000) return;
+    session.koecherGemeldet = jetzt;
+    this.systemMessage(session, 'Keine Pfeile mehr — beim Händler gibt es welche.');
   }
 
   /** Die angelegte Hauptwaffe, oder nichts. */

@@ -82,6 +82,16 @@ export class Session {
   aktionenDirty = false;
 
   /**
+   * Schlug diese Figur im letzten Schritt schon zu?
+   *
+   * Nur dafür da, den **Beginn** eines Schlags zu erkennen — der Zustand
+   * „schlägt" steht mehrere Schritte lang an, ein Schuss ist aber einer.
+   */
+  schlugZuletzt = false;
+  /** Wann zuletzt „keine Pfeile" im Fenster stand. Gegen zwanzig Zeilen je Sekunde. */
+  koecherGemeldet = 0;
+
+  /**
    * Die Aktionsleiste — zehn Plätze mit Gegenständen und Fertigkeiten.
    *
    * Gehört zur Figur und wird mit ihr geladen. Sie steht hier und nicht im

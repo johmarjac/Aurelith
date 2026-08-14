@@ -160,7 +160,7 @@ function body(raw: unknown, key: string, source: string): { doc: Record<string, 
 // Gegenstände
 // ---------------------------------------------------------------------------
 
-const ITEM_KINDS = ['weapon', 'armor', 'consumable', 'material', 'quest'] as const;
+const ITEM_KINDS = ['weapon', 'armor', 'consumable', 'material', 'quest', 'ammo'] as const;
 const SLOT_NAMEN = [
   'mainhand',
   'offhand',

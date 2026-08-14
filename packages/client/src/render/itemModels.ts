@@ -296,6 +296,37 @@ function shadeItem(color: number, factor: number): number {
   return (r << 16) | (g << 8) | b;
 }
 
+/**
+ * Ein Pfeil — Schaft, Spitze, Federn.
+ *
+ * Schräg gelegt und nicht senkrecht: aufrecht wäre er im quadratischen
+ * Symbolbild ein Strich in der Mitte, und man erkennt nichts. Über die
+ * Diagonale füllt er die Kachel und zeigt beide Enden.
+ */
+function arrow(): THREE.BufferGeometry {
+  const holz = 0xb9863f;
+  const feder = 0xe8e0cc;
+  const schraeg: [number, number, number] = [0, 0, Math.PI / 4];
+  return assemble([
+    { geometry: cylinder(0.035, 0.035, 0.95, 6), color: holz, position: [0, 0.5, 0], rotation: schraeg },
+    // Spitze, oben rechts.
+    { geometry: cone(0.09, 0.22, 6), color: 0x9aa3ac, position: [0.36, 0.86, 0], rotation: schraeg },
+    // Zwei Federn am unteren Ende, leicht gespreizt.
+    {
+      geometry: box(0.02, 0.22, 0.1),
+      color: feder,
+      position: [-0.3, 0.2, 0.03],
+      rotation: [0.3, 0, Math.PI / 4],
+    },
+    {
+      geometry: box(0.02, 0.22, 0.1),
+      color: shadeItem(feder, 0.85),
+      position: [-0.3, 0.2, -0.03],
+      rotation: [-0.3, 0, Math.PI / 4],
+    },
+  ]);
+}
+
 /** Der Katalog. Schlüssel entsprechen dem `model`-Feld der Gegenstandstabelle. */
 export const ITEM_BUILDERS: Record<string, ItemBuilder> = {
   armor_head: cap,
@@ -309,6 +340,7 @@ export const ITEM_BUILDERS: Record<string, ItemBuilder> = {
   armor_necklace: pendant,
   armor_earring: earring,
   armor_ring: ring,
+  item_arrow: arrow,
   item_potion: potion,
   item_essence: essence,
   item_hide: hide,

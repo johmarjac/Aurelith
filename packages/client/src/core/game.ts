@@ -2508,8 +2508,22 @@ export class Game {
     // Angriff und Sprung sind unabhängig: man kann im Sprung weiterschlagen,
     // und ein Sprung bricht keinen Auftrag ab — er ist keine Bewegung im Sinne
     // der Steuerung, sondern eine Geste nach oben.
+    /*
+     * Ohne Pfeile kein Schuss — und zwar auch hier.
+     *
+     * Entschieden wird das auf dem Server; er nimmt die Taste heraus, bevor
+     * sie in den Kern geht. Genau deshalb muss der Client dasselbe tun: seine
+     * Vorhersage rechnet mit demselben Kern, und ein Schlag, den nur eine
+     * Seite beginnt, ist ein Vorlauf, in dem nur eine Seite langsamer wird.
+     * Sichtbar wäre das als Zucken bei jedem Klick auf ein Monster.
+     */
+    const schiesst = this.profile.style === 1;
+    const munition = schiesst
+      ? this.inventar.some((e) => !e.equipped && getItem(e.itemId)?.kind === 'ammo')
+      : true;
+
     const buttons =
-      (this.schlaegtZu && !this.dead ? CoreButton.Attack : 0) |
+      (this.schlaegtZu && !this.dead && munition ? CoreButton.Attack : 0) |
       (snapshot.sprung && !this.dead ? CoreButton.Jump : 0);
 
     const seq = ++this.inputSeq;

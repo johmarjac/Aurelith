@@ -30,6 +30,24 @@ export function countItem(items: ItemRecord[], itemId: string): number {
 }
 
 /**
+ * Wie viel Munition im Beutel liegt — über die Sorte, nicht über die Kennung.
+ *
+ * `arrow` steht damit an genau einer Stelle: in der Gegenstandstabelle. Ein
+ * zweiter Pfeil (Feuerpfeile, Stahlbolzen) zählt von selbst mit, und niemand
+ * muss daran denken, ihn hier nachzutragen.
+ *
+ * Angelegtes zählt nicht — Munition liegt im Beutel, nicht am Körper.
+ */
+export function zaehleMunition(items: ItemRecord[]): number {
+  let sum = 0;
+  for (const row of items) {
+    if (row.equipped) continue;
+    if (getItem(row.itemId)?.kind === 'ammo') sum += row.count;
+  }
+  return sum;
+}
+
+/**
  * Wo etwas liegt, sagt auch, **ob** es angelegt ist.
  *
  * Der Beutel hat die Plätze 0 bis `inventorySlots() - 1`. Was am Körper

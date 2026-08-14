@@ -73,6 +73,10 @@
           "item": "wooden_bow"
         },
         {
+          "item": "arrow",
+          "price": 1
+        },
+        {
           "item": "wooden_sword"
         },
         {

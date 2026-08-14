@@ -43,6 +43,23 @@
       "icon": "icons/wooden_bow.webp"
     },
     {
+      "id": "arrow",
+      "name": "Pfeil",
+      "kind": "ammo",
+      "slot": "none",
+      "levelReq": 1,
+      "attackDamage": 0,
+      "defense": 0,
+      "effectValue": 0,
+      "stackable": true,
+      "maxStack": 999,
+      "value": 1,
+      "model": "item_arrow",
+      "iconColor": "#b9863f",
+      "description": "Ohne die hier ist ein Bogen ein krummer Stock.",
+      "icon": "icons/arrow.webp"
+    },
+    {
       "id": "rusty_dagger",
       "name": "Rostiger Dolch",
       "kind": "weapon",

@@ -110,7 +110,15 @@ export function getNpc(id: string): NpcDef | undefined {
   return npcs.get(id);
 }
 
-export type ItemKind = 'weapon' | 'armor' | 'consumable' | 'material' | 'quest';
+/**
+ * `ammo` ist Munition — heute Pfeile, und die sind keine `material`.
+ *
+ * Der Unterschied ist keine Buchhaltung: an dieser Sorte hängt, ob ein
+ * Fernkampfschlag überhaupt zustande kommt, und der Server sucht sie im
+ * Beutel. Wären Pfeile Material, müsste er die eine Kennung `arrow` kennen —
+ * und beim zweiten Bogen mit anderer Munition stünde sie an zwei Stellen.
+ */
+export type ItemKind = 'weapon' | 'armor' | 'consumable' | 'material' | 'quest' | 'ammo';
 /**
  * Wo ein Gegenstand getragen wird.
  *
