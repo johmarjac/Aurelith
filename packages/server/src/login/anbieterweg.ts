@@ -47,10 +47,21 @@ export function googleBereit(): boolean {
  */
 export function meldeGoogleAuffaelligkeiten(): void {
   const g = loginConfig.google;
+  /*
+   * Zeichenweise und nicht paarweise.
+   *
+   * Der erste Anlauf suchte Anführungszeichen nur am Anfang **und** am Ende.
+   * Genau der häufigste Fall fiel damit durch: eines von beiden bleibt beim
+   * Kopieren hängen, der Wert ist ein Zeichen zu lang, und die Prüfung sagt
+   * nichts. Kennung und Geheimnis von Google bestehen aus Buchstaben, Ziffern,
+   * Strich, Unterstrich und Punkt — alles andere darin ist ein Versehen, egal
+   * wo es steht.
+   */
   const auffaellig = (wert: string): string | undefined => {
-    if (wert !== wert.trim()) return 'hat Leerzeichen am Rand';
-    if (/^["'].*["']$/.test(wert)) return 'steht in Anführungszeichen';
-    return undefined;
+    const stoerer = [...wert].find((z) => !/[A-Za-z0-9._\-:/]/.test(z));
+    if (stoerer === undefined) return undefined;
+    if (/\s/.test(stoerer)) return 'enthält ein Leerzeichen';
+    return `enthält das Zeichen „${stoerer}"`;
   };
 
   for (const [name, wert] of [
@@ -60,6 +71,25 @@ export function meldeGoogleAuffaelligkeiten(): void {
   ] as const) {
     const was = auffaellig(wert);
     if (was) console.warn(`[anmelde] ${name} ${was} — Google wird das ablehnen.`);
+  }
+
+  /*
+   * Ein Geheimnis der heutigen Bauart hat eine feste Länge.
+   *
+   * `GOCSPX-` und achtundzwanzig Zeichen, zusammen fünfunddreissig. Weicht das
+   * ab, obwohl der Anfang stimmt, hängt etwas daran oder fehlt etwas — und
+   * Google sagt dazu nur `invalid_client`, dieselbe Antwort wie bei einem
+   * völlig falschen Wert. Die Länge steht hier, das Geheimnis nicht.
+   *
+   * Nur für diese eine Bauart. Ältere Geheimnisse haben kein Präfix und eine
+   * andere Länge; sie hier zu bemängeln wäre eine Warnung über etwas
+   * Richtiges, und die liest beim dritten Mal niemand mehr.
+   */
+  if (g.clientSecret.startsWith('GOCSPX-') && g.clientSecret.length !== 35) {
+    console.warn(
+      `[anmelde] AURELITH_GOOGLE_CLIENT_SECRET ist ${g.clientSecret.length} Zeichen lang, ` +
+        'erwartet sind 35 (GOCSPX- und 28 Zeichen).',
+    );
   }
 
   if (!g.clientId.endsWith('.apps.googleusercontent.com')) {
