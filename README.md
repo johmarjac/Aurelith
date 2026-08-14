@@ -628,6 +628,21 @@ Redirect-URIs ein Prüffeld, in das sich die volle Adresse einfügen lässt. Es
 antwortet mit Ja oder Nein — und bei neueren Apps hängt die Meldung über die
 fehlende Domain ohnehin an dieser Liste und nicht an den App-Domains.
 
+Und wenn der Anbieter meckert, lautet die erste Frage immer: was schicken wir
+ihm überhaupt? Die Antwort steht im `Location`-Kopf des Startwegs und braucht
+keinen Browser:
+
+```bash
+curl -sS -o /dev/null -D - \
+  "https://<anmeldeserver>/auth/facebook/start?ziel=<freigegebene-herkunft>" \
+  | grep -i '^location'
+```
+
+Dort stehen `client_id` und `redirect_uri` im Klartext — genau die beiden
+Werte, um die es bei jeder Absage geht. Im Browser lassen sie sich nicht mehr
+ablesen: die mobile Fassung des Anmeldedialogs packt alle Parameter in ein
+`encrypted_query_string`.
+
 Gemeint ist dabei immer die Domain, auf der der **Anmeldeserver** steht, und
 nicht die des Clients. Zurückgeschickt wird an `/auth/facebook/callback`, und
 nur diese Adresse sieht Facebook — dass der Client auf GitHub Pages liegt, geht
