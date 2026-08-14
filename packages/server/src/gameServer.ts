@@ -1958,12 +1958,19 @@ export class GameServer {
       return;
     }
 
-    if (character.mp < def.manaCost) {
+    /*
+     * Prüfen und Abziehen in einem Zug — und zwar im Kern.
+     *
+     * Er führt das Mana der Figur und regeneriert es; eine Prüfung gegen
+     * `character.mp` fragte eine Kopie, die zuletzt beim Laden stimmte. Und
+     * ein Abzug dort hätte den Kern gar nicht erreicht: die Fertigkeit wäre
+     * kostenlos gewesen, sobald jemand den Balken anders liest.
+     */
+    if (!instance.world.verbrauchtMp(session.entityId, def.manaCost)) {
       this.systemMessage(session, `Zu wenig Mana für ${def.name}.`);
       return;
     }
 
-    character.mp -= def.manaCost;
     session.skillReady.set(skillId, jetzt + def.cooldownMs);
 
     if (def.art === 'flaeche') {
@@ -3001,9 +3008,19 @@ export class GameServer {
         level: character.level,
         exp: character.exp,
         expForNext: expForLevel(character.level),
-        hp: row?.hp ?? character.hp,
-        maxHp: row?.maxHp ?? sheet.wert('maxHp'),
-        mp: character.mp,
+        hp: this.lebenVon(session),
+        maxHp: sheet.wert('maxHp'),
+        /*
+         * Mana aus der **Zeile**, genau wie das Leben.
+         *
+         * Hier stand `character.mp`, und das ist die gespeicherte Kopie: sie
+         * wird beim Laden gesetzt und danach nie wieder angefasst. Der Kern
+         * regeneriert dagegen das Mana der Figur. Beim Betreten war die Kopie
+         * null, der Kern füllte auf — und angezeigt wurde die Null. Wer eine
+         * Fertigkeit anklickte, sah nichts passieren: der Client rechnete mit
+         * null Mana und schickte gar nicht erst.
+         */
+        mp: this.manaVon(session),
         maxMp: sheet.wert('maxMp'),
         gold: character.gold,
         eigenschaften: {
@@ -3016,6 +3033,34 @@ export class GameServer {
         attributes: sheet.alle(),
       }),
     );
+  }
+
+  /**
+   * Der Manastand der Figur — aus dem Kern.
+   *
+   * Er führt ihn und regeneriert ihn; `character.mp` ist eine Kopie, die
+   * zuletzt beim Laden stimmte. Wer die liest, zeigt den Stand von damals.
+   * Ohne laufende Welt bleibt nur die Kopie — zwischen Anmelden und Betreten
+   * gibt es kein Wesen, das gefragt werden könnte.
+   */
+  private manaVon(session: Session): number {
+    const welt = this.instances.get(session.mapId)?.world;
+    const mana = welt && session.entityId ? welt.manaVon(session.entityId) : -1;
+    return mana >= 0 ? mana : (session.character?.mp ?? 0);
+  }
+
+  /**
+   * Der Lebensstand — aus dem Kern, nicht aus der Sichtstruktur.
+   *
+   * Die wird einmal je Tick gebaut. Zwischen `spawnPlayer` und dem nächsten
+   * Tick steht die Figur nicht darin, und wer dort nachsah, fiel auf
+   * `character.hp` zurück: bei einer frischen Figur eine Null. Genau diese
+   * Null stand in der ersten Werte-Nachricht nach dem Betreten.
+   */
+  private lebenVon(session: Session): number {
+    const welt = this.instances.get(session.mapId)?.world;
+    const leben = welt && session.entityId ? welt.lebenVon(session.entityId) : -1;
+    return leben >= 0 ? leben : (session.character?.hp ?? 0);
   }
 
   private async persistAll(): Promise<void> {
@@ -3038,7 +3083,10 @@ export class GameServer {
       character.x = row.x;
       character.z = row.z;
       character.yaw = row.yaw;
-      character.hp = Math.round(row.hp);
+      character.hp = Math.round(this.lebenVon(session));
+      // Und das Mana. Ohne diese Zeile stand nach jedem Anmelden wieder die
+      // Zahl von der Figurerstellung in der Datenbank.
+      character.mp = Math.round(this.manaVon(session));
       character.mapId = session.mapId;
     }
     await this.welt.saveCharacter(character);

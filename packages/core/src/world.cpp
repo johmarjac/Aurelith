@@ -312,6 +312,28 @@ float World::heal(uint32_t id, float hp, float mp) {
   return (e->hp - vorherHp) + (e->mp - vorherMp);
 }
 
+bool World::verbrauchtMp(uint32_t id, float kosten) {
+  Entity* e = find(id);
+  if (e == nullptr || !isAlive(*e)) return false;
+  // Kostenlos heisst immer möglich — auch bei null Mana. Eine Fertigkeit ohne
+  // Kosten an einem leeren Manabalken scheitern zu lassen wäre eine Regel, die
+  // niemand erwartet.
+  if (kosten <= 0.0f) return true;
+  if (e->mp < kosten) return false;
+  e->mp -= kosten;
+  return true;
+}
+
+float World::manaVon(uint32_t id) const {
+  const Entity* e = find(id);
+  return e == nullptr ? -1.0f : e->mp;
+}
+
+float World::lebenVon(uint32_t id) const {
+  const Entity* e = find(id);
+  return e == nullptr ? -1.0f : e->hp;
+}
+
 // ---------------------------------------------------------------------------
 // Auslesen
 // ---------------------------------------------------------------------------

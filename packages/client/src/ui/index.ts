@@ -1270,11 +1270,26 @@ export class UI {
     const def = this.leisteSkills[index];
     if (!def) return;
 
+    /*
+     * Die beiden Absagen gehen in den **Chat** und nicht in die Konsole.
+     *
+     * Sie standen dort, und das Ergebnis war das schlimmste von allen: ein
+     * Klick, auf den nichts folgte. Wer die Konsole nicht offen hat — also
+     * jeder — sah einen Knopf, der nicht reagiert, und hatte keinen
+     * Anhaltspunkt, warum. Eine Absage, die niemand liest, ist keine.
+     */
     const rest = (this.abklingBis[index] ?? 0) - performance.now();
-    if (rest > 0) return;
+    if (rest > 0) {
+      this.addChat(0, '', `${def.name} ist noch nicht bereit (${(rest / 1000).toFixed(1)} s).`);
+      return;
+    }
 
     if (this.lastStats && this.lastStats.mp < def.manaCost) {
-      this.debug(`${def.name}: zu wenig Mana (${def.manaCost} nötig).`, 'warnung');
+      this.addChat(
+        0,
+        '',
+        `Zu wenig Mana für ${def.name} — ${def.manaCost} nötig, ${Math.floor(this.lastStats.mp)} da.`,
+      );
       return;
     }
 

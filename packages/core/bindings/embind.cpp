@@ -218,6 +218,9 @@ EMSCRIPTEN_BINDINGS(aurelith_core) {
       .function("setPlayerStats", &aur::World::setPlayerStats)
       .function("setCritProfile", &aur::World::setCritProfile)
       .function("heal", &aur::World::heal)
+      .function("verbrauchtMp", &aur::World::verbrauchtMp)
+      .function("manaVon", &aur::World::manaVon)
+      .function("lebenVon", &aur::World::lebenVon)
       .function("setAttackProfile", &aur::World::setAttackProfile)
 
       // Auslesen

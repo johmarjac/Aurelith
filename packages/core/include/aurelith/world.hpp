@@ -152,6 +152,34 @@ class World {
    * Heilen und hat mit `respawnPlayer` seinen eigenen Weg.
    */
   float heal(uint32_t id, float hp, float mp);
+  /**
+   * Zieht Mana ab — oder gibt zurück, dass es nicht reicht.
+   *
+   * Prüfen und Abziehen in **einem** Aufruf. Getrennt wäre es zweimal
+   * dasselbe Entity: einmal zum Lesen, einmal zum Schreiben, und dazwischen
+   * eine Entscheidung, die auf einem Wert von vorhin beruht. Genau daran ist
+   * das Mana schon einmal auseinandergelaufen — der Server führte eine eigene
+   * Kopie und der Kern regenerierte die andere.
+   */
+  bool verbrauchtMp(uint32_t id, float kosten);
+  /**
+   * Der Manastand einer Figur. Negativ, wenn es sie nicht gibt.
+   *
+   * Ein eigener Zugriff und **kein** Feld in `EntityView`: die Sicht ist der
+   * Puffer, der einmal je Bild über die Brücke geht, und ihr Layout ist ein
+   * geprüfter Vertrag. Mana braucht davon niemand — nur der Server, für die
+   * eigene Figur, ein paar Mal je Sekunde.
+   */
+  float manaVon(uint32_t id) const;
+  /**
+   * Der Lebensstand einer Figur. Negativ, wenn es sie nicht gibt.
+   *
+   * Aus demselben Grund wie `manaVon` und nicht aus der Sichtstruktur: die
+   * wird einmal je Tick gebaut, und zwischen dem Erscheinen einer Figur und
+   * dem nächsten Tick steht sie nicht darin. Wer dort nachsah, bekam die
+   * gespeicherte Kopie — und die ist bei einer frischen Figur null.
+   */
+  float lebenVon(uint32_t id) const;
 
   /**
    * Setzt, wie eine Figur zuschlägt.

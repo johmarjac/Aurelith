@@ -182,6 +182,12 @@ interface RawWorld {
   ): void;
   setCritProfile(id: number, chance: number, multiplier: number): void;
   heal(id: number, hp: number, mp: number): number;
+  /** Zieht Mana ab. `false` heisst: es reichte nicht, nichts wurde geändert. */
+  verbrauchtMp(id: number, kosten: number): boolean;
+  /** Der Manastand einer Figur. Negativ, wenn es sie nicht gibt. */
+  manaVon(id: number): number;
+  /** Der Lebensstand einer Figur. Negativ, wenn es sie nicht gibt. */
+  lebenVon(id: number): number;
   setAttackProfile(
     id: number,
     style: number,
@@ -404,6 +410,18 @@ export class CoreWorld {
    * Auf voller Gesundheit kommt null zurück — und dann bleibt der Trank im
    * Beutel, statt sich in nichts aufzulösen.
    */
+  verbrauchtMp(id: number, kosten: number): boolean {
+    return this.raw.verbrauchtMp(id, kosten);
+  }
+
+  manaVon(id: number): number {
+    return this.raw.manaVon(id);
+  }
+
+  lebenVon(id: number): number {
+    return this.raw.lebenVon(id);
+  }
+
   heal(id: number, hp: number, mp: number): number {
     return this.raw.heal(id, hp, mp);
   }

@@ -564,6 +564,45 @@ void testHeal() {
  * Abklingzeit); die laufen eine Sekunde nach dem letzten Schlag ab, und wer
  * dann neben einem angreifenden Keiler stand, heilte munter weiter.
  */
+/**
+ * Mana ausgeben — Prüfen und Abziehen in einem Zug.
+ *
+ * Der Anlass: der Server führte eine eigene Kopie des Manastands, prüfte
+ * gegen sie und zog von ihr ab. Der Kern regenerierte derweil die andere. Wer
+ * eine Fertigkeit anklickte, sah nichts passieren, weil die Kopie seit dem
+ * Laden auf null stand — während der Kern längst vollen Balken hatte.
+ */
+void testVerbrauchtMp() {
+  std::printf("Mana ausgeben\n");
+  aur::MobRegistry mobs;
+  aur::World world(4u, flatTerrain(), &mobs);
+  world.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+  world.setPlayerStats(1, 1, 100.0f, 50.0f, 10.0f, 0.0f, 6.0f, 0.0f, 0.0f);
+
+  aur::Entity* p = world.find(1);
+  p->mp = 30.0f;
+
+  check(world.verbrauchtMp(1, 10.0f), "genug Mana wird ausgegeben");
+  check(p->mp == 20.0f, "und der Stand sinkt genau um die Kosten");
+
+  // Die Gegenprobe, auf die es ankommt: zu teuer heisst **nichts** abziehen.
+  // Ein Abzug, der scheitert und trotzdem etwas kostet, wäre schlimmer als
+  // gar keine Prüfung.
+  check(!world.verbrauchtMp(1, 25.0f), "zu wenig Mana wird abgelehnt");
+  check(p->mp == 20.0f, "und dabei nichts abgezogen");
+
+  check(world.verbrauchtMp(1, 20.0f), "genau der Reststand geht noch");
+  check(p->mp == 0.0f, "und leert den Balken");
+
+  // Kostenlos geht immer — auch bei leerem Balken. Eine Fertigkeit ohne
+  // Kosten an null Mana scheitern zu lassen erwartet niemand.
+  check(world.verbrauchtMp(1, 0.0f), "was nichts kostet, geht auch ohne Mana");
+
+  p->state = aur::kStateDead;
+  check(!world.verbrauchtMp(1, 1.0f), "eine tote Figur gibt nichts aus");
+  check(!world.verbrauchtMp(999, 1.0f), "eine erfundene Kennung auch nicht");
+}
+
 void testRegeneration() {
   std::printf("Regeneration\n");
   aur::MobRegistry mobs;
@@ -857,6 +896,7 @@ int main() {
   testSculpt();
   testRangedAttack();
   testHeal();
+  testVerbrauchtMp();
   testRegeneration();
   testMoveSpeedFromStats();
   testAreaAttack();
