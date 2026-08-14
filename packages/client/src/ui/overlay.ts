@@ -31,6 +31,16 @@ const NAMEPLATE_RANGE = 48;
 const MAX_LOOT_LABELS = 12;
 const LOOT_LABEL_RANGE = 22;
 
+/**
+ * Wie lange eine Sprechblase über dem Kopf steht.
+ *
+ * Lang genug, um sie im Vorbeilaufen zu lesen, kurz genug, dass eine
+ * Unterhaltung nicht als Wand aus Blasen über der Wiese hängt. Der letzte
+ * Satz gilt: wer nachlegt, ersetzt seine eigene Blase, statt eine zweite
+ * danebenzustellen.
+ */
+const BLASE_MS = 5200;
+
 interface FloatingNumber {
   element: HTMLDivElement;
   x: number;
@@ -63,6 +73,16 @@ export class Overlay {
 
   private readonly projected = new THREE.Vector3();
 
+  /**
+   * Was gerade über wessen Kopf steht — Kennung des Wesens auf Text und Frist.
+   *
+   * Am **Wesen** und nicht am Namen: über einem Kopf steht der Figurenname,
+   * gesprochen wird unter dem Kontonamen, und zwei Figuren desselben Namens
+   * gibt es auf zwei Karten sehr wohl.
+   */
+  private readonly blasen = new Map<number, { text: string; bis: number }>();
+  private readonly blasenEls = new Map<number, HTMLDivElement>();
+
   constructor(host: HTMLElement) {
     this.element = document.createElement('div');
     this.element.className = 'overlay';
@@ -82,6 +102,81 @@ export class Overlay {
     this.element.appendChild(el);
     this.plates[index] = el;
     return el;
+  }
+
+  /**
+   * Lässt jemanden etwas sagen — sichtbar über seinem Kopf.
+   *
+   * Ohne Wesen keine Blase: eine Zeile aus dem Globalkanal kommt von jemandem,
+   * der drei Karten weiter steht, und über welchem Kopf sie stehen sollte,
+   * gibt es hier nicht zu entscheiden.
+   */
+  zeigeBlase(entityId: number, text: string): void {
+    if (entityId === 0 || text.length === 0) return;
+    this.blasen.set(entityId, { text, bis: performance.now() + BLASE_MS });
+  }
+
+  /**
+   * Schiebt die Sprechblasen an ihre Köpfe — je Bild.
+   *
+   * Getrennt von den Namensschildern, obwohl beides über demselben Kopf sitzt:
+   * Schilder sind gedeckelt und nach Entfernung sortiert, Blasen nicht. Wer
+   * spricht, soll zu sehen sein, auch als fünfundzwanzigster in der Menge —
+   * und die **eigene** Figur trägt eine, obwohl sie nie ein Schild bekommt.
+   */
+  updateSprechblasen(
+    camera: THREE.PerspectiveCamera,
+    entities: Iterable<EntityVisual>,
+    width: number,
+    height: number,
+  ): void {
+    const jetzt = performance.now();
+    for (const [id, blase] of this.blasen) {
+      if (blase.bis > jetzt) continue;
+      this.blasen.delete(id);
+      this.blasenEls.get(id)?.remove();
+      this.blasenEls.delete(id);
+    }
+    if (this.blasen.size === 0) return;
+
+    const gesehen = new Set<number>();
+    for (const e of entities) {
+      const blase = this.blasen.get(e.id);
+      if (!blase) continue;
+      gesehen.add(e.id);
+
+      let el = this.blasenEls.get(e.id);
+      if (!el) {
+        el = document.createElement('div');
+        el.className = 'sprechblase';
+        this.element.appendChild(el);
+        this.blasenEls.set(e.id, el);
+      }
+      if (el.textContent !== blase.text) el.textContent = blase.text;
+
+      // Über dem Namensschild, nicht darauf: das Schild sitzt bei +0,45 über
+      // dem Scheitel, die Blase eine gute Kopfhöhe darüber.
+      this.projected.set(e.x, e.y + e.height + 1.05, e.z).project(camera);
+      if (this.projected.z > 1) {
+        el.style.display = 'none';
+        continue;
+      }
+      el.style.display = '';
+      el.style.transform =
+        `translate(${(this.projected.x * 0.5 + 0.5) * width}px, ` +
+        `${(-this.projected.y * 0.5 + 0.5) * height}px) translate(-50%, -100%)`;
+      // Die letzte Sekunde blendet aus — ein Verschwinden ohne Übergang liest
+      // sich als Aussetzer der Anzeige.
+      const rest = blase.bis - jetzt;
+      el.style.opacity = String(Math.max(0, Math.min(1, rest / 900)));
+    }
+
+    // Wer aus dem Bild gelaufen ist, hat keine Lage mehr — seine Blase auch
+    // nicht. Sie bleibt in der Liste stehen und kommt wieder, wenn er wieder
+    // auftaucht; nur zu sehen ist sie in der Zwischenzeit nicht.
+    for (const [id, el] of this.blasenEls) {
+      if (!gesehen.has(id)) el.style.display = 'none';
+    }
   }
 
   /**

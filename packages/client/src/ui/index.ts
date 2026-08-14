@@ -164,6 +164,19 @@ const CHAT_HISTORY = 120;
 const CHAT_FLASH_MS = 6000;
 
 
+/**
+ * Die Kanäle, zwischen denen der Knopf durchschaltet.
+ *
+ * Reihenfolge = Reichweite: erst die Umgebung, dann die Karte, dann alle. Der
+ * Schlüssel `stil` steht auch am Element und färbt Knopf wie Zeile — eine
+ * Farbe für einen Kanal, an beiden Orten dieselbe.
+ */
+const CHAT_KANAELE = [
+  { wert: ChatChannel.Say, name: 'Umgebung', stil: 'say' },
+  { wert: ChatChannel.Shout, name: 'Karte', stil: 'shout' },
+  { wert: ChatChannel.Global, name: 'Global', stil: 'global' },
+] as const;
+
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   className?: string,
@@ -218,7 +231,13 @@ function bar(kind: 'hp' | 'mp' | 'exp'): { root: HTMLDivElement; fill: HTMLDivEl
 export class UI {
   readonly overlay: Overlay;
 
-  onChatSubmit?: (text: string) => void;
+  /**
+   * Eine getippte Zeile — mit dem Kanal, in dem sie stehen soll.
+   *
+   * Wie weit der trägt, entscheidet der Server. Der Client sagt nur, was
+   * gemeint war.
+   */
+  onChatSubmit?: (text: string, kanal: number) => void;
   onRespawn?: () => void;
   onAttackHold?: (held: boolean) => void;
   /** Der Sprungknopf auf dem Telefon. Dasselbe wie die Leertaste. */
@@ -292,6 +311,11 @@ export class UI {
   private readonly chat: HTMLElement;
   private readonly chatLog: HTMLElement;
   private readonly chatInput: HTMLInputElement;
+  private readonly chatKanal: HTMLButtonElement;
+  private readonly ansage: HTMLDivElement;
+  private ansageFrist = 0;
+  /** In welchen Kanal das Getippte geht. */
+  private kanal: number = ChatChannel.Say;
   /** Auf Touchgeräten eingeklappt; am Schreibtisch immer offen. */
   private chatOpen: boolean;
   private chatFade?: ReturnType<typeof setTimeout>;
@@ -487,6 +511,23 @@ export class UI {
     this.chatOpen = !touch;
     this.chat.dataset.open = String(this.chatOpen);
     this.chatLog = el('div', 'chat-log panel');
+    /*
+     * Wohin gesprochen wird — Umgebung, Karte oder global.
+     *
+     * Ein Knopf, der durchschaltet, und kein Auswahlfeld: es sind drei
+     * Möglichkeiten, und ein Auswahlfeld auf dem Telefon macht daraus ein
+     * Systemmenü über dem halben Bild. Die Farbe des Knopfes ist dieselbe wie
+     * die der Zeilen dieses Kanals — damit ist auch ohne Lesen klar, wo das
+     * Getippte landet.
+     */
+    this.chatKanal = el('button', 'chat-kanal');
+    this.chatKanal.type = 'button';
+    this.chatKanal.addEventListener('click', () => {
+      const i = CHAT_KANAELE.findIndex((k) => k.wert === this.kanal);
+      this.setzeKanal(CHAT_KANAELE[(i + 1) % CHAT_KANAELE.length]!.wert);
+      this.chatInput.focus();
+    });
+
     this.chatInput = el('input', 'chat-input');
     this.chatInput.type = 'text';
     this.chatInput.placeholder = 'Nachricht … (Enter)';
@@ -500,12 +541,24 @@ export class UI {
       if (e.key !== 'Enter') return;
       const text = this.chatInput.value.trim();
       this.chatInput.value = '';
-      if (text) this.onChatSubmit?.(text);
+      // Der Kanal reist mit. Ein Befehl geht trotzdem als Befehl durch — was
+      // mit einem Schrägstrich beginnt, liest der Server als solchen, egal in
+      // welchem Kanal es abgeschickt wurde.
+      if (text) this.onChatSubmit?.(text, this.kanal);
       // Auf dem Telefon zurück ins Spiel: Tastatur weg, Sicht frei.
       this.setChatOpen(false);
       e.stopPropagation();
     });
-    this.chat.append(this.chatLog, this.chatInput);
+    const chatZeile = el('div', 'chat-zeile');
+    chatZeile.append(this.chatKanal, this.chatInput);
+    this.chat.append(this.chatLog, chatZeile);
+
+    // Die Ansage liegt über allem und fängt nichts ab — sie ist Anzeige und
+    // kein Bedienelement.
+    this.ansage = el('div', 'ansage');
+    this.ansage.dataset.sichtbar = '0';
+    host.appendChild(this.ansage);
+    this.setzeKanal(ChatChannel.Say);
     host.appendChild(this.chat);
 
     // --- NPC-Fenster ------------------------------------------------------
@@ -1396,10 +1449,40 @@ export class UI {
     this.deathScreen.dataset.visible = String(dead);
   }
 
+  /** Stellt den Kanal ein, in den das Getippte geht. */
+  private setzeKanal(wert: number): void {
+    const kanal = CHAT_KANAELE.find((k) => k.wert === wert) ?? CHAT_KANAELE[0];
+    this.kanal = kanal.wert;
+    this.chatKanal.textContent = kanal.name;
+    this.chatKanal.dataset.kanal = kanal.stil;
+    this.chatKanal.title = 'Kanal wechseln — Umgebung, Karte, Global';
+    this.chatInput.placeholder = `${kanal.name} … (Enter)`;
+  }
+
+  /**
+   * Eine Ansage der Spielleitung — gross, rot, im oberen Bilddrittel.
+   *
+   * Nicht im Chatfenster: dort steht sie zwischen „Kleiner Heiltrank benutzt"
+   * und scrollt in zehn Sekunden weg. Eine Ansage soll man nicht übersehen
+   * können, und genau deshalb steht sie da, wo sonst nichts steht.
+   */
+  zeigeAnsage(text: string): void {
+    this.ansage.textContent = text;
+    this.ansage.dataset.sichtbar = '1';
+    window.clearTimeout(this.ansageFrist);
+    // Acht Sekunden: lang genug für zwei Sätze, kurz genug, dass sie einem
+    // nicht im Kampf im Weg steht.
+    this.ansageFrist = window.setTimeout(() => {
+      this.ansage.dataset.sichtbar = '0';
+    }, 8000);
+  }
+
   addChat(channel: number, from: string, text: string): void {
     const line = el('div', 'chat-line');
     line.dataset.channel =
-      channel === ChatChannel.System ? 'system' : channel === ChatChannel.Shout ? 'shout' : 'say';
+      channel === ChatChannel.System
+        ? 'system'
+        : (CHAT_KANAELE.find((k) => k.wert === channel)?.stil ?? 'say');
 
     if (from) {
       const who = el('span', 'who', `${from}: `);
@@ -2282,6 +2365,7 @@ export class UI {
       height,
       this.questMarks,
     );
+    this.overlay.updateSprechblasen(camera, entities, width, height);
     this.overlay.updateZielrahmen(camera, ziel.entity, ziel.kampf, width, height);
     if (loot) {
       this.overlay.updateLootLabels(camera, loot.piles, loot.label, width, height);

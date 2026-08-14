@@ -24,6 +24,7 @@
 import * as THREE from 'three';
 import { CoreButton, type CoreEntityRow, type CoreWorld } from '@aurelith/core';
 import {
+  ChatChannel,
   normalisiereLeiste,
   type InventoryRow,
   angleDelta,
@@ -588,7 +589,7 @@ export class Game {
       this.connection?.sendEnterWorld(id);
     };
 
-    this.ui.onChatSubmit = (text) => this.onChatInput(text);
+    this.ui.onChatSubmit = (text, kanal) => this.onChatInput(text, kanal);
     this.ui.onRespawn = () => this.connection?.sendRespawn();
     this.ui.onEquipItem = (slot) => this.connection?.sendEquipItem(slot);
     this.ui.onUpgradeItem = (slot) => this.connection?.sendUpgradeItem(slot);
@@ -1313,7 +1314,18 @@ export class Game {
 
       onQuestLog: (rows) => this.ui.setQuests(rows),
 
-      onChat: (msg) => this.ui.addChat(msg.channel, msg.from, msg.text),
+      onChat: (msg) => {
+        // Eine Ansage ist keine Chatzeile. Sie steht gross im Bild und nicht
+        // im Fenster — siehe `zeigeAnsage`.
+        if (msg.channel === ChatChannel.Ansage) {
+          this.ui.zeigeAnsage(msg.text);
+          return;
+        }
+        this.ui.addChat(msg.channel, msg.from, msg.text);
+        // Und über dem Kopf dessen, der es gesagt hat. Wer auf einer anderen
+        // Karte steht, hat hier kein Wesen — dann bleibt es bei der Zeile.
+        this.ui.overlay.zeigeBlase(msg.entityId, msg.text);
+      },
 
       // Die Antwort auf `/version`. Beide Zeilen entstehen hier, mit derselben
       // Formatierung — die eine aus dem, was der Server geschickt hat, die
@@ -1496,9 +1508,9 @@ export class Game {
    * ausgelieferten Seite sonst beim Bauen eingebacken waere — fuer jede andere
    * Adresse muesste neu gebaut und veroeffentlicht werden.
    */
-  private onChatInput(text: string): void {
+  private onChatInput(text: string, kanal: number = ChatChannel.Say): void {
     if (!text.startsWith('/')) {
-      this.connection?.sendChat(text);
+      this.connection?.sendChat(text, kanal);
       return;
     }
 

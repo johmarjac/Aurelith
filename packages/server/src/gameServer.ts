@@ -24,6 +24,7 @@ import {
   EntityState,
   EntityType,
   FrameError,
+  CHAT_RADIUS,
   INTEREST_RADIUS,
   KickReason,
   MOBS,
@@ -1207,8 +1208,14 @@ export class GameServer {
     x: number,
     z: number,
     packet: Uint8Array,
+    /**
+     * Wie weit. Ohne Angabe so weit, wie man sieht — das passt für alles, was
+     * man **sieht**: Treffer, Funken, Gesten. Für alles, was man **hört**,
+     * gehört eine kürzere Zahl hin.
+     */
+    radius = INTEREST_RADIUS,
   ): void {
-    const radiusSq = INTEREST_RADIUS * INTEREST_RADIUS;
+    const radiusSq = radius * radius;
     for (const playerId of instance.playerIds) {
       const session = this.sessionByEntity.get(playerId);
       if (!session || session.state !== 'playing') continue;
@@ -2388,14 +2395,40 @@ export class GameServer {
     const instance = this.instances.get(session.mapId);
     if (!instance) return;
 
+    /*
+     * Drei Reichweiten, eine Nachricht.
+     *
+     * Der Client sagt, welchen Kanal er meint; **wie weit** der trägt,
+     * entscheidet ausschliesslich diese Stelle. Ein Client, der „global"
+     * behauptet und dabei eine Umgebungsnachricht meint, ändert daran nichts —
+     * und ein Client, der etwas Unbekanntes schickt, redet in die Umgebung.
+     */
+    const kanal =
+      channel === ChatChannel.Shout || channel === ChatChannel.Global
+        ? channel
+        : ChatChannel.Say;
+
+    // Die eigene Kennung reist mit: über diesem Kopf erscheint die Blase. Wer
+    // auf einer anderen Karte steht, hat für den Empfänger kein Wesen — dann
+    // bleibt die Blase weg und es steht nur die Zeile im Fenster.
     const packet = encodeServerChat({
-      channel: channel === ChatChannel.Shout ? ChatChannel.Shout : ChatChannel.Say,
+      channel: kanal,
       from: session.accountName,
       text: trimmed,
+      entityId: session.entityId,
     });
 
-    // Rufen erreicht die ganze Map, Reden nur die Umgebung.
-    if (channel === ChatChannel.Shout) {
+    if (kanal === ChatChannel.Global) {
+      // Jeder auf diesem Spielserver, über alle Karten hinweg. Das ist der
+      // Kanal im Sinne der Kanalliste: wer hier zuhört, hat sich mit
+      // demselben Prozess verbunden.
+      for (const andere of this.sessions) {
+        if (andere.state === 'playing') andere.send(packet);
+      }
+      return;
+    }
+
+    if (kanal === ChatChannel.Shout) {
       for (const playerId of instance.playerIds) {
         this.sessionByEntity.get(playerId)?.send(packet);
       }
@@ -2403,7 +2436,31 @@ export class GameServer {
     }
 
     const row = instance.entity(session.entityId);
-    if (row) this.broadcastNear(instance, row.x, row.z, packet);
+    if (row) this.broadcastNear(instance, row.x, row.z, packet, CHAT_RADIUS);
+  }
+
+  /**
+   * Eine Ansage an alle — der Befehl `/sys`.
+   *
+   * Geht an jeden auf diesem Spielserver und landet nicht im Chatfenster,
+   * sondern gross im oberen Bilddrittel. Deshalb eine eigene Sorte und kein
+   * Kanal: eine Ansage, die man wegscrollen kann, ist keine.
+   */
+  ansage(text: string): number {
+    const packet = encodeServerChat({
+      channel: ChatChannel.Ansage,
+      from: '',
+      text,
+      entityId: 0,
+    });
+    let erreicht = 0;
+    for (const session of this.sessions) {
+      if (session.state !== 'playing') continue;
+      session.send(packet);
+      session.flush();
+      erreicht++;
+    }
+    return erreicht;
   }
 
   /**
@@ -2422,7 +2479,7 @@ export class GameServer {
   }
 
   systemMessage(session: Session, text: string): void {
-    session.send(encodeServerChat({ channel: ChatChannel.System, from: '', text }));
+    session.send(encodeServerChat({ channel: ChatChannel.System, from: '', text, entityId: 0 }));
   }
 
   /** Grundwerte der Stufe plus Boni der angelegten Ausrüstung. */

@@ -19,6 +19,19 @@ export const SNAPSHOT_TICK_DIVISOR = 2;
 /** Sichtweite, ab der ein Entity für einen Spieler relevant ist. */
 export const INTEREST_RADIUS = 140;
 
+/**
+ * Wie weit der Umgebungschat trägt, in Weltenheiten.
+ *
+ * Deutlich kürzer als der Sichtradius, und das ist der Punkt: gesehen wird
+ * über das halbe Dorf, gehört wird ein paar Schritte weit. Vorher galt für
+ * beides dieselbe Zahl — damit war „Umgebung" praktisch dasselbe wie „Karte",
+ * und der Unterschied zwischen den Kanälen stand nur im Namen.
+ *
+ * Fünfundzwanzig Einheiten sind etwa der Platz vor dem Brunnen: wer dort
+ * steht, ist im Gespräch; wer am Ortsrand steht, nicht.
+ */
+export const CHAT_RADIUS = 25;
+
 /** Mehr Inputs als das puffert der Server pro Spieler nicht. */
 export const MAX_INPUT_BACKLOG = 32;
 

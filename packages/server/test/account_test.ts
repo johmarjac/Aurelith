@@ -112,11 +112,16 @@ check(
 console.log('\nBefehle');
 
 const gesagt: string[] = [];
+const ansagen: string[] = [];
 let gutgeschrieben = 0;
 const wirt: CommandHost = {
   systemMessage: (_s, text) => gesagt.push(text),
   giveGold: (_s, menge) => {
     gutgeschrieben += menge;
+  },
+  ansage: (text) => {
+    ansagen.push(text);
+    return 3;
   },
 };
 
@@ -150,6 +155,29 @@ for (const eingabe of ['/gg', '/gg null', '/gg -5', '/gg 1.5', '/gg 99999999']) 
   runCommand(wirt, sitzung(AccessLevel.Admin), eingabe);
   check(gutgeschrieben === 0, `„${eingabe}" schreibt nichts gut`);
 }
+
+// --- Ansagen ---------------------------------------------------------------
+
+gesagt.length = 0;
+ansagen.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Player), '/sys Serverneustart in 5 Minuten');
+check(ansagen.length === 0, 'ein Spieler macht keine Ansage');
+
+runCommand(wirt, sitzung(AccessLevel.Gamemaster), '/sys Serverneustart in 5 Minuten');
+check(
+  ansagen[0] === 'Serverneustart in 5 Minuten',
+  'ein Spielleiter schon — und zwar mit der ganzen Zeile',
+  ansagen[0] ?? '(nichts)',
+);
+check(
+  gesagt.some((t) => t.includes('3 Spieler')),
+  'und erfährt, wen sie erreicht hat',
+  gesagt.join(' | '),
+);
+
+ansagen.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Admin), '/sys');
+check(ansagen.length === 0, 'eine leere Ansage geht nicht raus');
 
 gesagt.length = 0;
 check(runCommand(wirt, sitzung(AccessLevel.Admin), '/unfug'), 'ein unbekannter Befehl gilt als erledigt');

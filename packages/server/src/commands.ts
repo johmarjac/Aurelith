@@ -26,6 +26,11 @@ export interface CommandHost {
   systemMessage(session: Session, text: string): void;
   /** Schreibt Gold gut und schickt die neuen Werte. */
   giveGold(session: Session, amount: number): void;
+  /**
+   * Eine Ansage an alle auf diesem Spielserver. Gibt zurück, wen sie erreicht
+   * hat — der Absender soll sehen, ob sie angekommen ist.
+   */
+  ansage(text: string): number;
 }
 
 export interface CommandDef {
@@ -54,6 +59,27 @@ export const COMMANDS: readonly CommandDef[] = [
       }
       host.giveGold(session, menge);
       host.systemMessage(session, `${menge} Gold gutgeschrieben.`);
+    },
+  },
+  {
+    name: 'sys',
+    minLevel: AccessLevel.Gamemaster,
+    hilfe: '/sys <text> — Ansage an alle auf diesem Kanal (ab Spielleiter)',
+    run(host, session, args) {
+      /*
+       * Der ganze Rest der Zeile ist die Nachricht.
+       *
+       * `args` ist an Leerzeichen zerlegt — wieder zusammengesetzt steht hier
+       * genau das, was getippt wurde, nur mit einfachen Abständen. Das ist
+       * gewollt: eine Ansage mit fünf Leerzeichen am Stück ist ein Versehen.
+       */
+      const text = args.join(' ').trim().slice(0, 200);
+      if (text.length === 0) {
+        host.systemMessage(session, 'Erwartet: /sys <text>.');
+        return;
+      }
+      const erreicht = host.ansage(text);
+      host.systemMessage(session, `Ansage an ${erreicht} Spieler geschickt.`);
     },
   },
 ];

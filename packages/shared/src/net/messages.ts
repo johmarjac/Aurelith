@@ -181,6 +181,18 @@ export interface ChatMsg {
   channel: number;
   from: string;
   text: string;
+  /**
+   * Wer gesprochen hat — die Kennung des Wesens in der Welt.
+   *
+   * Null heisst: niemand in der Welt. So kommen Systemzeilen und Ansagen
+   * daher, und auch die Zeile eines Spielers, der auf einer anderen Karte
+   * steht — dort gibt es kein Wesen, über dessen Kopf eine Blase passte.
+   *
+   * Der Name allein taugt dafür nicht: über einem Kopf steht der Figurenname,
+   * gesprochen wird unter dem Kontonamen, und zwei Figuren desselben Namens
+   * gibt es auf zwei Karten sehr wohl.
+   */
+  entityId: number;
 }
 
 export function encodeClientChat(channel: number, text: string): Uint8Array {
@@ -730,11 +742,16 @@ export function decodeCombatEvent(r: ByteReader): CombatEventMsg {
 }
 
 export function encodeServerChat(m: ChatMsg): Uint8Array {
-  return packet(ServerOp.Chat, 320).u8(m.channel).str(m.from).str(m.text).finish();
+  return packet(ServerOp.Chat, 320)
+    .u8(m.channel)
+    .str(m.from)
+    .str(m.text)
+    .u32(m.entityId)
+    .finish();
 }
 
 export function decodeServerChat(r: ByteReader): ChatMsg {
-  return { channel: r.u8(), from: r.str(), text: r.str() };
+  return { channel: r.u8(), from: r.str(), text: r.str(), entityId: r.u32() };
 }
 
 export function encodePong(clientTime: number, serverTime: number): Uint8Array {

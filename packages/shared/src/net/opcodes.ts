@@ -7,7 +7,7 @@
  * ändert, zählt PROTOCOL_VERSION hoch.
  */
 
-export const PROTOCOL_VERSION = 14;
+export const PROTOCOL_VERSION = 15;
 
 export const ClientOp = {
   Hello: 0x01,
@@ -179,12 +179,35 @@ export const InputButton = {
   Sit: 1 << 3,
 } as const;
 
+/*
+ * Die Kanäle des Chats — und wie weit sie tragen.
+ *
+ * Die Reichweite ist der ganze Unterschied, und sie steigt von oben nach
+ * unten: die Umgebung hört ein paar Schritte weit, die Karte hört, wer auf
+ * derselben Karte steht, und global hört jeder auf diesem Spielserver.
+ *
+ * `Say` und `Shout` heissen so, weil sie im Protokoll seit der ersten Fassung
+ * so heissen — Nummern werden nie neu belegt. Im Fenster stehen sie als
+ * „Umgebung" und „Karte".
+ */
 export const ChatChannel = {
   System: 0,
+  /** Umgebung — wer in Hörweite steht. */
   Say: 1,
+  /** Karte — jeder auf derselben Karte. */
   Shout: 2,
   Whisper: 3,
   Party: 4,
+  /** Global — jeder, der mit diesem Kanal verbunden ist, über alle Karten. */
+  Global: 5,
+  /**
+   * Eine Ansage der Spielleitung.
+   *
+   * Kein Kanal zum Hineinschreiben, sondern eine Sorte Nachricht: sie steht
+   * nicht im Chatfenster, sondern gross und rot im oberen Bilddrittel. Wer sie
+   * schicken darf, entscheidet der Befehl `/sys`.
+   */
+  Ansage: 6,
 } as const;
 export type ChatChannel = (typeof ChatChannel)[keyof typeof ChatChannel];
 

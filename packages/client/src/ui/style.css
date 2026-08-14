@@ -2224,8 +2224,135 @@ body.aktion-zuweisen .action-slot {
   color: var(--ink-dim);
 }
 
+/*
+ * Eine Farbe je Reichweite — und dieselbe am Knopf.
+ *
+ * Umgebung bleibt in der Grundfarbe: das ist der Regelfall, und ein Chat, in
+ * dem jede Zeile bunt ist, hat keine Hervorhebung mehr. Karte ist warm,
+ * global ist kühl — je weiter es trägt, desto kälter.
+ */
+.chat-line[data-channel='shout'] {
+  color: #f0c07a;
+}
+
 .chat-line[data-channel='shout'] .who {
-  color: var(--danger);
+  color: #f0c07a;
+}
+
+.chat-line[data-channel='global'] {
+  color: #8fd3e8;
+}
+
+.chat-line[data-channel='global'] .who {
+  color: #8fd3e8;
+}
+
+/* Die Zeile mit Kanalknopf und Eingabefeld. */
+.chat-zeile {
+  display: flex;
+  gap: 0.3rem;
+  align-items: stretch;
+}
+
+/*
+ * Der Kanalknopf.
+ *
+ * Schmal und in der Farbe seines Kanals: er sagt beim Hinsehen, wohin das
+ * Getippte geht. Ohne diese Auskunft schreibt man früher oder später etwas
+ * global, das für die Umstehenden gedacht war.
+ */
+.chat-kanal {
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0 0.5rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--panel-edge);
+  background: var(--panel-dunkel);
+  color: var(--ink-hell);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chat-kanal[data-kanal='shout'] {
+  color: #f0c07a;
+  border-color: #8a6a34;
+}
+
+.chat-kanal[data-kanal='global'] {
+  color: #8fd3e8;
+  border-color: #3c6b7d;
+}
+
+/*
+ * Die Sprechblase über dem Kopf.
+ *
+ * Sie sagt dasselbe wie die Zeile im Fenster — und trotzdem ist sie das
+ * Wichtigere: im Kampf sieht man auf die Figuren und nicht in die untere
+ * linke Ecke. Ohne sie merkt man nicht, dass jemand neben einem etwas gesagt
+ * hat.
+ */
+.sprechblase {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: 16rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.7rem;
+  background: rgba(28, 20, 13, 0.92);
+  border: 1px solid var(--panel-edge);
+  color: var(--ink-hell);
+  font-size: 0.78rem;
+  line-height: 1.3;
+  text-align: center;
+  word-break: break-word;
+  pointer-events: none;
+  /* Der Zipfel nach unten, zum Kopf hin. */
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.55));
+}
+
+.sprechblase::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -0.32rem;
+  transform: translateX(-50%);
+  border-left: 0.32rem solid transparent;
+  border-right: 0.32rem solid transparent;
+  border-top: 0.34rem solid rgba(28, 20, 13, 0.92);
+}
+
+/*
+ * Die Ansage der Spielleitung.
+ *
+ * Im oberen Bilddrittel, mittig, rot. Sie liegt über allem und fängt nichts
+ * ab: man soll sie lesen, nicht bedienen. Und sie steht dort, wo sonst nichts
+ * steht — im Chatfenster wäre sie eine Zeile unter „Trank benutzt".
+ */
+.ansage {
+  position: fixed;
+  top: 22%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 45;
+  max-width: min(90vw, 40rem);
+  text-align: center;
+  font-size: clamp(1.1rem, 3.2vw, 1.8rem);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #ff6a5a;
+  text-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.95),
+    0 0 18px rgba(255, 60, 40, 0.35);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 250ms ease-out;
+}
+
+.ansage[data-sichtbar='1'] {
+  opacity: 1;
 }
 
 .chat-input {
