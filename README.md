@@ -613,10 +613,20 @@ hinterlegt ist — sonst lädt es sie gar nicht erst und sagt „Die Domain dies
 URL ist nicht in den Domains der App vorhanden". Zwei Felder unter
 Einstellungen → Allgemein:
 
-- **App-Domains**: die Domain des Anmeldeservers, nur der Name, ohne `https://`
-  und ohne Pfad.
-- ganz unten **+ Plattform hinzufügen → Website** mit derselben Domain als
-  Site-URL. Ohne eine Plattform nimmt Facebook die App-Domain nicht an.
+- ganz unten **+ Plattform hinzufügen → Website** mit `https://<domain>/` als
+  Site-URL.
+- **App-Domains**: dieselbe Domain, nur der Name, ohne `https://` und ohne
+  Pfad.
+
+In dieser Reihenfolge, und das ist keine Kosmetik: ohne Plattform nimmt das
+Formular die App-Domain zwar entgegen und meldet „gespeichert", verwirft sie
+aber — nach dem Neuladen der Seite steht das Feld wieder leer.
+
+Ob Facebook die Rückadresse am Ende akzeptiert, muss man nicht raten: unter
+**Facebook Login → Einstellungen** steht neben der Liste der gültigen
+Redirect-URIs ein Prüffeld, in das sich die volle Adresse einfügen lässt. Es
+antwortet mit Ja oder Nein — und bei neueren Apps hängt die Meldung über die
+fehlende Domain ohnehin an dieser Liste und nicht an den App-Domains.
 
 Gemeint ist dabei immer die Domain, auf der der **Anmeldeserver** steht, und
 nicht die des Clients. Zurückgeschickt wird an `/auth/facebook/callback`, und
