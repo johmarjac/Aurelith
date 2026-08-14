@@ -624,6 +624,14 @@ nur diese Adresse sieht Facebook — dass der Client auf GitHub Pages liegt, geh
 den Anbieter nichts an. Wohin es von dort aus weitergeht, entscheidet allein
 `AURELITH_ANMELDE_ZIELE`.
 
+Beides gehört in die **Haupt-App**, auch wenn zum Ausprobieren eine Test-App
+danebensteht: die erbt Plattformen und App-Domains und lässt sie nicht
+bearbeiten — das Häkchen für die Website ist dort grau. Zum Ausprobieren
+braucht es sie ohnehin nicht, denn die Haupt-App im Entwicklungsmodus lässt
+genau dieselben Leute herein: Administratoren, Entwickler und Tester. Wer
+trotzdem eine nimmt, muss daran denken, dass sie eine **eigene** App-ID und ein
+eigenes Geheimnis hat.
+
 Der Ablauf ist bei beiden derselbe und läuft über HTTP, nicht über den
 Spiel-WebSocket: der Browser muss zum Anbieter und zurück, und das kann eine
 Spielverbindung nicht für ihn tun. Am Ende bekommt der Client eine
