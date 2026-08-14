@@ -215,6 +215,43 @@ check(
 );
 
 /*
+ * Der Rollbalken des Beutels — gemessen, nicht angesehen.
+ *
+ * Angesehen ginge auch nicht: headless malt Chromium überhaupt keine
+ * Rollbalken in ein Bildschirmfoto, ein knallroter wäre dort genauso
+ * unsichtbar wie ein hölzerner. Messbar ist er trotzdem.
+ *
+ * Zehn Bildpunkte statt der fünfzehn des Browsers heisst: unsere
+ * `::-webkit-scrollbar`-Regel gilt. Und `scrollbar-color: auto` ist die
+ * eigentliche Prüfung — sobald jemand die genormte Eigenschaft wieder global
+ * setzt, lässt Chromium sämtliche `::-webkit-scrollbar`-Regeln fallen und malt
+ * den Balken in zwei flachen Farben. Genau so ist diese Gestaltung beim ersten
+ * Anlauf ins Leere gelaufen, und zwar lautlos: beide Blöcke standen da, einer
+ * hebelte den anderen aus.
+ */
+const rollbalken = await page.evaluate(() => {
+  const g = document.querySelector('.inventory-grid');
+  const cs = getComputedStyle(g);
+  return {
+    breite: g.offsetWidth - g.clientWidth,
+    farbe: cs.scrollbarColor,
+    luft: cs.paddingRight,
+  };
+});
+check(
+  rollbalken.breite === 10,
+  `der Beutel hat unseren Rollbalken (${rollbalken.breite} px statt 15)`,
+);
+check(
+  rollbalken.farbe === 'auto',
+  `und keine scrollbar-color, die ihn wieder abschaltet (${rollbalken.farbe})`,
+);
+check(
+  parseFloat(rollbalken.luft) > 0,
+  `zwischen Fächern und Balken ist Luft (${rollbalken.luft})`,
+);
+
+/*
  * Die Startausrüstung ist knapp: zehn Tränke im Beutel, dazu ein Holzschwert
  * und eine Übungsweste — beide **angelegt**, also nicht im Beutel, sondern auf
  * den Kästchen um die Figur.
