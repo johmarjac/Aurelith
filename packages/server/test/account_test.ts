@@ -183,6 +183,7 @@ const gesagt: string[] = [];
 const ansagen: string[] = [];
 const stufenrufe: Array<{ name: string; stufe: AccessLevel }> = [];
 const levelrufe: Array<{ figur: string; level: number }> = [];
+const tprufe: string[] = [];
 let gutgeschrieben = 0;
 const wirt: CommandHost = {
   systemMessage: (_s, text) => gesagt.push(text),
@@ -196,6 +197,13 @@ const wirt: CommandHost = {
   setzeStufe: (_s, name, stufe) => {
     stufenrufe.push({ name, stufe });
   },
+  teleportiere: (_s, mapId) => {
+    tprufe.push(mapId);
+    // „Es gibt sie" — welche Karten der Kanal führt, weiss der Server. Hier
+    // geht es um das, was **vor** ihm passiert.
+    return mapId !== 'gibtsnicht';
+  },
+  kartenListe: () => ['dornwald', 'gruft_01', 'lichtmoor'],
   setzeLevel: (_s, figur, level) => {
     levelrufe.push({ figur, level });
     // „Es gibt sie" — die Suche nach der Figur prüft der Server, nicht die
@@ -371,6 +379,36 @@ check(
 levelrufe.length = 0;
 runCommand(wirt, sitzung(AccessLevel.Player), '/level 30');
 check(levelrufe.length === 0, 'und ein gewöhnlicher Spieler setzt gar keine Stufe');
+
+/*
+ * `/tp` — eine Karte, sonst nichts.
+ *
+ * Die Absage bei einem unbekannten Namen nennt die Karten, die es gibt. Sich
+ * an einem Kartennamen zu vertippen ist der Normalfall; eine Absage ohne
+ * Liste lässt einen dabei genauso ratlos zurück wie vorher.
+ */
+gesagt.length = 0;
+tprufe.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Gamemaster), '/tp dornwald');
+check(tprufe.length === 1 && tprufe[0] === 'dornwald', 'ein Spielleiter darf sich versetzen');
+
+gesagt.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Gamemaster), '/tp gibtsnicht');
+check(
+  gesagt.some((t) => t.includes('lichtmoor')),
+  'eine unbekannte Karte wird mit der Liste beantwortet',
+  gesagt[0] ?? '(stumm)',
+);
+
+gesagt.length = 0;
+tprufe.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Gamemaster), '/tp');
+check(tprufe.length === 0, 'ohne Karte passiert nichts');
+check(gesagt.some((t) => t.includes('Erwartet')), 'und der Befehl sagt, was er erwartet');
+
+tprufe.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Player), '/tp dornwald');
+check(tprufe.length === 0, 'ein gewöhnlicher Spieler versetzt sich nicht');
 
 // ---------------------------------------------------------------------------
 // Über das Protokoll

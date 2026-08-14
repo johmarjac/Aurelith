@@ -1290,6 +1290,31 @@ export class GameServer {
       return;
     }
 
+    this.versetze(session, to, portal.target);
+  }
+
+  /**
+   * Setzt eine Figur auf eine andere Karte — der eigentliche Wechsel.
+   *
+   * Getrennt vom Tor, weil es zwei Anlässe gibt: durchgehen und `/tp`. Was
+   * dabei zu tun ist, ist beide Male dasselbe und alles andere als wenig —
+   * Entity umziehen, Kennung tauschen, Eingaben verwerfen, Willkommen und
+   * Kartenwechsel schicken. Zweimal geschrieben wäre es zweimal zu pflegen,
+   * und die vergessene Hälfte wäre die, bei der jemand im Nichts steht.
+   *
+   * Die **Stufensperre** gehört nicht hierher, sondern ans Tor: sie ist eine
+   * Eigenschaft des Weges und nicht des Wechsels. `/tp` steht Spielleitern zu
+   * und fragt deshalb zu Recht nicht danach.
+   */
+  private versetze(
+    session: Session,
+    to: MapInstance,
+    ziel: { x: number; z: number; yaw: number },
+  ): void {
+    const from = this.instances.get(session.mapId);
+    const character = session.character;
+    if (!from || !character) return;
+
     // Zustand aus der alten Welt retten, bevor das Entity dort verschwindet.
     const row = from.entity(session.entityId);
     const hp = row?.hp ?? character.hp;
@@ -1312,9 +1337,9 @@ export class GameServer {
     to.world.spawnPlayer({
       id: session.entityId,
       level: character.level,
-      x: portal.target.x,
-      z: portal.target.z,
-      yaw: portal.target.yaw,
+      x: ziel.x,
+      z: ziel.z,
+      yaw: ziel.yaw,
       hp,
       maxHp: stats.maxHp,
       mp: character.mp,
@@ -1336,11 +1361,11 @@ export class GameServer {
     this.sessionByEntity.set(session.entityId, session);
 
     character.mapId = to.doc.id;
-    character.x = portal.target.x;
-    character.z = portal.target.z;
-    character.yaw = portal.target.yaw;
+    character.x = ziel.x;
+    character.z = ziel.z;
+    character.yaw = ziel.yaw;
 
-    const spawnY = to.world.heightAt(portal.target.x, portal.target.z);
+    const spawnY = to.world.heightAt(ziel.x, ziel.z);
     session.send(
       encodeWelcome({
         protocolVersion: PROTOCOL_VERSION,
@@ -1356,10 +1381,10 @@ export class GameServer {
     session.send(
       encodeMapChange({
         mapId: to.doc.id,
-        x: portal.target.x,
+        x: ziel.x,
         y: spawnY,
-        z: portal.target.z,
-        yaw: portal.target.yaw,
+        z: ziel.z,
+        yaw: ziel.yaw,
       }),
     );
     this.systemMessage(session, `${to.doc.name} betreten.`);
@@ -2393,6 +2418,37 @@ export class GameServer {
       // Charakterfenster und niemand sieht nach.
       this.systemMessage(session, `${offen} Punkt(e) zu verteilen — im Charakterfenster (C).`);
     }
+  }
+
+  /**
+   * Versetzt eine Figur auf eine andere Karte — für `/tp`.
+   *
+   * Abgesetzt wird am **Startpunkt** der Karte, also dort, wo eine neue Figur
+   * erscheint. Der steht in der Kartendatei, ist damit im Editor zu verschieben
+   * und per Konstruktion begehbar — anders als die eigene Lage, die auf einer
+   * kleineren Karte im Berg oder ausserhalb liegen kann.
+   *
+   * Gibt zurück, ob es die Karte gibt. Der Befehl nennt sonst die, die es
+   * gibt: sich an einem Kartennamen zu vertippen ist der Normalfall, und eine
+   * Absage ohne Liste hilft dabei niemandem.
+   */
+  teleportiere(session: Session, mapId: string): boolean {
+    const to = this.instances.get(mapId.trim().toLowerCase());
+    if (!to) return false;
+
+    if (to.doc.id === session.mapId) {
+      // Kein Wechsel, sondern ein Sprung an den Startpunkt. Auch das ist
+      // brauchbar — nur soll die Meldung nicht „Lichtmoor betreten" lauten,
+      // wenn man schon dort steht.
+      this.systemMessage(session, `Du bist schon in ${to.doc.name} — zurück zum Startpunkt.`);
+    }
+    this.versetze(session, to, to.doc.spawn);
+    return true;
+  }
+
+  /** Die Kennungen aller Karten, die dieser Kanal führt — für `/tp` ohne Treffer. */
+  kartenListe(): string[] {
+    return [...this.instances.keys()].sort();
   }
 
   /**

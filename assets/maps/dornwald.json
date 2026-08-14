@@ -15,9 +15,9 @@
       0.55
     ],
     "sunColor": 15262930,
-    "sunIntensity": 1.1,
+    "sunIntensity": 1.45,
     "ambientColor": 7768218,
-    "ambientIntensity": 0.75
+    "ambientIntensity": 1.05
   },
   "terrain": {
     "size": 512,

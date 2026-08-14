@@ -396,9 +396,9 @@ function lichtmoor() {
       fogFar: 340,
       sunDirection: [0.42, 0.82, 0.38],
       sunColor: 0xfff4de,
-      sunIntensity: 1.55,
-      ambientColor: 0xa8c4dd,
-      ambientIntensity: 0.9,
+      sunIntensity: 1.9,
+      ambientColor: 0xc2d8ea,
+      ambientIntensity: 1.2,
     },
     terrain: {
       size,
@@ -555,9 +555,9 @@ function dornwald() {
       fogFar: 240,
       sunDirection: [-0.3, 0.68, 0.55],
       sunColor: 0xe8e4d2,
-      sunIntensity: 1.1,
+      sunIntensity: 1.45,
       ambientColor: 0x76889a,
-      ambientIntensity: 0.75,
+      ambientIntensity: 1.05,
     },
     terrain: {
       size,
@@ -682,9 +682,9 @@ function gruft() {
       fogFar: 110,
       sunDirection: [0.2, 0.9, -0.3],
       sunColor: 0x6d8fb0,
-      sunIntensity: 0.45,
+      sunIntensity: 0.7,
       ambientColor: 0x2b3a49,
-      ambientIntensity: 0.6,
+      ambientIntensity: 0.9,
       // Unter Tage wandert keine Sonne. Ohne das liefe der Tageswechsel auch
       // hier, und um die Mittagszeit stuende die Gruft im Sonnenlicht.
       daylight: false,

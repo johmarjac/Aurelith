@@ -48,6 +48,13 @@ export interface CommandHost {
    * der Weltdatenbank dieses Servers und die gesuchte spielt gerade hier.
    */
   setzeLevel(session: Session, figur: string, level: number): boolean;
+  /**
+   * Versetzt die Figur an den Startpunkt einer Karte. `false` heisst: diese
+   * Karte führt der Kanal nicht.
+   */
+  teleportiere(session: Session, mapId: string): boolean;
+  /** Welche Karten es gibt — für die Absage, wenn eine nicht dabei ist. */
+  kartenListe(): string[];
 }
 
 export interface CommandDef {
@@ -156,6 +163,27 @@ export const COMMANDS: readonly CommandDef[] = [
       }
       if (!host.setzeLevel(session, figur, stufe)) {
         host.systemMessage(session, `„${figur}" spielt hier gerade nicht.`);
+      }
+    },
+  },
+  {
+    name: 'tp',
+    minLevel: AccessLevel.Gamemaster,
+    hilfe: '/tp <karte> — an den Startpunkt einer Karte (ab Spielleiter)',
+    run(host, session, args) {
+      const karte = (args[0] ?? '').trim();
+      if (args.length !== 1 || karte.length === 0) {
+        host.systemMessage(session, `Erwartet: /tp <karte>. Es gibt: ${host.kartenListe().join(', ')}.`);
+        return;
+      }
+      if (!host.teleportiere(session, karte)) {
+        // Mit Liste und nicht nur „gibt es nicht": sich an einem Kartennamen
+        // zu vertippen ist der Normalfall, und eine Absage ohne Liste lässt
+        // einen genauso ratlos zurück wie vorher.
+        host.systemMessage(
+          session,
+          `Eine Karte „${karte}" gibt es hier nicht. Es gibt: ${host.kartenListe().join(', ')}.`,
+        );
       }
     },
   },

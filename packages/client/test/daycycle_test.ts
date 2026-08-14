@@ -124,6 +124,24 @@ function pruefe(f: (t: number, base: EnvironmentDef) => SkyState): number {
     mitternacht.ambientIntensity.toFixed(2),
   );
 
+  /*
+   * Die Nacht folgt der Karte.
+   *
+   * Das Mondlicht war einmal eine feste Zahl, und damit war es ein Knopf zu
+   * viel: wer eine Karte heller machte, machte nur ihren Tag heller, und der
+   * Abstand zwischen Tag und Nacht wuchs genau dann, wenn er kleiner werden
+   * sollte. Als Anteil der Sonne dieser Karte folgt die Nacht von selbst.
+   *
+   * Geprüft mit einer doppelt so hellen Karte — und die Gegenprobe steckt in
+   * derselben Zeile: bliebe der Mond fest, käme zweimal dieselbe Zahl heraus.
+   */
+  const hell = f(0.0, { ...BASE, sunIntensity: BASE.sunIntensity * 2 });
+  check(
+    Math.abs(hell.sunIntensity - mitternacht.sunIntensity * 2) < 1e-6,
+    'eine doppelt so helle Karte hat eine doppelt so helle Nacht',
+    `${mitternacht.sunIntensity.toFixed(2)} → ${hell.sunIntensity.toFixed(2)}`,
+  );
+
   /**
    * Der eigentliche Fehler, und er stand nicht bei der Helligkeit.
    *

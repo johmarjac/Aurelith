@@ -312,6 +312,12 @@ schlicht nichts mehr offen.
 Figur, die gerade im selben Kanal spielt — beides ab `gamemaster`. Die
 Erfahrung fällt dabei auf null: „Stufe 30" heisst der Anfang von Stufe 30.
 
+`/tp <karte>` setzt an den **Startpunkt** der Karte ab — dorthin, wo eine neue
+Figur erscheint. Der steht in der Kartendatei, ist im Editor zu verschieben und
+per Konstruktion begehbar; die eigene Lage wäre das nicht, sie kann auf einer
+kleineren Karte im Berg oder ausserhalb liegen. Ein unbekannter Name wird mit
+der Liste der vorhandenen Karten beantwortet.
+
 ### Startpunkt für Prüfungen
 
 `AURELITH_START_POS="x,z"` (oder `"x,z,blickrichtung"`) setzt, wo eine **neu

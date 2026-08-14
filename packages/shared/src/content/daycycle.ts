@@ -115,10 +115,24 @@ const NIGHT_AMBIENT_SKY = 0x8fa6d8;
  * eines Fotografen und nicht die eines Spiels: gemessen war es dunkel, im
  * Spiel war es unbenutzbar. Der Tag bleibt trotzdem heller, und der
  * Unterschied liegt vor allem in den Farben — dafür sind sie da.
+ *
+ * Seither noch einmal angehoben, zusammen mit den Werten der Karten.
  */
-const NIGHT_AMBIENT_FLOOR = 0.78;
-/** Mondlicht als gerichtete Quelle. Genug für Formen und Schattenkanten. */
-const MOON_INTENSITY = 0.46;
+const NIGHT_AMBIENT_FLOOR = 0.85;
+/**
+ * Mondlicht als **Anteil der Sonne dieser Karte** — nicht als feste Zahl.
+ *
+ * Vorher stand hier eine absolute Helligkeit, und das war ein Knopf zu viel:
+ * wer alle Karten heller machte, machte damit nur den Tag heller, weil die
+ * Nacht an dieser Zahl hing und nicht an der Karte. Der Abstand zwischen Tag
+ * und Nacht wuchs also genau dann, wenn man ihn verringern wollte.
+ *
+ * Als Anteil folgt die Nacht der Karte von selbst, und das Verhältnis steht
+ * fest: gut ein Drittel. Eine dunkle Karte hat damit auch eine dunkle Nacht,
+ * eine helle eine hellere — und niemand muss zwei Zahlen im Gleichschritt
+ * bewegen.
+ */
+const MOON_FACTOR = 0.33;
 
 function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;
@@ -215,7 +229,7 @@ export function skyAt(t: number, base: EnvironmentDef): SkyState {
     sunColor: sonnenfarbe,
     // Mondlicht ist nicht null: eine Nacht ohne jedes gerichtete Licht ist
     // eine Fläche aus Umgebungslicht, in der nichts mehr eine Form hat.
-    sunIntensity: base.sunIntensity * tag + MOON_INTENSITY * nacht,
+    sunIntensity: base.sunIntensity * (tag + MOON_FACTOR * nacht),
     ambientColor: mixColor(base.ambientColor, NIGHT_HORIZON, nacht),
     // Nicht die Farbe der Kuppel, sondern die des Lichts — siehe `SkyState`.
     ambientSkyColor: mixColor(base.skyColor, NIGHT_AMBIENT_SKY, nacht),
