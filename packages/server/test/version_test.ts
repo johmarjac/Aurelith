@@ -19,6 +19,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocket } from 'ws';
 import { anmeldenUndBetreten, beobachteLobby, gruss } from './lib/anmelden.ts';
+import { ermittleBuildStamp } from '@aurelith/shared/build/ermitteln.node.ts';
 import {
   CipherSuite,
   FrameSequencer,
@@ -85,6 +86,53 @@ check(
 
 // Ohne Zeitangabe bleibt die Nummer allein stehen, statt eine Zeit zu erfinden.
 check(formatBuild({ nummer: 'dev', zeit: 0 }) === 'dev', 'ohne Zeit steht die Nummer allein');
+
+/*
+ * Der Commit neben der Nummer.
+ *
+ * Der Anlass: die Zeile des Clients nannte eine Laufnummer, die des Servers
+ * einen Commit, und beide standen im selben Chatfenster untereinander. Ob dort
+ * derselbe Stand lief, war daran nicht zu erkennen.
+ *
+ * Die zweite Prüfung ist die wichtigere. Beim Server **ist** die Nummer schon
+ * der Commit; stünde er dort noch einmal daneben, läse sich „9eb7b9/9eb7b9"
+ * wie zwei Angaben, von denen man eine für die andere hält.
+ */
+check(
+  formatBuild({ nummer: '113', zeit, commit: '5d6405' }) === '113/5d6405-260813-142207',
+  'mit Commit steht er hinter der Nummer',
+  formatBuild({ nummer: '113', zeit, commit: '5d6405' }),
+);
+check(
+  formatBuild({ nummer: '9eb7b9', zeit, commit: '9eb7b9' }) === '9eb7b9-260813-142207',
+  'ist die Nummer schon der Commit, steht er nicht zweimal da',
+  formatBuild({ nummer: '9eb7b9', zeit, commit: '9eb7b9' }),
+);
+check(
+  formatBuild({ nummer: '113', zeit }) === '113-260813-142207',
+  'und ohne Commit bleibt die Zeile, wie sie war',
+  formatBuild({ nummer: '113', zeit }),
+);
+
+/*
+ * Und der Weg dorthin: aus der Umgebung, wie in der Veröffentlichung.
+ *
+ * Gekürzt wird in `ermittleBuildStamp` — die Arbeitsabläufe reichen den vollen
+ * Hash durch. Wäre die Kürzung dort, hätten Client und Server irgendwann
+ * verschieden lange Hashes, und der Vergleich, um den es hier geht, ginge
+ * wieder nicht.
+ */
+const ausUmgebung = ermittleBuildStamp({
+  AURELITH_BUILD: '113',
+  AURELITH_BUILD_TIME: '2026-08-13T14:22:07.000Z',
+  AURELITH_COMMIT: '5d640585a1b2c3d4e5f60718293a4b5c6d7e8f90',
+});
+check(ausUmgebung.commit === '5d6405', 'der volle Hash wird auf sechs Zeichen gekürzt', ausUmgebung.commit);
+check(
+  ermittleBuildStamp({ AURELITH_BUILD: '113', AURELITH_BUILD_TIME: '2026-08-13T14:22:07.000Z' })
+    .commit === undefined,
+  'ohne AURELITH_COMMIT bleibt das Feld leer',
+);
 
 // ---------------------------------------------------------------------------
 // Der Weg über das Protokoll

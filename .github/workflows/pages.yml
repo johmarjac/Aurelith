@@ -107,6 +107,11 @@ jobs:
       - name: Client bauen
         env:
           AURELITH_BUILD: ${{ github.run_number }}
+          # Der Stand, aus dem gebaut wurde. Die Laufnummer allein liess sich
+          # nicht mit der Zeile des Servers vergleichen: der nennt seinen
+          # Commit, und aus „113" und „9eb7b9" war nicht abzulesen, ob beide
+          # dasselbe fahren. Gekürzt wird in `ermittleBuildStamp`.
+          AURELITH_COMMIT: ${{ github.sha }}
           # Projektseite ohne eigene Domain liegt unter /<repo>/.
           AURELITH_BASE: /${{ github.event.repository.name }}/
           VITE_SERVER_URL: ${{ vars.AURELITH_SERVER_URL }}

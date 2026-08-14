@@ -769,6 +769,18 @@ export function decodePong(r: ByteReader): { clientTime: number; serverTime: num
  * Client soll sie mit derselben Funktion formatieren wie seine eigene, sonst
  * stehen im Chat zwei Zeilen in zwei Schreibweisen untereinander.
  */
+/*
+ * Nummer und Zeit — der Commit reist **nicht** mit.
+ *
+ * Das ist heute keine Lücke: der Server bekommt seine Kennung aus dem
+ * Containerbild, und die **ist** dort der kurze Commit. Ein zweites Feld
+ * daneben trüge dieselbe Angabe ein zweites Mal über die Leitung.
+ *
+ * Es wird eine, sobald jemand dem Serverbau eine eigene Nummer gibt und den
+ * Commit daneben stellt — dann käme beim Client nur noch die Nummer an, und
+ * die Zeile im Chat wäre wieder die, die sich nicht vergleichen lässt. Wer das
+ * tut, erweitert hier und zählt `PROTOCOL_VERSION` hoch.
+ */
 export function encodeServerVersion(m: BuildStamp): Uint8Array {
   return packet(ServerOp.Version, 64).str(m.nummer).f64(m.zeit).finish();
 }

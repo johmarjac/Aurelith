@@ -50,12 +50,22 @@ export function ermittleBuildStamp(
   const zeitText = env.AURELITH_BUILD_TIME?.trim();
   if (nummer) {
     const zeit = zeitText ? deuteZeit(zeitText) : undefined;
-    return { nummer, zeit: zeit ?? jetzt };
+    /*
+     * Gekürzt wird hier und nicht in der Veröffentlichung.
+     *
+     * `AURELITH_COMMIT` bekommt den vollen Hash — was ein „kurzer" Hash ist,
+     * entscheidet diese Datei. Stünde die Kürzung in den Arbeitsabläufen,
+     * gäbe es zwei Meinungen darüber, und die Zeile des Clients hätte
+     * irgendwann sieben Zeichen, die des Servers sechs.
+     */
+    const commit = env.AURELITH_COMMIT?.trim().slice(0, 6);
+    return { nummer, zeit: zeit ?? jetzt, ...(commit ? { commit } : {}) };
   }
 
   const hash = git('rev-parse', '--short=6', 'HEAD');
   if (hash) {
     const commitZeit = deuteZeit(git('log', '-1', '--format=%cI') ?? '');
+    // Kein `commit` daneben: die Nummer **ist** hier der Commit.
     return { nummer: hash, zeit: commitZeit ?? jetzt };
   }
 
