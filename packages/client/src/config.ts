@@ -55,6 +55,22 @@ export function assetUrl(path: string): string {
   return `${ASSET_BASE}/${path}?v=${encodeURIComponent(BUILD)}`;
 }
 
+/**
+ * Adresse einer Datei, die **neben der Seite** liegt — nicht im Asset-Baum.
+ *
+ * Das sind wenige, und alle gehören zur Marke: das Logo der Anmeldemaske, die
+ * Symbole für Reiter und Home-Bildschirm. Sie liegen dort, weil sie gebraucht
+ * werden, bevor der Streamer überhaupt läuft; ein Umweg über das Manifest
+ * hiesse, die erste Maske erst nach dem ersten Download zu zeigen.
+ *
+ * Der Unterschied zu `assetUrl` ist die Wurzel: die Assets dürfen später auf
+ * einem CDN liegen, diese Dateien nie — sie werden mit der Seite ausgeliefert.
+ */
+export function seitenUrl(name: string): string {
+  const basis = (import.meta.env?.BASE_URL ?? '/').replace(/\/$/, '');
+  return `${basis}/${name}?v=${encodeURIComponent(BUILD)}`;
+}
+
 /** Schlüssel, unter dem eine im Spiel gesetzte Serveradresse liegt. */
 const SERVER_STORAGE_KEY = 'aurelith.server';
 

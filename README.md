@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="packages/client/icons/logo.webp" alt="" width="140" />
+</p>
+
 # Aurelith
 
 Browserbasiertes 3D-MMORPG. Klassisches Setting, Kampf mit Zielauswahl und
@@ -113,6 +117,8 @@ packages/
             Ein Paket, weil Konten, Datenbank und Passwortregeln damit an genau
             einer Stelle stehen. Zwei Prozesse, zwei Rollen.
   client    Dünne Schale, Renderer, Eingabe, UI.
+            `icons/aurelith.webp` ist die Zeichnung der Marke; alles andere
+            in dem Ordner leitet `tools/gen-icons.mjs` daraus ab.
   editor    Map-Editor auf demselben Stack.
 assets/
   maps      aurelith.map-Dokumente
@@ -203,6 +209,7 @@ npm run test:setglow     # derselbe Satz über das Netz, vom Schmied bis zum Sch
 npm run test:npcflow     # ansprechen, annehmen, erlegen, aufheben, abgeben
 npm run test:npc         # NPC-Fenster und Inventar im Browser
 npm run test:loot-ui     # Beute im Bild: Schild, Antippen, Aufheben
+npm run test:skills      # Fertigkeitenbaum: Taste, Beruf, Zug auf die Leiste
 npm run test:e2e         # Spiel im Browser, Desktop und Berührung
 npm run test:prediction  # springt die eigene Figur beim Laufen zurück?
 npm run test:portal      # Tore: hineinlaufen, stehen, F drücken, zurück

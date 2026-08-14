@@ -27,6 +27,7 @@
  */
 
 import { getClass, type LobbyCharacter, type RealmRow, type RealmsMsg } from '@aurelith/shared';
+import { seitenUrl } from '../config.ts';
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -268,8 +269,20 @@ export class LobbyView {
     this.protokoll.append(this.protokollKopf, this.protokollText, this.kopierKnopf);
 
     // --- Maske 1: Anmelden -------------------------------------------------
+    //
+    // Die einzige der vier Masken mit dem Logo. Sie ist die Haustür — die
+    // anderen drei stehen schon im Haus, und dort wäre dasselbe Bild über
+    // jeder Überschrift nur noch Möblierung.
+    const marke = el('img', 'lobby-marke');
+    marke.src = seitenUrl('logo.webp');
+    // Der Name steht als Überschrift direkt darunter; ein zweites Mal
+    // vorgelesen zu werden ist für niemanden ein Gewinn.
+    marke.alt = '';
+    marke.decoding = 'async';
+
     this.anmeldungSeite = el('div', 'lobby-box panel lobby-anmeldung');
     this.anmeldungSeite.append(
+      marke,
       el('h1', 'lobby-titel', 'Aurelith'),
       el('p', 'lobby-unter', 'Melde dich an oder leg ein Konto an.'),
     );

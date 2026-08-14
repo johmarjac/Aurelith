@@ -90,12 +90,21 @@ function serveCoreRaw(): Plugin {
  */
 function webApp(): Plugin {
   const iconsDir = resolve(import.meta.dirname, 'icons');
+  // Alles, was aus der Zeichnung der Marke entsteht (`tools/gen-icons.mjs`)
+  // und neben der Seite liegen muss: die Symbole für Home-Bildschirm und
+  // Reiter — und das freigestellte Logo für die Anmeldemaske. Letzteres
+  // gehört bewusst hierher und nicht in den Asset-Baum: der wird über das
+  // Manifest gestreamt, die Maske steht aber, bevor der Streamer anläuft.
   const icons = [
     'icon-192.png',
     'icon-512.png',
     'icon-maskable-512.png',
     'apple-touch-icon.png',
+    'favicon.png',
+    'logo.webp',
   ];
+  const typVon = (name: string): string =>
+    name.endsWith('.webp') ? 'image/webp' : 'image/png';
 
   // Alle Adressen relativ: dann gilt das Manifest unter `/` genauso wie unter
   // `/Aurelith/`, ohne dass der Unterpfad eingesetzt werden muss.
@@ -133,7 +142,7 @@ function webApp(): Plugin {
         }
         const name = path.slice(1);
         if (!icons.includes(name)) return next();
-        res.setHeader('content-type', 'image/png');
+        res.setHeader('content-type', typVon(name));
         createReadStream(resolve(iconsDir, name)).pipe(res);
       });
     },

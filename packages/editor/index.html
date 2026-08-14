@@ -5,7 +5,12 @@
     <title>Aurelith — Map-Editor</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="dark" />
-    <link rel="icon" href="data:," />
+    <!--
+      Dasselbe Zeichen wie im Spiel, aus demselben Ordner. Der Pfad greift über
+      die Paketgrenze, weil die Marke nur einmal existieren soll — Vite löst ihn
+      beim Bauen auf und legt die Datei mit in die Ausgabe.
+    -->
+    <link rel="icon" type="image/png" href="../client/icons/favicon.png" />
   </head>
   <body>
     <canvas id="viewport"></canvas>

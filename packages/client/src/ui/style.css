@@ -1750,6 +1750,27 @@ body.aktion-zuweisen .action-slot {
   color: var(--ink-dim);
 }
 
+/*
+ * Das Logo über der Anmeldung.
+ *
+ * Freigestellt ausgeliefert (siehe `tools/gen-icons.mjs`), deshalb steht hier
+ * kein Kasten und kein Grund — das Gold liegt direkt auf dem Pergament.
+ *
+ * Die Höhe ist in `rem` und wächst damit am Regler für die UI-Größe mit; der
+ * Schatten ist derselbe warme Ton wie überall in der Maske, damit die Form
+ * nicht auf dem hellen Untergrund klebt.
+ *
+ * Feste Höhe und nicht `max-height`: so steht der Platz, bevor die Datei da
+ * ist, und die Maske springt beim Laden nicht.
+ */
+.lobby-marke {
+  display: block;
+  width: auto;
+  height: 5.5rem;
+  margin: -0.4rem auto 0.2rem;
+  filter: drop-shadow(0 2px 6px rgba(40, 24, 8, 0.45));
+}
+
 /* Auf Pergament, also dunkle Tinte — das Gold der Titelleisten säuft hier ab. */
 .lobby-titel {
   margin: 0;

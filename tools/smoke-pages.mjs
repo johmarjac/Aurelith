@@ -90,6 +90,8 @@ const MIME = {
   '.json': 'application/json; charset=utf-8',
   '.wasm': 'application/wasm',
   '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.map': 'application/json',
 };
 
@@ -180,6 +182,33 @@ for (const [name, path] of [
     check(
       state.text.includes('Kein Spielserver hinterlegt'),
       'Client: erklärt die fehlende Serveradresse',
+    );
+
+    /*
+     * Die Marke liegt **neben** der Seite und nicht im Asset-Baum, hat also
+     * ihre eigene Adressbildung (`seitenUrl`). Genau die geht unter einem
+     * Unterpfad kaputt, ohne dass es unter `/` je auffiele — und ein Logo,
+     * das nicht lädt, sieht man auf dem Bildschirmfoto nicht: der Platz
+     * bleibt einfach leer.
+     *
+     * `naturalWidth` ist der Beleg dafür, dass wirklich Bild ankam. Ein
+     * kaputtes `<img>` steht mit null da.
+     */
+    const marke = await page.evaluate(() => {
+      const img = document.querySelector('.lobby-marke');
+      return { breite: img?.naturalWidth ?? 0, quelle: img?.currentSrc ?? '' };
+    });
+    check(marke.breite > 0, `Client: das Logo der Maske lädt (${marke.breite} px, ${marke.quelle})`);
+
+    // Das Reitersymbol holt ein kopfloser Browser nicht von selbst — also
+    // von Hand, und zwar über die Adresse, die im Dokument steht.
+    const symbolUrl = await page.evaluate(
+      () => document.querySelector('link[rel="icon"]')?.getAttribute('href') ?? '',
+    );
+    const symbol = await fetch(`http://127.0.0.1:${PORT}${symbolUrl}`);
+    check(
+      symbolUrl.startsWith(BASE) && symbol.ok,
+      `Client: das Reitersymbol liegt unter dem Unterpfad (${symbolUrl} → ${symbol.status})`,
     );
   }
 
