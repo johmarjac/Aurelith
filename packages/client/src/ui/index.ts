@@ -428,8 +428,20 @@ export class UI {
    */
   private leiste: AktionsPlatz[] = leereLeiste();
   private readonly leisteSkills: (SkillDef | undefined)[] = [];
-  /** `performance.now()`, ab dem der Platz wieder frei ist. Null heisst bereit. */
-  private readonly abklingBis: number[] = [];
+  /**
+   * Wann eine Fertigkeit wieder bereit ist — `performance.now()`, je Kennung.
+   *
+   * Nach der **Fertigkeit** und nicht nach dem Platz. Dieselbe Fertigkeit darf
+   * auf zwei Plätzen liegen, und eine Abklingzeit gehört ihr, nicht dem Knopf,
+   * auf den man gedrückt hat. Vorher lief sie nur auf dem einen ab; der zweite
+   * sah bereit aus, und der Server sagte beim Drücken nein — eine Anzeige, die
+   * das Gegenteil dessen behauptet, was gilt.
+   *
+   * Der Server führt sie ohnehin je Figur und Fertigkeit. Diese Karte ist der
+   * Spiegel dazu, damit der Knopf nicht erst über eine Absage vom Server
+   * erfährt, dass er noch nicht darf.
+   */
+  private readonly abklingBis = new Map<string, number>();
   /** Woraus die Leiste zuletzt gebaut wurde — damit sie nicht bei jedem Stats-Paket neu entsteht. */
   private leisteAus = '';
   /**
@@ -1311,7 +1323,7 @@ export class UI {
      * jeder — sah einen Knopf, der nicht reagiert, und hatte keinen
      * Anhaltspunkt, warum. Eine Absage, die niemand liest, ist keine.
      */
-    const rest = (this.abklingBis[index] ?? 0) - performance.now();
+    const rest = (this.abklingBis.get(def.id) ?? 0) - performance.now();
     if (rest > 0) {
       this.addChat(0, '', `${def.name} ist noch nicht bereit (${(rest / 1000).toFixed(1)} s).`);
       return;
@@ -1326,7 +1338,7 @@ export class UI {
       return;
     }
 
-    this.abklingBis[index] = performance.now() + def.cooldownMs;
+    this.abklingBis.set(def.id, performance.now() + def.cooldownMs);
     this.starteAbklingUhr();
     this.onUseSkill?.(def.id);
   }
@@ -1341,12 +1353,26 @@ export class UI {
 
   private zeigeAbklingzeiten(): void {
     const jetzt = performance.now();
-    let laeuft = false;
+
+    /*
+     * Erst aufräumen, dann zeichnen.
+     *
+     * Damit ist die Karte selbst die Antwort auf „läuft noch etwas" — und die
+     * hängt nicht mehr daran, ob die Fertigkeit gerade auf einem Platz liegt.
+     * Zöge man sie mitten in der Abklingzeit herunter und wieder hin, hielte
+     * die Uhr sonst an und die Zeit stünde still, obwohl sie läuft.
+     */
+    for (const [kennung, bis] of this.abklingBis) {
+      if (bis <= jetzt) this.abklingBis.delete(kennung);
+    }
 
     for (let i = 0; i < this.aktionsplaetze.length; i++) {
       const platz = this.aktionsplaetze[i]!;
       const anzeige = platz.querySelector<HTMLElement>('.action-abkling')!;
-      const rest = (this.abklingBis[i] ?? 0) - jetzt;
+      // Der Platz fragt die Fertigkeit, die auf ihm liegt. Liegen zwei Plätze
+      // auf derselben, fragen sie dieselbe Zahl — und zählen gemeinsam herunter.
+      const kennung = this.leisteSkills[i]?.id;
+      const rest = (kennung === undefined ? 0 : (this.abklingBis.get(kennung) ?? 0)) - jetzt;
 
       if (rest <= 0) {
         anzeige.textContent = '';
@@ -1354,7 +1380,6 @@ export class UI {
         continue;
       }
 
-      laeuft = true;
       // Unter zehn Sekunden mit einer Nachkommastelle, darüber ganze: bei
       // einer Minute Abklingzeit ist das Zehntel keine Auskunft mehr.
       const sek = rest / 1000;
@@ -1365,7 +1390,7 @@ export class UI {
     // Die Uhr hält an, sobald nichts mehr zu zählen ist. Ein Intervall, das
     // im Leerlauf weiterläuft, kostet nichts und ist genau deshalb schwer zu
     // bemerken, wenn es doch einmal etwas kostet.
-    if (!laeuft && this.abklingUhr !== undefined) {
+    if (this.abklingBis.size === 0 && this.abklingUhr !== undefined) {
       window.clearInterval(this.abklingUhr);
       this.abklingUhr = undefined;
     }

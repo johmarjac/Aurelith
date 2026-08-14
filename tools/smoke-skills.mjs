@@ -297,6 +297,47 @@ check(
 );
 await page.screenshot({ path: join(shots, 'skills-leiste.png') });
 
+console.log('\nDieselbe Fertigkeit auf zwei Plätzen');
+
+/*
+ * Die Abklingzeit gehört der Fertigkeit, nicht dem Knopf.
+ *
+ * Vorher lag sie am Platz: wer dieselbe Fertigkeit zweimal auf die Leiste
+ * legte, sah nur den einen herunterzählen, während der andere bereit aussah —
+ * und beim Drücken sagte der Server nein. Eine Anzeige, die das Gegenteil
+ * dessen behauptet, was gilt.
+ */
+await ziehe(await mitte(zeile('wirbelklinge')), await mitte(page.locator('.action-slot[data-aktion="6"]')));
+const zweimal = await leiste();
+check(
+  zweimal[6]?.art === FERTIGKEIT && zweimal[6]?.id === 'wirbelklinge',
+  'die Wirbelklinge liegt ein zweites Mal auf Platz 7',
+  `${zweimal[6]?.art}/${zweimal[6]?.id || 'leer'}`,
+);
+
+const abkling = (i) =>
+  page.evaluate(
+    (n) => document.querySelector(`.action-slot[data-aktion="${n}"]`)?.dataset.abkling ?? '?',
+    i,
+  );
+
+check(
+  (await abkling(4)) !== '1' && (await abkling(6)) !== '1',
+  'vorher zählt nichts herunter',
+  `${await abkling(4)}/${await abkling(6)}`,
+);
+
+await page.click('.action-slot[data-aktion="4"]');
+await page.waitForTimeout(400);
+
+check((await abkling(4)) === '1', 'der gedrückte Platz zählt herunter');
+check((await abkling(6)) === '1', 'und der andere mit derselben Fertigkeit auch');
+
+// Die Gegenprobe: der leere Platz dazwischen bleibt unberührt. Ohne sie ginge
+// „alle Plätze zählen herunter" als Erfolg durch — und zusammen mit der
+// Messung davor steht damit fest, dass die Eins von diesem Klick kommt.
+check((await abkling(5)) !== '1', 'der leere Platz dazwischen bleibt bereit', await abkling(5));
+
 console.log(`\n  Bilder: ${shots}/skills-*.png`);
 
 await browser.close();

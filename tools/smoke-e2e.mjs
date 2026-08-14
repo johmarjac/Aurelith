@@ -277,6 +277,81 @@ check(
   `Ziehen neigt die Kamera (pitch ${camBefore.pitch.toFixed(2)} → ${camAfterOrbit.pitch.toFixed(2)})`,
 );
 
+/*
+ * Das Namensschild darf beim Schwenken nicht hinterherhinken.
+ *
+ * `project()` liest die Matrizen der Kamera, und three.js schreibt sie erst
+ * beim Zeichnen fort. Wer die Kamera bewegt und noch vor dem Zeichnen
+ * projiziert, rechnet mit dem Stand des letzten Bildes — beim Laufen ein
+ * unsichtbarer Bruchteil eines Bildpunkts, beim Schwenken ein Zittern.
+ *
+ * Gemessen wird genau dieser eine Rückstand: Wo steht das Schild ein Bild nach
+ * der letzten Mausbewegung, und wo steht es, wenn die Kamera zur Ruhe gekommen
+ * ist? Die Kameralage ist dieselbe — Neigung und Drehung ändern sich ohne
+ * Nachziehen —, also müssen beide Zahlen gleich sein. Hinkt die Projektion ein
+ * Bild hinterher, unterscheiden sie sich um genau einen Schritt des Zuges.
+ */
+/*
+ * Gemessen wird **in der Seite**, Bild für Bild.
+ *
+ * Von aussen geht es nicht: jede Abfrage über die Fernsteuerung dauert ein
+ * paar Millisekunden, in denen der Browser weiterzeichnet — bis die Antwort
+ * ankommt, hat ein Rückstand von einem Bild sich längst aufgeholt. Also
+ * schreibt eine eigene Bildschleife Neigung und Schildposition mit; sie wird
+ * nach der des Spiels angemeldet und läuft deshalb auch nach ihr.
+ *
+ * Ausgewertet wird danach in Ruhe: Beim **ersten** Bild, in dem die Neigung
+ * ihren Endwert hat, muss das Schild schon dort stehen, wo es am Ende steht.
+ * Rechnet die Projektion mit dem vorigen Bild, steht es dort noch einen
+ * Zugschritt daneben.
+ */
+await page.evaluate(() => {
+  window.__schild = [];
+  window.__schildLaeuft = true;
+  const tick = () => {
+    const el = document.querySelector('.nameplate');
+    if (el && el.style.display !== 'none') {
+      window.__schild.push([window.aurelith.camera.pitch, el.getBoundingClientRect().top]);
+    }
+    if (window.__schildLaeuft) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+});
+
+await page.mouse.move(640, 360);
+await page.mouse.down({ button: 'right' });
+// In Schritten und mit Pausen: jeder Schritt soll ein eigenes Bild bekommen,
+// sonst fasst der Browser sie zusammen und es gibt gar keine Bewegung je Bild.
+for (let i = 1; i <= 10; i++) {
+  await page.mouse.move(640, 360 + i * 12);
+  await page.waitForTimeout(50);
+}
+await page.mouse.up({ button: 'right' });
+await page.waitForTimeout(600);
+
+const schildLauf = await page.evaluate(() => {
+  window.__schildLaeuft = false;
+  return window.__schild;
+});
+
+const letzte = schildLauf[schildLauf.length - 1];
+const endNeigung = letzte?.[0] ?? 0;
+const endY = letzte?.[1] ?? 0;
+// Das erste Bild mit der endgültigen Neigung. Ab da bewegt sich die Kamera
+// nicht mehr — was das Schild danach noch tut, ist Rückstand.
+const ersteRuhe = schildLauf.find(([p]) => Math.abs(p - endNeigung) < 1e-9);
+const rueckstand = Math.abs((ersteRuhe?.[1] ?? endY) - endY);
+const geschwenkt = Math.abs((schildLauf[0]?.[0] ?? 0) - endNeigung);
+
+check(
+  schildLauf.length > 10 && geschwenkt > 0.3,
+  `beim Schwenken gemessen (${schildLauf.length} Bilder, Neigung um ${geschwenkt.toFixed(2)})`,
+);
+check(
+  rueckstand < 4,
+  `das Namensschild klebt am Kopf statt zu zittern (${rueckstand.toFixed(1)} px Rückstand)`,
+);
+
 await page.mouse.move(640, 360);
 await page.mouse.wheel(0, 600);
 await page.waitForTimeout(200);

@@ -317,6 +317,27 @@ export class Scene3D {
     this.camera.position.set(camX, camY, camZ);
     this.camera.lookAt(this.followed);
 
+    /*
+     * Die Matrizen sofort nachziehen — sonst hinkt alles hinterher, was
+     * ausserhalb des Zeichnens auf diese Kamera rechnet.
+     *
+     * `project()` liest `matrixWorldInverse`, und die schreibt three.js erst
+     * in `renderer.render()` fort. Wer die Kamera hier bewegt und noch vor dem
+     * Zeichnen projiziert — die Namensschilder tun genau das —, rechnet mit
+     * dem Stand des **letzten** Bildes.
+     *
+     * Beim Laufen fällt das nicht auf: die Kamera zieht weich nach, und ein
+     * Bild Rückstand ist ein gleichmässiger Versatz von Bruchteilen eines
+     * Bildpunkts. Beim Schwenken schon: der Sprung je Bild ist gross und
+     * ungleichmässig, und das Schild zittert hinter dem Kopf her.
+     *
+     * Der Renderer rechnet es gleich noch einmal. Das ist eine Matrixinversion
+     * je Bild und der Preis dafür, dass „wo steht die Kamera" nach diesem
+     * Aufruf für alle dasselbe heisst.
+     */
+    this.camera.updateMatrixWorld();
+    this.camera.matrixWorldInverse.copy(this.camera.matrixWorld).invert();
+
     this.skyMesh.position.copy(this.camera.position);
     this.skyMesh.scale.setScalar(this.camera.far * 0.9);
     // Sonne, Mond und Wolken genauso: sie haben eine Richtung und keinen Ort.
