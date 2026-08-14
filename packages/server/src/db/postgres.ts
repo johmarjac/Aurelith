@@ -155,6 +155,24 @@ export class PostgresKonten extends PostgresBasis implements KontoStore {
     }
   }
 
+  async verknuepfeIdentitaet(
+    accountId: number,
+    provider: string,
+    subject: string,
+    email: string,
+  ): Promise<void> {
+    // `DO NOTHING` und keine Aktualisierung: gäbe es diese Identität schon,
+    // hätte der Aufrufer sie gefunden und wäre gar nicht hier. Bleibt der Fall
+    // zweier gleichzeitiger Anmeldungen — und da ist die zweite Aussage
+    // dieselbe wie die erste.
+    await this.pool.query(
+      `INSERT INTO account_identities (provider, subject, account_id, email)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (provider, subject) DO NOTHING`,
+      [provider, subject, accountId, email],
+    );
+  }
+
 }
 
 /** Eine Weltdatenbank: Figuren, Beutel, Aufträge einer Region. */

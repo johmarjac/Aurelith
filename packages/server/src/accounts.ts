@@ -56,6 +56,18 @@ export type AnmeldeErgebnis =
  * die kann sich ändern, weitergegeben und in manchen Verzeichnissen sogar neu
  * vergeben werden. Wer seine Adresse bei Google ändert, behält hier sein Konto
  * — nur der angezeigte Name bleibt der alte.
+ *
+ * **Über Anbieter hinweg zählt aber die Adresse.** Wer sich gestern über Google
+ * angemeldet hat und heute über Facebook, findet dasselbe Konto und dieselben
+ * Figuren vor, sofern dieselbe Adresse dabei herauskommt. Das Konto sammelt
+ * die Identitäten; die Tabelle konnte das immer, ihr Schlüssel ist (Anbieter,
+ * Kennung).
+ *
+ * Das steht und fällt damit, dass der Anbieter die Adresse **geprüft** hat —
+ * sonst genügte ein Konto bei irgendeinem Anbieter mit frei eingetragener
+ * Adresse, um an ein fremdes Spielkonto zu kommen. Deshalb prüft der
+ * Anbieterweg das, bevor er hierherkommt (`email_verified` bei Google), und
+ * deshalb hängt hier nichts an einem Anbieter, der es nicht sagt.
  */
 export async function anmeldenMitIdentitaet(
   store: KontoStore,
@@ -90,13 +102,39 @@ export async function anmeldenMitIdentitaet(
    * Den Namen gibt es schon, die Identität aber nicht — sonst hätte die
    * Abfrage oben sie gefunden.
    *
-   * Das heisst: dieselbe Adresse, andere Kennung beim Anbieter. Bei Google
-   * kommt das praktisch nicht vor; wenn doch, ist Anlegen genau das Falsche.
-   * Ein zweites Konto unter demselben Namen ginge nicht, und das bestehende zu
-   * übernehmen hiesse, ein Konto an eine Adresse zu hängen, die jemand anderes
-   * nachgewiesen hat.
+   * Das heisst: **dieselbe Adresse, ein anderer Anbieter.** Wer sich gestern
+   * über Google angemeldet hat und heute über Facebook, ist dieselbe Person,
+   * und die Adresse ist hier der Kontoname. Also bekommt das bestehende Konto
+   * die neue Identität dazu und der Spieler seine Figuren.
+   *
+   * Vorher stand hier eine Absage, mit dem Argument, die Adresse habe „jemand
+   * anderes nachgewiesen". Das stimmt für den Fall, dass ein Anbieter Adressen
+   * herausgibt, die er nicht geprüft hat — und genau dagegen steht die Prüfung
+   * eine Ebene höher, beim Anbieter selbst (`email_verified`). Was übrig
+   * bleibt, sind zwei bestätigte Nachweise derselben Adresse, und zwei Konten
+   * daraus zu machen wäre einem Spieler nicht zu erklären.
    */
-  console.warn(`[konto] „${name}" existiert bereits, gehört aber zu einer anderen Identität.`);
+  const bestehend = await store.findAccount(name);
+
+  /*
+   * Nur an Konten **ohne Passwort**.
+   *
+   * Ein Passwortkonto kann diesen Namen ohnehin nicht tragen — `isValidName`
+   * lässt kein `@` zu. Die Prüfung steht trotzdem hier und nicht als Verweis
+   * auf jene Regel: sie ist die genaue Aussage, um die es geht. Wer sie
+   * weglässt, hängt die Sicherheit eines Kontos mit Passwort an einen
+   * Namensfilter zwei Dateien weiter — und der wird eines Tages gelockert,
+   * ohne dass jemand an diese Stelle denkt.
+   */
+  if (bestehend && bestehend.passwordHash === '') {
+    await store.verknuepfeIdentitaet(bestehend.id, provider, subject, email);
+    console.log(`[konto] „${name}" bekommt ${provider} als weiteren Anbieter.`);
+    return { ok: true, account: await ziehStufeNach(store, bestehend, zugriff) };
+  }
+
+  console.warn(
+    `[konto] „${name}" existiert bereits — mit Passwort, also wird nichts verknüpft.`,
+  );
   return {
     ok: false,
     fehler: 'Zu dieser Adresse gibt es schon ein Konto. Wende dich an die Serververwaltung.',

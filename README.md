@@ -208,6 +208,7 @@ npm run test:sets        # Rüstungssätze: wann sie gelten, wann sie leuchten
 npm run test:setglow     # derselbe Satz über das Netz, vom Schmied bis zum Schein
 npm run test:npcflow     # ansprechen, annehmen, erlegen, aufheben, abgeben
 npm run test:npc         # NPC-Fenster und Inventar im Browser
+npm run test:identitaet  # ein Mensch, zwei Anbieter, ein Konto
 npm run test:loot-ui     # Beute im Bild: Schild, Antippen, Aufheben
 npm run test:skills      # Fertigkeitenbaum: Taste, Beruf, Zug auf die Leiste
 npm run test:e2e         # Spiel im Browser, Desktop und Berührung
@@ -701,6 +702,19 @@ anders als `/intern/` — vom Proxy durchgereicht werden.
 Ein Konto aus diesem Weg hat **kein** Passwort. Die Passwortanmeldung lehnt es
 ausdrücklich ab und sagt auch, warum; wer über einen Anbieter kam, soll nicht
 raten müssen, welches Passwort er nie gesetzt hat.
+
+**Über Anbieter hinweg entscheidet die Adresse.** Wer sich gestern über Google
+angemeldet hat und heute über Facebook, findet dasselbe Konto und dieselben
+Figuren vor, sofern dieselbe Adresse dabei herauskommt — das Konto sammelt die
+Identitäten. Innerhalb eines Anbieters bleibt dessen Kennung der Schlüssel: wer
+seine Adresse dort ändert, behält sein Konto, nur der angezeigte Name bleibt
+der alte.
+
+Das steht und fällt damit, dass der Anbieter die Adresse geprüft hat. Sagt
+Google ausdrücklich `email_verified: false`, endet der Weg dort; Facebook gibt
+über `me` nur die bestätigte Adresse des Kontos heraus. Und angehängt wird nur
+an Konten **ohne** Passwort — an ein selbstgewähltes Konto käme man sonst über
+einen Anbieter heran, bei dem man sich die Adresse aussucht.
 
 `update.sh` prüft vor dem Ziehen, ob dort, wo Docker seine Daten hält, noch
 zwei Gigabyte frei sind, und räumt nach jeder Aktualisierung die verwaisten

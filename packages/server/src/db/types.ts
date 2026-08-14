@@ -155,6 +155,28 @@ export interface KontoStore extends StoreBasis {
     subject: string,
     email: string,
   ): Promise<AccountRecord | undefined>;
+
+  /**
+   * Hängt eine **weitere** Identität an ein Konto, das es schon gibt.
+   *
+   * Der Fall: dieselbe Adresse, ein anderer Anbieter. Wer sich gestern über
+   * Google angemeldet hat und heute über Facebook, ist dieselbe Person und
+   * soll dieselben Figuren vorfinden — die Adresse ist der Kontoname, und zwei
+   * Konten unter einer Adresse gäbe es ohnehin nicht.
+   *
+   * Die Tabelle kann das von Anfang an: ihr Schlüssel ist (Anbieter, Kennung),
+   * `account_id` steht daneben und ist nicht eindeutig. Ein Konto durfte also
+   * immer schon mehrere Identitäten haben — es hat sie nur nie bekommen.
+   *
+   * Doppelt aufgerufen tut es nichts. Zwei Anmeldungen zugleich sind kein
+   * Fehler, sondern zweimal dieselbe Aussage.
+   */
+  verknuepfeIdentitaet(
+    accountId: number,
+    provider: string,
+    subject: string,
+    email: string,
+  ): Promise<void>;
 }
 
 /**

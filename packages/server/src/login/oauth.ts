@@ -230,6 +230,24 @@ async function googleProfil(cfg: AnbieterConfig, code: string): Promise<Profil |
   }
   if (typeof nutzlast.sub !== 'string' || nutzlast.sub.length === 0) return undefined;
 
+  /*
+   * Eine Adresse, zu der Google ausdrücklich „nicht bestätigt" sagt, ist keine.
+   *
+   * Sie ist bei uns der Kontoname, und über Anbieter hinweg entscheidet sie,
+   * wessen Figuren jemand vorfindet. Eine unbestätigte Adresse anzunehmen
+   * hiesse, dass ein Konto bei irgendeinem Anbieter mit frei eingetragener
+   * Adresse genügt, um an ein fremdes Spielkonto zu kommen.
+   *
+   * Geprüft wird auf ein ausdrückliches Nein und nicht auf ein ausdrückliches
+   * Ja: fehlt die Angabe, hat Google nichts behauptet — und ein Anbieter, der
+   * schweigt, soll keine Anmeldung umwerfen, die seit einem Jahr läuft. Google
+   * schickt die Angabe zum Bereich `email` immer mit.
+   */
+  if (nutzlast.email_verified === false) {
+    console.warn('[anmelde] Google nennt die Adresse als nicht bestätigt.');
+    return undefined;
+  }
+
   return {
     subject: nutzlast.sub,
     email: typeof nutzlast.email === 'string' ? nutzlast.email : '',
@@ -367,6 +385,11 @@ async function facebookProfil(cfg: AnbieterConfig, code: string): Promise<Profil
    * Konto, das nur an einer Telefonnummer hängt, hat keine. Gemeldet wird es
    * hier, entschieden wird es im Anbieterweg — dort steht jemand davor, dem
    * man sagen kann, woran es lag.
+   *
+   * Ein Gegenstück zu Googles `email_verified` gibt es hier nicht, und es
+   * fehlt auch nicht: Facebook gibt über `me` nur die bestätigte Adresse des
+   * Kontos heraus. Käme das je anders, gehörte die Prüfung genau hierhin —
+   * denn über Anbieter hinweg entscheidet die Adresse, wessen Konto das ist.
    */
   if (!ich.email) {
     console.warn(`[anmelde] Facebook gibt für ${ich.id} keine Adresse heraus.`);

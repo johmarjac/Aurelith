@@ -181,6 +181,17 @@ export class MemoryStore implements GameStore {
     return konto;
   }
 
+  async verknuepfeIdentitaet(
+    accountId: number,
+    provider: string,
+    subject: string,
+    _email: string,
+  ): Promise<void> {
+    // Wie in der Datenbank: eine bestehende Zuordnung bleibt, wie sie ist.
+    const schluessel = `${provider}:${subject}`;
+    if (!this.identitaeten.has(schluessel)) this.identitaeten.set(schluessel, accountId);
+  }
+
   async saveInventory(characterId: number, items: ItemRecord[]): Promise<void> {
     const figur = this.figuren.get(characterId);
     if (figur) figur.items = items.map((i) => ({ ...i }));

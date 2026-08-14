@@ -117,6 +117,8 @@ export async function createStore(databaseUrl: string, serverName: string): Prom
     findeIdentitaet: (anbieter, kennung) => konten.findeIdentitaet(anbieter, kennung),
     legeKontoMitIdentitaet: (name, stufe, anbieter, kennung, email) =>
       konten.legeKontoMitIdentitaet(name, stufe, anbieter, kennung, email),
+    verknuepfeIdentitaet: (id, anbieter, kennung, email) =>
+      konten.verknuepfeIdentitaet(id, anbieter, kennung, email),
     beanspruche: (server) => welt.beanspruche(server),
     listCharacters: (accountId) => welt.listCharacters(accountId),
     createCharacter: (accountId, name, beruf, spawn) =>
