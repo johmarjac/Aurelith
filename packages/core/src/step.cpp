@@ -44,6 +44,28 @@ void World::advanceTimers(Entity& e, float dt) {
 void World::advanceJump(Entity& e, float dt) {
   if (!e.airborne) return;
 
+  /*
+   * Fliegen ist kein langer Sprung.
+   *
+   * Keine Schwerkraft, kein Landen — wer die Tasten loslässt, steht in der
+   * Luft. Nach unten begrenzt das Gelände (samt einem Handbreit Luft darunter,
+   * damit die Figur nicht im Hang steckt), nach oben die Decke des Geräts.
+   */
+  if (e.flying && isAlive(e)) {
+    e.y += e.vy * dt;
+    const float boden = terrainHeight(e.x, e.z, terrain_);
+    const float unten = boden + kFlugMindesthoehe;
+    const float oben = boden + e.ceiling;
+    if (e.y < unten) {
+      e.y = unten;
+      if (e.vy < 0.0f) e.vy = 0.0f;
+    } else if (e.y > oben) {
+      e.y = oben;
+      if (e.vy > 0.0f) e.vy = 0.0f;
+    }
+    return;
+  }
+
   if (!isAlive(e)) {
     // Wer in der Luft stirbt, fällt nicht weiter — der Körper bleibt liegen,
     // wo der Kern ihn zuletzt hatte. Alles andere wäre eine Leiche, die noch

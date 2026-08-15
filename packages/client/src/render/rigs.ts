@@ -1638,6 +1638,52 @@ export const CHARACTER_CONFIGS: Record<string, CharacterConfig> = {
 };
 
 /**
+ * Besen oder Brett — das Ding unter der Figur.
+ *
+ * Kein Rig, sondern ein paar Kästen an einer Gruppe: ein Fluggerät bewegt
+ * nichts an sich selbst. Es hängt am Rig der Figur und macht deren Drehung und
+ * Bewegung mit, ohne dass irgendwo eine zweite Position gepflegt wird.
+ *
+ * Die Masse sind so gewählt, dass die Figur **darauf** steht und nicht darin:
+ * die Oberkante liegt knapp unter den Füssen, also bei y = 0 des Rigs.
+ */
+export function baueFluggeraet(model: string, material: THREE.Material): THREE.Group {
+  const gruppe = new THREE.Group();
+  const kasten = (
+    w: number,
+    h: number,
+    t: number,
+    farbe: number,
+    x: number,
+    y: number,
+    z: number,
+    drehung = 0,
+  ): void => {
+    const mesh = new THREE.Mesh(paint(new THREE.BoxGeometry(w, h, t), farbe), material);
+    mesh.position.set(x, y, z);
+    mesh.rotation.x = drehung;
+    mesh.castShadow = true;
+    gruppe.add(mesh);
+  };
+
+  if (model === 'flug_besen') {
+    // Stiel der Länge nach, Reisig hinten. Man sitzt darauf, also liegt er
+    // etwas höher als das Brett.
+    kasten(0.09, 0.09, 2.1, 0x6b4423, 0, -0.12, 0.15);
+    kasten(0.26, 0.26, 0.55, 0xb08b4f, 0, -0.12, -1.05);
+    kasten(0.12, 0.12, 0.3, 0x8a6a3a, 0, 0.02, 0.95);
+    return gruppe;
+  }
+
+  // Brett: flach, breit, mit zwei Kufen darunter.
+  kasten(0.62, 0.09, 1.9, 0x4a3f36, 0, -0.1, 0);
+  kasten(0.5, 0.04, 1.5, 0x3f7fa8, 0, -0.04, 0);
+  kasten(0.08, 0.06, 1.5, 0x2a2622, -0.22, -0.17, 0);
+  kasten(0.08, 0.06, 1.5, 0x2a2622, 0.22, -0.17, 0);
+  return gruppe;
+}
+
+/**
  * Frisches Rig.
  *
  * `weapon` übersteuert, was die Figur in der Hand hält — es kommt aus dem

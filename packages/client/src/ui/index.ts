@@ -91,6 +91,7 @@ const KIND_LABEL: Record<string, string> = {
   material: 'Material',
   quest: 'Auftragsgegenstand',
   pet: 'Begleiter',
+  flug: 'Fluggerät',
 };
 
 /**
@@ -125,6 +126,10 @@ const LINKE_PLAETZE: ReadonlyArray<[EquipSlot, number]> = [
   ['mainhand', 0],
   ['cloak', 0],
   ['glasses', 0],
+  // Das Fluggerät steht bei den anderen Plätzen und nicht in einer eigenen
+  // Ecke: es ist angelegte Ausrüstung wie ein Umhang, nur dass man darauf
+  // steht. Wer es sucht, sucht es dort, wo alles Angelegte liegt.
+  ['flug', 0],
 ];
 const RECHTE_PLAETZE: ReadonlyArray<[EquipSlot, number]> = [
   ['head', 0],
@@ -161,6 +166,7 @@ const SLOT_GLYPHS: Partial<Record<EquipSlot, string>> = {
   necklace: '📿',
   earring: '💧',
   ring: '💍',
+  flug: '🧹',
 };
 
 export type ConnectionState = 'verbindet' | 'verbunden' | 'getrennt';
@@ -2553,6 +2559,14 @@ export class UI {
       );
     } else if (def.kind === 'consumable') {
       knoepfe.push(knopf('Benutzen', 'btn', () => this.onUseItem?.(entry.slot)));
+    } else if (def.flug) {
+      // Derselbe Weg wie „Anlegen", nur mit dem Wort, das dazu passt: ein
+      // Fluggerät legt man nicht an, man steigt auf.
+      knoepfe.push(
+        knopf(entry.equipped ? 'Absteigen' : 'Aufsteigen', 'btn', () =>
+          this.onEquipItem?.(entry.slot),
+        ),
+      );
     } else if (entry.equipped) {
       // Ablegen steht dort, wo vorher nur „Angelegt" stand. Ein Zustand ohne
       // Ausweg ist keine Auskunft, sondern eine Sackgasse.

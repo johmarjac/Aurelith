@@ -34,6 +34,13 @@ constexpr float kMaxWalkableSlopeDeg = 52.0f;
 constexpr float kGravity = 22.0f;
 constexpr float kJumpSpeed = 7.2f;
 
+// --- Fliegen ---------------------------------------------------------------
+//
+// Wie hoch über dem Gelände ein Flug mindestens verläuft. Nicht null: bei null
+// schleifte die Figur über den Boden und steckte in jedem Hang, und „fliegen"
+// sähe aus wie „laufen, aber durch Bäume".
+constexpr float kFlugMindesthoehe = 1.2f;
+
 // Höchstzahl der Ziele eines Flächenangriffs. Deckelt den schlimmsten Fall —
 // wer in einer Herde steht, soll sie treffen, aber nicht den Server aufhalten.
 constexpr int kMaxAreaTargets = 16;
@@ -112,6 +119,9 @@ enum InputButton : uint32_t {
   kButtonJump = 1u << 1,
   kButtonInteract = 1u << 2,
   kButtonSit = 1u << 3,
+  // Sinken. Das Gegenstück zum Sprung, und nur in der Luft von Bedeutung: am
+  // Boden gibt es nichts, wohin es abwärts ginge.
+  kButtonSink = 1u << 4,
 };
 
 enum EventType : uint8_t {
@@ -248,6 +258,23 @@ struct Entity {
    */
   float vy = 0.0f;
   bool airborne = false;
+
+  /**
+   * Fliegt diese Figur gerade?
+   *
+   * Ein eigener Zustand und nicht „airborne mit abgeschalteter Schwerkraft":
+   * die beiden verhalten sich in jedem Punkt anders. Wer springt, fällt wieder
+   * und wird dabei vom Gelände gebremst; wer fliegt, steht in der Luft still,
+   * steigt auf Tastendruck und geht durch die Baumkronen.
+   *
+   * Was das Gerät kann, steht daneben — der Kern kennt keine Gegenstände, er
+   * bekommt die Zahlen beim Aufsteigen gesagt.
+   */
+  bool flying = false;
+  float flightSpeed = 10.0f;
+  float climbSpeed = 6.0f;
+  /** Höchste Höhe über dem Gelände. Darüber steigt nichts mehr. */
+  float ceiling = 45.0f;
 
   float attackCooldown = 0.0f;
   // Negativ heißt: kein Schlag unterwegs.

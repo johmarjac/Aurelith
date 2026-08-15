@@ -217,6 +217,43 @@ void World::setPetGoal(uint32_t id, float x, float z, float arrive) {
   e->goalArrive = arrive;
 }
 
+void World::setFlying(uint32_t id, bool on, float speed, float climb, float ceiling) {
+  Entity* ep = find(id);
+  if (ep == nullptr) return;
+  Entity& e = *ep;
+
+  if (on) {
+    e.flying = true;
+    e.flightSpeed = speed;
+    e.climbSpeed = climb;
+    e.ceiling = ceiling;
+    // Vom Boden weg, sonst zieht die waagerechte Bewegung die Figur im selben
+    // Schritt wieder an das Gelände. `airborne` heisst hier wie beim Sprung
+    // schlicht: hängt nicht am Boden.
+    e.airborne = true;
+    e.vy = 0.0f;
+    /*
+     * Aufsteigen hebt ab — hier und nicht erst im nächsten Schritt.
+     *
+     * Sonst stünde die Figur ein Bild lang auf dem Boden und würde dann von
+     * der Höhenbegrenzung nach oben geschoben. Das ist derselbe Weg und sieht
+     * trotzdem falsch aus: ein Ruck statt eines Abhebens. Die Prüfung im Kern
+     * hat genau das gefunden.
+     */
+    const float unten = terrainHeight(e.x, e.z, terrain_) + kFlugMindesthoehe;
+    if (e.y < unten) e.y = unten;
+    return;
+  }
+
+  if (!e.flying) return;
+  e.flying = false;
+  // Wer absteigt, steht in der Luft und fällt. Dieselbe Schwerkraft wie nach
+  // einem Sprung — ein sanftes Herabgleiten wäre eine zweite Flugbahn neben
+  // der einen, die es schon gibt.
+  e.vy = 0.0f;
+  e.airborne = true;
+}
+
 bool World::removeEntity(uint32_t id) {
   auto it = index_.find(id);
   if (it == index_.end()) return false;

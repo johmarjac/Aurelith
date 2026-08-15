@@ -29,6 +29,7 @@ import {
   type AccessLevel,
   normalisiereLeiste,
   type InventoryRow,
+  type ItemDef,
   angleDelta,
   CombatFlag,
   EntityState,
@@ -1316,6 +1317,7 @@ export class Game {
         // verteilten Punkt ändern. Ohne diese Zeile griffe der neue Wert erst
         // beim nächsten Ausrüstungswechsel.
         this.applyProfileToPrediction();
+    this.applyFlugToPrediction();
       },
 
       onInventory: (rows) => {
@@ -1340,6 +1342,7 @@ export class Game {
         });
         this.profile = attackProfileFor(mainhand ? getItem(mainhand.itemId) : undefined);
         this.applyProfileToPrediction();
+    this.applyFlugToPrediction();
 
         // Klang nur beim *Wechsel*, nicht bei jeder Inventarnachricht.
         //
@@ -1928,6 +1931,7 @@ export class Game {
     // Einloggen nach Norden, egal wie sie sich abgemeldet hat.
     this.input.setFacing(yaw);
     this.applyProfileToPrediction();
+    this.applyFlugToPrediction();
 
     world.removeEntity(this.localId);
     world.spawnPlayer({
@@ -1960,6 +1964,7 @@ export class Game {
     // Und gleich das Profil der angelegten Waffe darüber. Getrennt, weil beim
     // Erscheinen noch nicht feststeht, ob das Inventar schon da ist.
     this.applyProfileToPrediction();
+    this.applyFlugToPrediction();
   }
 
   /**
@@ -2619,6 +2624,48 @@ export class Game {
     this.ui.setPortalPrompt(found ? label : undefined);
   }
 
+  /**
+   * Fliegt die eigene Figur gerade?
+   *
+   * Aus dem Beutel und nicht aus einer Meldung des Servers: was angelegt ist,
+   * weiss der Client ohnehin, und die Vorhersage muss es im selben Bild
+   * wissen, in dem sie rechnet. Eine eigene Nachricht wäre eine zweite
+   * Wahrheit, die einen Tick später einträfe — und der Unterschied wäre eine
+   * Figur, die im eigenen Bild fällt und im nächsten Schnappschuss wieder
+   * oben steht.
+   */
+  private get fliegt(): boolean {
+    return this.flugGeraet !== undefined;
+  }
+
+  private get flugGeraet(): ItemDef | undefined {
+    for (const e of this.inventar) {
+      if (!e.equipped) continue;
+      const def = getItem(e.itemId);
+      if (def?.flug) return def;
+    }
+    return undefined;
+  }
+
+  /**
+   * Sagt der Vorhersage, ob und womit geflogen wird.
+   *
+   * Dieselben Zahlen wie beim Server, aus derselben Inhaltsdatei. Ohne diesen
+   * Aufruf liefe die eigene Figur im Browser weiter am Boden, während der
+   * Server sie in der Luft führt — und jeder Schnappschuss risse sie nach oben.
+   */
+  private applyFlugToPrediction(): void {
+    if (!this.prediction || this.localId === 0) return;
+    const flug = this.flugGeraet?.flug;
+    this.prediction.setFlying(
+      this.localId,
+      flug !== undefined,
+      flug?.speed ?? 0,
+      flug?.steig ?? 0,
+      flug?.maxHoehe ?? 0,
+    );
+  }
+
   /** Überträgt das Angriffsprofil in die Vorhersagewelt. */
   private applyProfileToPrediction(): void {
     if (!this.prediction || this.localId === 0) return;
@@ -2738,7 +2785,11 @@ export class Game {
 
     const buttons =
       (this.schlaegtZu && !this.dead && munition ? CoreButton.Attack : 0) |
-      (snapshot.sprung && !this.dead ? CoreButton.Jump : 0);
+      (snapshot.sprung && !this.dead ? CoreButton.Jump : 0) |
+      // In der Luft wird gehalten, nicht angetippt: der Kern liest dieselbe
+      // Sprungtaste dann als „steigen".
+      (this.fliegt && snapshot.steigt && !this.dead ? CoreButton.Jump : 0) |
+      (this.fliegt && snapshot.sinkt && !this.dead ? CoreButton.Sink : 0);
 
     const seq = ++this.inputSeq;
 

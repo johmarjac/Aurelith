@@ -440,6 +440,50 @@
         "sammelRadius": 0,
         "heimweg": 18
       }
+    },
+    {
+      "id": "flug_besen",
+      "name": "Hexenbesen",
+      "kind": "flug",
+      "slot": "flug",
+      "levelReq": 1,
+      "attackDamage": 0,
+      "defense": 0,
+      "effectValue": 0,
+      "stackable": false,
+      "maxStack": 1,
+      "value": 900,
+      "model": "",
+      "iconColor": "#8a5a2a",
+      "description": "Reisig, Weidenband und ein Griff, der schon jemanden getragen hat. Steigt behäbig, wendet dafür auf der Stelle.",
+      "flug": {
+        "model": "flug_besen",
+        "speed": 10.0,
+        "steig": 7.0,
+        "maxHoehe": 45
+      }
+    },
+    {
+      "id": "flug_board",
+      "name": "Sturmbrett",
+      "kind": "flug",
+      "slot": "flug",
+      "levelReq": 1,
+      "attackDamage": 0,
+      "defense": 0,
+      "effectValue": 0,
+      "stackable": false,
+      "maxStack": 1,
+      "value": 1400,
+      "model": "",
+      "iconColor": "#3f7fa8",
+      "description": "Ein Brett aus Moorkiefer, unten glattgeschliffen. Schnell geradeaus, träge beim Steigen — wer damit hoch will, nimmt Anlauf.",
+      "flug": {
+        "model": "flug_board",
+        "speed": 15.0,
+        "steig": 5.0,
+        "maxHoehe": 60
+      }
     }
   ],
   "sets": [

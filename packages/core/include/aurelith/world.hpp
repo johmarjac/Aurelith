@@ -133,6 +133,20 @@ class World {
   void setTarget(uint32_t id, uint32_t targetId);
 
   /**
+   * Auf- und Absteigen.
+   *
+   * `on` schaltet den Flug ein oder aus; die drei Zahlen beschreiben das
+   * Gerät und gelten, solange geflogen wird. Beim Absteigen fällt die Figur —
+   * sie steht ja in der Luft —, und darum kümmert sich dieselbe Schwerkraft
+   * wie nach einem Sprung.
+   *
+   * Der Kern entscheidet dabei **nichts**: ob jemand fliegen darf, was er
+   * dafür anhat und ob das Gerät ihm gehört, weiss der Server. Hier steht nur,
+   * wie ein Körper sich in der Luft bewegt.
+   */
+  void setFlying(uint32_t id, bool on, float speed, float climb, float ceiling);
+
+  /**
    * Ein Schlag, der alles ringsum trifft — die Wirkung einer Fertigkeit.
    *
    * Ohne Vorlauf und ohne Abklingzeit: beides gehört der Fertigkeit und liegt

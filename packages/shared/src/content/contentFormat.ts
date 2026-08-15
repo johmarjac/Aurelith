@@ -161,7 +161,7 @@ function body(raw: unknown, key: string, source: string): { doc: Record<string, 
 // Gegenstände
 // ---------------------------------------------------------------------------
 
-const ITEM_KINDS = ['weapon', 'armor', 'consumable', 'material', 'quest', 'ammo', 'pet'] as const;
+const ITEM_KINDS = ['weapon', 'armor', 'consumable', 'material', 'quest', 'ammo', 'pet', 'flug'] as const;
 const PET_ARTEN = ['support', 'sammler'] as const;
 const SLOT_NAMEN = [
   'mainhand',
@@ -176,6 +176,7 @@ const SLOT_NAMEN = [
   'necklace',
   'earring',
   'ring',
+  'flug',
   'none',
 ] as const;
 const ATTACK_STYLES = ['melee', 'ranged'] as const;
@@ -255,6 +256,38 @@ export function parseItems(raw: unknown, source = 'items.json'): {
       if (def.pet.art === 'sammler' && def.pet.sammelRadius <= 0) {
         throw new ContentFormatError('Sammler ohne sammelRadius', `${path}.pet`);
       }
+    }
+
+    /*
+     * Fluggerät: Sorte, Platz und Block gehören zusammen — alle drei.
+     *
+     * Der Platz steht dabei nicht zur Wahl. Ein Besen auf `mainhand` wäre eine
+     * Waffe, die zufällig fliegt, und beim Anlegen flöge das Schwert aus der
+     * Hand; einer auf `none` bliebe beim Aufsteigen im Beutel liegen und wäre
+     * damit ein Haustier mit falscher Beschriftung.
+     */
+    if ((o.flug !== undefined) !== (def.kind === 'flug')) {
+      throw new ContentFormatError(
+        def.kind === 'flug' ? 'Fluggerät ohne flug-Block' : 'flug-Block an etwas anderem',
+        path,
+      );
+    }
+    if (o.flug !== undefined) {
+      if (def.slot !== 'flug') {
+        throw new ContentFormatError(`Fluggerät auf Platz „${def.slot}" statt „flug"`, path);
+      }
+      const f = obj(o.flug, `${path}.flug`);
+      def.flug = {
+        model: str(f, 'model', `${path}.flug`),
+        speed: optNum(f, 'speed', 11, `${path}.flug`),
+        steig: optNum(f, 'steig', 6, `${path}.flug`),
+        maxHoehe: optNum(f, 'maxHoehe', 45, `${path}.flug`),
+      };
+      if (def.flug.speed <= 0 || def.flug.steig <= 0 || def.flug.maxHoehe <= 0) {
+        throw new ContentFormatError('Fluggerät mit Tempo, Steigen oder Höhe null', `${path}.flug`);
+      }
+    } else if (def.slot === 'flug') {
+      throw new ContentFormatError('Platz „flug" an etwas, das nicht fliegt', path);
     }
 
     if (def.stackable && def.maxStack < 2) {

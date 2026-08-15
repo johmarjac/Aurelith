@@ -49,6 +49,8 @@ export interface EntityMeta {
    * ändert sich alle paar Minuten.
    */
   setGlow?: number;
+  /** Worauf diese Figur fliegt — Modellschlüssel, leer heisst: am Boden. */
+  flug?: string;
   defId: string;
   name: string;
   type: EntityType;

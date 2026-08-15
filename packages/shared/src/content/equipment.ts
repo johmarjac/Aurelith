@@ -34,6 +34,7 @@ export const EQUIP_SLOTS: readonly EquipSlot[] = [
   'necklace',
   'earring',
   'ring',
+  'flug',
 ];
 
 /** Deutscher Name eines Platzes — für die Beschriftung in der Oberfläche. */
@@ -50,6 +51,7 @@ export const SLOT_NAMES: Readonly<Record<EquipSlot, string>> = {
   necklace: 'Halskette',
   earring: 'Ohrring',
   ring: 'Ring',
+  flug: 'Fluggerät',
   none: '—',
 };
 

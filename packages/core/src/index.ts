@@ -26,7 +26,14 @@ export type CoreEntityType = (typeof CoreEntityType)[keyof typeof CoreEntityType
 export const CoreEntityState = { Idle: 0, Move: 1, Attack: 2, Dead: 3 } as const;
 export type CoreEntityState = (typeof CoreEntityState)[keyof typeof CoreEntityState];
 
-export const CoreButton = { Attack: 1, Jump: 2, Interact: 4, Sit: 8 } as const;
+/**
+ * Die Tastenbits, wie der Kern sie liest (`InputButton` in `types.hpp`).
+ *
+ * `Jump` heisst am Boden „abspringen" und in der Luft „steigen" — dieselbe
+ * Taste, zwei Bedeutungen, entschieden vom Zustand und nicht von einem
+ * zweiten Bit. `Sink` gibt es nur in der Luft.
+ */
+export const CoreButton = { Attack: 1, Jump: 2, Interact: 4, Sit: 8, Sink: 16 } as const;
 
 export const CoreEventType = { Hit: 0, Death: 1, Spawn: 2, Exp: 3 } as const;
 export type CoreEventType = (typeof CoreEventType)[keyof typeof CoreEventType];
@@ -177,6 +184,13 @@ interface RawWorld {
   teleport(id: number, x: number, z: number, yaw: number): void;
   respawnPlayer(id: number, x: number, z: number): void;
   setTarget(id: number, targetId: number): void;
+  setFlying(
+    id: number,
+    on: boolean,
+    speed: number,
+    climb: number,
+    ceiling: number,
+  ): void;
   areaAttack(id: number, radius: number, damageFactor: number): void;
   setPlayerStats(
     id: number,
@@ -383,6 +397,17 @@ export class CoreWorld {
 
   setTarget(id: number, targetId: number): void {
     this.raw.setTarget(id, targetId);
+  }
+
+  /**
+   * Auf- und Absteigen. Die drei Zahlen beschreiben das Gerät.
+   *
+   * Server **und** Client rufen das: der eine, weil er entscheidet, der andere,
+   * damit seine Vorhersage dieselbe Bewegung rechnet. Täte es nur einer, ruckte
+   * die eigene Figur bei jedem Schnappschuss zurecht.
+   */
+  setFlying(id: number, on: boolean, speed: number, climb: number, ceiling: number): void {
+    this.raw.setFlying(id, on, speed, climb, ceiling);
   }
 
   /**

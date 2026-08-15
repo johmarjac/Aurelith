@@ -112,11 +112,24 @@ void World::applyInput(uint32_t id, float moveX, float moveZ, float yaw, uint32_
     tryStartSwing(e);
   }
 
-  // Der Absprung — mehr nicht. Die Flugbahn rechnet der Tick, und zwar für
-  // alle: eine Eingabe kann ausbleiben (verlorenes Paket, Fenster im
-  // Hintergrund), und eine Figur, deren Schwerkraft an ihrer Eingabe hängt,
-  // bliebe dann in der Luft stehen.
-  if ((buttons & kButtonJump) != 0u && !e.airborne) {
+  /*
+   * Senkrecht: in der Luft steuert man, am Boden springt man.
+   *
+   * Beim Fliegen ist `vy` ein **Sollwert** und keine Anfangsgeschwindigkeit:
+   * gedrückt wird gestiegen, losgelassen wird gestanden. Genau das ist der
+   * Unterschied zum Sprung, bei dem der Absprung einmal Schwung gibt und die
+   * Schwerkraft den Rest erledigt.
+   *
+   * Bleibt eine Eingabe aus — verlorenes Paket, Fenster im Hintergrund —, hört
+   * das Steigen auf, statt sich fortzusetzen. Das ist die richtige Richtung
+   * für einen Ausfall: wer stehenbleibt, verliert nichts, wer weitersteigt,
+   * findet sich unter der Decke wieder.
+   */
+  if (e.flying) {
+    const bool hoch = (buttons & kButtonJump) != 0u;
+    const bool runter = (buttons & kButtonSink) != 0u;
+    e.vy = hoch == runter ? 0.0f : (hoch ? e.climbSpeed : -e.climbSpeed);
+  } else if ((buttons & kButtonJump) != 0u && !e.airborne) {
     e.vy = kJumpSpeed;
     e.airborne = true;
   }
@@ -130,7 +143,8 @@ void World::applyInput(uint32_t id, float moveX, float moveZ, float yaw, uint32_
   }
   const float intensity = std::min(1.0f, len);
 
-  float speed = e.moveSpeed * intensity;
+  // In der Luft gilt das Tempo des Geräts und nicht das der Beine.
+  float speed = (e.flying ? e.flightSpeed : e.moveSpeed) * intensity;
   if (e.swingTimer >= 0.0f) speed *= kWindupSpeedFactor;
   else if (e.hitStun > 0.0f) speed *= kHitStunSpeedFactor;
 
@@ -144,7 +158,23 @@ void World::applyInput(uint32_t id, float moveX, float moveZ, float yaw, uint32_
 
   float movedX = 0.0f;
   float movedZ = 0.0f;
-  moveWithCollision(e, mx * speed * dt, mz * speed * dt, &movedX, &movedZ);
+  if (e.flying) {
+    /*
+     * Über allem hinweg.
+     *
+     * Kein Hindernis, keine Steigung — das ist der Sinn der Sache. Nur die
+     * Kartengrenze gilt weiter, und zwar für alle: ein Ort ausserhalb ist
+     * nirgends, und der Boden darunter wäre nicht berechnet.
+     */
+    const float vorher_x = e.x;
+    const float vorher_z = e.z;
+    e.x = clampToMap(e.x + mx * speed * dt, terrain_);
+    e.z = clampToMap(e.z + mz * speed * dt, terrain_);
+    movedX = e.x - vorher_x;
+    movedZ = e.z - vorher_z;
+  } else {
+    moveWithCollision(e, mx * speed * dt, mz * speed * dt, &movedX, &movedZ);
+  }
 
   e.vx = dt > 0.0f ? movedX / dt : 0.0f;
   e.vz = dt > 0.0f ? movedZ / dt : 0.0f;

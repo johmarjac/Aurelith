@@ -1210,6 +1210,7 @@ export class GameServer {
         weapon: meta?.weapon ?? '',
         weaponUpgrade: meta?.weaponUpgrade ?? 0,
         outfit: meta?.outfit ?? '',
+        flug: meta?.flug ?? '',
         setGlow: meta?.setGlow ?? 0,
       });
       session.known.add(row.id);
@@ -1808,7 +1809,26 @@ export class GameServer {
       weaponUpgrade: this.mainhandEntry(session)?.upgrade ?? 0,
       outfit: encodeOutfit(this.outfitOf(session)),
       setGlow: setGlowLevel(this.activeSetOf(session)),
+      // Leer heisst: am Boden. Steht in der vollen Zeile, und die schickt
+      // `applyLoadout` nach jedem Ausrüstungswechsel ohnehin neu.
+      flug: this.flugGeraetVon(session)?.flug?.model ?? '',
     };
+  }
+
+  /**
+   * Das angelegte Fluggerät — oder nichts.
+   *
+   * Eine Frage, eine Antwort: daran hängen der Kern (fliegt diese Figur?), der
+   * Snapshot (was sehen die anderen?) und die Werte. Drei Schleifen über den
+   * Beutel wären drei Gelegenheiten, verschieden zu antworten.
+   */
+  private flugGeraetVon(session: Session): ItemDef | undefined {
+    for (const entry of session.items) {
+      if (!entry.equipped) continue;
+      const def = getItem(entry.itemId);
+      if (def?.flug) return def;
+    }
+    return undefined;
   }
 
   private outfitOf(session: Session): Outfit {
@@ -1851,6 +1871,23 @@ export class GameServer {
       profile.windupSec,
     );
     instance.world.setCritProfile(session.entityId, stats.critChance, stats.critMultiplier);
+
+    /*
+     * Auf- und Absteigen ist ein Ausrüstungswechsel.
+     *
+     * Deshalb steht es hier und nicht an einem eigenen Weg: was angelegt ist,
+     * entscheidet, ob geflogen wird — und diese Stelle läuft nach **jeder**
+     * Änderung am Angelegten. Ein zweiter Weg daneben wäre einer, den man beim
+     * Verkaufen des Besens vergisst.
+     */
+    const geraet = this.flugGeraetVon(session);
+    instance.world.setFlying(
+      session.entityId,
+      geraet !== undefined,
+      geraet?.flug?.speed ?? 0,
+      geraet?.flug?.steig ?? 0,
+      geraet?.flug?.maxHoehe ?? 0,
+    );
 
     const meta = instance.metaFor(session.entityId);
     if (meta) Object.assign(meta, this.playerMeta(session));
@@ -2982,6 +3019,23 @@ export class GameServer {
       stats.mpRegen,
     );
     instance.world.setCritProfile(session.entityId, stats.critChance, stats.critMultiplier);
+
+    /*
+     * Auf- und Absteigen ist ein Ausrüstungswechsel.
+     *
+     * Deshalb steht es hier und nicht an einem eigenen Weg: was angelegt ist,
+     * entscheidet, ob geflogen wird — und diese Stelle läuft nach **jeder**
+     * Änderung am Angelegten. Ein zweiter Weg daneben wäre einer, den man beim
+     * Verkaufen des Besens vergisst.
+     */
+    const geraet = this.flugGeraetVon(session);
+    instance.world.setFlying(
+      session.entityId,
+      geraet !== undefined,
+      geraet?.flug?.speed ?? 0,
+      geraet?.flug?.steig ?? 0,
+      geraet?.flug?.maxHoehe ?? 0,
+    );
 
     // Die Schlagpause hängt an Geschick und gehört deshalb hierher — sonst
     // gälte der neue Wert erst nach dem nächsten Ausrüstungswechsel.

@@ -512,6 +512,15 @@ export interface SpawnRow {
    * Wahrheiten über dieselbe Sache.
    */
   setGlow: number;
+  /**
+   * Worauf diese Figur gerade fliegt — Modellschlüssel, leer heisst: am Boden.
+   *
+   * In der vollen Zeile und nicht im laufenden Positionsupdate: Auf- und
+   * Absteigen ist ein Ausrüstungswechsel, und `applyLoadout` lässt die Figur
+   * danach ohnehin einmal als neu gelten. Ein Byte je Wesen und Schnappschuss
+   * für etwas, das alle paar Minuten passiert, wäre der falsche Preis.
+   */
+  flug: string;
 }
 
 /** Laufende Aktualisierung eines bereits bekannten Entities. */
@@ -603,7 +612,8 @@ export function encodeSnapshot(m: SnapshotMsg): Uint8Array {
       .str(s.weapon)
       .u8(Math.max(0, Math.min(255, Math.round(s.weaponUpgrade))))
       .str(s.outfit)
-      .u8(Math.max(0, Math.min(255, Math.round(s.setGlow))));
+      .u8(Math.max(0, Math.min(255, Math.round(s.setGlow))))
+      .str(s.flug);
   }
 
   w.u16(m.updates.length);
@@ -662,6 +672,7 @@ export function decodeSnapshot(r: ByteReader): SnapshotMsg {
       weaponUpgrade: r.u8(),
       outfit: r.str(),
       setGlow: r.u8(),
+      flug: r.str(),
     };
   }
 

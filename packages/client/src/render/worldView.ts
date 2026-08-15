@@ -27,6 +27,7 @@ import {
 } from '@aurelith/shared';
 import type { QualitySettings } from '../config.ts';
 import type { ModelRegistry } from './modelRegistry.ts';
+import { baueFluggeraet } from './rigs.ts';
 import { Lanterns, type LanternPlacement } from './lanterns.ts';
 import { LootView } from './lootView.ts';
 import { WeaponAura } from './weaponAura.ts';
@@ -189,6 +190,10 @@ export interface EntityVisual {
   aura?: WeaponAura;
   /** Stufe des leuchtenden Rüstungssatzes. 0 heisst: kein Satz, kein Schein. */
   setGlow: number;
+  /** Worauf diese Figur fliegt — Modellschlüssel, leer heisst: am Boden. */
+  flug: string;
+  /** Das Gerät unter ihr, solange sie fliegt. */
+  flugMesh?: THREE.Object3D;
   /** Der warme Schein um die Figur, sofern ein Satz leuchtet. */
   satzAura?: SetAura;
   /** Höhe über dem Boden für Nameplate und Schadenszahlen. */
@@ -474,6 +479,9 @@ export class WorldView {
       if (existing.weapon !== row.weapon || existing.outfit !== row.outfit) {
         this.replaceRig(existing, row);
       }
+      // Auf- und Absteigen kommt über dieselbe volle Zeile wie ein
+      // Waffenwechsel — `applyLoadout` lässt die Figur danach als neu gelten.
+      if (existing.flug !== row.flug) this.setzeFluggeraet(existing, row.flug);
       // Die Aufwertung kommt nur in der vollen Zeile — genau deshalb meldet
       // der Server die Figur nach einem Schmiedegang als neu.
       if (existing.weaponUpgrade !== row.weaponUpgrade) {
@@ -525,11 +533,13 @@ export class WorldView {
       weaponUpgrade: row.weaponUpgrade,
       outfit: row.outfit,
       setGlow: row.setGlow,
+      flug: '',
       aggro: row.aggro,
       height: heightFor(row.type, row.defId),
     };
     this.attachAura(visual);
     this.attachSetAura(visual);
+    if (row.flug !== '') this.setzeFluggeraet(visual, row.flug);
     this.entities.set(row.id, visual);
     return visual;
   }
@@ -573,6 +583,27 @@ export class WorldView {
   }
 
   /**
+   * Hängt das Fluggerät unter die Figur — oder nimmt es wieder weg.
+   *
+   * Am Rig und nicht in der Szene: es soll sich mitdrehen und mitbewegen, ohne
+   * dass irgendwo eine zweite Position gepflegt wird. Ein Gerät, das der Figur
+   * nachgeführt werden müsste, wäre genau die Sorte doppelte Buchführung, die
+   * hier schon dreimal schiefgegangen ist.
+   */
+  private setzeFluggeraet(visual: EntityVisual, model: string): void {
+    if (visual.flugMesh) {
+      visual.rig.root.remove(visual.flugMesh);
+      visual.flugMesh = undefined;
+    }
+    visual.flug = model;
+    if (model === '') return;
+
+    const mesh = baueFluggeraet(model, this.registry.material);
+    visual.rig.root.add(mesh);
+    visual.flugMesh = mesh;
+  }
+
+  /**
    * Tauscht das Rig einer bestehenden Figur.
    *
    * Nur bei einem Waffenwechsel. Position und Zustand bleiben, was sich ändert
@@ -593,6 +624,8 @@ export class WorldView {
     rig.root.rotation.y = visual.yaw;
     this.root.add(rig.root);
 
+    visual.flugMesh = undefined;
+    if (row.flug !== '') this.setzeFluggeraet(visual, row.flug);
     visual.rig = rig;
     visual.weapon = row.weapon;
     visual.weaponUpgrade = row.weaponUpgrade;
@@ -834,7 +867,10 @@ export class WorldView {
       e.hoeheVorher = e.y;
 
       e.rig.update({
-        speed: e.speed,
+        // In der Luft steht der Gang still. Der Schritt hängt am Tempo, und
+        // wer auf einem Brett steht, macht keine Schritte — mit dem echten
+        // Tempo ruderte die Figur mit den Beinen durch die Luft.
+        speed: e.flug === '' ? e.speed : 0,
         luft,
         steigt,
         attackPhase: e.attackTimer >= 0 ? e.attackTimer / ATTACK_ANIM_SECONDS : -1,

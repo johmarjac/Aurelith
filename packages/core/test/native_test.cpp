@@ -603,6 +603,77 @@ void testVerbrauchtMp() {
   check(!world.verbrauchtMp(999, 1.0f), "eine erfundene Kennung auch nicht");
 }
 
+void testFliegen() {
+  std::printf("Fliegen\n");
+  aur::MobRegistry mobs;
+  aur::World world(9u, flatTerrain(), &mobs);
+  world.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+  aur::Entity* p = world.find(1);
+  const float boden = p->y;
+
+  // Am Boden ändert die Sinktaste nichts — es gibt kein Unten.
+  world.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonSink, aur::kTickSeconds);
+  world.step(aur::kTickSeconds);
+  check(p->y == boden, "am Boden bewirkt die Sinktaste nichts");
+
+  world.setFlying(1, true, 12.0f, 6.0f, 20.0f);
+  check(p->flying, "nach dem Aufsteigen fliegt die Figur");
+
+  /*
+   * Ohne Taste steht sie in der Luft.
+   *
+   * Das ist der Unterschied zum Sprung: dort zieht die Schwerkraft, hier
+   * nicht. Zwanzig Schritte sind eine Sekunde — genug, dass ein Fehler von
+   * einem halben Meter je Sekunde auffiele.
+   */
+  const float gehalten = p->y;
+  for (int i = 0; i < 20; ++i) {
+    world.applyInput(1, 0.0f, 0.0f, 0.0f, 0u, aur::kTickSeconds);
+    world.step(aur::kTickSeconds);
+  }
+  check(std::fabs(p->y - gehalten) < 1e-3f, "ohne Taste bleibt sie stehen");
+
+  // Steigen, bis die Decke kommt. Sie liegt über dem Gelände, nicht über null.
+  for (int i = 0; i < 200; ++i) {
+    world.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonJump, aur::kTickSeconds);
+    world.step(aur::kTickSeconds);
+  }
+  check(p->y > boden + 10.0f, "mit Taste steigt sie");
+  check(p->y <= boden + 20.0f + 1e-3f, "und nicht über die Decke des Geräts");
+
+  // Und wieder herunter — bis zur Mindesthöhe, nicht bis in den Boden.
+  for (int i = 0; i < 400; ++i) {
+    world.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonSink, aur::kTickSeconds);
+    world.step(aur::kTickSeconds);
+  }
+  check(p->y >= boden + aur::kFlugMindesthoehe - 1e-3f, "sie sinkt nicht in den Boden");
+
+  /*
+   * Absteigen heisst fallen.
+   *
+   * Die Gegenprobe zum Stehen in der Luft: dieselbe Figur, dieselbe Höhe, nur
+   * ohne Gerät — und jetzt zieht die Schwerkraft. Ohne diese Prüfung ginge ein
+   * Kern durch, in dem `setFlying(false)` schlicht nichts tut.
+   */
+  world.setFlying(1, true, 12.0f, 6.0f, 20.0f);
+  for (int i = 0; i < 60; ++i) {
+    world.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonJump, aur::kTickSeconds);
+    world.step(aur::kTickSeconds);
+  }
+  const float oben = p->y;
+  check(oben > boden + 5.0f, "vor dem Absteigen steht sie hoch genug");
+
+  world.setFlying(1, false, 0.0f, 0.0f, 0.0f);
+  check(!p->flying, "nach dem Absteigen fliegt sie nicht mehr");
+  for (int i = 0; i < 100; ++i) {
+    world.applyInput(1, 0.0f, 0.0f, 0.0f, 0u, aur::kTickSeconds);
+    world.step(aur::kTickSeconds);
+  }
+  check(p->y < oben - 1.0f, "und fällt");
+  check(std::fabs(p->y - boden) < 1e-3f, "bis auf den Boden");
+  check(!p->airborne, "wo sie dann auch steht");
+}
+
 void testRegeneration() {
   std::printf("Regeneration\n");
   aur::MobRegistry mobs;
@@ -897,6 +968,7 @@ int main() {
   testRangedAttack();
   testHeal();
   testVerbrauchtMp();
+  testFliegen();
   testRegeneration();
   testMoveSpeedFromStats();
   testAreaAttack();

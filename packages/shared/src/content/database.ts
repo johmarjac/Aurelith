@@ -118,7 +118,15 @@ export function getNpc(id: string): NpcDef | undefined {
  * Beutel. Wären Pfeile Material, müsste er die eine Kennung `arrow` kennen —
  * und beim zweiten Bogen mit anderer Munition stünde sie an zwei Stellen.
  */
-export type ItemKind = 'weapon' | 'armor' | 'consumable' | 'material' | 'quest' | 'ammo' | 'pet';
+export type ItemKind =
+  | 'weapon'
+  | 'armor'
+  | 'consumable'
+  | 'material'
+  | 'quest'
+  | 'ammo'
+  | 'pet'
+  | 'flug';
 
 /**
  * Was für ein Begleiter das ist.
@@ -172,6 +180,14 @@ export type EquipSlot =
   | 'necklace'
   | 'earring'
   | 'ring'
+  /**
+   * Besen, Brett — worauf man fliegt.
+   *
+   * Ein eigener Platz und nicht `none` wie beim Haustier: ein Fluggerät wird
+   * **angelegt**, verschwindet dabei aus dem Beutel und sitzt sichtbar unter
+   * der Figur. Wer aufsteigt, hat es in der Hand; wer absteigt, packt es weg.
+   */
+  | 'flug'
   | 'none';
 
 /**
@@ -182,6 +198,25 @@ export type EquipSlot =
  * solcher gemeldet wird, damit ein Pfeil zu sehen ist.
  */
 export type AttackStyle = 'melee' | 'ranged';
+
+/**
+ * Worauf man fliegt.
+ *
+ * Die Zahlen stehen hier und nicht im Kern, weil sie zum Gegenstand gehören:
+ * ein Besen ist wendig, ein Brett schnell, und das ist der ganze Unterschied
+ * zwischen ihnen. Der Kern bekommt sie beim Aufsteigen gesagt und rechnet
+ * damit — er kennt keine Gegenstände.
+ */
+export interface FlugDef {
+  /** Schlüssel des Modells unter der Figur, siehe `rigs.ts` im Client. */
+  model: string;
+  /** Waagerechtes Tempo in der Luft. Ersetzt das Lauftempo, solange geflogen wird. */
+  speed: number;
+  /** Wie schnell es hoch und runter geht. */
+  steig: number;
+  /** Wie hoch über dem Gelände es höchstens geht. */
+  maxHoehe: number;
+}
 
 export interface ItemDef {
   id: string;
@@ -250,6 +285,16 @@ export interface ItemDef {
    * unsichtbares Nichts hinter einem herliefe.
    */
   pet?: PetDef;
+
+  /**
+   * Das Fluggerät, falls dieses Stück eines ist.
+   *
+   * Da **oder nicht da**, wie beim Haustier: `kind: 'flug'`, `slot: 'flug'`
+   * und dieser Block gehören zusammen, und der Lader weist jede Hälfte ohne
+   * die anderen zurück. Ein Fluggerät ohne Angaben wäre ein Gegenstand, den
+   * man anlegt und mit dem sich nichts ändert.
+   */
+  flug?: FlugDef;
 
   // --- Nur für Waffen ------------------------------------------------------
 
