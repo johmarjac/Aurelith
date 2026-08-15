@@ -899,6 +899,9 @@ export class GameServer {
    */
   private async onLogout(session: Session): Promise<void> {
     if (session.entityId !== 0) {
+      // Vor dem Speichern, wie beim Trennen: das Merkmal am Gegenstand bleibt
+      // dabei stehen und wird gleich mitgeschrieben.
+      this.raeumeHaustiere(session);
       await this.persist(session).catch((err) =>
         console.error('[db] Speichern beim Abmelden fehlgeschlagen:', err),
       );

@@ -297,7 +297,11 @@ export class PostgresWelt extends PostgresBasis implements WeltStore {
     const character = toCharacter(row);
 
     const items = await this.pool.query(
-      `SELECT item_id, count, slot, equipped, upgrade
+      // `unterwegs` gehört in die Liste. Ohne die Spalte kommt `undefined`
+      // zurück, `Boolean(undefined)` ist `false` — und ein freigelassener
+      // Begleiter lag nach dem Anmelden wieder im Beutel, obwohl in der
+      // Datenbank das Richtige stand. Geschrieben wurde er, gelesen nicht.
+      `SELECT item_id, count, slot, equipped, upgrade, unterwegs
          FROM character_items
         WHERE character_id = $1
         ORDER BY slot`,
