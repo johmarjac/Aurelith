@@ -525,4 +525,55 @@ export class Overlay {
       n.element.style.opacity = String(Math.min(1, (1 - t) * 3));
     }
   }
+
+  /**
+   * Die Zahlentafel an der eigenen Figur.
+   *
+   * Am Ort und nicht in einer Ecke des Bildes: gemeint sind Winkel, und einen
+   * Winkel liest man dort ab, wo er gilt. Wer wissen will, ob die Nase mit der
+   * Eingabe zusammenpasst, muss sonst zwischen Bildecke und Figur hin- und
+   * herschauen und beides im Kopf zusammenlegen.
+   *
+   * Eine leere Liste räumt sie weg. So gibt es genau einen Weg, sie
+   * loszuwerden — kein zweites Merkmal daneben, das man vergessen kann.
+   */
+  updateDebug(
+    camera: THREE.PerspectiveCamera,
+    x: number,
+    y: number,
+    z: number,
+    zeilen: readonly string[],
+    width: number,
+    height: number,
+  ): void {
+    if (zeilen.length === 0) {
+      if (this.debugTafel) this.debugTafel.style.display = 'none';
+      return;
+    }
+
+    let el = this.debugTafel;
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'debug-tafel';
+      this.element.appendChild(el);
+      this.debugTafel = el;
+    }
+
+    this.projected.set(x, y, z).project(camera);
+    if (this.projected.z > 1) {
+      el.style.display = 'none';
+      return;
+    }
+
+    const sx = (this.projected.x * 0.5 + 0.5) * width;
+    const sy = (-this.projected.y * 0.5 + 0.5) * height;
+    el.style.display = '';
+    el.style.transform = `translate(${sx}px, ${sy}px) translate(-50%, -50%)`;
+
+    const text = zeilen.join('\n');
+    if (el.textContent !== text) el.textContent = text;
+  }
+
+  /** Die Tafel entsteht erst, wenn sie zum ersten Mal gebraucht wird. */
+  private debugTafel?: HTMLDivElement;
 }

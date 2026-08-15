@@ -60,7 +60,9 @@ import {
   UpgradeWindow,
   type NpcOption,
 } from './npcWindows.ts';
+import { isTypingTarget } from '../input/input.ts';
 import { Overlay } from './overlay.ts';
+import { ladeDebugAnzeige, setzeDebugAnzeige } from './debugAnzeige.ts';
 import { DollView } from './dollView.ts';
 import {
   ladeUiScale,
@@ -243,6 +245,15 @@ function bar(kind: 'hp' | 'mp' | 'exp'): { root: HTMLDivElement; fill: HTMLDivEl
 
 export class UI {
   readonly overlay: Overlay;
+
+  /**
+   * Sind die Zahlen eingeschaltet?
+   *
+   * Öffentlich, weil das Spiel danach entscheidet, ob es die Tafel überhaupt
+   * füllt. Der Schalter selbst bleibt hier — zwei Stellen, die sich merken,
+   * ob etwas an ist, laufen auseinander, sobald man eine davon vergisst.
+   */
+  debugAn = ladeDebugAnzeige();
 
   /**
    * Eine getippte Zeile — mit dem Kanal, in dem sie stehen soll.
@@ -956,6 +967,7 @@ export class UI {
     mute.type = 'checkbox';
     mute.addEventListener('change', () => {
       this.levels = { ...this.levels, muted: mute.checked };
+      mute.blur();
       this.applyLevelsToForm();
       this.onAudioChange?.({ muted: mute.checked });
     });
@@ -1045,6 +1057,36 @@ export class UI {
     groesseKopf.append(el('label', undefined, 'Größe der Oberfläche'), groesseWert);
     groesseRow.append(groesseKopf, groesse);
     bild.append(groesseRow);
+
+    /*
+     * Die Debug-Anzeige.
+     *
+     * Ein Schalter, kein Tastenkürzel: Kürzel drückt man versehentlich, und
+     * eine Zahlentafel, die man sich nicht erklären kann, ist schlimmer als
+     * keine. Wer sie sucht, findet sie dort, wo auch die Größe der Oberfläche
+     * steht.
+     */
+    const debugRow = el('label', 'settings-toggle');
+    const debug = el('input');
+    debug.type = 'checkbox';
+    debug.checked = this.debugAn;
+    debug.addEventListener('change', () => {
+      this.debugAn = debug.checked;
+      setzeDebugAnzeige(debug.checked);
+      // Fokus wieder abgeben: sonst schaltete die Leertaste in der Luft den
+      // Schub **und** dieses Kästchen.
+      debug.blur();
+    });
+    debugRow.append(debug, el('span', undefined, 'Debug anzeigen'));
+    bild.append(debugRow);
+    bild.append(
+      el(
+        'p',
+        'settings-note',
+        'Zeigt beim Fliegen Kurs, Nase und Tempo direkt an der Figur — und ' +
+          'daneben, was der Steuerknüppel gerade meldet.',
+      ),
+    );
     body.append(bild);
 
     const hinweis = el('p', 'settings-note', '');
@@ -1144,8 +1186,11 @@ export class UI {
 
   private bindHotkeys(): void {
     window.addEventListener('keydown', (e) => {
+      // Dieselbe Frage wie in der Eingabe und deshalb dieselbe Funktion: zwei
+      // Listen davon, was ein Textfeld ist, laufen auseinander, und dann
+      // schluckt die eine Taste, die die andere durchlässt.
       const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.isContentEditable)) {
+      if (isTypingTarget(target)) {
         if (e.key === 'Escape') (target as HTMLInputElement).blur();
         return;
       }
@@ -2712,6 +2757,7 @@ export class UI {
     ziel: { entity: EntityVisual | undefined; kampf: boolean },
     dt: number,
     loot?: { piles: Iterable<{ row: LootRow }>; label: (row: LootRow) => string },
+    debug?: { x: number; y: number; z: number; zeilen: readonly string[] },
   ): void {
     const width = window.innerWidth;
     const height = window.innerHeight;
@@ -2730,6 +2776,18 @@ export class UI {
       this.overlay.updateLootLabels(camera, loot.piles, loot.label, width, height);
     }
     this.overlay.updateNumbers(camera, dt, width, height);
+    // Ohne Schalter keine Tafel — und eine leere Liste räumt sie weg.
+    if (debug) {
+      this.overlay.updateDebug(
+        camera,
+        debug.x,
+        debug.y,
+        debug.z,
+        this.debugAn ? debug.zeilen : [],
+        width,
+        height,
+      );
+    }
   }
 
   get chatHasFocus(): boolean {

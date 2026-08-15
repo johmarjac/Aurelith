@@ -11,7 +11,8 @@
  *   4. S hebt die Nase — im Bild und in der Höhe, auch ohne Schub.
  *   5. Nase nach unten trägt sie nicht durch das Gelände.
  *   6. Wer sich auf dem Gerät abmeldet, sitzt danach wieder darauf.
- *   7. Absteigen lässt sie fallen.
+ *   7. Die Debug-Tafel zeigt dieselben Winkel, nach denen geflogen wird.
+ *   8. Absteigen lässt sie fallen.
  *
  * Der Kern rechnet dasselbe (`native_test.cpp`); hier geht es um die Kette
  * davor: Doppelklick, Ausrüstung, Eingabe, Vorhersage.
@@ -241,6 +242,50 @@ check(
   gesunken.y >= gesunken.boden + 1.1,
   `und trägt sie nicht durch das Gelände (${gesunken.y.toFixed(1)} über Boden ${gesunken.boden.toFixed(1)})`,
 );
+
+console.log('\nDie Debug-Tafel');
+
+/*
+ * Ohne Schalter keine Tafel, mit Schalter die richtigen Zahlen.
+ *
+ * Geprüft wird nicht nur, dass etwas dasteht, sondern dass es **mitgeht**: die
+ * Nase in der Tafel muss derselben Taste folgen wie die Figur. Eine Tafel, die
+ * eine feste Zahl zeigt, wäre schlimmer als keine — man glaubt ihr.
+ */
+const tafel = () => page.evaluate(() => {
+  const el = document.querySelector('.debug-tafel');
+  if (!el || el.style.display === 'none') return '';
+  return el.textContent ?? '';
+});
+
+check((await tafel()) === '', 'ohne Schalter steht keine Tafel im Bild');
+
+await page.keyboard.press('KeyO');
+await page.waitForSelector('.window[data-window="settings"][data-open="true"]', { timeout: 10000 });
+const schalter = page.locator('.window[data-window="settings"] .settings-toggle', {
+  hasText: 'Debug anzeigen',
+});
+check((await schalter.count()) === 1, 'die Einstellung gibt es');
+await schalter.locator('input[type="checkbox"]').check();
+await page.keyboard.press('KeyO');
+await warte(4);
+
+const gezeigt = await tafel();
+check(/Nase\s+[+-]\d+°/.test(gezeigt), 'die Tafel nennt die Nase', gezeigt.split('\n')[2] ?? '');
+check(/Kurs\s+\d+°/.test(gezeigt), 'und den Kurs', gezeigt.split('\n')[1] ?? '');
+check(/Knüppel X [+-]\d/.test(gezeigt), 'und was der Knüppel meldet');
+
+const naseAus = (text) => Number(/Nase\s+([+-]\d+)°/.exec(text)?.[1] ?? 'NaN');
+const vorher2 = naseAus(gezeigt);
+await halte('KeyS', 16);
+await warte(4);
+const nachher2 = naseAus(await tafel());
+check(
+  nachher2 > vorher2 + 20,
+  `und die Zahl geht mit der Taste mit (${vorher2}° → ${nachher2}°)`,
+);
+await halte('KeyW', 16);
+await warte(4);
 
 console.log('\nAbmelden und wieder ankommen');
 

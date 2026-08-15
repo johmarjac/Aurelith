@@ -2644,6 +2644,10 @@ export class Game {
    */
   private schubAn = false;
 
+  /** Der zuletzt gesendete Steuerknüppel. Nur für die Debug-Tafel. */
+  private knueppelX = 0;
+  private knueppelZ = 0;
+
   /**
    * Fliegt die eigene Figur gerade?
    *
@@ -2859,6 +2863,10 @@ export class Game {
      */
     const eingabeX = fliegtGerade ? snapshot.rohX : snapshot.moveX;
     const eingabeZ = fliegtGerade ? snapshot.rohZ : snapshot.moveZ;
+    // Für die Debug-Tafel: was der Knüppel meldet, bevor der Kern etwas daraus
+    // macht. Genau die Zahl, gegen die man den herauskommenden Winkel hält.
+    this.knueppelX = eingabeX;
+    this.knueppelZ = eingabeZ;
 
     world.applyInput(this.localId, eingabeX, eingabeZ, snapshot.yaw, buttons, TICK_SECONDS);
     world.step(TICK_SECONDS);
@@ -3009,11 +3017,66 @@ export class Game {
         piles: this.view.loot.piles.values(),
         label: (row) => this.view.loot.label(row),
       },
+      this.debugTafel(),
     );
     this.scene.render();
 
     this.updateDiagnostics();
   };
+
+  /**
+   * Was die Debug-Tafel an der Figur zeigt.
+   *
+   * Die Zeilen stehen bewusst paarweise: **was hineingeht** (der Knüppel) und
+   * **was herauskommt** (Nase, Kurs, Tempo). Eine Steuerung, die sich falsch
+   * anfühlt, ist entweder ein Knüppel, der etwas anderes meldet, als man
+   * drückt, oder ein Winkel, der nicht dazu passt — und diese beiden Fälle
+   * sind nur nebeneinander zu unterscheiden.
+   *
+   * Der Kurs steht in Bildschirmlogik: 0 Grad ist Norden, und die Zahl wächst
+   * nach rechts. Im Kern wächst `yaw` andersherum (siehe `updateFlight`), aber
+   * eine Tafel, die man gegen die Weltkarte lesen muss, hilft niemandem.
+   */
+  private debugTafel(): { x: number; y: number; z: number; zeilen: readonly string[] } {
+    const self = this.view.entities.get(this.localId);
+    // Etwas über dem Gerät, damit die Tafel nicht in ihm steckt.
+    const stelle = {
+      x: self?.x ?? this.poseCurr.x,
+      y: (self?.y ?? this.poseCurr.y) + 1.0,
+      z: self?.z ?? this.poseCurr.z,
+    };
+    if (!this.ui.debugAn) return { ...stelle, zeilen: [] };
+
+    const grad = (rad: number): number => (rad * 180) / Math.PI;
+    // Auf 0…360 bringen und die Drehrichtung umkehren — siehe oben.
+    const kurs = ((-grad(this.poseCurr.yaw) % 360) + 360) % 360;
+    const vorzeichen = (n: number): string => (n >= 0 ? `+${n.toFixed(0)}` : n.toFixed(0));
+
+    const zeilen = [
+      `Knüppel X ${this.knueppelX >= 0 ? '+' : ''}${this.knueppelX.toFixed(2)}` +
+        `  Z ${this.knueppelZ >= 0 ? '+' : ''}${this.knueppelZ.toFixed(2)}`,
+      `Kurs   ${kurs.toFixed(0).padStart(3, ' ')}°   Kamera ${(
+        ((-grad(this.scene.yaw) % 360) + 360) %
+        360
+      ).toFixed(0)}°`,
+    ];
+
+    if (this.fliegt) {
+      const geraet = this.flugGeraet?.flug;
+      zeilen.push(
+        `Nase   ${vorzeichen(grad(this.poseCurr.neigung)).padStart(4, ' ')}°`,
+        // „Fahrt" und nicht „Tempo": das ist der **waagerechte** Anteil, und
+        // bei gehobener Nase ist er kleiner als das Tempo des Geräts, ohne
+        // dass etwas klemmt.
+        `Fahrt  ${this.poseCurr.speed.toFixed(1)} von ${(geraet?.speed ?? 0).toFixed(1)}` +
+          `  Schub ${this.schubAn ? 'an' : 'aus'}`,
+      );
+    } else {
+      zeilen.push('am Boden');
+    }
+
+    return { ...stelle, zeilen };
+  }
 
   private updateDiagnostics(): void {
     const d = this.diagnostics;

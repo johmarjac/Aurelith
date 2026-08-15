@@ -3036,6 +3036,34 @@ body.aktion-zuweisen .window[data-window='skills'] {
   will-change: transform;
 }
 
+/*
+ * Die Zahlentafel der Debug-Anzeige.
+ *
+ * Feste Schriftgrösse in Bildpunkten und nicht in `rem`: hier stehen Zahlen,
+ * die sich je Bild ändern, und in einer Proportionalschrift springt bei jeder
+ * Änderung die halbe Zeile zur Seite. `tabular-nums` und eine feste Breite je
+ * Zeichen halten sie still. Aus demselben Grund linksbündig — eine zentrierte
+ * Zahlenspalte wandert mit jeder Stelle.
+ */
+.debug-tafel {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  padding: 0.3em 0.5em;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+  background: rgba(8, 10, 16, 0.72);
+  color: #d8f0ff;
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+  white-space: pre;
+  text-align: left;
+  /* Sie erklärt das Bild, sie soll es nicht bedienen. */
+  pointer-events: none;
+  will-change: transform;
+}
+
 .nameplate .np-name {
   font-weight: 600;
 }

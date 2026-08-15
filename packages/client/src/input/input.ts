@@ -522,9 +522,26 @@ export class InputManager {
   }
 }
 
-function isTypingTarget(target: EventTarget | null): boolean {
+/**
+ * Steht der Fokus in etwas, in das man **schreibt**?
+ *
+ * Nur dann darf eine Taste im Spiel verlorengehen. Hier stand einmal „jedes
+ * INPUT", und das war ein Kästchen zu viel: ein Häkchen behält den Fokus,
+ * nachdem man es angeklickt hat, und schluckte danach jede Taste. Wer in den
+ * Einstellungen etwas umstellte, stand anschliessend mit toter Tastatur da und
+ * musste erst irgendwohin ins Bild klicken, um wieder laufen zu können.
+ *
+ * Der Regler bleibt drin: er nimmt die Pfeiltasten, und mit denen läuft man
+ * auch. Zwei Bedeutungen für dieselbe Taste sind schlimmer als eine, die man
+ * durch einen Klick daneben wieder freibekommt.
+ */
+export function isTypingTarget(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
   if (!el) return false;
+  if (el.isContentEditable) return true;
   const tag = el.tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
+  if (tag === 'TEXTAREA') return true;
+  if (tag !== 'INPUT') return false;
+  const art = (el as HTMLInputElement).type;
+  return art !== 'checkbox' && art !== 'radio' && art !== 'button';
 }
