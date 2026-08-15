@@ -1000,18 +1000,6 @@ export class GameServer {
       if (session.state === 'playing') this.verbraucheMunition(session);
     }
 
-    /*
-     * Die Begleiter entscheiden **vor** dem Schritt, wohin sie wollen.
-     *
-     * Danach wäre ein Tick Rückstand: der Kern liefe auf ein Ziel zu, das aus
-     * dem Bild davor stammt. Bei zwanzig Schritten je Sekunde sieht man das
-     * nicht — aber es ist dieselbe Sorte Fehler wie das Namensschild, das der
-     * Kamera hinterherhinkte, und die stand am Ende auf dem Bildschirm.
-     */
-    for (const session of this.sessions) {
-      if (session.state === 'playing') this.updateHaustiere(session, TICK_SECONDS * 1000);
-    }
-
     for (const instance of this.instances.values()) {
       instance.world.step(TICK_SECONDS);
       instance.refresh();
@@ -1019,6 +1007,23 @@ export class GameServer {
       // Nach dem Ablegen, nicht davor: sonst läge frische Beute einen Tick
       // lang da, ohne dass die Frist schon liefe.
       instance.loot.expire();
+    }
+
+    /*
+     * Die Begleiter entscheiden **nach** `refresh`, wohin sie wollen.
+     *
+     * Erst dachte ich, davor sei richtig: dann wirkt das Ziel noch im selben
+     * Schritt. Nur liest diese Stelle Positionen, und die kommen aus
+     * `instance.entity` — also aus der Zeilenkopie, die `refresh` schreibt.
+     * Davor ist sie einen Tick alt, und ein frisch erschienenes Tier steht
+     * gar nicht darin. Es galt damit als verschwunden, wurde neu erschaffen,
+     * und das erste stand für immer in der Landschaft.
+     *
+     * Der Preis ist ein Tick Rückstand auf ein Ziel, das fünfzig
+     * Millisekunden alt ist — beim Hinterherlaufen unsichtbar.
+     */
+    for (const session of this.sessions) {
+      if (session.state === 'playing') this.updateHaustiere(session, TICK_SECONDS * 1000);
     }
 
     const instanceTick = this.instances.values().next().value?.world.tick ?? 0;
@@ -2679,11 +2684,22 @@ export class GameServer {
       const pet = def?.pet;
       const tier = instance.entity(lauf.entityId);
       if (!pet || !tier) {
-        // Das Wesen ist weg, ohne dass wir es weggenommen hätten. Dann gilt
-        // der Beutel und nicht die Erinnerung: neu erscheinen lassen.
-        session.pets.delete(lauf.art);
-        const entry = this.eintragVon(session, lauf);
-        if (entry) this.erscheineHaustier(session, entry, def?.name ?? 'Begleiter');
+        /*
+         * Das Wesen ist weg, ohne dass wir es weggenommen hätten.
+         *
+         * Hier stand einmal „dann eben ein neues" — und genau das hat ein
+         * zweites Tier in die Welt gesetzt, während das erste unerreichbar
+         * darin stehenblieb: die Zeilenkopie war einen Tick alt, das frisch
+         * erschienene Tier fehlte darin, und aus „ich sehe es nicht" wurde
+         * „es gibt es nicht".
+         *
+         * Neu erschaffen darf an dieser Stelle deshalb nichts mehr. Wer ein
+         * Wesen nicht findet, hat ein Wissensproblem und kein Tierproblem —
+         * und die einzige richtige Antwort darauf ist aufräumen und es
+         * sagen. Freilassen kann der Spieler selbst.
+         */
+        console.warn(`[haustier] ${lauf.itemId} ohne Wesen in ${session.mapId} — zurückgerufen.`);
+        this.holeHaustierZurueck(session, lauf.art);
         continue;
       }
 
@@ -2734,12 +2750,20 @@ export class GameServer {
            * über dreissig Einheiten sähe aus wie ein Tier, das durch die
            * Landschaft segelt.
            */
+          /*
+           * Nur das **Wesen** wird getauscht, der Gegenstand bleibt unberührt.
+           *
+           * Der Umweg über `holeHaustierZurueck` stand hier zuerst und war
+           * falsch: der räumt das Merkmal am Gegenstand ab und schickt einen
+           * Beutel ohne Markierung an den Client. Setzt man es gleich darauf
+           * wieder, weiss der Client nichts davon — die Kachel bliebe unbunt,
+           * obwohl das Tier neben einem läuft.
+           */
           const entry = this.eintragVon(session, lauf);
-          this.holeHaustierZurueck(session, lauf.art);
-          if (entry) {
-            entry.unterwegs = true;
-            this.erscheineHaustier(session, entry, def?.name ?? 'Begleiter');
-          }
+          instance.world.removeEntity(lauf.entityId);
+          instance.meta.delete(lauf.entityId);
+          session.pets.delete(lauf.art);
+          if (entry) this.erscheineHaustier(session, entry, def?.name ?? 'Begleiter');
           continue;
         }
       }
