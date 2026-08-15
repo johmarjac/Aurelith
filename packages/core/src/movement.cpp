@@ -108,8 +108,8 @@ void World::applyInput(uint32_t id, float moveX, float moveZ, float yaw, uint32_
    * Fliegen ist Fliegen und nicht Laufen in der Luft.
    *
    * Am Boden sagt die Eingabe, **wohin** es gehen soll, und die Figur dreht
-   * sich dorthin. In der Luft sagt sie, **wie die Figur liegt**: W und S
-   * kippen die Nase, A und D drehen den Kurs, und der Schub trägt sie in
+   * sich dorthin. In der Luft sagt sie, **wie die Figur liegt**: W hebt die
+   * Nase und S senkt sie, A und D drehen den Kurs, und der Schub trägt sie in
    * genau die Richtung, in die sie zeigt. Deshalb wird die Blickrichtung hier
    * fortgeschrieben statt übernommen — der Wert aus der Eingabe stammt von der
    * Kamera und hätte in der Luft nichts zu suchen.
@@ -177,12 +177,19 @@ void World::applyInput(uint32_t id, float moveX, float moveZ, float yaw, uint32_
  * man das.
  */
 void World::updateFlight(Entity& e, float moveX, float moveZ, uint32_t buttons, float dt) {
-  // --- Lage: W/S kippen die Nase, A/D drehen den Kurs.
-  //
-  // `moveZ` kommt roh vom Steuerknüppel und ist **nicht** in Weltachsen
-  // gedreht — in der Luft gibt es keine Richtung, in die man laufen wollte,
-  // nur eine Nase, die man hebt oder senkt.
-  e.pitch -= moveZ * kFlugNickRate * dt;
+  /*
+   * --- Lage: W/S kippen die Nase, A/D drehen den Kurs.
+   *
+   * `moveZ` kommt roh vom Steuerknüppel und ist **nicht** in Weltachsen
+   * gedreht — in der Luft gibt es keine Richtung, in die man laufen wollte,
+   * nur eine Nase, die man hebt oder senkt.
+   *
+   * Vorzeichen: **W hebt die Nase**, S senkt sie. Wie am Steuerknüppel eines
+   * Flugzeugs — drücken heisst hinunter, ziehen heisst hinauf. Hier stand
+   * einmal das Gegenteil, weil W am Boden „vorwärts" heisst und vorwärts nach
+   * unten zu kippen naheliegend schien; in der Luft liest es sich anders herum.
+   */
+  e.pitch += moveZ * kFlugNickRate * dt;
   if (e.pitch > kFlugNickMax) e.pitch = kFlugNickMax;
   if (e.pitch < -kFlugNickMax) e.pitch = -kFlugNickMax;
   /*

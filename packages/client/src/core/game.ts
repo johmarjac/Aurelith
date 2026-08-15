@@ -2854,8 +2854,8 @@ export class Game {
      *
      * Am Boden ist die Eingabe ein Wunsch, wohin es gehen soll — gedreht in
      * Weltachsen, geglättet, und daraus folgt die Blickrichtung. In der Luft
-     * bedeutet dieselbe Taste etwas anderes: W und S kippen die Nase, A und D
-     * drehen den Kurs. Eine kameragedrehte Achse wäre dort sinnlos.
+     * bedeutet dieselbe Taste etwas anderes: W hebt die Nase und S senkt sie,
+     * A und D drehen den Kurs. Eine kameragedrehte Achse wäre dort sinnlos.
      *
      * Dieselbe Wahl trifft der Server nicht — er bekommt, was hier steht. Also
      * muss **hier** entschieden werden, und die Vorhersage rechnet mit

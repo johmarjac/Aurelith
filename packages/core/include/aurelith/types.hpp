@@ -37,8 +37,8 @@ constexpr float kJumpSpeed = 7.2f;
 // --- Fliegen ---------------------------------------------------------------
 //
 // Geflogen wird über die **Lage**, nicht über Richtungstasten: die Figur zeigt
-// irgendwohin, und der Schub trägt sie dorthin. W und S kippen die Nase, A und
-// D drehen sie, die Leertaste schaltet den Schub an und aus.
+// irgendwohin, und der Schub trägt sie dorthin. W hebt die Nase und S senkt
+// sie, A und D drehen den Kurs, die Leertaste schaltet den Schub an und aus.
 //
 // Wie hoch über dem Gelände ein Flug mindestens verläuft. Nicht null: bei null
 // schleifte die Figur über den Boden und steckte in jedem Hang, und „fliegen"

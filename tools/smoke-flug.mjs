@@ -8,7 +8,7 @@
  *   1. Aufsteigen legt das Gerät an: aus dem Beutel in den Flugplatz.
  *   2. Ohne Schub steht die Figur in der Luft. Kein Fallen, kein Driften.
  *   3. Die Leertaste schaltet den Schub um — und er fährt an, statt zu stehen.
- *   4. S hebt die Nase — im Bild und in der Höhe, auch ohne Schub.
+ *   4. W hebt die Nase — im Bild und in der Höhe, auch ohne Schub.
  *   5. Nase nach unten trägt sie nicht durch das Gelände.
  *   6. Wer sich auf dem Gerät abmeldet, sitzt danach wieder darauf.
  *   7. Die Debug-Tafel zeigt dieselben Winkel, nach denen geflogen wird.
@@ -215,10 +215,10 @@ check(
 );
 
 const vorNase = await stelle();
-await halte('KeyS', 20);
+await halte('KeyW', 20);
 await warte(30);
 const gestiegen = await stelle();
-check(gestiegen.y > vorNase.y + 2, `S hebt die Nase und sie steigt (${vorNase.y.toFixed(1)} → ${gestiegen.y.toFixed(1)})`);
+check(gestiegen.y > vorNase.y + 2, `W hebt die Nase und sie steigt (${vorNase.y.toFixed(1)} → ${gestiegen.y.toFixed(1)})`);
 /*
  * Und die Nase steht auch im Bild.
  *
@@ -232,12 +232,12 @@ check(
   `und die gezeichnete Nase zeigt hinauf (${gestiegen.neigung.toFixed(2)} rad)`,
 );
 
-// Gegenprobe: W senkt sie wieder. Doppelt so lange gehalten wie S — die Nase
+// Gegenprobe: S senkt sie wieder. Doppelt so lange gehalten wie W — die Nase
 // muss erst durch die Waagerechte, bevor es abwärts geht.
-await halte('KeyW', 40);
+await halte('KeyS', 40);
 await warte(30);
 const gesunken = await stelle();
-check(gesunken.y < gestiegen.y, `W senkt sie wieder (${gesunken.y.toFixed(1)})`);
+check(gesunken.y < gestiegen.y, `S senkt sie wieder (${gesunken.y.toFixed(1)})`);
 check(
   gesunken.y >= gesunken.boden + 1.1,
   `und trägt sie nicht durch das Gelände (${gesunken.y.toFixed(1)} über Boden ${gesunken.boden.toFixed(1)})`,
@@ -277,14 +277,14 @@ check(/Knüppel X [+-]\d/.test(gezeigt), 'und was der Knüppel meldet');
 
 const naseAus = (text) => Number(/Nase\s+([+-]\d+)°/.exec(text)?.[1] ?? 'NaN');
 const vorher2 = naseAus(gezeigt);
-await halte('KeyS', 16);
+await halte('KeyW', 16);
 await warte(4);
 const nachher2 = naseAus(await tafel());
 check(
   nachher2 > vorher2 + 20,
   `und die Zahl geht mit der Taste mit (${vorher2}° → ${nachher2}°)`,
 );
-await halte('KeyW', 16);
+await halte('KeyS', 16);
 await warte(4);
 
 console.log('\nAbmelden und wieder ankommen');
@@ -334,7 +334,7 @@ await warte(50);
 // Die Nase bleibt oben, auch wenn nichts mehr fliegt. Genau hier lag der
 // Fehler: aus einem Weg von null lässt sich kein Winkel schätzen.
 const stehend = await stelle();
-await halte('KeyS', 20);
+await halte('KeyW', 20);
 await warte(10);
 const nurNase = await stelle();
 check(
@@ -342,7 +342,7 @@ check(
   `ohne Schub kippt die Nase trotzdem sichtbar (${stehend.neigung.toFixed(2)} → ${nurNase.neigung.toFixed(2)} rad)`,
 );
 // Und zurück in die Waagerechte, sonst misst die nächste Prüfung ein Steigen.
-await halte('KeyW', 20);
+await halte('KeyS', 20);
 await warte(10);
 const a = await stelle();
 await warte(24);

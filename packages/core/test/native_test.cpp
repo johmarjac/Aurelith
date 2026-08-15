@@ -653,27 +653,27 @@ void testFliegen() {
 
   // --- Die Nase steuert die Höhe -------------------------------------------
   //
-  // S hebt sie (moveZ = −1), W senkt sie. Eine halbe Sekunde reicht für einen
-  // deutlichen Winkel.
+  // W hebt sie (moveZ = +1), S senkt sie — wie am Steuerknüppel: ziehen hebt.
+  // Eine halbe Sekunde reicht für einen deutlichen Winkel.
   const float vorSteig = p->y;
   for (int i = 0; i < 10; ++i) {
-    world.applyInput(1, 0.0f, -1.0f, 0.0f, schub, aur::kTickSeconds);
+    world.applyInput(1, 0.0f, 1.0f, 0.0f, schub, aur::kTickSeconds);
     world.step(aur::kTickSeconds);
   }
-  check(p->pitch > 0.3f, "S hebt die Nase");
+  check(p->pitch > 0.3f, "W hebt die Nase");
   for (int i = 0; i < 40; ++i) {
     world.applyInput(1, 0.0f, 0.0f, 0.0f, schub, aur::kTickSeconds);
     world.step(aur::kTickSeconds);
   }
   check(p->y > vorSteig + 3.0f, "und mit gehobener Nase steigt sie");
 
-  // Die Gegenprobe: W senkt sie wieder.
+  // Die Gegenprobe: S senkt sie wieder.
   const float oben = p->y;
   for (int i = 0; i < 30; ++i) {
-    world.applyInput(1, 0.0f, 1.0f, 0.0f, schub, aur::kTickSeconds);
+    world.applyInput(1, 0.0f, -1.0f, 0.0f, schub, aur::kTickSeconds);
     world.step(aur::kTickSeconds);
   }
-  check(p->pitch < 0.0f, "W senkt die Nase");
+  check(p->pitch < 0.0f, "S senkt die Nase");
   for (int i = 0; i < 40; ++i) {
     world.applyInput(1, 0.0f, 0.0f, 0.0f, schub, aur::kTickSeconds);
     world.step(aur::kTickSeconds);
@@ -682,7 +682,7 @@ void testFliegen() {
 
   // Steiler als der Anschlag wird es nicht — sonst überschlägt sich die Figur.
   for (int i = 0; i < 200; ++i) {
-    world.applyInput(1, 0.0f, -1.0f, 0.0f, schub, aur::kTickSeconds);
+    world.applyInput(1, 0.0f, 1.0f, 0.0f, schub, aur::kTickSeconds);
     world.step(aur::kTickSeconds);
   }
   check(p->pitch <= aur::kFlugNickMax + 1e-4f, "die Nase kippt nicht über den Anschlag");
@@ -717,7 +717,7 @@ void testFliegen() {
   // Höhenbegrenzung statt der Steigrate.
   world.setFlying(1, true, 12.0f, 6.0f, 200.0f);
   for (int i = 0; i < 100; ++i) {
-    world.applyInput(1, 0.0f, -1.0f, 0.0f, schub, aur::kTickSeconds);
+    world.applyInput(1, 0.0f, 1.0f, 0.0f, schub, aur::kTickSeconds);
     world.step(aur::kTickSeconds);
   }
   const float vorDeckel = p->y;
@@ -731,13 +731,13 @@ void testFliegen() {
   // --- Boden und Decke ------------------------------------------------------
   world.setFlying(1, true, 12.0f, 6.0f, 20.0f);
   for (int i = 0; i < 400; ++i) {
-    world.applyInput(1, 0.0f, -1.0f, 0.0f, schub, aur::kTickSeconds);
+    world.applyInput(1, 0.0f, 1.0f, 0.0f, schub, aur::kTickSeconds);
     world.step(aur::kTickSeconds);
   }
   check(p->y <= boden + 20.0f + 1e-3f, "über die Decke des Geräts steigt sie nicht");
 
   for (int i = 0; i < 600; ++i) {
-    world.applyInput(1, 0.0f, 1.0f, 0.0f, schub, aur::kTickSeconds);
+    world.applyInput(1, 0.0f, -1.0f, 0.0f, schub, aur::kTickSeconds);
     world.step(aur::kTickSeconds);
   }
   check(p->y >= boden + aur::kFlugMindesthoehe - 1e-3f, "und in den Boden sinkt sie nicht");
@@ -755,7 +755,7 @@ void testFliegen() {
   // nach oben zeigt und die Figur Höhe gewinnt.
   world.setFlying(1, true, 12.0f, 6.0f, 20.0f);
   for (int i = 0; i < 90; ++i) {
-    world.applyInput(1, 0.0f, -1.0f, 0.0f, schub, aur::kTickSeconds);
+    world.applyInput(1, 0.0f, 1.0f, 0.0f, schub, aur::kTickSeconds);
     world.step(aur::kTickSeconds);
   }
   const float vorVersatz = p->y - boden;
@@ -773,7 +773,7 @@ void testFliegen() {
 
   // Und die Begrenzung wirkt danach weiter.
   for (int i = 0; i < 200; ++i) {
-    world.applyInput(1, 0.0f, 1.0f, 0.0f, schub, aur::kTickSeconds);
+    world.applyInput(1, 0.0f, -1.0f, 0.0f, schub, aur::kTickSeconds);
     world.step(aur::kTickSeconds);
   }
   check(p->y >= boden + aur::kFlugMindesthoehe - 1e-3f,
@@ -788,7 +788,7 @@ void testFliegen() {
    */
   world.setFlying(1, true, 12.0f, 6.0f, 20.0f);
   for (int i = 0; i < 60; ++i) {
-    world.applyInput(1, 0.0f, -1.0f, 0.0f, schub, aur::kTickSeconds);
+    world.applyInput(1, 0.0f, 1.0f, 0.0f, schub, aur::kTickSeconds);
     world.step(aur::kTickSeconds);
   }
   const float hoch = p->y;

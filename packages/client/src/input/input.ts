@@ -44,8 +44,8 @@ export interface InputSnapshot {
    *
    * Am Boden ist die Eingabe ein Wunsch, wohin es gehen soll — dafür wird sie
    * in Weltachsen gedreht und geglättet, und daraus folgt die Blickrichtung.
-   * In der Luft ist sie etwas ganz anderes: W und S kippen die Nase, A und D
-   * drehen den Kurs. Eine gedrehte Achse wäre dort sinnlos, denn es gibt keine
+   * In der Luft ist sie etwas ganz anderes: W hebt die Nase und S senkt sie,
+   * A und D drehen den Kurs. Eine gedrehte Achse wäre dort sinnlos, denn es gibt keine
    * Richtung, in die man laufen wollte.
    *
    * Deshalb beides: `moveX`/`moveZ` für den Boden, diese hier für die Luft.
