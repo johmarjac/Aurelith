@@ -2529,7 +2529,7 @@ export class GameServer {
    */
   private erscheineHaustier(session: Session, entry: ItemRecord, name: string): boolean {
     const instance = this.instances.get(session.mapId);
-    const self = instance?.entity(session.entityId);
+    const self = this.woStehtEr(session);
     const def = getItem(entry.itemId);
     const pet = def?.pet;
     if (!instance || !self || !pet) return false;
@@ -2563,6 +2563,27 @@ export class GameServer {
       seitHeimweg: 0,
     });
     return true;
+  }
+
+  /**
+   * Wo die Figur gerade steht — auch unmittelbar nach einem Kartenwechsel.
+   *
+   * Zuerst das Wesen in der Welt: das ist die Wahrheit, solange eine läuft.
+   * Fehlt es, gilt der Figurensatz — und der ist genau in dem einen Moment
+   * richtig, in dem das Wesen fehlt: gleich nach `spawnPlayer` steht die neue
+   * Position schon in der Figur, aber noch nicht in der Zeilenkopie, die
+   * `refresh` am Ende des Ticks schreibt.
+   *
+   * Ohne diesen Rückfall verschwand ein Begleiter beim Durchschreiten eines
+   * Tors. Auf der neuen Karte fand er seinen Menschen nicht, das Erscheinen
+   * scheiterte, und das Merkmal am Gegenstand wurde abgeräumt — mit einer
+   * Ratte, die vorher danebenlief, und danach nicht mehr.
+   */
+  private woStehtEr(session: Session): { x: number; z: number; yaw: number } | undefined {
+    const row = this.instances.get(session.mapId)?.entity(session.entityId);
+    if (row) return { x: row.x, z: row.z, yaw: row.yaw };
+    const c = session.character;
+    return c ? { x: c.x, z: c.z, yaw: c.yaw } : undefined;
   }
 
   /**
@@ -2660,6 +2681,9 @@ export class GameServer {
       }
       if (session.pets.has(def.pet.art)) continue;
       if (!this.erscheineHaustier(session, entry, def.name)) {
+        // Sollte nicht vorkommen. Wenn doch, ist ein stiller Verlust das
+        // Schlimmste: der Gegenstand trüge ein Merkmal, dem nichts entspricht.
+        console.warn(`[haustier] ${entry.itemId} konnte in ${session.mapId} nicht erscheinen.`);
         entry.unterwegs = false;
         session.itemsDirty = true;
       }
