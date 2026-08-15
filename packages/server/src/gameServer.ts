@@ -843,6 +843,9 @@ export class GameServer {
       radius: playerProfile().radius,
       height: playerProfile().height,
     });
+    // Wer sich auf dem Besen abgemeldet hat, sitzt beim Anmelden wieder darauf
+    // — in der Welt und nicht nur im Bild. Siehe `setzeFlugzustand`.
+    this.setzeFlugzustand(session);
     instance.meta.set(session.entityId, this.playerMeta(session));
     instance.playerIds.add(session.entityId);
     this.sessionByEntity.set(session.entityId, session);
@@ -1201,6 +1204,10 @@ export class GameServer {
           // ist genau die Frage, die der Client für ein rotes Namensschild
           // beantwortet haben will — mehr braucht es dafür nicht.
           aggro: row.targetId !== 0,
+          // Die Lage kommt aus dem Kern und nicht aus der Ausrüstung: der
+          // Client zeichnet damit die Nase, und geschätzt hätte er sie nur,
+          // solange sich etwas bewegt.
+          neigung: row.pitch,
         });
         continue;
       }
@@ -1225,6 +1232,7 @@ export class GameServer {
         outfit: meta?.outfit ?? '',
         flug: meta?.flug ?? '',
         setGlow: meta?.setGlow ?? 0,
+        neigung: row.pitch,
       });
       session.known.add(row.id);
     }
@@ -1414,6 +1422,9 @@ export class GameServer {
       radius: playerProfile().radius,
       height: playerProfile().height,
     });
+    // Dasselbe hinter dem Tor: die neue Welt kennt die Figur noch nicht, und
+    // ein Fluggerät wechselt die Karte mit.
+    this.setzeFlugzustand(session);
     to.meta.set(session.entityId, this.playerMeta(session));
     to.playerIds.add(session.entityId);
     this.sessionByEntity.set(session.entityId, session);
@@ -1855,6 +1866,33 @@ export class GameServer {
     return outfit;
   }
 
+  /**
+   * Überträgt das angelegte Fluggerät in die Welt.
+   *
+   * Eine Stelle, vier Anlässe: Ausrüstungswechsel, verteilte Punkte, Anmelden,
+   * Kartenwechsel. Die letzten beiden fehlten, und der Fehler sah aus wie ein
+   * Netzproblem: der Beutel meldete das Gerät, der Client schaltete auf
+   * Fliegen, und der Server führte dieselbe Figur zu Fuss. Jeder Schnappschuss
+   * riss sie zurück, bis man einmal ab- und wieder aufstieg — denn *das* lief
+   * über `applyLoadout` und setzte den Zustand nach.
+   *
+   * Deshalb nicht „auch noch beim Anmelden" ergänzt, sondern eine Stelle
+   * daraus gemacht: eine Figur erscheint an genau zwei Orten in einer Welt,
+   * und beide gehen jetzt hier vorbei.
+   */
+  private setzeFlugzustand(session: Session): void {
+    const instance = this.instances.get(session.mapId);
+    if (!instance) return;
+    const geraet = this.flugGeraetVon(session);
+    instance.world.setFlying(
+      session.entityId,
+      geraet !== undefined,
+      geraet?.flug?.speed ?? 0,
+      geraet?.flug?.steig ?? 0,
+      geraet?.flug?.maxHoehe ?? 0,
+    );
+  }
+
   private applyLoadout(session: Session): void {
     const instance = this.instances.get(session.mapId);
     const character = session.character;
@@ -1885,22 +1923,7 @@ export class GameServer {
     );
     instance.world.setCritProfile(session.entityId, stats.critChance, stats.critMultiplier);
 
-    /*
-     * Auf- und Absteigen ist ein Ausrüstungswechsel.
-     *
-     * Deshalb steht es hier und nicht an einem eigenen Weg: was angelegt ist,
-     * entscheidet, ob geflogen wird — und diese Stelle läuft nach **jeder**
-     * Änderung am Angelegten. Ein zweiter Weg daneben wäre einer, den man beim
-     * Verkaufen des Besens vergisst.
-     */
-    const geraet = this.flugGeraetVon(session);
-    instance.world.setFlying(
-      session.entityId,
-      geraet !== undefined,
-      geraet?.flug?.speed ?? 0,
-      geraet?.flug?.steig ?? 0,
-      geraet?.flug?.maxHoehe ?? 0,
-    );
+    this.setzeFlugzustand(session);
 
     const meta = instance.metaFor(session.entityId);
     if (meta) Object.assign(meta, this.playerMeta(session));
@@ -3033,22 +3056,7 @@ export class GameServer {
     );
     instance.world.setCritProfile(session.entityId, stats.critChance, stats.critMultiplier);
 
-    /*
-     * Auf- und Absteigen ist ein Ausrüstungswechsel.
-     *
-     * Deshalb steht es hier und nicht an einem eigenen Weg: was angelegt ist,
-     * entscheidet, ob geflogen wird — und diese Stelle läuft nach **jeder**
-     * Änderung am Angelegten. Ein zweiter Weg daneben wäre einer, den man beim
-     * Verkaufen des Besens vergisst.
-     */
-    const geraet = this.flugGeraetVon(session);
-    instance.world.setFlying(
-      session.entityId,
-      geraet !== undefined,
-      geraet?.flug?.speed ?? 0,
-      geraet?.flug?.steig ?? 0,
-      geraet?.flug?.maxHoehe ?? 0,
-    );
+    this.setzeFlugzustand(session);
 
     // Die Schlagpause hängt an Geschick und gehört deshalb hierher — sonst
     // gälte der neue Wert erst nach dem nächsten Ausrüstungswechsel.

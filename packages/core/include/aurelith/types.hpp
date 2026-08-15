@@ -48,11 +48,19 @@ constexpr float kFlugMindesthoehe = 1.2f;
 // Wie schnell sich die Lage ändert, im Bogenmass je Sekunde. Nicken ist
 // träger als Gieren — eine Nase, die so schnell kippt wie sich der Kurs
 // dreht, überschlägt sich beim Antippen.
-constexpr float kFlugNickRate = 1.1f;
-constexpr float kFlugGierRate = 1.7f;
-// Wie steil es höchstens hinauf und hinunter geht. Knapp über 60 Grad — steiler
-// sieht man von hinten nur noch den Rücken der Figur.
-constexpr float kFlugNickMax = 1.15f;
+constexpr float kFlugNickRate = 0.9f;
+constexpr float kFlugGierRate = 1.2f;
+/*
+ * Wie steil es höchstens hinauf und hinunter geht: 85 Grad.
+ *
+ * Der Kurs darf einmal ganz herum — eine Richtung ist eine Richtung, und wer
+ * sich im Kreis dreht, kommt dort an, wo er losflog. Die Nase darf das nicht:
+ * bei 90 Grad zeigt der Richtungsvektor senkrecht, sein waagerechter Anteil
+ * ist null, und darüber hinaus kippte die Figur auf den Rücken und flöge
+ * rückwärts weiter, ohne dass sich am Kurs etwas geändert hätte. Fünf Grad
+ * davor ist der Anschlag.
+ */
+constexpr float kFlugNickMax = 1.4835f;
 
 /*
  * Wie lange Anfahren und Ausrollen dauern, in Sekunden.
@@ -414,7 +422,18 @@ struct EntityView {
   uint16_t level;     // +52
   uint8_t type;       // +54
   uint8_t state;      // +55
-};                    // 56 Byte
+  /*
+   * Die Nase in der Luft, im Bogenmass, nach oben positiv.
+   *
+   * Steht im Sichtpuffer, weil sie **gezeichnet** wird und nicht nur gerechnet.
+   * Vorher leitete der Renderer sie aus dem zurückgelegten Weg ab; das ergab
+   * genau dann keinen Winkel, wenn die Figur steht — und eine stehende Figur
+   * in der Luft ist der Normalfall, sobald der Schub aus ist. Der Kern kennt
+   * die Lage ohnehin; sie zu verschweigen und danebenher zu schätzen wären
+   * zwei Wahrheiten über dieselbe Sache.
+   */
+  float pitch;        // +56
+};                    // 60 Byte
 
 struct EventView {
   uint8_t type;    // +0
@@ -431,7 +450,7 @@ struct EventView {
 
 #pragma pack(pop)
 
-static_assert(sizeof(EntityView) == 56, "EntityView-Layout ist Vertrag mit TypeScript");
+static_assert(sizeof(EntityView) == 60, "EntityView-Layout ist Vertrag mit TypeScript");
 static_assert(sizeof(EventView) == 32, "EventView-Layout ist Vertrag mit TypeScript");
 
 }  // namespace aur

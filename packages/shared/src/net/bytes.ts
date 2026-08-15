@@ -105,6 +105,20 @@ export class ByteWriter {
     return this.u16(Math.round(v * ANGLE_SCALE) & 0xffff);
   }
 
+  /**
+   * Die Neigung in der Luft: ein Byte, ein Grad.
+   *
+   * Gröber als `angle` und mit Absicht. Ein Winkel, der links und rechts
+   * unterscheidet, muss genau sein — eine Figur, die um zwei Grad daneben
+   * schaut, zielt sichtbar vorbei. Die Nase dagegen wird nur gezeichnet, und
+   * ein Grad ist feiner, als ein Auge es an einer schrägen Figur ablesen kann.
+   * Der Preis wäre sonst ein zweites Byte je Wesen und Schnappschuss.
+   */
+  neigung(v: number): this {
+    const grad = Math.round((v * 180) / Math.PI);
+    return this.i8(Math.max(-90, Math.min(90, grad)));
+  }
+
   /** UTF-8, u16-längenpräfixiert. */
   str(s: string): this {
     const bytes = textEncoder.encode(s);
@@ -212,6 +226,10 @@ export class ByteReader {
 
   angle(): number {
     return this.u16() / ANGLE_SCALE;
+  }
+
+  neigung(): number {
+    return (this.i8() * Math.PI) / 180;
   }
 
   str(): string {

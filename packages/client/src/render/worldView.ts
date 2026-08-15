@@ -195,17 +195,16 @@ export interface EntityVisual {
   /** Das Gerät unter ihr, solange sie fliegt. */
   flugMesh?: THREE.Object3D;
   /**
-   * Wie schräg die Figur gerade in der Luft liegt.
+   * Wie schräg die Figur gerade in der Luft liegt, im Bogenmass.
    *
-   * Aus der **Bewegung** abgeleitet und nicht aus dem Protokoll: die Neigung
-   * steckt im Kern, und sie über die Leitung zu schicken hiesse, ein Byte je
-   * Wesen und Schnappschuss für etwas auszugeben, das man auch sehen kann.
-   * Steigt eine Figur, hebt sich ihre Nase — das ist dieselbe Auskunft.
+   * Kommt aus dem Kern — bei der eigenen Figur aus der Vorhersage, bei fremden
+   * über den Schnappschuss. Hier stand einmal eine Schätzung aus dem
+   * zurückgelegten Weg; die ergab genau dann keinen Winkel, wenn die Figur in
+   * der Luft stehenblieb, und das ist der Normalfall ohne Schub.
    */
-  flugNeigung: number;
-  /** Wo sie im letzten Bild stand — nur für die Neigung. */
-  letztesX: number;
-  letztesZ: number;
+  neigung: number;
+  /** Wohin die Neigung gerade wandert. Wie `targetYaw`, nur für die Nase. */
+  targetNeigung: number;
   /** Der warme Schein um die Figur, sofern ein Satz leuchtet. */
   satzAura?: SetAura;
   /** Höhe über dem Boden für Nameplate und Schadenszahlen. */
@@ -546,9 +545,8 @@ export class WorldView {
       outfit: row.outfit,
       setGlow: row.setGlow,
       flug: '',
-      flugNeigung: 0,
-      letztesX: row.x,
-      letztesZ: row.z,
+      neigung: row.neigung,
+      targetNeigung: row.neigung,
       aggro: row.aggro,
       height: heightFor(row.type, row.defId),
     };
@@ -573,6 +571,7 @@ export class WorldView {
     e.targetY = row.y;
     e.targetZ = row.z;
     e.targetYaw = row.yaw;
+    e.targetNeigung = row.neigung;
     e.hp = row.hp;
     e.aggro = row.aggro;
 
@@ -708,13 +707,25 @@ export class WorldView {
   }
 
   /** Setzt die eigene Figur direkt — sie läuft über die Prediction. */
-  setLocal(id: number, x: number, y: number, z: number, yaw: number, speed: number): void {
+  setLocal(
+    id: number,
+    x: number,
+    y: number,
+    z: number,
+    yaw: number,
+    speed: number,
+    neigung: number,
+  ): void {
     const e = this.entities.get(id);
     if (!e) return;
     e.x = e.targetX = x;
     e.y = e.targetY = y;
     e.z = e.targetZ = z;
     e.yaw = e.targetYaw = yaw;
+    // Ohne Nachlauf, anders als bei fremden Figuren: die eigene Lage kommt aus
+    // der Vorhersage und ist in jedem Bild aktuell. Sie zu glätten hiesse, die
+    // eigene Eingabe verzögert zu zeigen.
+    e.neigung = e.targetNeigung = neigung;
     e.speed = speed;
   }
 
@@ -879,23 +890,10 @@ export class WorldView {
         luft = Math.max(0, Math.min(1, (ueberBoden - 0.08) / 0.3));
         steigt = e.y > e.hoeheVorher + 1e-4;
       }
-      /*
-       * Die Neigung in der Luft — aus dem Weg, den die Figur zurücklegt.
-       *
-       * Waagerechtes Tempo gegen senkrechtes, als Winkel. Geglättet, weil die
-       * Zwischenwerte zwischen zwei Schnappschüssen springen und eine Nase,
-       * die im Takt der Pakete zuckt, schlimmer aussieht als gar keine.
-       */
-      if (e.flug !== '') {
-        const waagerecht = Math.hypot(e.x - e.letztesX, e.z - e.letztesZ);
-        const senkrecht = e.y - e.hoeheVorher;
-        const ziel = Math.atan2(senkrecht, Math.max(waagerecht, 1e-4));
-        e.flugNeigung += (ziel - e.flugNeigung) * Math.min(1, dt * 6);
-      } else {
-        e.flugNeigung = 0;
-      }
-      e.letztesX = e.x;
-      e.letztesZ = e.z;
+      // Die Nase wandert zum gemeldeten Winkel, wie die Blickrichtung zu ihrem
+      // — die Schnappschüsse kommen seltener als die Bilder, und ein Sprung je
+      // Paket sähe man an einer schrägen Figur sofort.
+      e.neigung += (e.targetNeigung - e.neigung) * Math.min(1, dt * 12);
       e.hoeheVorher = e.y;
 
       e.rig.update({
@@ -926,7 +924,7 @@ export class WorldView {
        * Nase heben — also das Gegenteil.
        */
       if (e.flug !== '' && e.state !== EntityState.Dead) {
-        e.rig.root.rotation.x = -e.flugNeigung;
+        e.rig.root.rotation.x = -e.neigung;
       }
 
       // Der Schweif gehört zu jeder Bewegung der Klinge, nicht nur zum Hieb:

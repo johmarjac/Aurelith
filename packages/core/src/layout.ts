@@ -9,7 +9,7 @@
  */
 
 export const ENTITY_VIEW = {
-  stride: 56,
+  stride: 60,
   id: 0,
   targetId: 4,
   x: 8,
@@ -26,6 +26,7 @@ export const ENTITY_VIEW = {
   level: 52,
   type: 54,
   state: 55,
+  pitch: 56,
 } as const;
 
 export const EVENT_VIEW = {

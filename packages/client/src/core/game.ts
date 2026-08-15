@@ -202,6 +202,8 @@ interface LocalPose {
   z: number;
   yaw: number;
   speed: number;
+  /** Die Nase in der Luft. Am Boden null — siehe `CoreEntityRow.pitch`. */
+  neigung: number;
 }
 
 function copyPose(from: LocalPose, to: LocalPose): void {
@@ -210,6 +212,7 @@ function copyPose(from: LocalPose, to: LocalPose): void {
   to.z = from.z;
   to.yaw = from.yaw;
   to.speed = from.speed;
+  to.neigung = from.neigung;
 }
 
 /**
@@ -229,7 +232,17 @@ function copyPose(from: LocalPose, to: LocalPose): void {
 export interface Diagnostics {
   camera: { yaw: number; pitch: number; distance: number };
   /** Gezeichnete Lage — mit Zwischenwerten. */
-  player: { x: number; y: number; z: number; yaw: number; speed: number };
+  player: {
+    x: number;
+    y: number;
+    z: number;
+    yaw: number;
+    speed: number;
+    /** Die **gezeichnete** Nase. Zeigt, ob die Lage im Bild ankommt. */
+    neigung: number;
+    /** Das Gelände unter der Figur — für „fliegt sie über oder durch den Boden?". */
+    boden: number;
+  };
   /**
    * Roher Stand des letzten Simulationsschritts, ohne Zwischenwerte.
    *
@@ -499,8 +512,8 @@ export class Game {
    * dritten — genau das Zittern, das fremde Figuren nicht haben, weil die
    * ohnehin zwischen Snapshots interpoliert werden.
    */
-  private readonly posePrev: LocalPose = { x: 0, y: 0, z: 0, yaw: 0, speed: 0 };
-  private readonly poseCurr: LocalPose = { x: 0, y: 0, z: 0, yaw: 0, speed: 0 };
+  private readonly posePrev: LocalPose = { x: 0, y: 0, z: 0, yaw: 0, speed: 0, neigung: 0 };
+  private readonly poseCurr: LocalPose = { x: 0, y: 0, z: 0, yaw: 0, speed: 0, neigung: 0 };
   /** Falsch, solange keine zwei Schritte vorliegen oder gerade gesprungen wurde. */
   private poseValid = false;
 
@@ -511,7 +524,7 @@ export class Game {
 
   private readonly diagnostics: Diagnostics = {
     camera: { yaw: 0, pitch: 0, distance: 0 },
-    player: { x: 0, y: 0, z: 0, yaw: 0, speed: 0 },
+    player: { x: 0, y: 0, z: 0, yaw: 0, speed: 0, neigung: 0, boden: 0 },
     playerSim: { x: 0, y: 0, z: 0, yaw: 0 },
     input: { moveX: 0, moveZ: 0, yaw: 0, buttons: 0 },
     auftrag: { art: 'nichts', zielId: 0, angriff: false },
@@ -2872,6 +2885,7 @@ export class Game {
       this.poseCurr.z = row.z;
       this.poseCurr.yaw = row.yaw;
       this.poseCurr.speed = Math.hypot(row.vx, row.vz);
+      this.poseCurr.neigung = row.pitch;
       if (!this.poseValid) {
         copyPose(this.poseCurr, this.posePrev);
         this.poseValid = true;
@@ -2932,7 +2946,8 @@ export class Game {
       // 359° auf 1° einmal komplett um die eigene Achse.
       const yaw = prev.yaw + angleDelta(prev.yaw, curr.yaw) * alpha;
 
-      this.view.setLocal(this.localId, x, y, z, yaw, curr.speed);
+      const neigung = prev.neigung + (curr.neigung - prev.neigung) * alpha;
+      this.view.setLocal(this.localId, x, y, z, yaw, curr.speed, neigung);
       // Der Zuhörer steht bei der Figur, hört aber in Blickrichtung der
       // Kamera. Nähme man die Blickrichtung der Figur, wanderten die Töne bei
       // jeder Drehung durch den Kopf, obwohl das Bild stehen bleibt.
@@ -3015,7 +3030,9 @@ export class Game {
       d.player.z = self.z;
       d.player.yaw = self.yaw;
       d.player.speed = self.speed;
+      d.player.neigung = self.neigung;
     }
+    d.player.boden = this.prediction?.heightAt(this.poseCurr.x, this.poseCurr.z) ?? 0;
 
     d.playerSim.x = this.poseCurr.x;
     d.playerSim.y = this.poseCurr.y;

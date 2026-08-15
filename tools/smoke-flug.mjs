@@ -8,8 +8,10 @@
  *   1. Aufsteigen legt das Gerät an: aus dem Beutel in den Flugplatz.
  *   2. Ohne Schub steht die Figur in der Luft. Kein Fallen, kein Driften.
  *   3. Die Leertaste schaltet den Schub um — und er fährt an, statt zu stehen.
- *   4. S hebt die Nase, und mit gehobener Nase gewinnt sie Höhe.
- *   5. Absteigen lässt sie fallen.
+ *   4. S hebt die Nase — im Bild und in der Höhe, auch ohne Schub.
+ *   5. Nase nach unten trägt sie nicht durch das Gelände.
+ *   6. Wer sich auf dem Gerät abmeldet, sitzt danach wieder darauf.
+ *   7. Absteigen lässt sie fallen.
  *
  * Der Kern rechnet dasselbe (`native_test.cpp`); hier geht es um die Kette
  * davor: Doppelklick, Ausrüstung, Eingabe, Vorhersage.
@@ -33,7 +35,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { anmeldenUndBetreten } from './lib/spielstart.mjs';
+import { anmeldenBestehend, anmeldenUndBetreten } from './lib/spielstart.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = 8792;
@@ -131,7 +133,8 @@ await page.route(/\/content\/[a-z]+\.json/, (route) => {
   route.fulfill({ status: 200, contentType: 'application/json', body: readFileSync(join(inhalt, datei), 'utf8') });
 });
 await page.goto(`http://127.0.0.1:${WEB}/`, { waitUntil: 'domcontentloaded' });
-await anmeldenUndBetreten(page, `Flug${Date.now() % 100000}`, 'pruefer-passwort', 'Flugschuelerin');
+const konto = `Flug${Date.now() % 100000}`;
+await anmeldenUndBetreten(page, konto, 'pruefer-passwort', 'Flugschuelerin');
 await page.waitForTimeout(2000);
 
 const stelle = () => page.evaluate(() => ({ ...window.aurelith.player }));
@@ -211,24 +214,91 @@ check(
 );
 
 const vorNase = await stelle();
-await halte('KeyS', 14);
+await halte('KeyS', 20);
 await warte(30);
 const gestiegen = await stelle();
 check(gestiegen.y > vorNase.y + 2, `S hebt die Nase und sie steigt (${vorNase.y.toFixed(1)} → ${gestiegen.y.toFixed(1)})`);
+/*
+ * Und die Nase steht auch im Bild.
+ *
+ * Die eigentliche Gegenprobe: vorher schätzte der Renderer die Neigung aus dem
+ * zurückgelegten Weg. Solange die Figur fliegt, kommt dabei ungefähr das
+ * Richtige heraus — nur eben nicht, wenn sie steht. Deshalb wird gleich unten
+ * ohne Schub gemessen.
+ */
+check(
+  gestiegen.neigung > 0.4,
+  `und die gezeichnete Nase zeigt hinauf (${gestiegen.neigung.toFixed(2)} rad)`,
+);
 
 // Gegenprobe: W senkt sie wieder. Doppelt so lange gehalten wie S — die Nase
 // muss erst durch die Waagerechte, bevor es abwärts geht.
-await halte('KeyW', 28);
+await halte('KeyW', 40);
 await warte(30);
 const gesunken = await stelle();
 check(gesunken.y < gestiegen.y, `W senkt sie wieder (${gesunken.y.toFixed(1)})`);
+check(
+  gesunken.y >= gesunken.boden + 1.1,
+  `und trägt sie nicht durch das Gelände (${gesunken.y.toFixed(1)} über Boden ${gesunken.boden.toFixed(1)})`,
+);
 
+console.log('\nAbmelden und wieder ankommen');
+
+/*
+ * Wer auf dem Besen aufhört, sitzt beim nächsten Mal wieder darauf.
+ *
+ * Und zwar in der Welt des Servers und nicht nur im Bild: hier fehlte der
+ * Aufruf, der die Ausrüstung in den Kern trägt. Der Beutel meldete das Gerät,
+ * der Client schaltete auf Fliegen, der Server führte dieselbe Figur zu Fuss —
+ * und jeder Schnappschuss riss sie zurück. Deshalb wird unten nicht nur
+ * geprüft, dass sie in der Luft steht, sondern auch, dass die Vorhersage nicht
+ * dauernd korrigiert werden muss. Das ist der Unterschied zwischen „fliegt"
+ * und „zappelt".
+ */
+await page.reload({ waitUntil: 'domcontentloaded' });
+await anmeldenBestehend(page, konto);
+await page.waitForTimeout(2000);
+await warte(20);
+
+const wieder = await stelle();
+check(
+  wieder.y > wieder.boden + 1.0,
+  'nach dem Wiedereinstieg steht sie in der Luft',
+  `${wieder.y.toFixed(1)} über Boden ${wieder.boden.toFixed(1)}`,
+);
+check(
+  (await beutel()).find((e) => e.itemId === 'flug_besen')?.equipped === true,
+  'und der Besen liegt noch im Flugplatz',
+);
+
+await page.keyboard.press('Space');
+await warte(50);
+const wiederGeflogen = await stelle();
+const wiederWeit = Math.hypot(wiederGeflogen.x - wieder.x, wiederGeflogen.z - wieder.z);
+check(wiederWeit > 5, `und der Schub trägt sie (${wiederWeit.toFixed(1)} Einheiten)`);
+const korrekturen = await page.evaluate(() => window.aurelith.reconciles);
+check(korrekturen === 0, `ohne dass der Server dagegenhält (${korrekturen} Korrekturen)`);
+
+// Der Schub läuft jetzt noch — den schaltet der nächste Abschnitt ab.
 console.log('\nAnhalten und absteigen');
 
 await page.keyboard.press('Space');
 // Die Rampe braucht zwei Sekunden Welt zum Ausrollen; erst danach darf
 // „steht" geprüft werden.
 await warte(50);
+// Die Nase bleibt oben, auch wenn nichts mehr fliegt. Genau hier lag der
+// Fehler: aus einem Weg von null lässt sich kein Winkel schätzen.
+const stehend = await stelle();
+await halte('KeyS', 20);
+await warte(10);
+const nurNase = await stelle();
+check(
+  nurNase.neigung > stehend.neigung + 0.3,
+  `ohne Schub kippt die Nase trotzdem sichtbar (${stehend.neigung.toFixed(2)} → ${nurNase.neigung.toFixed(2)} rad)`,
+);
+// Und zurück in die Waagerechte, sonst misst die nächste Prüfung ein Steigen.
+await halte('KeyW', 20);
+await warte(10);
 const a = await stelle();
 await warte(24);
 const b = await stelle();

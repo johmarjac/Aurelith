@@ -521,6 +521,16 @@ export interface SpawnRow {
    * für etwas, das alle paar Minuten passiert, wäre der falsche Preis.
    */
   flug: string;
+  /**
+   * Die Nase in der Luft, im Bogenmass. Am Boden null.
+   *
+   * Anders als `flug` steht sie **auch** in der laufenden Aktualisierung: das
+   * Gerät wechselt alle paar Minuten, die Lage in jedem Schritt. Ein Byte je
+   * Wesen und Schnappschuss ist dafür der richtige Preis — geschätzt hat der
+   * Renderer sie vorher aus dem zurückgelegten Weg, und genau das ergab keinen
+   * Winkel, sobald jemand in der Luft stehenblieb.
+   */
+  neigung: number;
 }
 
 /** Laufende Aktualisierung eines bereits bekannten Entities. */
@@ -543,6 +553,8 @@ export interface UpdateRow {
    * Sekunde — der Preis ist die Klarheit wert.
    */
   aggro: boolean;
+  /** Die Nase in der Luft, im Bogenmass. Siehe `SpawnRow.neigung`. */
+  neigung: number;
 }
 
 /**
@@ -613,7 +625,8 @@ export function encodeSnapshot(m: SnapshotMsg): Uint8Array {
       .u8(Math.max(0, Math.min(255, Math.round(s.weaponUpgrade))))
       .str(s.outfit)
       .u8(Math.max(0, Math.min(255, Math.round(s.setGlow))))
-      .str(s.flug);
+      .str(s.flug)
+      .neigung(s.neigung);
   }
 
   w.u16(m.updates.length);
@@ -625,7 +638,8 @@ export function encodeSnapshot(m: SnapshotMsg): Uint8Array {
       .angle(u.yaw)
       .u32(Math.max(0, Math.round(u.hp)))
       .u8(u.state)
-      .u8(u.aggro ? 1 : 0);
+      .u8(u.aggro ? 1 : 0)
+      .neigung(u.neigung);
   }
 
   w.u16(m.despawns.length);
@@ -673,6 +687,7 @@ export function decodeSnapshot(r: ByteReader): SnapshotMsg {
       outfit: r.str(),
       setGlow: r.u8(),
       flug: r.str(),
+      neigung: r.neigung(),
     };
   }
 
@@ -688,6 +703,7 @@ export function decodeSnapshot(r: ByteReader): SnapshotMsg {
       hp: r.u32(),
       state: r.u8() as EntityState,
       aggro: r.u8() !== 0,
+      neigung: r.neigung(),
     };
   }
 

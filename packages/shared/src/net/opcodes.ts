@@ -7,7 +7,7 @@
  * ändert, zählt PROTOCOL_VERSION hoch.
  */
 
-export const PROTOCOL_VERSION = 19;
+export const PROTOCOL_VERSION = 20;
 
 export const ClientOp = {
   Hello: 0x01,

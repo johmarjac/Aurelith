@@ -264,6 +264,8 @@ class World {
   void updatePetAi(Entity& e, float dt);
   /** Ein Schritt in der Luft: Lage ändern, Schub schalten, sich bewegen. */
   void updateFlight(Entity& e, float moveX, float moveZ, uint32_t buttons, float dt);
+  /** Setzt ein Wesen an eine Stelle — auf das Gelände oder in die Luft. */
+  void versetze(Entity& e, float x, float z);
   /**
    * Wo ein Wesen hingehört: Mitte seines Feldes und dessen Radius.
    *

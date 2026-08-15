@@ -107,6 +107,7 @@ val describeLayout() {
   entity.set("level", static_cast<int>(offsetof(aur::EntityView, level)));
   entity.set("type", static_cast<int>(offsetof(aur::EntityView, type)));
   entity.set("state", static_cast<int>(offsetof(aur::EntityView, state)));
+  entity.set("pitch", static_cast<int>(offsetof(aur::EntityView, pitch)));
 
   val event = val::object();
   event.set("stride", static_cast<int>(sizeof(aur::EventView)));

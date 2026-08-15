@@ -390,7 +390,7 @@ void testDeterminism() {
 
 void testEntityViewLayout() {
   std::printf("Layout der Sichtstrukturen\n");
-  check(sizeof(aur::EntityView) == 56, "EntityView ist 56 Byte groß");
+  check(sizeof(aur::EntityView) == 60, "EntityView ist 60 Byte groß");
   check(sizeof(aur::EventView) == 32, "EventView ist 32 Byte groß");
 
   aur::MobRegistry mobs;
@@ -741,6 +741,43 @@ void testFliegen() {
     world.step(aur::kTickSeconds);
   }
   check(p->y >= boden + aur::kFlugMindesthoehe - 1e-3f, "und in den Boden sinkt sie nicht");
+
+  /*
+   * --- Versetzt heisst nicht gelandet --------------------------------------
+   *
+   * `teleport` ist nicht nur das Tor: mit demselben Aufruf korrigiert sich die
+   * Vorhersage im Client, und zwar jedes Mal, wenn ein Paket fehlt. Landete
+   * die Figur dabei, fiele mit `airborne` die Begrenzung im Tick weg — und die
+   * Nase nach unten trüge sie anschliessend durch das Gelände hindurch. Genau
+   * das war zu sehen.
+   */
+  // Lange genug, dass die Nase aus dem Sturzflug des letzten Abschnitts wieder
+  // nach oben zeigt und die Figur Höhe gewinnt.
+  world.setFlying(1, true, 12.0f, 6.0f, 20.0f);
+  for (int i = 0; i < 90; ++i) {
+    world.applyInput(1, 0.0f, -1.0f, 0.0f, schub, aur::kTickSeconds);
+    world.step(aur::kTickSeconds);
+  }
+  const float vorVersatz = p->y - boden;
+  check(vorVersatz > aur::kFlugMindesthoehe + 1.0f, "vor dem Versatz steht sie in der Luft");
+
+  // Derselbe Aufruf kommt nach jedem Ausrüstungswechsel. Ein Ring darf keine
+  // Figur mitten im Flug waagerecht stellen.
+  const float nase = p->pitch;
+  const float fahrt = p->tempo;
+  world.setFlying(1, true, 12.0f, 6.0f, 20.0f);
+  check(p->pitch == nase && p->tempo == fahrt, "ein zweites Aufsteigen ändert die Lage nicht");
+  world.teleport(1, 5.0f, 5.0f, 0.0f);
+  check(p->airborne, "wer fliegt, bleibt nach einem Versatz in der Luft");
+  checkNear(p->y - boden, vorVersatz, 0.1f, "und behält seine Höhe über dem Gelände");
+
+  // Und die Begrenzung wirkt danach weiter.
+  for (int i = 0; i < 200; ++i) {
+    world.applyInput(1, 0.0f, 1.0f, 0.0f, schub, aur::kTickSeconds);
+    world.step(aur::kTickSeconds);
+  }
+  check(p->y >= boden + aur::kFlugMindesthoehe - 1e-3f,
+        "durch das Gelände geht es auch nach einem Versatz nicht");
 
   /*
    * Absteigen heisst fallen.

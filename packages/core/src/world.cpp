@@ -223,10 +223,22 @@ void World::setFlying(uint32_t id, bool on, float speed, float climb, float ceil
   Entity& e = *ep;
 
   if (on) {
+    const bool schonInDerLuft = e.flying;
     e.flying = true;
     e.flightSpeed = speed;
     e.climbSpeed = climb;
     e.ceiling = ceiling;
+    /*
+     * Wer schon fliegt, steigt nicht noch einmal auf.
+     *
+     * Dieser Aufruf kommt nicht nur beim Aufsteigen: der Server schickt ihn
+     * nach jedem Ausrüstungswechsel, nach jedem verteilten Punkt und beim
+     * Anmelden. Fiele die Lage dabei jedes Mal auf null zurück, stünde eine
+     * Figur mitten im Flug plötzlich waagerecht und ohne Tempo da, weil
+     * irgendwo ein Ring gewechselt wurde. Was von aussen kommt, sind die
+     * Werte des Geräts — die Lage gehört der Figur.
+     */
+    if (schonInDerLuft) return;
     // Vom Boden weg, sonst zieht die waagerechte Bewegung die Figur im selben
     // Schritt wieder an das Gelände. `airborne` heisst hier wie beim Sprung
     // schlicht: hängt nicht am Boden.
@@ -292,20 +304,49 @@ const Entity* World::find(uint32_t id) const {
 // Eingriffe von außen
 // ---------------------------------------------------------------------------
 
+/**
+ * Setzt ein Wesen an eine Stelle und entscheidet dabei über seine Höhe.
+ *
+ * Am Boden: auf das Gelände, und der Sprung ist vorbei. In der Luft: auf
+ * dieselbe Höhe über dem Gelände, die es vorher hatte — ein Fluggerät setzt
+ * nicht auf, bloss weil die Figur versetzt wurde.
+ *
+ * Der Unterschied ist nicht kosmetisch. `airborne` entscheidet im Tick, ob
+ * überhaupt begrenzt wird (`advanceJump` steigt sonst gleich wieder aus).
+ * Hier stand für alle „auf dem Boden, nicht mehr in der Luft", und weil die
+ * Vorhersage sich mit genau diesem Aufruf korrigiert, schaltete jede
+ * Korrektur die Bodengrenze ab: die Figur flog danach durch das Gelände.
+ */
+void World::versetze(Entity& e, float x, float z) {
+  const float ueberBoden = e.y - terrainHeight(e.x, e.z, terrain_);
+  e.x = clampToMap(x, terrain_);
+  e.z = clampToMap(z, terrain_);
+  const float boden = terrainHeight(e.x, e.z, terrain_);
+
+  if (e.flying && isAlive(e)) {
+    float hoehe = ueberBoden;
+    if (hoehe < kFlugMindesthoehe) hoehe = kFlugMindesthoehe;
+    if (hoehe > e.ceiling) hoehe = e.ceiling;
+    e.y = boden + hoehe;
+    e.airborne = true;
+    return;
+  }
+
+  e.y = boden;
+  e.airborne = false;
+}
+
 void World::teleport(uint32_t id, float x, float z, float yaw) {
   Entity* e = find(id);
   if (e == nullptr) return;
-  e->x = clampToMap(x, terrain_);
-  e->z = clampToMap(z, terrain_);
-  e->y = terrainHeight(e->x, e->z, terrain_);
+  // Wer mitten im Sprung durch ein Tor geht, landet — sonst fiele er auf der
+  // neuen Karte aus der Luft, und zwar aus der Höhe, die er auf der alten
+  // hatte. Wer fliegt, fliegt weiter; siehe `versetze`.
+  versetze(*e, x, z);
   e->yaw = yaw;
   e->vx = 0.0f;
   e->vz = 0.0f;
-  // Wer mitten im Sprung durch ein Tor geht, landet — sonst fiele er auf der
-  // neuen Karte aus der Luft, und zwar aus der Höhe, die er auf der alten
-  // hatte.
   e->vy = 0.0f;
-  e->airborne = false;
   e->swingTimer = -1.0f;
   e->targetId = 0;
   e->homeX = e->x;
@@ -315,14 +356,13 @@ void World::teleport(uint32_t id, float x, float z, float yaw) {
 void World::respawnPlayer(uint32_t id, float x, float z) {
   Entity* e = find(id);
   if (e == nullptr) return;
-  e->x = clampToMap(x, terrain_);
-  e->z = clampToMap(z, terrain_);
-  e->y = terrainHeight(e->x, e->z, terrain_);
+  // Leben zuerst, Platz danach: `versetze` fragt, ob die Figur lebt — eine
+  // tote fliegt nicht, sie liegt.
   e->hp = std::max(1.0f, e->maxHp * 0.5f);
   e->mp = e->maxMp * 0.5f;
   e->state = kStateIdle;
+  versetze(*e, x, z);
   e->vy = 0.0f;
-  e->airborne = false;
   e->swingTimer = -1.0f;
   e->attackCooldown = 0.0f;
   e->hitStun = 0.0f;
@@ -442,6 +482,7 @@ const EntityView* World::buildView() {
     v.level = e.level;
     v.type = e.type;
     v.state = e.state;
+    v.pitch = e.pitch;
     view_.push_back(v);
   }
   return view_.empty() ? nullptr : view_.data();

@@ -122,6 +122,8 @@ export interface CoreEntityRow {
   level: number;
   type: CoreEntityType;
   state: CoreEntityState;
+  /** Die Nase in der Luft, im Bogenmass, nach oben positiv. Am Boden null. */
+  pitch: number;
 }
 
 export interface CoreEvent {
@@ -539,6 +541,7 @@ export class CoreWorld {
         level: 0,
         type: CoreEntityType.Player,
         state: CoreEntityState.Idle,
+        pitch: 0,
       });
     }
     into.length = count;
@@ -564,6 +567,7 @@ export class CoreWorld {
       row.level = dv.getUint16(base + L.level, true);
       row.type = dv.getUint8(base + L.type) as CoreEntityType;
       row.state = dv.getUint8(base + L.state) as CoreEntityState;
+      row.pitch = dv.getFloat32(base + L.pitch, true);
     }
     return into;
   }
