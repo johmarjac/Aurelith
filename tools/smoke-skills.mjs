@@ -66,6 +66,9 @@ for (const datei of readdirSync(quelle).filter((f) => f.endsWith('.json'))) {
       { kind: 'collect', target: 'potion_hp_small', count: 1, text: 'Heiltrank vorzeigen' },
     ];
   }
+  // Ein Besen im Startbeutel — für den letzten Abschnitt, in dem geprüft wird,
+  // dass auf dem Fluggerät nichts gewirkt wird.
+  if (datei === 'items.json') daten.starter.push({ item: 'flug_besen' });
 
   writeFileSync(join(inhalt, datei), JSON.stringify(daten));
 }
@@ -337,6 +340,78 @@ check((await abkling(6)) === '1', 'und der andere mit derselben Fertigkeit auch'
 // „alle Plätze zählen herunter" als Erfolg durch — und zusammen mit der
 // Messung davor steht damit fest, dass die Eins von diesem Klick kommt.
 check((await abkling(5)) !== '1', 'der leere Platz dazwischen bleibt bereit', await abkling(5));
+
+console.log('\nAuf dem Fluggerät wird nicht gewirkt');
+
+/*
+ * Zwei Dinge in einem Abschnitt, weil sie zusammengehören: die Sperre und ihre
+ * Begründung.
+ *
+ * Der Server sagt ab — das ist die Regel. Der Client sagt vorher ab — das ist
+ * der Grund für diese Prüfung: sonst liefe die Abklingzeit los, bevor die
+ * Absage zurückkommt, und die Fertigkeit wäre ihre vollen sechs Sekunden
+ * gesperrt, ohne je gewirkt worden zu sein. Zurückdrehen liesse sie sich
+ * nicht; der Client weiss hinterher nicht, welche Uhr zu welchem Klick gehört.
+ *
+ * Und die Absage muss **zu sehen** sein. Eine Sperre ohne Begründung ist im
+ * Spiel dasselbe wie ein kaputter Knopf.
+ */
+const hinweis = () =>
+  page.evaluate(() => {
+    const el = document.querySelector('.hinweis-zeile');
+    return el?.dataset.sichtbar === '1' ? (el.textContent ?? '') : '';
+  });
+const beutel = () => page.evaluate(() => window.aurelith.inventar);
+const besenLiegt = async (angelegt) =>
+  (await beutel()).find((e) => e.itemId === 'flug_besen')?.equipped === angelegt;
+
+await page.keyboard.press('KeyI');
+await page.waitForSelector('.window[data-window="inventory"][data-open="true"]', { timeout: 10000 });
+await page.waitForTimeout(400);
+const besen = (await beutel()).find((e) => e.itemId === 'flug_besen');
+check(besen !== undefined, 'der Besen liegt im Beutel', String(besen?.slot));
+await page.dblclick(`.item-slot[data-bag-slot="${besen.slot}"]`);
+// Auf das Ergebnis gewartet und nicht auf eine Zahl Millisekunden: wie lange
+// das Aufsteigen dauert, steht im Server (`AUFSTIEG_MS`), und ein Test, der
+// die Zahl hier abschreibt, ist beim nächsten Drehen daran still falsch.
+check(await waitUntil(() => besenLiegt(true), 20000), 'nach der Wartezeit sitzt die Figur darauf');
+await page.keyboard.press('KeyI');
+await page.waitForTimeout(300);
+
+// Die Uhr vom Klick weiter oben muss erst ablaufen — sonst prüfte der nächste
+// Klick die Abklingzeit und nicht das Fliegen.
+check(
+  await waitUntil(async () => (await abkling(4)) !== '1', 10000),
+  'die Wirbelklinge ist wieder bereit',
+);
+
+await page.click('.action-slot[data-aktion="4"]');
+await page.waitForTimeout(500);
+const gesagt = await hinweis();
+// Auf den ganzen Satz geprüft und nicht nur auf das Wort „Fluggerät": beim
+// Aufsteigen steht dort ebenfalls eine Meldung, und die soll hier nicht als
+// Absage durchgehen.
+check(
+  /Wirbelklinge lässt sich auf dem Fluggerät/.test(gesagt),
+  'der Klick sagt ab und nennt den Grund',
+  gesagt,
+);
+check((await abkling(4)) !== '1', 'und die Abklingzeit läuft dabei nicht an');
+
+// --- Gegenprobe: am Boden geht dieselbe Fertigkeit --------------------------
+//
+// Ohne sie prüfte der Abschnitt nur, dass ein Klick auf Platz 5 irgendetwas
+// nicht tut — auch ein kaputter Platz käme damit durch.
+await page.keyboard.press('KeyI');
+await page.waitForTimeout(400);
+await page.dblclick('.equip-slot[data-slot="flug"]');
+check(await waitUntil(() => besenLiegt(false), 10000), 'abgestiegen');
+await page.keyboard.press('KeyI');
+await page.waitForTimeout(400);
+
+await page.click('.action-slot[data-aktion="4"]');
+await page.waitForTimeout(500);
+check((await abkling(4)) === '1', 'am Boden wirkt dieselbe Fertigkeit und klingt ab');
 
 console.log(`\n  Bilder: ${shots}/skills-*.png`);
 

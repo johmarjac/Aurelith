@@ -2233,6 +2233,22 @@ export class GameServer {
       return;
     }
 
+    /*
+     * Auf dem Fluggerät wird nicht gewirkt.
+     *
+     * Dieselbe Überlegung wie beim Schlag: wer auf einem Besen sitzt, hat
+     * keine Hand frei und keinen Stand. Und dieselbe Stelle wie dort — im
+     * Server, denn was er nicht durchsetzt, gilt nicht.
+     *
+     * Nach der Prüfung „beherrschst du überhaupt" und vor der Abklingzeit: die
+     * Absage soll nach der Ursache benannt sein, die zuerst zutrifft, und
+     * kosten darf sie nichts.
+     */
+    if (this.flugGeraetVon(session) !== undefined) {
+      this.systemMessage(session, 'Auf dem Fluggerät lassen sich keine Fertigkeiten wirken.');
+      return;
+    }
+
     const jetzt = Date.now();
     const frei = session.skillReady.get(skillId) ?? 0;
     if (jetzt < frei) {
@@ -2720,6 +2736,22 @@ export class GameServer {
     const level = session.character?.level ?? 1;
     if (level < def.levelReq) {
       this.systemMessage(session, `${def.name} braucht Stufe ${def.levelReq}.`);
+      return;
+    }
+
+    /*
+     * Und nicht vom Fluggerät aus freilassen.
+     *
+     * Der Begleiter läuft am Boden und folgt einer Figur, die dort steht. Wer
+     * ihn aus vierzig Metern Höhe herunterschickt, hat einen Begleiter, der
+     * unter ihm herumirrt und die Leine nie erreicht — die Abbruchregel in
+     * `pets.ts` zöge ihn sofort wieder ein. Also gar nicht erst.
+     *
+     * Einsammeln bleibt erlaubt: das ist oben schon abgehandelt, und wer
+     * aufsteigt, soll seinen Begleiter mitnehmen können.
+     */
+    if (this.flugGeraetVon(session) !== undefined) {
+      this.systemMessage(session, `${def.name} lässt sich vom Fluggerät aus nicht freilassen.`);
       return;
     }
 

@@ -37,6 +37,12 @@ bewussten Abweichung, die weiter unten begründet ist.
 - **Ausrüstung mit Rüstungssätzen**: dreizehn Plätze, sichtbare Teile an der Figur,
   Satzbonus für den vollständigen Satz und ein Schein um die Rüstung, sobald
   jedes Teil davon mindestens +4 trägt.
+- **Fluggeräte**: Besen und Board, gesteuert über die Lage — Nase und Kurs statt
+  Richtungstasten. Aufsteigen dauert und zeigt einen Wartebalken; in der Luft
+  wird weder geschlagen noch gewirkt, anvisieren geht.
+- **Eine Hinweiszeile** unten in der Mitte, in der **jede** Absage steht: warum
+  eine Aktion nicht ging, klein und für ein paar Sekunden. Alles, was der Server
+  als Systemnachricht schickt, landet dort von selbst.
 - **Drei Karten** mit Gates und einem Dungeon, dazu ein **Map-Editor**, der
   dasselbe Dateiformat liest und schreibt.
 
@@ -214,7 +220,7 @@ npm run test:karten      # Eintrittskarten: Frist, Lebenszeichen, Wiedereinstieg
 npm run test:vorgang     # Aufsteigen dauert, und eine Absage kostet keine Abklingzeit
 npm run test:haustier    # Begleiter: Sorten, Leine, Werte
 npm run test:loot-ui     # Beute im Bild: Schild, Antippen, Aufheben
-npm run test:skills      # Fertigkeitenbaum: Taste, Beruf, Zug auf die Leiste
+npm run test:skills      # Fertigkeitenbaum: Taste, Beruf, Zug auf die Leiste, Sperre im Flug
 npm run test:e2e         # Spiel im Browser, Desktop und Berührung
 npm run test:prediction  # springt die eigene Figur beim Laufen zurück?
 npm run test:portal      # Tore: hineinlaufen, stehen, F drücken, zurück

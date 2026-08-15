@@ -898,6 +898,40 @@ body.aktion-zuweisen .action-slot {
   overflow: hidden;
 }
 
+/*
+ * Die Hinweiszeile unter dem Wartebalken.
+ *
+ * Klein und ruhig: sie kommt oft, und was oft kommt, darf nicht schreien. Der
+ * Unterschied zur Ansage der Spielleitung (`.ansage`, gross und rot im oberen
+ * Drittel) ist Absicht — das eine ist eine Nachricht an alle, das hier eine
+ * Antwort auf den eigenen letzten Griff.
+ *
+ * Über der Aktionsleiste und unter dem Balken, damit die drei Dinge in der
+ * Reihenfolge stehen, in der sie passieren: ich tue etwas, es läuft, so ging
+ * es aus.
+ */
+.hinweis-zeile {
+  position: absolute;
+  bottom: calc(var(--safe-b) + var(--gap) + 3.3rem);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(26rem, 90vw);
+  padding: 0.25rem 0.7rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--panel-edge);
+  background: rgba(8, 10, 16, 0.78);
+  color: var(--ink-hell);
+  font-size: 0.78rem;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 180ms ease-out;
+}
+
+.hinweis-zeile[data-sichtbar='1'] {
+  opacity: 1;
+}
+
 .vorgang-fuell {
   height: 100%;
   width: 0;

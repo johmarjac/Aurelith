@@ -1506,6 +1506,19 @@ export class Game {
           return;
         }
         this.ui.addChat(msg.channel, msg.from, msg.text);
+
+        /*
+         * Und jede Systemnachricht zusätzlich unten in die Hinweiszeile.
+         *
+         * Hier und an genau dieser einen Stelle: der Server sagt Aktionen mit
+         * `systemMessage` ab — „das geht auf dem Fluggerät nicht", „der Beutel
+         * ist voll", „noch nicht bereit" —, und wer eine neue Absage einbaut,
+         * bekommt die Anzeige damit geschenkt. Eine Aufzählung, welche
+         * Meldungen „wichtig" sind, wäre die zweite Wahrheit, die beim
+         * nächsten Zusatz vergessen wird.
+         */
+        if (msg.channel === ChatChannel.System) this.ui.zeigeHinweis(msg.text);
+
         // Und über dem Kopf dessen, der es gesagt hat. Wer auf einer anderen
         // Karte steht, hat hier kein Wesen — dann bleibt es bei der Zeile.
         this.ui.overlay.zeigeBlase(msg.entityId, msg.text);
@@ -2507,11 +2520,12 @@ export class Game {
     const jetzt = performance.now();
     if (jetzt - this.letzteFlugwarnung < 5000) return;
     this.letzteFlugwarnung = jetzt;
-    this.ui.addChat(
-      0,
-      '',
-      'Vom Fluggerät aus lässt sich nicht kämpfen. Anvisieren geht — zum Schlagen absteigen.',
-    );
+    const text =
+      'Vom Fluggerät aus lässt sich nicht kämpfen. Anvisieren geht — zum Schlagen absteigen.';
+    // Dieselbe Zeile wie für alle anderen Absagen: der Grund steht dort, wo man
+    // ihn nach der letzten Absage schon gesucht hat.
+    this.ui.zeigeHinweis(text);
+    this.ui.addChat(0, '', text);
   }
 
   private letzteFlugwarnung = 0;

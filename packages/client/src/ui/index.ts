@@ -296,6 +296,54 @@ export class UI {
   /** Auf- oder absteigen — was von beidem, weiss das Spiel. */
   onFlugKnopf?: () => void;
 
+  private readonly hinweisZeile!: HTMLDivElement;
+  private hinweisFrist?: number;
+
+  /**
+   * Ein kurzer Hinweis unten in der Mitte.
+   *
+   * **Jede** Absage geht hier durch — „das geht auf dem Besen nicht", „noch
+   * nicht bereit", „zu wenig Mana". Der Weg vom Server ist eine einzige
+   * Stelle: `onChat` schickt jede Systemnachricht hierher. Wer eine neue
+   * Absage einbaut, bekommt die Anzeige damit geschenkt; es gibt keine zweite
+   * Liste, in die man sie eintragen müsste.
+   *
+   * Vier Sekunden: lang genug zum Lesen, kurz genug, dass die nächste Absage
+   * nicht warten muss. Eine neue ersetzt die alte — zwei Hinweise übereinander
+   * wären eine Wand, und die untere gälte längst nicht mehr.
+   */
+  zeigeHinweis(text: string): void {
+    if (text === '') return;
+    this.hinweisZeile.textContent = text;
+    this.hinweisZeile.dataset.sichtbar = '1';
+    window.clearTimeout(this.hinweisFrist);
+    this.hinweisFrist = window.setTimeout(() => {
+      this.hinweisZeile.dataset.sichtbar = '0';
+    }, 4000);
+  }
+
+  /**
+   * Eine Absage, die der Client selbst ausspricht.
+   *
+   * Dieselbe Zeile wie für die Absagen des Servers — für den Spielenden ist
+   * kein Unterschied zu sehen, und es soll auch keiner zu sehen sein: „geht
+   * nicht, und zwar deshalb" steht immer an derselben Stelle. Zusätzlich in
+   * den Chat, damit sie nachlesbar bleibt, wenn die Zeile verblasst ist.
+   */
+  private absage(text: string): void {
+    this.zeigeHinweis(text);
+    this.addChat(0, '', text);
+  }
+
+  /**
+   * Ist die eigene Figur gerade in der Luft?
+   *
+   * Gesetzt von `setzeFlugstand`, das ohnehin jedes Bild kommt. Eine eigene
+   * Meldung dafür wäre eine zweite Wahrheit über denselben Umstand — und die
+   * beiden liefen genau dann auseinander, wenn es darauf ankommt.
+   */
+  private imFlug = false;
+
   /**
    * Beschriftet den Flugknopf und blendet ihn ein oder aus.
    *
@@ -306,6 +354,7 @@ export class UI {
    * sonst drückt man zweimal und wundert sich über die Absage des Servers.
    */
   setzeFlugstand(fliegt: boolean, hatGeraet: boolean, laeuft: boolean): void {
+    this.imFlug = fliegt;
     const zeigen = fliegt || hatGeraet;
     if (this.flugButton.hidden === zeigen) this.flugButton.hidden = !zeigen;
     if (!zeigen) return;
@@ -1026,6 +1075,21 @@ export class UI {
     this.vorgangBox.append(this.vorgangText, rinne);
     host.appendChild(this.vorgangBox);
 
+    /*
+     * Und darunter die Zeile für kurze Meldungen.
+     *
+     * Sie steht bewusst hier und nicht im Chat: der Chat ist eine Chronik, und
+     * eine Absage will man in dem Augenblick lesen, in dem man den Knopf
+     * gedrückt hat — auf dem Telefon ist er meistens eingeklappt.
+     *
+     * Unter dem Wartebalken und nicht darüber: der Balken sagt „es läuft", die
+     * Zeile sagt „so ist es ausgegangen". Die Reihenfolge im Bild ist dieselbe
+     * wie die in der Zeit.
+     */
+    this.hinweisZeile = el('div', 'hinweis-zeile');
+    this.hinweisZeile.dataset.sichtbar = '0';
+    host.appendChild(this.hinweisZeile);
+
     // --- Tor-Hinweis ------------------------------------------------------
     //
     // Auf dem PC eine Zeile mit der Taste, auf Mobil ein Knopf — dasselbe
@@ -1503,9 +1567,7 @@ export class UI {
       const schluessel = `g:${eintrag.id}`;
       const rest = (this.abklingBis.get(schluessel) ?? 0) - performance.now();
       if (rest > 0) {
-        this.addChat(
-          0,
-          '',
+        this.absage(
           `${def?.name ?? eintrag.id} ist noch nicht bereit (${(rest / 1000).toFixed(1)} s).`,
         );
         return;
@@ -1522,23 +1584,36 @@ export class UI {
     if (!def) return;
 
     /*
-     * Die beiden Absagen gehen in den **Chat** und nicht in die Konsole.
+     * Die Absagen gehen in die Hinweiszeile und nicht in die Konsole.
      *
      * Sie standen dort, und das Ergebnis war das schlimmste von allen: ein
      * Klick, auf den nichts folgte. Wer die Konsole nicht offen hat — also
      * jeder — sah einen Knopf, der nicht reagiert, und hatte keinen
      * Anhaltspunkt, warum. Eine Absage, die niemand liest, ist keine.
      */
+
+    /*
+     * Auf dem Fluggerät wird nicht gewirkt.
+     *
+     * Der Server sagt es ohnehin ab — das ist die Regel. Die Prüfung steht
+     * hier zusätzlich, weil sonst **vorher** die Abklingzeit anliefe: die
+     * Fertigkeit wäre für ihre volle Frist gesperrt, ohne je gewirkt worden zu
+     * sein. Zurückdrehen liesse sie sich nicht; nach der Absage weiss der
+     * Client nicht mehr, welche der laufenden Uhren zu welchem Klick gehört.
+     */
+    if (this.imFlug) {
+      this.absage(`${def.name} lässt sich auf dem Fluggerät nicht wirken.`);
+      return;
+    }
+
     const rest = (this.abklingBis.get(`f:${def.id}`) ?? 0) - performance.now();
     if (rest > 0) {
-      this.addChat(0, '', `${def.name} ist noch nicht bereit (${(rest / 1000).toFixed(1)} s).`);
+      this.absage(`${def.name} ist noch nicht bereit (${(rest / 1000).toFixed(1)} s).`);
       return;
     }
 
     if (this.lastStats && this.lastStats.mp < def.manaCost) {
-      this.addChat(
-        0,
-        '',
+      this.absage(
         `Zu wenig Mana für ${def.name} — ${def.manaCost} nötig, ${Math.floor(this.lastStats.mp)} da.`,
       );
       return;
