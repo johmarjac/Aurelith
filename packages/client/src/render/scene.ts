@@ -257,26 +257,6 @@ export class Scene3D {
     this.pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, this.pitch + deltaPitch));
   }
 
-  /**
-   * Zieht die Kamera hinter eine Blickrichtung — beim Fliegen.
-   *
-   * Am Boden gehört die Kamera dem Spieler: er dreht sie, die Figur läuft
-   * dorthin, wo er hinsieht. In der Luft ist es umgekehrt — die Figur hat
-   * einen Kurs, und die Kamera folgt ihm. Ohne das flöge man seitwärts aus
-   * dem Bild, und A und D drehten etwas, das man nicht sieht.
-   *
-   * Weich und nicht sofort: eine Kamera, die jeder Kurskorrektur ohne
-   * Verzögerung folgt, ist nicht ruhig zu halten.
-   */
-  folgeRichtung(yaw: number, dt: number): void {
-    let diff = yaw - this.yaw;
-    // Auf den kürzeren Weg bringen: ohne das dreht die Kamera bei einem
-    // Vorzeichenwechsel einmal ganz herum.
-    while (diff > Math.PI) diff -= Math.PI * 2;
-    while (diff < -Math.PI) diff += Math.PI * 2;
-    this.yaw += diff * (1 - Math.pow(0.02, dt));
-  }
-
   zoom(delta: number): void {
     this.distance = clamp(this.distance * Math.exp(delta * ZOOM_RATE), ZOOM_MIN, ZOOM_MAX);
   }

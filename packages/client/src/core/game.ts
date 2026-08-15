@@ -2963,9 +2963,17 @@ export class Game {
       // Die Laternenlichter folgen dem Spieler: ein fester Pool, verteilt auf
       // die nächstgelegenen. Siehe render/lanterns.ts.
       this.view.lanterns.update(x, z);
-      // In der Luft zieht die Kamera hinter den Kurs. Vor `follow`, damit sie
-      // im selben Bild an der neuen Stelle steht.
-      if (this.fliegt) this.scene.folgeRichtung(this.poseCurr.yaw, dt);
+      /*
+       * Die Kamera gehört dem Spieler — in der Luft wie am Boden.
+       *
+       * Hier zog sie sich im Flug selbsttätig hinter den Kurs, damit A und D
+       * nicht etwas drehen, das man nicht sieht. Der Preis war, dass man sie
+       * gar nicht mehr schwenken konnte: jedes Ziehen wurde im nächsten Bild
+       * zurückgeholt, und übrig blieb ein Ausschlag von ein paar Grad.
+       *
+       * Eine Kamera, die sich gegen die Hand wehrt, ist schlimmer als eine,
+       * die man nachführen muss. Also führt sie niemand mehr nach.
+       */
       this.scene.follow(x, y, z, this.prediction, dt);
       this.streamer.setViewer(x, z);
       this.updateNearbyPortal(x, z);
@@ -2975,6 +2983,9 @@ export class Game {
 
       // Der Angriffsknopf am Telefon kommt nur, wenn etwas in Reichweite ist.
       this.ui.setAttackReady(!this.dead && this.naechstesZiel() !== 0);
+      // Und derselbe Knopf, der am Boden springt, beschriftet sich in der Luft
+      // um: dort schaltet er den Schub.
+      this.ui.setzeFlugknopf(this.fliegt, this.schubAn);
 
       // Der Daumen bleibt auf dem Knopf, das Monster fällt um. Ohne diese
       // Zeile stünde man mit gedrücktem Knopf vor dem nächsten und müsste

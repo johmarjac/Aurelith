@@ -264,6 +264,28 @@ export class UI {
   onChatSubmit?: (text: string, kanal: number) => void;
   onRespawn?: () => void;
   onAttackHold?: (held: boolean) => void;
+  /**
+   * Derselbe Knopf, zwei Bedeutungen — und deshalb zwei Beschriftungen.
+   *
+   * Am Boden springt er, in der Luft schaltet er den Schub. Das ist beim
+   * Fliegen nicht zu erraten: ein Pfeil nach oben heisst „hoch", und der Schub
+   * trägt dorthin, wo die Nase hinzeigt. Am Schreibtisch ist es dieselbe
+   * Leertaste, nur steht dort nichts darauf.
+   */
+  setzeFlugknopf(fliegt: boolean, schub: boolean): void {
+    const knopf = this.jumpButton;
+    if (!knopf) return;
+    const text = fliegt ? (schub ? '⏸' : '➤') : '⭡';
+    const name = fliegt ? (schub ? 'Schub aus' : 'Schub an') : 'Springen';
+    if (knopf.textContent !== text) knopf.textContent = text;
+    if (knopf.title !== name) {
+      knopf.title = name;
+      knopf.setAttribute('aria-label', name);
+    }
+  }
+
+  private jumpButton?: HTMLButtonElement;
+
   /** Der Sprungknopf auf dem Telefon. Dasselbe wie die Leertaste. */
   onJump?: () => void;
   /**
@@ -895,6 +917,7 @@ export class UI {
         this.onJump?.();
       });
       host.appendChild(jump);
+      this.jumpButton = jump;
     }
 
     // --- Tor-Hinweis ------------------------------------------------------

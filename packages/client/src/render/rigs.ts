@@ -62,6 +62,19 @@ export interface RigState {
   luft?: number;
   /** Steigt die Figur gerade, oder fällt sie? Formt die Beinhaltung. */
   steigt?: boolean;
+  /**
+   * Worauf die Figur fliegt — Modellschlüssel, leer heisst: am Boden.
+   *
+   * Eine eigene Haltung und nicht die des Sprungs. Hier stand vorher nichts,
+   * und deshalb griff `luft`: eine fliegende Figur ist ja über dem Boden. Sie
+   * zog also beim Steigen die Knie an und streckte beim Sinken die Beine —
+   * mitten im Flug, und das Bein dabei neben dem Brett. Was man auf einem
+   * Brett tut, hat mit einem Sprung nichts zu tun.
+   *
+   * Der Schlüssel und kein `boolean`: auf einem Besen sitzt man, auf einem
+   * Brett steht man.
+   */
+  flug?: string;
   dead: boolean;
   /** Sekunden seit Spielstart, für Leerlaufbewegung mit fester Frequenz. */
   time: number;
@@ -1210,6 +1223,11 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
       body.rotation.x = beugung * 0.95 + koerperKippung + gait * 0.07;
       legL.rotation.x = swing - beugung * 0.8 - koerperKippung * 0.8 - gait * 0.07;
       legR.rotation.x = -swing - beugung * 0.8 + koerperKippung * 0.45 - gait * 0.07;
+      // Zurück aus der Grätsche: die Flughaltung stellt die Beine seitlich, und
+      // wer absteigt, soll nicht breitbeinig weiterlaufen. Hier und nicht dort,
+      // weil eine Haltung nur aufräumen kann, solange sie noch gilt.
+      legL.rotation.z = 0;
+      legR.rotation.z = 0;
 
       // Leichtes Wippen — ohne das wirkt eine stehende Figur wie ein Möbelstück.
       // Beim Bücken geht die Figur zusätzlich in die Knie. Der Lauf senkt sie
@@ -1232,6 +1250,56 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
       // nimmt die Arme hoch, beim Fallen streckt man die Beine nach unten, um
       // aufzukommen. Eine einzige Pose für beides sieht aus wie eine Puppe an
       // einem Faden.
+      /*
+       * --- Fliegen ---------------------------------------------------------
+       *
+       * **Vor** der Sprunghaltung und mit eigenem Ausgang: beides beschreibt
+       * eine Figur ohne Boden unter den Füssen, und beides zugleich ergäbe
+       * eine, die auf dem Brett steht und dabei die Knie anzieht. Genau das
+       * war zu sehen.
+       *
+       * Zwei Haltungen, weil es zwei Geräte gibt: auf dem Besen sitzt man, auf
+       * dem Brett steht man. Beide sind **ruhig** — kein Wippen, kein Schritt.
+       * Die Bewegung des Fliegens macht die Landschaft, nicht die Figur.
+       */
+      const flug = state.flug ?? '';
+      if (flug !== '') {
+        const sitzt = flug === 'flug_besen';
+
+        // Die Beine: auf dem Besen nach vorn und unten geknickt, auf dem Brett
+        // fast gerade — die Sohlen sollen das Brett berühren und nicht daneben
+        // in der Luft stehen.
+        legL.rotation.x = sitzt ? -1.35 : -0.06;
+        legR.rotation.x = sitzt ? -1.35 : 0.06;
+        legL.rotation.z = sitzt ? 0.16 : 0.05;
+        legR.rotation.z = sitzt ? -0.16 : -0.05;
+        knieLinks = sitzt ? 1.15 : 0.22;
+        knieRechts = sitzt ? 1.15 : 0.2;
+
+        // Die Arme: auf dem Besen nach vorn an den Stiel, auf dem Brett locker
+        // zur Seite — das ist die Haltung, mit der man Gleichgewicht hält.
+        armL.rotation.x = sitzt ? -1.15 : -0.2;
+        armR.rotation.x = sitzt ? -1.15 : -0.2;
+        armL.rotation.z = sitzt ? 0.12 : 0.55;
+        armR.rotation.z = sitzt ? -0.12 : -0.55;
+        ellbogenL.rotation.x = sitzt ? -0.35 : -0.12;
+        ellbogenR.rotation.x = sitzt ? -0.35 : -0.12;
+
+        // Leicht nach vorn gelehnt, wie jeder, der gegen den Fahrtwind steht.
+        body.rotation.x = sitzt ? 0.12 : 0.16;
+        body.rotation.y = 0;
+        body.position.z = 0;
+        // Sitzen heisst tiefer: das Gesäss liegt auf dem Stiel, und der liegt
+        // unter der Hüfte. Siehe `baueFluggeraet` — dort steht dieselbe Höhe.
+        body.position.y = sitzt ? -0.12 : -0.04;
+
+        knieL.rotation.x = knieLinks;
+        knieR.rotation.x = knieRechts;
+        stiefelL.rotation.x = -knieLinks * 0.55;
+        stiefelR.rotation.x = -knieRechts * 0.55;
+        return;
+      }
+
       const luft = Math.max(0, Math.min(1, state.luft ?? 0));
       if (luft > 0) {
         const steigt = state.steigt === true;
@@ -1666,20 +1734,35 @@ export function baueFluggeraet(model: string, material: THREE.Material): THREE.G
     gruppe.add(mesh);
   };
 
+  /*
+   * Die Höhe ist keine Geschmacksfrage.
+   *
+   * Der Nullpunkt liegt bei den Füssen der Figur. Ein Brett gehört also knapp
+   * darunter — man steht darauf. Ein Besen gehört unter die **Hüfte**, denn
+   * man sitzt darauf, und die liegt bei dieser Figur gut siebzig Zentimeter
+   * höher. Hier lagen beide auf derselben Höhe, und der Besen schwebte
+   * zwischen den Knöcheln, während die Figur darüber in der Luft sass.
+   *
+   * Die Gegenzahl steht in `rigs`' Flughaltung (`body.position.y`): wer eine
+   * ändert, muss die andere ansehen.
+   */
   if (model === 'flug_besen') {
-    // Stiel der Länge nach, Reisig hinten. Man sitzt darauf, also liegt er
-    // etwas höher als das Brett.
-    kasten(0.09, 0.09, 2.1, 0x6b4423, 0, -0.12, 0.15);
-    kasten(0.26, 0.26, 0.55, 0xb08b4f, 0, -0.12, -1.05);
-    kasten(0.12, 0.12, 0.3, 0x8a6a3a, 0, 0.02, 0.95);
+    // Stiel der Länge nach, Reisig hinten, Griff vorn — auf Sitzhöhe.
+    // 0,75 ist keine gewählte Zahl: das Hüftgelenk der Figur liegt bei 0,92,
+    // die Flughaltung senkt sie um 0,12, und ein Stiel von 0,09 Dicke liegt
+    // mit seiner Oberkante dann genau unter dem Gesäss.
+    kasten(0.09, 0.09, 2.1, 0x6b4423, 0, 0.75, 0.15);
+    kasten(0.26, 0.26, 0.55, 0xb08b4f, 0, 0.75, -1.05);
+    kasten(0.12, 0.12, 0.3, 0x8a6a3a, 0, 0.89, 0.95);
     return gruppe;
   }
 
-  // Brett: flach, breit, mit zwei Kufen darunter.
-  kasten(0.62, 0.09, 1.9, 0x4a3f36, 0, -0.1, 0);
-  kasten(0.5, 0.04, 1.5, 0x3f7fa8, 0, -0.04, 0);
-  kasten(0.08, 0.06, 1.5, 0x2a2622, -0.22, -0.17, 0);
-  kasten(0.08, 0.06, 1.5, 0x2a2622, 0.22, -0.17, 0);
+  // Brett: flach, breit, mit zwei Kufen darunter. Die Oberseite liegt bei
+  // null — genau dort, wo die Sohlen stehen.
+  kasten(0.62, 0.09, 1.9, 0x4a3f36, 0, -0.045, 0);
+  kasten(0.5, 0.04, 1.5, 0x3f7fa8, 0, 0.01, 0);
+  kasten(0.08, 0.06, 1.5, 0x2a2622, -0.22, -0.115, 0);
+  kasten(0.08, 0.06, 1.5, 0x2a2622, 0.22, -0.115, 0);
   return gruppe;
 }
 

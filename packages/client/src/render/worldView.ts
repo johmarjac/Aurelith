@@ -903,6 +903,8 @@ export class WorldView {
         speed: e.flug === '' ? e.speed : 0,
         luft,
         steigt,
+        // Woraufhin das Rig eine eigene Haltung einnimmt statt der des Sprungs.
+        flug: e.flug,
         attackPhase: e.attackTimer >= 0 ? e.attackTimer / ATTACK_ANIM_SECONDS : -1,
         attackVariant: e.attackVariant,
         pickupPhase: e.pickupTimer >= 0 ? e.pickupTimer / PICKUP_ANIM_SECONDS : -1,

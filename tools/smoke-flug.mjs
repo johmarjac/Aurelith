@@ -11,8 +11,9 @@
  *   4. W hebt die Nase — im Bild und in der Höhe, auch ohne Schub.
  *   5. Nase nach unten trägt sie nicht durch das Gelände.
  *   6. Wer sich auf dem Gerät abmeldet, sitzt danach wieder darauf.
- *   7. Die Debug-Tafel zeigt dieselben Winkel, nach denen geflogen wird.
- *   8. Absteigen lässt sie fallen.
+ *   7. Die Kamera lässt sich in der Luft schwenken wie am Boden.
+ *   8. Die Debug-Tafel zeigt dieselben Winkel, nach denen geflogen wird.
+ *   9. Absteigen lässt sie fallen.
  *
  * Der Kern rechnet dasselbe (`native_test.cpp`); hier geht es um die Kette
  * davor: Doppelklick, Ausrüstung, Eingabe, Vorhersage.
@@ -180,7 +181,7 @@ const abgehoben = await stelle();
 // Gegen den **Boden** gemessen und nicht gegen null: das Gelände liegt an
 // dieser Stelle unter dem Meeresspiegel, und eine absolute Höhe sagte nichts.
 check(
-  abgehoben.y > amBoden.y + 0.8,
+  abgehoben.y > amBoden.y + 0.3,
   `die Figur hebt ab (${amBoden.y.toFixed(2)} → ${abgehoben.y.toFixed(2)})`,
 );
 
@@ -239,8 +240,38 @@ await warte(30);
 const gesunken = await stelle();
 check(gesunken.y < gestiegen.y, `S senkt sie wieder (${gesunken.y.toFixed(1)})`);
 check(
-  gesunken.y >= gesunken.boden + 1.1,
+  gesunken.y >= gesunken.boden + 0.45,
   `und trägt sie nicht durch das Gelände (${gesunken.y.toFixed(1)} über Boden ${gesunken.boden.toFixed(1)})`,
+);
+
+console.log('\nDie Kamera in der Luft');
+
+/*
+ * Geschwenkt wird mit der Hand, und geschwenkt bleibt geschwenkt.
+ *
+ * Hier zog sich die Kamera im Flug selbsttätig hinter den Kurs. Jedes Ziehen
+ * wurde im nächsten Bild zurückgeholt, und übrig blieben ein paar Grad. Der
+ * zweite Teil der Prüfung ist deshalb der wichtigere: **nach** dem Ziehen
+ * vergehen noch Ticks, und der Winkel muss stehenbleiben.
+ */
+const kamera = () => page.evaluate(() => window.aurelith.camera.yaw);
+
+const kameraVorher = await kamera();
+await page.mouse.move(550, 380);
+await page.mouse.down({ button: 'right' });
+await page.mouse.move(750, 380, { steps: 12 });
+await page.mouse.up({ button: 'right' });
+await warte(2);
+const kameraGeschwenkt = await kamera();
+const ausschlag = Math.abs(kameraGeschwenkt - kameraVorher);
+check(ausschlag > 0.5, `die Kamera folgt der Maus (${ausschlag.toFixed(2)} rad)`);
+
+await warte(20);
+const kameraSpaeter = await kamera();
+check(
+  Math.abs(kameraSpaeter - kameraGeschwenkt) < 0.05,
+  'und bleibt, wo man sie hingedreht hat',
+  `${kameraGeschwenkt.toFixed(2)} → ${kameraSpaeter.toFixed(2)} rad`,
 );
 
 console.log('\nDie Debug-Tafel');
@@ -307,7 +338,7 @@ await warte(20);
 
 const wieder = await stelle();
 check(
-  wieder.y > wieder.boden + 1.0,
+  wieder.y > wieder.boden + 0.4,
   'nach dem Wiedereinstieg steht sie in der Luft',
   `${wieder.y.toFixed(1)} über Boden ${wieder.boden.toFixed(1)}`,
 );

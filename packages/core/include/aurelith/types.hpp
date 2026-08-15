@@ -40,10 +40,19 @@ constexpr float kJumpSpeed = 7.2f;
 // irgendwohin, und der Schub trägt sie dorthin. W hebt die Nase und S senkt
 // sie, A und D drehen den Kurs, die Leertaste schaltet den Schub an und aus.
 //
-// Wie hoch über dem Gelände ein Flug mindestens verläuft. Nicht null: bei null
-// schleifte die Figur über den Boden und steckte in jedem Hang, und „fliegen"
-// sähe aus wie „laufen, aber durch Bäume".
-constexpr float kFlugMindesthoehe = 1.2f;
+/*
+ * Wie hoch über dem Gelände ein Flug mindestens verläuft.
+ *
+ * Nicht null: bei null schleifte die Figur über den Boden und steckte in jedem
+ * Hang, und „fliegen" sähe aus wie „laufen, aber durch Bäume".
+ *
+ * Aber auch nicht viel. Hier stand ein guter Meter, und das war aus der Nähe
+ * kein Schweben mehr, sondern ein Brett, das über dem Boden klebt: gemessen
+ * wird an den **Füssen** der Figur, und das Gerät hängt noch eine Handbreit
+ * darunter. Ein halber Meter lässt darunter genug Luft, dass man sie sieht,
+ * und wenig genug, dass man sich nicht fragt, woran das Brett hängt.
+ */
+constexpr float kFlugMindesthoehe = 0.5f;
 
 // Wie schnell sich die Lage ändert, im Bogenmass je Sekunde. Nicken ist
 // träger als Gieren — eine Nase, die so schnell kippt wie sich der Kurs
