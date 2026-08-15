@@ -7,7 +7,7 @@
  * ändert, zählt PROTOCOL_VERSION hoch.
  */
 
-export const PROTOCOL_VERSION = 20;
+export const PROTOCOL_VERSION = 21;
 
 export const ClientOp = {
   Hello: 0x01,
@@ -187,6 +187,20 @@ export const ServerOp = {
   Realms: 0x91,
   /** Die volle Aktionsleiste. Nach dem Betreten und nach jeder Änderung. */
   ActionBar: 0x92,
+  /**
+   * Ein Vorgang läuft — etwas dauert, und der Spieler soll es sehen.
+   *
+   * Zurzeit gibt es genau einen: das Aufsteigen auf ein Fluggerät, vier
+   * Sekunden lang. Trotzdem eine allgemeine Nachricht und kein „Aufstieg
+   * läuft": es wird nicht die letzte Handlung mit Dauer bleiben, und ein
+   * eigenes Paket je Sorte wäre ein Protokoll, das mit dem Inhalt wächst.
+   *
+   * Die **Dauer** und kein Ende-Zeitpunkt: der Client hat eine eigene Uhr,
+   * und die geht anders. Was er braucht, ist „ab jetzt noch so lange".
+   * `dauerMs === 0` heisst: vorbei — abgeschlossen oder abgebrochen, und das
+   * ist für den Balken dasselbe.
+   */
+  Vorgang: 0x93,
 } as const;
 export type ServerOp = (typeof ServerOp)[keyof typeof ServerOp];
 

@@ -252,6 +252,18 @@ export interface ItemDef {
   mpRegen: number;
   /** Aktionswert für Verbrauchsgegenstände, z. B. geheilte Lebenspunkte. */
   effectValue: number;
+  /**
+   * Abklingzeit in Sekunden, je Gegenstand. Null heisst: keine.
+   *
+   * An der **Sorte** und nicht am Platz im Beutel: wer zwei Stapel Heiltränke
+   * trägt, hat nicht die doppelte Heilung je Sekunde. Der Server führt sie
+   * nach Kennung, und der Client rechnet dieselbe Zahl mit — beide aus dieser
+   * Zeile, damit die Anzeige nicht behauptet, was der Server nicht einhält.
+   *
+   * Bei allem ausser Verbrauchbarem ohne Wirkung: eine Rüstung legt man an,
+   * und das hat seine eigene Wartezeit (siehe `AUFSTIEG_MS`).
+   */
+  cooldownSec: number;
   stackable: boolean;
   maxStack: number;
   value: number;

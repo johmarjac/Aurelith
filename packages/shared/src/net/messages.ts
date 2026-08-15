@@ -909,6 +909,25 @@ export function decodeEmote(r: ByteReader): { entityId: number; kind: number } {
 }
 
 /**
+ * „Dieser Vorgang läuft noch so lange."
+ *
+ * `art` ist ein Wort und keine Nummer — aus demselben Grund wie bei
+ * `SkillCast`: was daraus für eine Beschriftung wird, entscheidet der Client
+ * anhand des Inhalts, nicht anhand einer Tabelle im Protokoll. `dauerMs` ist
+ * null, wenn nichts (mehr) läuft.
+ */
+export function encodeVorgang(art: string, dauerMs: number): Uint8Array {
+  return packet(ServerOp.Vorgang, 64)
+    .str(art)
+    .u32(Math.max(0, Math.round(dauerMs)))
+    .finish();
+}
+
+export function decodeVorgang(r: ByteReader): { art: string; dauerMs: number } {
+  return { art: r.str(), dauerMs: r.u32() };
+}
+
+/**
  * „Diese Figur hat diese Fertigkeit gewirkt."
  *
  * Die Kennung und keine Nummer: das Bild — Drehung, Funkenkreis, Radius —

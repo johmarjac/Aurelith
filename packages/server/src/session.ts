@@ -76,6 +76,29 @@ export class Session {
    * missbrauchen, um jemand anderen auszusperren.
    */
   loginAttempts = 0;
+  /**
+   * Wann welcher Gegenstand wieder benutzbar ist — Kennung auf Zeitpunkt.
+   *
+   * An der **Sorte** und nicht am Beutelplatz: wer zwei Stapel Heiltränke
+   * trägt, soll sie nicht abwechselnd leeren. Und an der Sitzung und nicht am
+   * Spielstand: eine Abklingzeit von einer Sekunde über das Abmelden hinaus zu
+   * merken wäre eine Datenbankzeile für nichts.
+   */
+  readonly gegenstandBereit = new Map<string, number>();
+
+  /**
+   * Ein Vorgang, der Zeit braucht — zurzeit nur das Aufsteigen.
+   *
+   * Auf dem **Server** und nicht im Client: was er nicht durchsetzt, gilt
+   * nicht. Ein Wartebalken, den allein der Client zeichnet, ist eine Bitte an
+   * den Spieler, vier Sekunden zu warten — und die schlägt jeder aus, der
+   * seinen Client anfasst.
+   *
+   * `slot` ist der Beutelplatz, um den es geht. Beim Fälligwerden wird er
+   * noch einmal angesehen: in vier Sekunden lässt sich ein Gegenstand
+   * verkaufen, ablegen oder verschieben.
+   */
+  vorgang?: { art: string; slot: number; fertigUm: number };
   character?: CharacterRecord;
   items: ItemRecord[] = [];
   /** Auftragsstand. Leer, solange nicht eingeloggt. */

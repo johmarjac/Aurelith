@@ -211,6 +211,7 @@ npm run test:npcflow     # ansprechen, annehmen, erlegen, aufheben, abgeben
 npm run test:npc         # NPC-Fenster und Inventar im Browser
 npm run test:identitaet  # ein Mensch, zwei Anbieter, ein Konto
 npm run test:karten      # Eintrittskarten: Frist, Lebenszeichen, Wiedereinstieg
+npm run test:vorgang     # Aufsteigen dauert, und eine Absage kostet keine Abklingzeit
 npm run test:haustier    # Begleiter: Sorten, Leine, Werte
 npm run test:loot-ui     # Beute im Bild: Schild, Antippen, Aufheben
 npm run test:skills      # Fertigkeitenbaum: Taste, Beruf, Zug auf die Leiste

@@ -121,6 +121,7 @@
       "attackDamage": 0,
       "defense": 0,
       "effectValue": 60,
+      "cooldownSec": 1,
       "stackable": true,
       "maxStack": 99,
       "value": 25,

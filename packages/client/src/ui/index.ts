@@ -285,6 +285,76 @@ export class UI {
   }
 
   private jumpButton?: HTMLButtonElement;
+  private readonly flugButton: HTMLButtonElement;
+  private readonly vorgangBox: HTMLDivElement;
+  private readonly vorgangText: HTMLDivElement;
+  private readonly vorgangFuell: HTMLDivElement;
+  /** Ende des laufenden Vorgangs in `performance.now`-Zeit. Null: keiner. */
+  private vorgangEnde = 0;
+  private vorgangDauer = 0;
+
+  /** Auf- oder absteigen — was von beidem, weiss das Spiel. */
+  onFlugKnopf?: () => void;
+
+  /**
+   * Beschriftet den Flugknopf und blendet ihn ein oder aus.
+   *
+   * Drei Zustände, und der dritte ist „gar nicht da": ein Knopf, der ohne
+   * Fluggerät im Beutel dastünde, verspräche etwas, das er nicht halten kann.
+   *
+   * `laeuft` ist der Vorgang: währenddessen bleibt er sichtbar, aber tot —
+   * sonst drückt man zweimal und wundert sich über die Absage des Servers.
+   */
+  setzeFlugstand(fliegt: boolean, hatGeraet: boolean, laeuft: boolean): void {
+    const zeigen = fliegt || hatGeraet;
+    if (this.flugButton.hidden === zeigen) this.flugButton.hidden = !zeigen;
+    if (!zeigen) return;
+
+    const text = fliegt ? '⤓' : '⤒';
+    const name = fliegt ? 'Absteigen' : 'Aufsteigen';
+    if (this.flugButton.textContent !== text) this.flugButton.textContent = text;
+    if (this.flugButton.title !== name) {
+      this.flugButton.title = name;
+      this.flugButton.setAttribute('aria-label', name);
+    }
+    this.flugButton.disabled = laeuft;
+  }
+
+  /**
+   * Startet oder beendet den Wartebalken.
+   *
+   * `dauerMs` null heisst „vorbei" — abgeschlossen oder abgebrochen, und für
+   * den Balken ist das dasselbe. Die Zeit läuft ab **hier** und nicht ab einem
+   * Zeitstempel des Servers: der Weg dazwischen ist Teil der Wartezeit, und
+   * ein Balken, der bei 8 % beginnt, sieht aus wie ein Fehler.
+   */
+  zeigeVorgang(art: string, dauerMs: number): void {
+    if (dauerMs <= 0) {
+      this.vorgangEnde = 0;
+      this.vorgangBox.hidden = true;
+      return;
+    }
+    this.vorgangDauer = dauerMs;
+    this.vorgangEnde = performance.now() + dauerMs;
+    this.vorgangText.textContent = art === 'aufsteigen' ? 'Aufsteigen …' : art;
+    this.vorgangFuell.style.width = '0%';
+    this.vorgangBox.hidden = false;
+  }
+
+  /** Schiebt den Füllstand weiter. Je Bild, aus der Bildschleife. */
+  stepVorgang(): void {
+    if (this.vorgangEnde === 0) return;
+    const rest = this.vorgangEnde - performance.now();
+    if (rest <= 0) {
+      // Voll stehen lassen und warten, bis der Server das Ende meldet: er
+      // entscheidet, wann der Vorgang durch ist, nicht die Uhr im Browser.
+      this.vorgangFuell.style.width = '100%';
+      return;
+    }
+    const anteil = 1 - rest / this.vorgangDauer;
+    this.vorgangFuell.style.width = `${Math.round(anteil * 100)}%`;
+  }
+
 
   /** Der Sprungknopf auf dem Telefon. Dasselbe wie die Leertaste. */
   onJump?: () => void;
@@ -920,6 +990,42 @@ export class UI {
       this.jumpButton = jump;
     }
 
+    /*
+     * Auf- und Absteigen als Knopf.
+     *
+     * In **beiden** Betriebsarten, anders als Sprung- und Angriffsknopf: die
+     * beiden sind Ersatz für Tasten, die es am Telefon nicht gibt. Dieser hier
+     * ist Ersatz für einen Weg, der überall umständlich ist — Inventar öffnen,
+     * Kästchen suchen, doppelt klicken.
+     *
+     * Sichtbar wird er von `setzeFlugknopf`, und zwar nur, wenn er etwas tut.
+     */
+    this.flugButton = el('button', 'flug-button', '');
+    this.flugButton.type = 'button';
+    this.flugButton.hidden = true;
+    if (touch) this.flugButton.dataset.nebenSprung = 'true';
+    this.flugButton.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      this.onFlugKnopf?.();
+    });
+    host.appendChild(this.flugButton);
+
+    /*
+     * Der Wartebalken.
+     *
+     * Ein Element für alle Vorgänge, die Zeit brauchen — zurzeit nur das
+     * Aufsteigen. Zwei Balken nebeneinander gäbe es ohnehin nicht: der Server
+     * lässt genau einen Vorgang je Sitzung laufen.
+     */
+    this.vorgangBox = el('div', 'vorgang');
+    this.vorgangBox.hidden = true;
+    this.vorgangText = el('div', 'vorgang-text', '');
+    this.vorgangFuell = el('div', 'vorgang-fuell');
+    const rinne = el('div', 'vorgang-rinne');
+    rinne.append(this.vorgangFuell);
+    this.vorgangBox.append(this.vorgangText, rinne);
+    host.appendChild(this.vorgangBox);
+
     // --- Tor-Hinweis ------------------------------------------------------
     //
     // Auf dem PC eine Zeile mit der Taste, auf Mobil ein Knopf — dasselbe
@@ -1385,6 +1491,29 @@ export class UI {
     if (!eintrag || eintrag.art === AktionsArt.Leer) return;
 
     if (eintrag.art === AktionsArt.Gegenstand) {
+      /*
+       * Auch Gegenstände klingen ab — und zwar nach Sorte.
+       *
+       * Die Zahl steht am Gegenstand (`cooldownSec`), damit sie sich je Trank
+       * einstellen lässt. Der Server hält dieselbe Frist; hier wird sie nur
+       * angezeigt und der Knopf gesperrt, damit ein zweiter Druck nicht als
+       * Absage zurückkommt.
+       */
+      const def = getItem(eintrag.id);
+      const schluessel = `g:${eintrag.id}`;
+      const rest = (this.abklingBis.get(schluessel) ?? 0) - performance.now();
+      if (rest > 0) {
+        this.addChat(
+          0,
+          '',
+          `${def?.name ?? eintrag.id} ist noch nicht bereit (${(rest / 1000).toFixed(1)} s).`,
+        );
+        return;
+      }
+      if (def && def.cooldownSec > 0) {
+        this.abklingBis.set(schluessel, performance.now() + def.cooldownSec * 1000);
+        this.starteAbklingUhr();
+      }
       this.onUseItemId?.(eintrag.id);
       return;
     }
@@ -1400,7 +1529,7 @@ export class UI {
      * jeder — sah einen Knopf, der nicht reagiert, und hatte keinen
      * Anhaltspunkt, warum. Eine Absage, die niemand liest, ist keine.
      */
-    const rest = (this.abklingBis.get(def.id) ?? 0) - performance.now();
+    const rest = (this.abklingBis.get(`f:${def.id}`) ?? 0) - performance.now();
     if (rest > 0) {
       this.addChat(0, '', `${def.name} ist noch nicht bereit (${(rest / 1000).toFixed(1)} s).`);
       return;
@@ -1415,9 +1544,25 @@ export class UI {
       return;
     }
 
-    this.abklingBis.set(def.id, performance.now() + def.cooldownMs);
+    this.abklingBis.set(`f:${def.id}`, performance.now() + def.cooldownMs);
     this.starteAbklingUhr();
     this.onUseSkill?.(def.id);
+  }
+
+  /**
+   * Unter welchem Schlüssel die Abklingzeit dieses Platzes steht.
+   *
+   * Fertigkeiten und Gegenstände in **einer** Karte, aber mit getrennten
+   * Namensräumen: dass es keine Fertigkeit und keinen Gegenstand mit derselben
+   * Kennung gibt, ist heute wahr und morgen ein Zufall. Zwei Karten wären die
+   * Alternative — und dann zwei Stellen, an denen aufgeräumt wird.
+   */
+  private abklingSchluessel(index: number): string | undefined {
+    const fertigkeit = this.leisteSkills[index];
+    if (fertigkeit) return `f:${fertigkeit.id}`;
+    const eintrag = this.leiste[index];
+    if (eintrag?.art === AktionsArt.Gegenstand) return `g:${eintrag.id}`;
+    return undefined;
   }
 
   private starteAbklingUhr(): void {
@@ -1446,9 +1591,9 @@ export class UI {
     for (let i = 0; i < this.aktionsplaetze.length; i++) {
       const platz = this.aktionsplaetze[i]!;
       const anzeige = platz.querySelector<HTMLElement>('.action-abkling')!;
-      // Der Platz fragt die Fertigkeit, die auf ihm liegt. Liegen zwei Plätze
-      // auf derselben, fragen sie dieselbe Zahl — und zählen gemeinsam herunter.
-      const kennung = this.leisteSkills[i]?.id;
+      // Der Platz fragt, was auf ihm liegt. Liegen zwei Plätze auf derselben
+      // Sache, fragen sie dieselbe Zahl — und zählen gemeinsam herunter.
+      const kennung = this.abklingSchluessel(i);
       const rest = (kennung === undefined ? 0 : (this.abklingBis.get(kennung) ?? 0)) - jetzt;
 
       if (rest <= 0) {

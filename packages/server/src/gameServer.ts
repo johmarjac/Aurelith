@@ -43,6 +43,7 @@ import {
   ClientOp,
   decodeClientChat,
   decodeEquipItem,
+  encodeVorgang,
   decodeFrame,
   decodeHello,
   decodeInput,
@@ -172,6 +173,15 @@ const MAX_LOGIN_ATTEMPTS = 6;
  */
 const KARTEN_FRISCH_MS = 60_000;
 
+/**
+ * Wie lange das Aufsteigen auf ein Fluggerät dauert.
+ *
+ * Vier Sekunden. Lang genug, dass es eine Entscheidung ist und keine Taste —
+ * wer vor einem Monster steht, kommt damit nicht mehr einfach weg. Kurz genug,
+ * dass es beim Reisen nicht stört.
+ */
+const AUFSTIEG_MS = 4000;
+
 /** Wie nah man an einem NPC stehen muss — aus den Stellschrauben. */
 const interactRange = (): number => tuning().world.interactRange;
 
@@ -262,6 +272,20 @@ export class GameServer {
      */
     this.kartenTimer = setInterval(() => this.haltekarten(), KARTEN_FRISCH_MS);
     this.kartenTimer.unref?.();
+  }
+
+  /**
+   * Beendet einen laufenden Vorgang, ohne ihn auszuführen.
+   *
+   * Eine Stelle für alle Anlässe — Tod, Kartenwechsel, Abmelden —, weil sonst
+   * einer davon den Balken beim Spieler stehenliesse. Und die Null geht auch
+   * dann hinaus, wenn gar nichts lief: das kostet ein Paket und spart die
+   * Frage, ob Client und Server sich über den Balken einig sind.
+   */
+  private brichVorgangAb(session: Session): void {
+    if (!session.vorgang) return;
+    session.vorgang = undefined;
+    session.send(encodeVorgang('', 0));
   }
 
   /** Ein Lebenszeichen je Karte. Siehe `start`. */
@@ -956,6 +980,8 @@ export class GameServer {
     session.entityId = 0;
     session.mapId = '';
     session.character = undefined;
+    // Ein laufender Aufstieg gehört zur Figur in der Welt, nicht zum Konto.
+    this.brichVorgangAb(session);
     session.items = [];
     session.quests.load([]);
     session.aktionen = leereLeiste();
@@ -1070,6 +1096,25 @@ export class GameServer {
       if (session.state === 'playing') this.verbraucheMunition(session);
     }
 
+    /*
+     * Fällige Vorgänge — zurzeit nur das Aufsteigen.
+     *
+     * Im Tick und nicht über einen Zeitgeber je Sitzung: der Tick läuft
+     * ohnehin, und hundert Zeitgeber, die einzeln in den Zustand einer
+     * Sitzung greifen, sind hundert Gelegenheiten, das in der falschen
+     * Reihenfolge zu tun.
+     */
+    const jetztMs = Date.now();
+    for (const session of this.sessions) {
+      const vorgang = session.vorgang;
+      if (!vorgang || session.state !== 'playing' || vorgang.fertigUm > jetztMs) continue;
+      session.vorgang = undefined;
+      // Der Balken ist ohnehin durchgelaufen; die Null sagt es trotzdem —
+      // sonst bliebe er stehen, wenn der Wechsel scheitert.
+      session.send(encodeVorgang('', 0));
+      this.equipItem(session, vorgang.slot, true);
+    }
+
     for (const instance of this.instances.values()) {
       instance.world.step(TICK_SECONDS);
       instance.refresh();
@@ -1151,6 +1196,8 @@ export class GameServer {
         case CoreEventType.Death: {
           const victim = this.sessionByEntity.get(ev.a);
           if (victim) {
+            // Wer fällt, steigt nicht auf. Der Balken hört mit ihm auf.
+            this.brichVorgangAb(victim);
             this.systemMessage(victim, 'Du bist gefallen. Kehre zurück, um weiterzumachen.');
           }
           break;
@@ -1434,6 +1481,8 @@ export class GameServer {
     // Die Begleiter bleiben nicht in der alten Karte stehen. Ihr Merkmal am
     // Gegenstand bleibt, und `stelleHaustiereHer` lässt sie drüben wieder
     // erscheinen — sonst käme man durch ein Tor und stünde allein da.
+    // Ein Aufstieg gehört zu der Welt, in der er begonnen hat.
+    this.brichVorgangAb(session);
     this.raeumeHaustiere(session);
 
     from.removePlayer(session.entityId);
@@ -1531,12 +1580,39 @@ export class GameServer {
    * zurück: die Kachel im Beutel hört nur auf Doppelklick, **solange nichts
    * angelegt ist**, und das Ablegen geht über den Platz an der Figur.
    */
-  private equipItem(session: Session, slot: number): void {
+  private equipItem(session: Session, slot: number, vorgangFertig = false): void {
     const entry = session.items.find((i) => i.slot === slot);
     if (!entry) return;
 
     const def = getItem(entry.itemId);
     if (!def || def.slot === 'none') return;
+
+    /*
+     * Aufsteigen dauert.
+     *
+     * Vier Sekunden, und in denen läuft beim Spieler ein Balken. Absteigen
+     * dagegen geht sofort — wer herunter will, will herunter, und ein Balken
+     * beim Verlassen eines Geräts wäre eine Wartezeit ohne Aussage.
+     *
+     * Der zweite Durchlauf (`vorgangFertig`) kommt aus dem Tick und ist der
+     * eigentliche Wechsel. Ohne die Unterscheidung riefe sich diese Stelle
+     * selbst und startete jedes Mal einen neuen Vorgang.
+     */
+    if (def.kind === 'flug' && !entry.equipped && !vorgangFertig) {
+      if (session.vorgang) {
+        this.systemMessage(session, 'Es läuft schon etwas.');
+        return;
+      }
+      const level = session.character?.level ?? 1;
+      if (level < def.levelReq) {
+        this.systemMessage(session, `${def.name} braucht Stufe ${def.levelReq}.`);
+        return;
+      }
+      session.vorgang = { art: 'aufsteigen', slot, fertigUm: Date.now() + AUFSTIEG_MS };
+      session.send(encodeVorgang('aufsteigen', AUFSTIEG_MS));
+      session.flush();
+      return;
+    }
 
     if (entry.equipped) {
       // Abgelegt heisst: zurück in den Beutel. Ist dort keine Kachel frei,
@@ -1754,10 +1830,37 @@ export class GameServer {
       return;
     }
 
+    /*
+     * Abklingzeit — hier und nicht nur im Client.
+     *
+     * Der Client rechnet dieselbe Zahl mit, damit der Knopf grau wird; was
+     * gilt, steht aber hier. Sonst wäre die Wartezeit eine Bitte an den
+     * Spieler, und ein Trank alle zwanzig Millisekunden machte jeden Kampf zu
+     * einer Frage des Vorrats.
+     *
+     * Vor dem Heilen und vor dem Verbrauchen: eine Absage darf nichts kosten.
+     */
+    const jetzt = Date.now();
+    const bereit = session.gegenstandBereit.get(def.id) ?? 0;
+    if (bereit > jetzt) {
+      this.systemMessage(
+        session,
+        `${def.name} ist noch nicht bereit (${((bereit - jetzt) / 1000).toFixed(1)} s).`,
+      );
+      return;
+    }
+
     const angekommen = instance.world.heal(session.entityId, def.effectValue, 0);
     if (angekommen <= 0) {
       this.systemMessage(session, `${def.name} würde jetzt nichts bewirken.`);
       return;
+    }
+
+    // Erst jetzt, wo tatsächlich etwas passiert ist: ein Trank, der nichts
+    // bewirkt hätte, ist oben schon abgewiesen worden und soll keine Wartezeit
+    // auslösen.
+    if (def.cooldownSec > 0) {
+      session.gegenstandBereit.set(def.id, jetzt + def.cooldownSec * 1000);
     }
 
     removeSlot(session.items, slot, 1);

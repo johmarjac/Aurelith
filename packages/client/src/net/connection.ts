@@ -18,6 +18,7 @@ import {
   ServerOp,
   decodeCombatEvent,
   decodeEmote,
+  decodeVorgang,
   decodeActionBar,
   decodeRealms,
   decodeSkillCast,
@@ -104,6 +105,13 @@ export interface ConnectionHandlers {
   onVersion?: (stamp: BuildStamp) => void;
   /** Eine Geste einer Figur — siehe `EmoteKind`. */
   onEmote?: (entityId: number, kind: number) => void;
+  /**
+   * Ein Vorgang läuft — oder ist vorbei (`dauerMs === 0`).
+   *
+   * Nur für die eigene Figur: ein Wartebalken über fremden Köpfen wäre eine
+   * Auskunft, die niemand gebraucht hat.
+   */
+  onVorgang?: (art: string, dauerMs: number) => void;
   /**
    * Jemand hat eine Fertigkeit gewirkt.
    *
@@ -319,6 +327,11 @@ export class Connection {
         case ServerOp.Emote: {
           const { entityId, kind } = decodeEmote(reader);
           this.handlers.onEmote?.(entityId, kind);
+          break;
+        }
+        case ServerOp.Vorgang: {
+          const { art, dauerMs } = decodeVorgang(reader);
+          this.handlers.onVorgang?.(art, dauerMs);
           break;
         }
         case ServerOp.SkillCast: {

@@ -207,6 +207,7 @@ export function parseItems(raw: unknown, source = 'items.json'): {
       maxHp: optNum(o, 'maxHp', 0, path),
       maxMp: optNum(o, 'maxMp', 0, path),
       effectValue: optNum(o, 'effectValue', 0, path),
+      cooldownSec: optNum(o, 'cooldownSec', 0, path),
       stackable: optBool(o, 'stackable', false),
       maxStack: optNum(o, 'maxStack', 1, path),
       value: optNum(o, 'value', 1, path),

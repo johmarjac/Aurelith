@@ -822,6 +822,88 @@ body.aktion-zuweisen .action-slot {
   place-items: center;
 }
 
+/*
+ * Der Knopf fürs Auf- und Absteigen.
+ *
+ * Neben dem Sprungknopf und in derselben Form: beides sind Knöpfe, die die
+ * Figur vom Boden holen. Er steht nur da, wenn er etwas tut — in der Luft
+ * „absteigen", am Boden „aufsteigen", und ohne Gerät im Beutel gar nicht.
+ *
+ * Auch am Schreibtisch, wo es keinen Sprungknopf gibt: aufzusteigen hiesse
+ * sonst, das Inventar zu öffnen und ein Kästchen doppelt anzuklicken, und das
+ * ist für etwas, das man ständig tut, ein Umweg.
+ */
+.flug-button {
+  position: absolute;
+  right: calc(var(--safe-r) + 7.2rem);
+  bottom: calc(var(--safe-b) + 5.6rem);
+  width: 3.6rem;
+  height: 3.6rem;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  line-height: 1;
+  background: radial-gradient(circle at 35% 30%, #4a4060, #241d33);
+  border: 2px solid var(--panel-edge-bright);
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+}
+
+/* Am Telefon sitzt links davon schon der Sprungknopf. */
+.flug-button[data-neben-sprung='true'] {
+  right: calc(var(--safe-r) + 11.4rem);
+}
+
+.flug-button:active {
+  background: radial-gradient(circle at 35% 30%, #b79ae8, #4a3a70);
+  transform: scale(0.94);
+}
+
+.flug-button[disabled] {
+  opacity: 0.45;
+}
+
+/*
+ * Der Wartebalken für Vorgänge, die dauern.
+ *
+ * Unten mittig und **über** der Aktionsleiste: er gehört zu dem, was die
+ * Figur gerade tut, und dort schaut man ohnehin hin. Schmal genug, dass er
+ * nichts verdeckt, breit genug, dass die Restzeit ablesbar ist.
+ *
+ * Die Breite des Füllstands setzt der Client je Bild — hier steht nur, wie er
+ * aussieht. Ohne Übergang in der CSS: der Balken läuft in Echtzeit, und eine
+ * Animation obendrauf liefe der Wahrheit hinterher.
+ */
+.vorgang {
+  position: absolute;
+  bottom: calc(var(--safe-b) + var(--gap) + 4.2rem);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(18rem, 60vw);
+  text-align: center;
+  pointer-events: none;
+}
+
+.vorgang-text {
+  font-size: 0.78rem;
+  text-shadow: 0 1px 3px #000, 0 0 6px #000;
+  margin-bottom: 0.2rem;
+}
+
+.vorgang-rinne {
+  height: 0.5rem;
+  border-radius: 0.25rem;
+  border: 1px solid var(--panel-edge-bright);
+  background: rgba(8, 10, 16, 0.72);
+  overflow: hidden;
+}
+
+.vorgang-fuell {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #7fd8e8, #b79ae8);
+}
+
 .jump-button:active {
   background: radial-gradient(circle at 35% 30%, #8fd0e6, #2a6a86);
   transform: scale(0.94);

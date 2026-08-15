@@ -679,6 +679,19 @@ export class Game {
     };
 
     this.ui.onChatSubmit = (text, kanal) => this.onChatInput(text, kanal);
+    /*
+     * Der Knopf für Auf- und Absteigen.
+     *
+     * Er schickt dasselbe wie ein Doppelklick im Inventar — `equipItem` auf
+     * einen Beutelplatz. Ein eigener Weg dafür wäre ein zweites Regelwerk für
+     * dieselbe Handlung, und die Wartezeit hinge dann an einer von beiden.
+     */
+    this.ui.onFlugKnopf = () => {
+      const platz = this.flugPlatz();
+      if (platz < 0) return;
+      this.connection?.sendEquipItem(platz);
+    };
+
     this.ui.onRespawn = () => this.connection?.sendRespawn();
     this.ui.onEquipItem = (slot) => this.connection?.sendEquipItem(slot);
     this.ui.onUpgradeItem = (slot) => this.connection?.sendUpgradeItem(slot);
@@ -1246,6 +1259,13 @@ export class Game {
               'Mit  /connect ws://localhost:8787/ws  eine Adresse setzen.',
           );
         }
+      },
+
+      // Ein Vorgang, der Zeit braucht. Der Server sagt, wie lange — der
+      // Balken zählt hier herunter.
+      onVorgang: (art, dauerMs) => {
+        this.vorgangLaeuft = dauerMs > 0;
+        this.ui.zeigeVorgang(art, dauerMs);
       },
 
       // Eine Geste — Aufheben ist die einzige, die es bisher gibt. Sie kommt
@@ -2495,6 +2515,26 @@ export class Game {
   }
 
   private letzteFlugwarnung = 0;
+  /** Läuft gerade ein Vorgang beim Server? Dann ist der Flugknopf tot. */
+  private vorgangLaeuft = false;
+
+  /**
+   * Der Beutelplatz, um den es beim Flugknopf geht.
+   *
+   * In der Luft der angelegte — dann heisst der Knopf „absteigen". Am Boden
+   * das erste Fluggerät im Beutel. Minus eins heisst: keins da, und der Knopf
+   * gehört weg.
+   *
+   * Beides aus derselben Liste, damit „ist ein Knopf zu sehen" und „was tut
+   * er" nicht auseinanderlaufen können.
+   */
+  private flugPlatz(): number {
+    for (const e of this.inventar) {
+      if (getItem(e.itemId)?.kind !== 'flug') continue;
+      if (this.fliegt ? e.equipped : !e.equipped) return e.slot;
+    }
+    return -1;
+  }
 
   /** Beendet den laufenden Auftrag. Die Auswahl bleibt, wie sie ist. */
   private brichAuftragAb(): void {
@@ -3150,6 +3190,10 @@ export class Game {
       // Und derselbe Knopf, der am Boden springt, beschriftet sich in der Luft
       // um: dort schaltet er den Schub.
       this.ui.setzeFlugknopf(this.fliegt, this.schubAn);
+      // Und daneben der Knopf zum Auf- und Absteigen — sichtbar nur, wenn es
+      // etwas zu tun gibt.
+      this.ui.setzeFlugstand(this.fliegt, this.flugPlatz() >= 0, this.vorgangLaeuft);
+      this.ui.stepVorgang();
 
       // Der Daumen bleibt auf dem Knopf, das Monster fällt um. Ohne diese
       // Zeile stünde man mit gedrücktem Knopf vor dem nächsten und müsste
