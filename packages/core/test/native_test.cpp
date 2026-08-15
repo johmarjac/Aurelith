@@ -743,41 +743,62 @@ void testFliegen() {
   check(p->y >= boden + aur::kFlugMindesthoehe - 1e-3f, "und in den Boden sinkt sie nicht");
 
   /*
-   * --- Vom Gerät aus schlagen ----------------------------------------------
+   * --- Vom Gerät aus wird nicht geschlagen ---------------------------------
    *
-   * Anvisieren ohne schlagen zu können war der Zustand vorher: der Flug biegt
-   * in `applyInput` vor dem Schlag ab, und damit kam die Angriffstaste nie an.
+   * Anvisieren ja, schlagen nein: wer auf einem Besen sitzt, hat keine Hand
+   * frei und keinen Stand. Das Ziel bleibt trotzdem wählbar — es ist eine
+   * Frage („wie stark ist das da unten") und kein Kampf.
    *
-   * Zwei Prüfungen, weil eine allein die falsche Antwort zuliesse: der Schlag
-   * muss beginnen **und** die Höhe muss zählen. Ein Kern, der bloss wieder
-   * zuschlägt, ohne den Abstand im Raum zu messen, träfe vom Besen aus die
-   * ganze Wiese.
+   * Mit Gegenprobe, sonst ginge auch ein Kern durch, der überhaupt nicht mehr
+   * zuschlägt: dieselbe Lage, dasselbe Ziel, nur ohne Gerät.
    */
   {
     aur::MobRegistry mobs2;
     const uint32_t art = registerTestMob(mobs2, false);
-    aur::World nah(21u, flatTerrain(), &mobs2);
-    nah.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
-    nah.spawnMob(10, art, 0.0f, 2.0f, -1, aur::kNoSpawner);
 
-    nah.setFlying(1, true, 12.0f, 6.0f, 40.0f);
-    nah.setTarget(1, 10);
-    nah.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonAttack, aur::kTickSeconds);
-    check(nah.find(1)->swingTimer >= 0.0f, "auf dem Gerät beginnt der Schlag");
-    for (int i = 0; i < 8; ++i) nah.step(aur::kTickSeconds);
-    check(nah.find(10)->hp < 100.0f, "und trifft ein Ziel in Reichweite");
+    aur::World inDerLuft(21u, flatTerrain(), &mobs2);
+    inDerLuft.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+    inDerLuft.spawnMob(10, art, 0.0f, 2.0f, -1, aur::kNoSpawner);
+    inDerLuft.setFlying(1, true, 12.0f, 6.0f, 40.0f);
+    inDerLuft.setTarget(1, 10);
+    check(inDerLuft.find(1)->targetId == 10, "auf dem Gerät lässt sich anvisieren");
+    inDerLuft.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonAttack, aur::kTickSeconds);
+    check(inDerLuft.find(1)->swingTimer < 0.0f, "aber der Schlag beginnt gar nicht erst");
+    for (int i = 0; i < 8; ++i) inDerLuft.step(aur::kTickSeconds);
+    check(inDerLuft.find(10)->hp == 100.0f, "und das Monster bleibt unversehrt");
 
-    // Dasselbe aus dreissig Metern Höhe: dieselbe Stelle auf der Karte, und
-    // trotzdem ausser Reichweite.
+    aur::World amBoden(23u, flatTerrain(), &mobs2);
+    amBoden.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+    amBoden.spawnMob(10, art, 0.0f, 2.0f, -1, aur::kNoSpawner);
+    amBoden.setTarget(1, 10);
+    amBoden.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonAttack, aur::kTickSeconds);
+    for (int i = 0; i < 8; ++i) amBoden.step(aur::kTickSeconds);
+    check(amBoden.find(10)->hp < 100.0f, "abgestiegen trifft derselbe Schlag");
+  }
+
+  /*
+   * --- Die Höhe zählt bei der Reichweite -----------------------------------
+   *
+   * Auch wenn vom Gerät aus niemand schlägt: die Monster schlagen sehr wohl,
+   * und sie messen mit derselben Rechnung. Ohne den Höhenanteil träfe eines
+   * einen Spieler, der dreissig Meter über ihm schwebt — die Entfernung auf
+   * der Karte ist dann nämlich null.
+   *
+   * Geprüft mit einem Angreifer, der ganz gewöhnlich zuschlägt und dem nur die
+   * Höhe gegeben wurde: die Rechnung sitzt in `resolveSwing` und gilt für alle.
+   */
+  {
+    aur::MobRegistry mobs2;
+    const uint32_t art = registerTestMob(mobs2, false);
     aur::World hoch(22u, flatTerrain(), &mobs2);
     hoch.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
     hoch.spawnMob(10, art, 0.0f, 2.0f, -1, aur::kNoSpawner);
-    hoch.setFlying(1, true, 12.0f, 6.0f, 40.0f);
     hoch.find(1)->y += 30.0f;
+    hoch.find(1)->airborne = true;
     hoch.setTarget(1, 10);
     hoch.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonAttack, aur::kTickSeconds);
     for (int i = 0; i < 8; ++i) hoch.step(aur::kTickSeconds);
-    check(hoch.find(10)->hp == 100.0f, "aus dreissig Metern Höhe trifft er nicht");
+    check(hoch.find(10)->hp == 100.0f, "aus dreissig Metern Höhe trifft niemand");
   }
 
   /*

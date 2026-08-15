@@ -2454,8 +2454,47 @@ export class Game {
     if (!ziel || ziel.type !== EntityType.Monster || ziel.state === EntityState.Dead) return;
 
     this.setTarget(entityId);
+
+    /*
+     * Vom Fluggerät aus wird nicht gekämpft — anvisiert schon.
+     *
+     * Die Auswahl steht deshalb **vor** dieser Stelle: das Zielfenster mit
+     * Stufe und Leben ist eine Auskunft und kein Angriff, und die will man
+     * gerade aus der Luft haben. Was hier nicht entsteht, ist der Auftrag.
+     *
+     * Entschieden wird es auch im Kern (`updateFlight` liest die
+     * Angriffstaste nicht). Hier steht es trotzdem, weil sonst eine Figur
+     * losflöge, um in Reichweite zu kommen, und dort nichts täte.
+     */
+    if (this.fliegt) {
+      this.brichAuftragAb();
+      this.warneVorKampfImFlug();
+      return;
+    }
+
     this.auftrag = { art: 'kampf', entityId };
   }
+
+  /**
+   * Sagt einmal, warum nichts passiert — und dann eine Weile nicht mehr.
+   *
+   * Ohne die Sperre schriebe jeder Klick eine Zeile, und wer ein Monster aus
+   * der Luft ansieht, klickt es zweimal an. Fünf Sekunden sind lang genug,
+   * dass es nicht rattert, und kurz genug, dass die Antwort noch zum Klick
+   * gehört.
+   */
+  private warneVorKampfImFlug(): void {
+    const jetzt = performance.now();
+    if (jetzt - this.letzteFlugwarnung < 5000) return;
+    this.letzteFlugwarnung = jetzt;
+    this.ui.addChat(
+      0,
+      '',
+      'Vom Fluggerät aus lässt sich nicht kämpfen. Anvisieren geht — zum Schlagen absteigen.',
+    );
+  }
+
+  private letzteFlugwarnung = 0;
 
   /** Beendet den laufenden Auftrag. Die Auswahl bleibt, wie sie ist. */
   private brichAuftragAb(): void {
@@ -2936,10 +2975,16 @@ export class Game {
      */
     const fliegtGerade = this.fliegt;
     if (!fliegtGerade) this.schubAn = false;
+    // Wer mitten im Gefecht aufsteigt, nimmt den Auftrag nicht mit in die Luft.
+    // Die Auswahl bleibt — siehe `greifeAn`.
+    else if (this.auftrag?.art === 'kampf') this.brichAuftragAb();
     else if (snapshot.sprung && !this.dead) this.schubAn = !this.schubAn;
 
     const buttons =
-      (this.schlaegtZu && !this.dead && munition ? CoreButton.Attack : 0) |
+      // Nicht im Flug: der Kern liest die Taste dort ohnehin nicht, und ein Bit
+      // zu schicken, von dem beide Seiten wissen, dass es nichts bewirkt, wäre
+      // eine Behauptung über eine Handlung, die es nicht gibt.
+      (this.schlaegtZu && !this.dead && munition && !fliegtGerade ? CoreButton.Attack : 0) |
       // Am Boden ist die Leertaste ein Absprung, in der Luft schaltet sie oben
       // den Schub um — dort hat das Sprungbit nichts mehr zu suchen.
       (snapshot.sprung && !this.dead && !fliegtGerade ? CoreButton.Jump : 0) |
@@ -3101,7 +3146,7 @@ export class Game {
       if (self) self.rig.root.visible = !this.scene.isFirstPerson;
 
       // Der Angriffsknopf am Telefon kommt nur, wenn etwas in Reichweite ist.
-      this.ui.setAttackReady(!this.dead && this.naechstesZiel() !== 0);
+      this.ui.setAttackReady(!this.dead && !this.fliegt && this.naechstesZiel() !== 0);
       // Und derselbe Knopf, der am Boden springt, beschriftet sich in der Luft
       // um: dort schaltet er den Schub.
       this.ui.setzeFlugknopf(this.fliegt, this.schubAn);
