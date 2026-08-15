@@ -11,7 +11,8 @@
  *   4. W hebt die Nase — im Bild und in der Höhe, auch ohne Schub.
  *   5. Nase nach unten trägt sie nicht durch das Gelände.
  *   6. Wer sich auf dem Gerät abmeldet, sitzt danach wieder darauf.
- *   7. Die Kamera lässt sich in der Luft schwenken wie am Boden.
+ *   7. Die Kamera: in der Hand gehört sie dem Spieler, losgelassen zieht
+ *      sie beim Steuern hinter den Kurs, und sonst bleibt sie stehen.
  *   8. Die Debug-Tafel zeigt dieselben Winkel, nach denen geflogen wird.
  *   9. Absteigen lässt sie fallen.
  *
@@ -165,10 +166,29 @@ const amBoden = await stelle();
 const platz = (await beutel()).find((e) => e.itemId === 'flug_besen')?.slot ?? -1;
 check(platz >= 0, 'der Besen liegt im Beutel', String(platz));
 await page.dblclick(`.item-slot[data-bag-slot="${platz}"]`);
-await page.waitForTimeout(900);
 
-const nachAufstieg = (await beutel()).find((e) => e.itemId === 'flug_besen');
-check(nachAufstieg?.equipped === true, 'nach dem Doppelklick ist er angelegt');
+/*
+ * Aufsteigen dauert — vier Sekunden, siehe `AUFSTIEG_MS` im Server.
+ *
+ * Gewartet wird auf das **Ergebnis** und nicht auf eine Zahl Millisekunden:
+ * die Wartezeit steht auf dem Server, und ein Test, der sie hier abschreibt,
+ * ist beim nächsten Drehen daran falsch, ohne dass es jemand merkt. Der Balken
+ * ist der sichtbare Teil davon und wird gleich mitgeprüft.
+ */
+// Gewartet und nicht nachgesehen: zwischen Doppelklick und Balken liegt der
+// Weg zum Server und zurück, und in dem Augenblick, in dem der Klick zurückkommt,
+// steht dort noch nichts.
+const balkenKam = await page
+  .waitForSelector('.vorgang:not([hidden])', { timeout: 3000 })
+  .then(() => true)
+  .catch(() => false);
+check(balkenKam, 'währenddessen läuft ein Balken');
+const angelegt = await waitUntil(
+  async () => (await beutel()).find((e) => e.itemId === 'flug_besen')?.equipped === true,
+  20000,
+);
+await page.waitForTimeout(400);
+check(angelegt, 'nach der Wartezeit ist er angelegt');
 check(
   (await page.locator('.item-slot[data-bag-slot] .item-icon').count()) >= 0 &&
     (await page.locator('.equip-slot[data-slot="flug"] .item-icon').count()) === 1,
@@ -247,14 +267,26 @@ check(
 console.log('\nDie Kamera in der Luft');
 
 /*
- * Geschwenkt wird mit der Hand, und geschwenkt bleibt geschwenkt.
+ * Drei Zustände, und jeder hat seine eigene Antwort.
  *
- * Hier zog sich die Kamera im Flug selbsttätig hinter den Kurs. Jedes Ziehen
- * wurde im nächsten Bild zurückgeholt, und übrig blieben ein paar Grad. Der
- * zweite Teil der Prüfung ist deshalb der wichtigere: **nach** dem Ziehen
- * vergehen noch Ticks, und der Winkel muss stehenbleiben.
+ *   1. Geschwenkt wird mit der Hand — und **ohne** Steuerung bleibt es dabei.
+ *      Hier zog sich die Kamera früher ohne Bedingung hinter den Kurs, und
+ *      jedes Ziehen war im nächsten Bild wieder weg.
+ *   2. Wer steuert und die Kamera loslässt, bekommt sie hinter den Kurs
+ *      gezogen. Sonst drehten A und D etwas, das man nicht sieht.
+ *   3. Wer steuert und die Kamera **festhält**, behält sie. Das ist die
+ *      Bedingung, an der die erste Fassung gescheitert ist, und deshalb steht
+ *      sie hier als eigene Prüfung.
  */
 const kamera = () => page.evaluate(() => window.aurelith.camera.yaw);
+const kurs = () => page.evaluate(() => window.aurelith.playerSim.yaw);
+/** Kürzester Abstand zweier Winkel. Ohne das ist −3,1 weit weg von +3,1. */
+const winkelAbstand = (a, b) => {
+  let d = a - b;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return Math.abs(d);
+};
 
 const kameraVorher = await kamera();
 await page.mouse.move(550, 380);
@@ -270,8 +302,58 @@ await warte(20);
 const kameraSpaeter = await kamera();
 check(
   Math.abs(kameraSpaeter - kameraGeschwenkt) < 0.05,
-  'und bleibt, wo man sie hingedreht hat',
+  'und bleibt ohne Steuerung, wo man sie hingedreht hat',
   `${kameraGeschwenkt.toFixed(2)} → ${kameraSpaeter.toFixed(2)} rad`,
+);
+
+/*
+ * --- Steuern mit losgelassener Kamera: sie geht hinter den Kurs ------------
+ *
+ * Gemessen wird, **während** die Taste unten ist. Danach wäre es falsch: die
+ * Nachführung greift nur beim Steuern, und was beim Loslassen an Abstand übrig
+ * ist, bleibt genau so stehen — das ist die Regel und nicht ihr Versagen.
+ *
+ * Ein Rest bleibt auch während des Drehens: die Kamera jagt einem Kurs
+ * nach, der sich weiterdreht, und läuft ihm um `Drehrate / Nachführrate`
+ * hinterher. Bei 1,2 rad/s und der Rate in `folgeRichtung` sind das gut zehn
+ * Grad — sichtbar als weiches Nachziehen, nicht als Verlust der Richtung.
+ */
+const vorSteuern = winkelAbstand(await kamera(), await kurs());
+await page.keyboard.down('KeyA');
+await warte(24);
+const beimSteuern = winkelAbstand(await kamera(), await kurs());
+await page.keyboard.up('KeyA');
+check(
+  beimSteuern < 0.35 && beimSteuern < vorSteuern,
+  'beim Steuern zieht sie hinter den Kurs',
+  `${vorSteuern.toFixed(2)} → ${beimSteuern.toFixed(2)} rad Abstand`,
+);
+
+// --- Und mit festgehaltener Kamera bleibt sie, wo die Hand sie hält ---------
+//
+// Erst zur Seite drehen, dann **während** die Taste unten ist steuern: die
+// Kamera darf sich in dieser Zeit nur um das bewegen, was die Maus vorgibt.
+await page.mouse.move(550, 380);
+await page.mouse.down({ button: 'right' });
+await page.mouse.move(760, 380, { steps: 10 });
+const imGriff = await kamera();
+await page.keyboard.down('KeyA');
+await warte(24);
+await page.keyboard.up('KeyA');
+const nochImGriff = await kamera();
+await page.mouse.up({ button: 'right' });
+check(
+  Math.abs(nochImGriff - imGriff) < 0.05,
+  'mit festgehaltener Kamera zieht nichts daran',
+  `${imGriff.toFixed(2)} → ${nochImGriff.toFixed(2)} rad`,
+);
+// Und der Kurs hat sich in derselben Zeit sehr wohl gedreht — sonst prüfte
+// die Zeile darüber bloss, dass A nichts tut.
+const kursDanach = await kurs();
+check(
+  winkelAbstand(nochImGriff, kursDanach) > 0.3,
+  'obwohl der Kurs sich gedreht hat',
+  `${winkelAbstand(nochImGriff, kursDanach).toFixed(2)} rad Abstand`,
 );
 
 console.log('\nDie Debug-Tafel');
@@ -352,8 +434,18 @@ await warte(50);
 const wiederGeflogen = await stelle();
 const wiederWeit = Math.hypot(wiederGeflogen.x - wieder.x, wiederGeflogen.z - wieder.z);
 check(wiederWeit > 5, `und der Schub trägt sie (${wiederWeit.toFixed(1)} Einheiten)`);
+/*
+ * Der Server hält nicht dagegen.
+ *
+ * Nicht „genau null": beim Wiedereintritt kann eine einzelne Korrektur
+ * anfallen, wenn die Figur beim Abriss gerade in Fahrt war — das ist der
+ * Zweck der Korrektur und kein Fehler. Der Fehler, den diese Zeile fangen
+ * soll, sah anders aus: der Server führte dieselbe Figur zu Fuss, und es
+ * kamen **acht** Korrekturen in derselben Zeit, bei anderthalb statt zehn
+ * Einheiten Weg.
+ */
 const korrekturen = await page.evaluate(() => window.aurelith.reconciles);
-check(korrekturen === 0, `ohne dass der Server dagegenhält (${korrekturen} Korrekturen)`);
+check(korrekturen < 3, `ohne dass der Server dagegenhält (${korrekturen} Korrekturen)`);
 
 // Der Schub läuft jetzt noch — den schaltet der nächste Abschnitt ab.
 console.log('\nAnhalten und absteigen');

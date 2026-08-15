@@ -2515,6 +2515,8 @@ export class Game {
   }
 
   private letzteFlugwarnung = 0;
+  /** Lag im letzten Schritt eine Hand am Knüppel? Für die Kamera im Flug. */
+  private steuertGerade = false;
   /** Läuft gerade ein Vorgang beim Server? Dann ist der Flugknopf tot. */
   private vorgangLaeuft = false;
 
@@ -3013,6 +3015,10 @@ export class Game {
      * einmal ab, und ein „umschalten" kippte dabei jedes Mal erneut. Genau das
      * war zu sehen — die Figur flog im Browser los und stand auf dem Server.
      */
+    // Steuert gerade jemand? Die Kamera im Flug fragt danach, und sie läuft je
+    // **Bild**, nicht je Schritt — also muss die Antwort hier stehenbleiben.
+    this.steuertGerade = snapshot.manual;
+
     const fliegtGerade = this.fliegt;
     if (!fliegtGerade) this.schubAn = false;
     // Wer mitten im Gefecht aufsteigt, nimmt den Auftrag nicht mit in die Luft.
@@ -3168,16 +3174,25 @@ export class Game {
       // die nächstgelegenen. Siehe render/lanterns.ts.
       this.view.lanterns.update(x, z);
       /*
-       * Die Kamera gehört dem Spieler — in der Luft wie am Boden.
+       * Im Flug zieht die Kamera hinter den Kurs — aber nur beim Steuern, und
+       * nur mit **losgelassener** Kamera.
        *
-       * Hier zog sie sich im Flug selbsttätig hinter den Kurs, damit A und D
-       * nicht etwas drehen, das man nicht sieht. Der Preis war, dass man sie
-       * gar nicht mehr schwenken konnte: jedes Ziehen wurde im nächsten Bild
-       * zurückgeholt, und übrig blieb ein Ausschlag von ein paar Grad.
+       * Drei Zustände, und alle drei sind gewollt:
        *
-       * Eine Kamera, die sich gegen die Hand wehrt, ist schlimmer als eine,
-       * die man nachführen muss. Also führt sie niemand mehr nach.
+       *   * Hand an der Kamera (rechte Maustaste, Finger, Zwei-Finger-Geste):
+       *     sie gehört dem Spieler, und nichts zieht daran. Hier stand einmal
+       *     eine Nachführung ohne diese Bedingung, und die holte jedes Ziehen
+       *     im nächsten Bild zurück — übrig blieben ein paar Grad Ausschlag.
+       *   * Gesteuert und Kamera los: sie geht hinter den Kurs. Ohne das
+       *     drehen A und D etwas, das man nicht sieht.
+       *   * Weder noch: sie bleibt, wo sie steht. Wer sie zurechtgerückt hat
+       *     und geradeaus fliegt, hat sie zurechtgerückt.
+       *
+       * Vor `follow`, damit sie im selben Bild an der neuen Stelle steht.
        */
+      if (this.fliegt && this.steuertGerade && !this.input.kameraImGriff) {
+        this.scene.folgeRichtung(this.poseCurr.yaw, dt);
+      }
       this.scene.follow(x, y, z, this.prediction, dt);
       this.streamer.setViewer(x, z);
       this.updateNearbyPortal(x, z);

@@ -515,6 +515,23 @@ export class InputManager {
   private autoX = 0;
   private autoZ = 0;
 
+  /**
+   * Hat gerade jemand die Kamera in der Hand?
+   *
+   * Wahr, solange die rechte Maustaste gedrückt gehalten wird oder ein Finger
+   * die Kamera dreht — und auch während der Zwei-Finger-Geste, denn zoomen ist
+   * ebenfalls Kameraarbeit.
+   *
+   * Gebraucht wird das im Flug: dort zieht sich die Kamera beim Steuern hinter
+   * den Kurs, **ausser** man hält sie fest. Eine Kamera, die sich gegen die
+   * Hand wehrt, war schon einmal da und war der Grund, die Nachführung ganz
+   * abzuschaffen; mit dieser Frage lässt sie sich wiederhaben, ohne dass sie
+   * jemandem in die Bewegung fällt.
+   */
+  get kameraImGriff(): boolean {
+    return this.lookPointer !== null || this.pinchPointers.size > 0;
+  }
+
   dispose(): void {
     for (const off of this.disposers) off();
     this.disposers = [];

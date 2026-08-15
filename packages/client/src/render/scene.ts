@@ -257,6 +257,41 @@ export class Scene3D {
     this.pitch = Math.max(PITCH_MIN, Math.min(PITCH_MAX, this.pitch + deltaPitch));
   }
 
+  /**
+   * Zieht die Kamera hinter eine Blickrichtung — beim Fliegen, beim Steuern.
+   *
+   * Am Boden bestimmt die Kamera, wohin die Figur läuft; dort wäre eine
+   * Nachführung ein Streit zwischen zwei Händen an derselben Achse. In der
+   * Luft ist es umgekehrt: die Figur hat einen Kurs, und A und D drehten ohne
+   * das etwas, das man nicht sieht.
+   *
+   * Wann sie greift, entscheidet der Aufrufer — und zwar streng: nur, solange
+   * gesteuert wird **und** niemand die Kamera festhält. Ohne diese zweite
+   * Bedingung stand hier schon einmal eine Kamera, die jedes Ziehen im
+   * nächsten Bild zurückholte.
+   *
+   * Weich und nicht sofort: eine Kamera, die jeder Kurskorrektur ohne
+   * Verzögerung folgt, ist nicht ruhig zu halten.
+   */
+  folgeRichtung(yaw: number, dt: number): void {
+    let diff = yaw - this.yaw;
+    // Auf den kürzeren Weg bringen: ohne das dreht die Kamera bei einem
+    // Vorzeichenwechsel einmal ganz herum.
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    /*
+     * Der Faktor ist bildratenunabhängig und trotzdem eine Wahl: er bestimmt,
+     * wie weit die Kamera einem sich **drehenden** Kurs hinterherläuft.
+     *
+     * Die Nachführung holt je Sekunde den Anteil `1 − k` auf; bei einer
+     * Drehrate von 1,2 rad/s bleibt daraus ein fester Rückstand von etwa
+     * `Drehrate / ln(1/k)`. Mit 0,08 wären das knapp dreissig Grad — die
+     * Figur flöge sichtbar schräg aus dem Bild. Mit 0,004 sind es gut zehn,
+     * und das liest sich als weiches Nachziehen.
+     */
+    this.yaw += diff * (1 - Math.pow(0.004, dt));
+  }
+
   zoom(delta: number): void {
     this.distance = clamp(this.distance * Math.exp(delta * ZOOM_RATE), ZOOM_MIN, ZOOM_MAX);
   }
