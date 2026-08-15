@@ -515,6 +515,22 @@ bool isCombatant(const Entity& e) {
 bool isHostile(const Entity& a, const Entity& b) {
   if (!isCombatant(a) || !isCombatant(b)) return false;
   if (a.id == b.id) return false;
+  /*
+   * Wer auf einem Fluggerät sitzt, ist aus dem Kampf heraus — in **beide**
+   * Richtungen.
+   *
+   * Hier und nicht an drei Stellen: die Aggro-Suche, das Fallenlassen eines
+   * Ziels und der Schlag selbst fragen alle diese eine Funktion. Vorher hing
+   * die Höhe nur am Abstand im Schlag, und ein Keiler rannte einer Figur
+   * nach, die zwei Meter über ihm schwebte — er kam nie an, gab nie auf, und
+   * die Regeneration lief nicht mehr an, weil „im Kampf" an seinem Ziel
+   * hängt.
+   *
+   * Es ist keine Höhengrenze, sondern das Gerät: ein Besen einen halben Meter
+   * über der Wiese ist genauso raus wie einer in vierzig Metern. Sonst wäre
+   * tief fliegen ein Trick, mit dem man Monster im Kreis führt.
+   */
+  if (a.flying || b.flying) return false;
   if (a.type == kEntityPlayer && b.type == kEntityMonster) return true;
   if (a.type == kEntityMonster && b.type == kEntityPlayer) return true;
   // Spieler gegen Spieler bleibt vorerst aus — PvP-Zonen kommen später.

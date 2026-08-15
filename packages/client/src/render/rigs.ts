@@ -1268,26 +1268,46 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
 
         // Die Beine: auf dem Besen nach vorn und unten geknickt, auf dem Brett
         // fast gerade — die Sohlen sollen das Brett berühren und nicht daneben
-        // in der Luft stehen.
+        // in der Luft stehen. Auf dem Brett etwas breiter, weil man quer darauf
+        // steht: die Füsse gehören über die Bindungen und nicht in die Mitte.
         legL.rotation.x = sitzt ? -1.35 : -0.06;
         legR.rotation.x = sitzt ? -1.35 : 0.06;
-        legL.rotation.z = sitzt ? 0.16 : 0.05;
-        legR.rotation.z = sitzt ? -0.16 : -0.05;
-        knieLinks = sitzt ? 1.15 : 0.22;
-        knieRechts = sitzt ? 1.15 : 0.2;
+        legL.rotation.z = sitzt ? 0.16 : 0.13;
+        legR.rotation.z = sitzt ? -0.16 : -0.13;
+        knieLinks = sitzt ? 1.15 : 0.3;
+        knieRechts = sitzt ? 1.15 : 0.28;
 
-        // Die Arme: auf dem Besen nach vorn an den Stiel, auf dem Brett locker
-        // zur Seite — das ist die Haltung, mit der man Gleichgewicht hält.
-        armL.rotation.x = sitzt ? -1.15 : -0.2;
-        armR.rotation.x = sitzt ? -1.15 : -0.2;
-        armL.rotation.z = sitzt ? 0.12 : 0.55;
-        armR.rotation.z = sitzt ? -0.12 : -0.55;
-        ellbogenL.rotation.x = sitzt ? -0.35 : -0.12;
-        ellbogenR.rotation.x = sitzt ? -0.35 : -0.12;
+        /*
+         * Die Arme: auf dem Besen nach vorn an den Stiel, auf dem Brett weit
+         * zur Seite — die Haltung, mit der man über einen Balken geht.
+         *
+         * Weit heisst wirklich weit (knapp siebzig Grad vom Körper). Bei einem
+         * halben Radiant sah es aus, als hinge jemand die Arme hängen; das
+         * Balancieren liest man erst, wenn die Arme deutlich abstehen und die
+         * Ellbogen fast gerade sind.
+         */
+        armL.rotation.x = sitzt ? -1.15 : -0.1;
+        armR.rotation.x = sitzt ? -1.15 : -0.1;
+        armL.rotation.z = sitzt ? 0.12 : 1.15;
+        armR.rotation.z = sitzt ? -0.12 : -1.15;
+        ellbogenL.rotation.x = sitzt ? -0.35 : -0.05;
+        ellbogenR.rotation.x = sitzt ? -0.35 : -0.05;
 
         // Leicht nach vorn gelehnt, wie jeder, der gegen den Fahrtwind steht.
         body.rotation.x = sitzt ? 0.12 : 0.16;
-        body.rotation.y = 0;
+        /*
+         * Und auf dem Brett quer dazu — wie auf einem Snowboard.
+         *
+         * Nicht ganz neunzig Grad: siebzig lassen den Oberkörper zur Fahrt hin
+         * offen, und das ist die Haltung, die man von Brettern kennt. Ganz quer
+         * sähe die Figur aus, als schaue sie seitwärts an der Fahrt vorbei.
+         *
+         * Am `body` und nicht am Rig: die Beine hängen daran und drehen mit,
+         * die Füsse stehen also quer über dem Brett. Drehte man das Rig, drehte
+         * sich das Brett gleich mit — es hängt ebenfalls am Rig — und man
+         * stünde wieder längs darauf.
+         */
+        body.rotation.y = sitzt ? 0 : -1.2;
         body.position.z = 0;
         // Sitzen heisst tiefer: das Gesäss liegt auf dem Stiel, und der liegt
         // unter der Hüfte. Siehe `baueFluggeraet` — dort steht dieselbe Höhe.

@@ -39,7 +39,10 @@ bewussten Abweichung, die weiter unten begründet ist.
   jedes Teil davon mindestens +4 trägt.
 - **Fluggeräte**: Besen und Board, gesteuert über die Lage — Nase und Kurs statt
   Richtungstasten. Aufsteigen dauert und zeigt einen Wartebalken; in der Luft
-  wird weder geschlagen noch gewirkt, anvisieren geht.
+  wird weder geschlagen noch gewirkt, anvisieren geht, und die Monster unten
+  nehmen einen gar nicht erst wahr. Auf dem Brett steht man quer wie auf einem
+  Snowboard, in der Kurve legt sich die Figur hinein, und hinter dem Gerät
+  bleibt etwas zurück: eine Fahne hinter dem Brett, Funken hinter dem Besen.
 - **Eine Hinweiszeile** unten in der Mitte, in der **jede** Absage steht: warum
   eine Aktion nicht ging, klein und für ein paar Sekunden. Alles, was der Server
   als Systemnachricht schickt, landet dort von selbst.

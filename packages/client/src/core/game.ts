@@ -240,6 +240,15 @@ export interface Diagnostics {
     speed: number;
     /** Die **gezeichnete** Nase. Zeigt, ob die Lage im Bild ankommt. */
     neigung: number;
+    /**
+     * Wie weit sich die Figur in die Kurve legt — reine Zierde des Clients.
+     *
+     * Steht hier, weil es sonst nirgends nachzusehen wäre: die Zahl entsteht
+     * im Renderer aus der Drehrate und geht nie über das Netz. Ohne diese
+     * Auskunft liesse sich von aussen nur am Bild erkennen, ob eine Kurve
+     * nach der richtigen Seite kippt — und das ist keine Prüfung.
+     */
+    rollen: number;
     /** Das Gelände unter der Figur — für „fliegt sie über oder durch den Boden?". */
     boden: number;
   };
@@ -524,7 +533,7 @@ export class Game {
 
   private readonly diagnostics: Diagnostics = {
     camera: { yaw: 0, pitch: 0, distance: 0 },
-    player: { x: 0, y: 0, z: 0, yaw: 0, speed: 0, neigung: 0, boden: 0 },
+    player: { x: 0, y: 0, z: 0, yaw: 0, speed: 0, neigung: 0, rollen: 0, boden: 0 },
     playerSim: { x: 0, y: 0, z: 0, yaw: 0 },
     input: { moveX: 0, moveZ: 0, yaw: 0, buttons: 0 },
     auftrag: { art: 'nichts', zielId: 0, angriff: false },
@@ -578,6 +587,9 @@ export class Game {
       // der Reihenfolge unabhängig — aber die Funken eines Treffers gehören
       // vor die Klinge, wenn doch einmal etwas dazwischenkommt.
       this.view.spur.zeichne(gfx, sicht, projektion);
+      // Die Fahne hinter einem Flugbrett ist dasselbe Band, nur länger — und
+      // sie hat ihren eigenen Puffer, weil ihre Proben länger stehen.
+      this.view.flugspur.zeichne(gfx, sicht, projektion);
       this.view.particles.zeichne(gfx, sicht, projektion);
     });
 
@@ -3342,6 +3354,7 @@ export class Game {
       d.player.yaw = self.yaw;
       d.player.speed = self.speed;
       d.player.neigung = self.neigung;
+      d.player.rollen = self.rollen;
     }
     d.player.boden = this.prediction?.heightAt(this.poseCurr.x, this.poseCurr.z) ?? 0;
 

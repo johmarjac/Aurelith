@@ -777,6 +777,54 @@ void testFliegen() {
   }
 
   /*
+   * --- Und niemand nimmt einen wahr, der auf einem Gerät sitzt -------------
+   *
+   * Der Kampf ist in **beide** Richtungen zu. Vorher war nur der Schlag von
+   * oben verhindert: der Keiler rannte weiter unter der Figur her, kam nie an,
+   * gab nie auf — und weil „im Kampf" am Verfolger hängt, lief die
+   * Regeneration nie wieder an.
+   *
+   * Drei Fragen, und alle drei hängen an derselben Regel in `isHostile`:
+   * bemerkt er einen überhaupt, lässt er ein bereits gefasstes Ziel wieder
+   * los, und trifft sein Schlag. Die Gegenprobe steht darunter: dieselbe Lage
+   * ohne Gerät, und der Keiler tut alles drei.
+   */
+  {
+    aur::MobRegistry mobs2;
+    const uint32_t art = registerTestMob(mobs2, true);
+
+    aur::World inDerLuft(24u, flatTerrain(), &mobs2);
+    inDerLuft.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+    inDerLuft.spawnMob(10, art, 0.0f, 3.0f, -1, aur::kNoSpawner);
+    // Knapp über dem Boden: es ist das Gerät, das schützt, und nicht die Höhe.
+    // Ohne diese Zusatzbedingung wäre tief fliegen ein Weg, Monster im Kreis
+    // zu führen, ohne je getroffen zu werden.
+    inDerLuft.setFlying(1, true, 12.0f, 6.0f, 40.0f);
+    for (int i = 0; i < 40; ++i) inDerLuft.step(aur::kTickSeconds);
+    check(inDerLuft.find(10)->targetId == 0, "auf dem Gerät wird man nicht bemerkt");
+    check(inDerLuft.find(1)->hp == inDerLuft.find(1)->maxHp,
+          "und bleibt unversehrt");
+
+    // Wer mitten in der Verfolgung aufsteigt, wird fallengelassen.
+    aur::World aufgestiegen(25u, flatTerrain(), &mobs2);
+    aufgestiegen.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+    aufgestiegen.spawnMob(10, art, 0.0f, 3.0f, -1, aur::kNoSpawner);
+    for (int i = 0; i < 10; ++i) aufgestiegen.step(aur::kTickSeconds);
+    check(aufgestiegen.find(10)->targetId == 1, "am Boden fasst er das Ziel");
+    aufgestiegen.setFlying(1, true, 12.0f, 6.0f, 40.0f);
+    aufgestiegen.step(aur::kTickSeconds);
+    check(aufgestiegen.find(10)->targetId == 0, "beim Aufsteigen lässt er es fallen");
+
+    // Die Gegenprobe: ohne Gerät jagt und trifft derselbe Keiler.
+    aur::World amBoden(26u, flatTerrain(), &mobs2);
+    amBoden.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+    amBoden.spawnMob(10, art, 0.0f, 3.0f, -1, aur::kNoSpawner);
+    for (int i = 0; i < 40; ++i) amBoden.step(aur::kTickSeconds);
+    check(amBoden.find(10)->targetId == 1, "am Boden wird man sehr wohl bemerkt");
+    check(amBoden.find(1)->hp < amBoden.find(1)->maxHp, "und auch getroffen");
+  }
+
+  /*
    * --- Die Höhe zählt bei der Reichweite -----------------------------------
    *
    * Auch wenn vom Gerät aus niemand schlägt: die Monster schlagen sehr wohl,

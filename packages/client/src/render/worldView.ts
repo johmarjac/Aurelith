@@ -34,7 +34,7 @@ import { WeaponAura } from './weaponAura.ts';
 import { SetAura } from './setAura.ts';
 import { stepAuras } from './auraClock.ts';
 import { ParticleField } from './particles.ts';
-import { WeaponTrail } from './weaponTrail.ts';
+import { Bandspur, BRETTBAND, KLINGENBAND } from './bandspur.ts';
 import { Laufmarke } from './laufmarke.ts';
 import { buildTerrain, type TerrainMesh } from './terrain.ts';
 import type { TextureLoader } from './textures.ts';
@@ -205,6 +205,20 @@ export interface EntityVisual {
   neigung: number;
   /** Wohin die Neigung gerade wandert. Wie `targetYaw`, nur für die Nase. */
   targetNeigung: number;
+  /**
+   * Wie weit die Figur sich in die Kurve legt, im Bogenmass.
+   *
+   * **Reine Zierde.** Der Kern kennt keine Querlage: geflogen wird über Nase
+   * und Kurs, und ein dritter Winkel im Snapshot wäre ein Byte je Wesen für
+   * etwas, das jeder Client aus dem sieht, was er ohnehin hat — der Kurs dreht
+   * sich, also legt sich die Figur. Deshalb steht die Zahl hier und nicht in
+   * `EntityView`.
+   */
+  rollen: number;
+  /** Der Kurs des letzten Bildes. Nur, um die Drehrate daraus zu bekommen. */
+  yawVorher: number;
+  /** Zeit bis zum nächsten Funken hinter dem Besen. Siehe `zeichneFlugspur`. */
+  funkenUhr: number;
   /** Der warme Schein um die Figur, sofern ein Satz leuchtet. */
   satzAura?: SetAura;
   /** Höhe über dem Boden für Nameplate und Schadenszahlen. */
@@ -244,7 +258,16 @@ export class WorldView {
   /** Funken. Eine Wolke für alles, mit fester Größe. */
   readonly particles = new ParticleField();
   /** Der Schweif hinter geschwungenen Klingen. Ein Band für alle. */
-  readonly spur = new WeaponTrail();
+  readonly spur = new Bandspur(KLINGENBAND);
+  /**
+   * Die Fahne hinter einem Flugbrett. Eigenes Band, weil es länger steht.
+   *
+   * Getrennt vom Klingenschweif und nicht mit ihm zusammengelegt: die beiden
+   * unterscheiden sich in der Lebensdauer, und die entscheidet über die Größe
+   * des Puffers. Ein gemeinsames Band müsste den längeren nehmen und hätte für
+   * jeden Hieb dreissig Proben, von denen sechzehn nie sichtbar würden.
+   */
+  readonly flugspur = new Bandspur(BRETTBAND);
   /** Warmes Licht an den Laternen. Fester Pool, wandert zum Betrachter. */
   readonly lanterns: Lanterns;
   /** Was gerade auf dem Boden liegt. Wird aus dem Snapshot abgeglichen. */
@@ -547,6 +570,9 @@ export class WorldView {
       flug: '',
       neigung: row.neigung,
       targetNeigung: row.neigung,
+      rollen: 0,
+      yawVorher: row.yaw,
+      funkenUhr: 0,
       aggro: row.aggro,
       height: heightFor(row.type, row.defId),
     };
@@ -864,6 +890,11 @@ export class WorldView {
       e.rig.root.position.set(e.x, e.y, e.z);
       e.rig.root.rotation.y = e.yaw;
 
+      // Für **jede** Figur, auch am Boden: so steht die Drehrate schon bereit,
+      // wenn jemand mitten in der Kurve aufsteigt. Rechnete sie erst ab dem
+      // ersten Flugbild, wäre die erste Rate der Sprung eines ganzen Bildes.
+      this.rolleNachKurve(e, dt);
+
       if (e.attackTimer >= 0) {
         e.attackTimer += dt;
         if (e.attackTimer > ATTACK_ANIM_SECONDS) e.attackTimer = -1;
@@ -927,6 +958,13 @@ export class WorldView {
        */
       if (e.flug !== '' && e.state !== EntityState.Dead) {
         e.rig.root.rotation.x = -e.neigung;
+        e.rig.root.rotation.z = e.rollen;
+        this.zeichneFlugspur(e, dt);
+      } else if (e.rig.root.rotation.z !== 0) {
+        // Wer absteigt, steht wieder gerade. Der Rig-Schritt setzt nur
+        // `rotation.x` zurück, nicht `z` — ohne diese Zeile bliebe die letzte
+        // Querlage für immer stehen, und die Figur liefe schief über die Wiese.
+        e.rig.root.rotation.z = 0;
       }
 
       // Der Schweif gehört zu jeder Bewegung der Klinge, nicht nur zum Hieb:
@@ -936,6 +974,130 @@ export class WorldView {
     }
 
     this.spur.step(dt);
+    this.flugspur.step(dt);
+  }
+
+  /**
+   * Wie weit sich die Figur in die Kurve legt.
+   *
+   * Aus der **Änderung** des Kurses und nicht aus der Eingabe: die Eingabe hat
+   * nur die eigene Figur, und fremde legten sich dann nie. Der Kurs kommt für
+   * beide aus derselben Quelle — Vorhersage hier, Schnappschuss dort —, und
+   * damit sieht eine fremde Kurve genauso aus wie die eigene.
+   *
+   * Geglättet, und zwar deutlich: der Kurs fremder Figuren wandert in Sprüngen
+   * zwischen den Schnappschüssen, und eine ungeglättete Rate zuckte im Takt der
+   * Pakete. Zwei Zehntelsekunden Trägheit machen daraus ein Einlegen.
+   */
+  private rolleNachKurve(e: EntityVisual, dt: number): void {
+    if (dt <= 0) return;
+    let diff = e.yaw - e.yawVorher;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    e.yawVorher = e.yaw;
+
+    /*
+     * Nach rechts fliegen heisst: der Kurs wird kleiner (`updateFlight` zieht
+     * ihn ab), und die Figur soll sich nach rechts legen.
+     *
+     * Bei der Drehreihenfolge `YXZ` ist `rotation.z` die **innerste** Drehung,
+     * also eine um die eigene Längsachse — genau das, was „sich in die Kurve
+     * legen" heisst. Positiv kippt die Oberseite nach −X, und −X ist rechts,
+     * wenn die Figur nach +Z schaut. Also: negative Kursänderung, positiver
+     * Rollwinkel.
+     */
+    // Gedeckelt bei gut zwanzig Grad: eine volle Kurve (1,2 rad/s, siehe
+    // `kFlugGierRate`) legt die Figur damit sichtbar hinein, ohne dass es
+    // aussieht, als stürze sie ab.
+    const ziel = Math.max(-0.4, Math.min(0.4, (-diff / dt) * 0.3));
+    e.rollen += (ziel - e.rollen) * Math.min(1, dt * 5);
+  }
+
+  /**
+   * Was das Fluggerät hinter sich herzieht.
+   *
+   * Zwei Sorten, weil es zwei Geräte gibt und beide etwas anderes sind:
+   *
+   * - **Das Brett** zieht eine Fahne: seine Hinterkante wird je Bild
+   *   aufgezeichnet, und die Kette dieser Kanten ist eine Fläche in der Breite
+   *   des Bretts, die nach hinten ausblasst. Dasselbe Band wie hinter einer
+   *   Klinge, nur länger — siehe `bandspur.ts`.
+   * - **Der Besen** sprüht Funken aus dem Reisig, wie Abgas. Die fallen und
+   *   verlöschen von selbst; die Wolke kann das schon.
+   *
+   * Nur bei Fahrt. Wer in der Luft steht, zieht nichts hinter sich her — eine
+   * Fahne an einem stehenden Brett wäre ein Fleck, der mitwandert, und Funken
+   * ohne Schub sähen aus wie ein Leck.
+   */
+  private zeichneFlugspur(e: EntityVisual, dt: number): void {
+    const mesh = e.flugMesh;
+    if (!mesh || e.speed < 1.5) {
+      // Die Uhr zurücksetzen, damit der erste Funke nach dem Anfahren sofort
+      // kommt und nicht erst nach dem Rest eines alten Abstands.
+      e.funkenUhr = 0;
+      return;
+    }
+
+    mesh.updateMatrixWorld(true);
+
+    if (e.flug === 'flug_besen') {
+      /*
+       * Aus dem Reisig, und der sitzt hinten am Stiel: `baueFluggeraet` setzt
+       * ihn auf z = −1,05 bei y = 0,75. Die Zahlen hier sind die Gegenzahlen
+       * dazu — wer den Besen dort umbaut, sieht seine Funken sonst mitten im
+       * Stiel entstehen.
+       */
+      e.funkenUhr -= dt;
+      if (e.funkenUhr > 0) return;
+      // Alle drei Hundertstel einer: rund dreissig Funken je Sekunde, dicht
+      // genug für einen Streifen und wenig genug, dass die Wolke von 512
+      // Plätzen nicht binnen zwei Sekunden nur noch aus Besen besteht.
+      e.funkenUhr = 0.03;
+
+      this.klingeA.set(0, 0.75, -1.3);
+      mesh.localToWorld(this.klingeA);
+      this.particles.burst(this.klingeA.x, this.klingeA.y, this.klingeA.z, {
+        count: 2,
+        // Warmes Gold wie das Reisig selbst, nur heller: Funken sind Licht.
+        color: 0xffcf72,
+        // Langsam und ohne Richtung: sie sollen dort stehenbleiben, wo der
+        // Besen war, und nicht ihm hinterherfliegen. Die sichtbare Bewegung
+        // macht die Figur, die sich entfernt.
+        speed: 0.5,
+        // Kleiner als ein Treffer-Funke (1,9): das hier sind Sternchen und
+        // kein Aufschlag. Die Grösse geht durch `300 / Abstand` — bei 5 stand
+        // hinter dem Besen ein einziger gelber Fleck von zweihundert Punkten.
+        size: 1.1,
+        life: 0.5,
+        lift: 0.35,
+      });
+      return;
+    }
+
+    /*
+     * Das Brett: die Hinterkante von links nach rechts.
+     *
+     * Die Zahlen kommen aus `baueFluggeraet` — 0,62 breit, 1,9 lang, Oberkante
+     * bei null. Die Kante liegt also bei z = −0,95 und x = ±0,31. Ein Fingerbreit
+     * hinter dem Brett, damit die Fahne nicht in ihm steckt.
+     */
+    this.klingeA.set(-0.31, -0.02, -1.0);
+    this.klingeB.set(0.31, -0.02, -1.0);
+    mesh.localToWorld(this.klingeA);
+    mesh.localToWorld(this.klingeB);
+    this.flugspur.probiere(
+      e.id,
+      this.klingeA.x, this.klingeA.y, this.klingeA.z,
+      this.klingeB.x, this.klingeB.y, this.klingeB.z,
+      /*
+       * Dasselbe Blau wie die Oberseite des Bretts (0x3f7fa8), etwas dunkler.
+       *
+       * Dunkler und nicht heller: das Band wird additiv gezeichnet, und bei
+       * voller Helligkeit stand hinter dem Brett eine weisse Platte statt
+       * einer Fahne. Was durchscheinen soll, muss dunkel anfangen.
+       */
+      [0.16, 0.34, 0.52],
+    );
   }
 
   /**
@@ -1013,8 +1175,9 @@ export class WorldView {
     // Auch die Beute: sie gehört zur alten Sitzung. Was auf der neuen liegt,
     // meldet der erste Snapshot.
     this.loot.clear();
-    // Auch der Schweif: er hängt an Kennungen, die es gleich nicht mehr gibt.
+    // Auch die Bänder: sie hängen an Kennungen, die es gleich nicht mehr gibt.
     this.spur.reset();
+    this.flugspur.reset();
 
     for (const e of this.entities.values()) {
       this.root.remove(e.rig.root);

@@ -356,6 +356,51 @@ check(
   `${winkelAbstand(nochImGriff, kursDanach).toFixed(2)} rad Abstand`,
 );
 
+console.log('\nDie Kurve legt die Figur hinein');
+
+/*
+ * Reine Zierde — und trotzdem prüfbar.
+ *
+ * Der Rollwinkel geht nie über das Netz: er entsteht im Renderer aus der
+ * Änderung des Kurses. Genau deshalb steht er in `window.aurelith.player`;
+ * ohne diese Auskunft liesse sich von aussen nur am Bild ablesen, ob eine
+ * Kurve nach der richtigen Seite kippt.
+ *
+ * Drei Prüfungen, und die dritte ist die Gegenprobe: geradeaus richtet sie
+ * sich wieder auf. Ohne sie ginge auch ein Client durch, der die Figur nach
+ * der ersten Kurve für immer schief stehen lässt.
+ */
+const rolle = () => page.evaluate(() => window.aurelith.player.rollen);
+
+/*
+ * Erst Höhe holen, dann kurven.
+ *
+ * Die Kameraprüfungen darüber lassen die Nase unten stehen, und mit Schub
+ * sinkt die Figur dabei. Ohne diesen Steigflug fliegt der Rest der Prüfung am
+ * Bodenanschlag entlang — und dort misst „nach dem Absteigen fällt sie" nichts
+ * mehr, weil nichts mehr zu fallen ist.
+ */
+await halte('KeyW', 30);
+await warte(24);
+await halte('KeyS', 30);
+
+await halte('KeyD', 24);
+const rechts = await rolle();
+check(rechts > 0.1, `nach rechts legt sie sich nach rechts (${rechts.toFixed(2)} rad)`);
+
+await warte(24);
+const gerade = await rolle();
+check(
+  Math.abs(gerade) < 0.05,
+  'geradeaus richtet sie sich wieder auf',
+  `${gerade.toFixed(2)} rad`,
+);
+
+await halte('KeyA', 24);
+const links = await rolle();
+check(links < -0.1, `nach links entsprechend nach links (${links.toFixed(2)} rad)`);
+await warte(24);
+
 console.log('\nDie Debug-Tafel');
 
 /*
@@ -482,8 +527,23 @@ await page.dblclick('.equip-slot[data-slot="flug"]');
 await warte(40);
 await page.keyboard.press('KeyI');
 
+/*
+ * Gegen den **Boden** gemessen und nicht gegen die vorige Höhe.
+ *
+ * Vorher stand hier „mindestens einen Meter tiefer als eben". Das ging so
+ * lange gut, wie der Flug zufällig über abfallendem Gelände endete: in der
+ * Luft hält die Figur ihre Höhe, das Gelände sinkt darunter weg, und der Sturz
+ * beim Absteigen ist so hoch wie dieser Zufall. Endete der Flug über
+ * ansteigendem Boden, hing sie am Mindestabstand von einem halben Meter — und
+ * die Prüfung war rot, ohne dass etwas kaputt war.
+ *
+ * Was sie sagen soll, ist einfacher: vorher in der Luft, danach auf dem Boden.
+ */
 const gelandet = await stelle();
-check(gelandet.y < b.y - 1, `nach dem Absteigen fällt sie (${b.y.toFixed(1)} → ${gelandet.y.toFixed(1)})`);
+check(
+  b.y > b.boden + 0.3 && gelandet.y <= gelandet.boden + 0.05,
+  `nach dem Absteigen liegt sie auf dem Boden (${(b.y - b.boden).toFixed(1)} → ${(gelandet.y - gelandet.boden).toFixed(1)} über Grund)`,
+);
 check(
   (await beutel()).find((e) => e.itemId === 'flug_besen')?.equipped === false,
   'und der Besen liegt wieder im Beutel',

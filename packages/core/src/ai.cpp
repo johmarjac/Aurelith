@@ -125,7 +125,11 @@ void World::updateMonsterAi(Entity& e, float dt) {
   }
 
   Entity* target = e.targetId != 0 ? find(e.targetId) : nullptr;
-  if (target != nullptr && (!isAlive(*target) || !isCombatant(*target))) {
+  // `isHostile` und nicht `isCombatant`: darin steckt auch, dass ein Ziel auf
+  // einem Fluggerät keines mehr ist. Wer mitten in der Verfolgung aufsteigt,
+  // wird im selben Tick fallengelassen, statt bis zur Leine geschleppt zu
+  // werden.
+  if (target != nullptr && (!isAlive(*target) || !isHostile(e, *target))) {
     target = nullptr;
     e.targetId = 0;
   }
@@ -140,7 +144,10 @@ void World::updateMonsterAi(Entity& e, float dt) {
     float bestDist = e.aggroRange;
     Entity* best = nullptr;
     for (Entity& other : entities_) {
-      if (other.type != kEntityPlayer || !isAlive(other)) continue;
+      // Über `isHostile` gefragt und nicht über den Typ: dieselbe Regel, die
+      // den Schlag entscheidet, entscheidet auch, wen man überhaupt bemerkt.
+      // Ein Fluggerät macht unsichtbar, und zwar bevor die Jagd anfängt.
+      if (!isAlive(other) || !isHostile(e, other)) continue;
       const float d = dist2D(e.x, e.z, other.x, other.z);
       if (d < bestDist) {
         bestDist = d;
