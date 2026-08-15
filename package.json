@@ -32,7 +32,7 @@
     "typecheck": "tsc --noEmit -p packages/shared && tsc --noEmit -p packages/core && tsc --noEmit -p packages/server && tsc --noEmit -p packages/client && tsc --noEmit -p packages/editor",
     "db:migrate": "npm run migrate --workspace @aurelith/server",
     "db:migrate:welt": "npm run migrate:welt --workspace @aurelith/server",
-    "test": "npm run core:test && npm run test:wasm && npm run test:gfx && npm run test:steering && npm run test:brushes && npm run test:particles && npm run test:gait && npm run test:audio && npm run test:tag && npm run test:quests && npm run test:content && npm run test:loot && npm run test:sets && npm run test:setglow && npm run test:npcflow && npm run test:version && npm run test:account && npm run test:attributes && npm run test:pfeile && npm run test:chat && npm run test:mana && npm run test:anmeldeweg && npm run test:identitaet && npm run test:haustier && node tools/smoke-e2e.mjs && node tools/smoke-npc.mjs && node tools/smoke-loot.mjs && node tools/smoke-prediction.mjs && node tools/smoke-portal.mjs && node tools/smoke-laufmarke.mjs && node tools/smoke-aktionsleiste.mjs && node tools/smoke-skills.mjs && node tools/smoke-background.mjs && node tools/smoke-editor.mjs && node tools/smoke-pages.mjs",
+    "test": "npm run core:test && npm run test:wasm && npm run test:gfx && npm run test:steering && npm run test:brushes && npm run test:particles && npm run test:gait && npm run test:audio && npm run test:tag && npm run test:quests && npm run test:content && npm run test:loot && npm run test:sets && npm run test:setglow && npm run test:npcflow && npm run test:version && npm run test:account && npm run test:attributes && npm run test:pfeile && npm run test:chat && npm run test:mana && npm run test:anmeldeweg && npm run test:identitaet && npm run test:haustier && node tools/smoke-e2e.mjs && node tools/smoke-npc.mjs && node tools/smoke-loot.mjs && node tools/smoke-prediction.mjs && node tools/smoke-portal.mjs && node tools/smoke-flug.mjs && node tools/smoke-laufmarke.mjs && node tools/smoke-aktionsleiste.mjs && node tools/smoke-skills.mjs && node tools/smoke-background.mjs && node tools/smoke-editor.mjs && node tools/smoke-pages.mjs",
     "test:wasm": "tsx packages/core/test/wasm_smoke.ts",
     "test:steering": "tsx packages/client/test/steering_test.ts",
     "test:brushes": "tsx packages/editor/test/brushes_test.ts",
@@ -68,6 +68,7 @@
     "test:background": "node tools/smoke-background.mjs",
     "test:prediction": "node tools/smoke-prediction.mjs",
     "test:portal": "node tools/smoke-portal.mjs",
+    "test:flug": "node tools/smoke-flug.mjs",
     "test:haustier": "tsx packages/server/test/haustier_test.ts"
   },
   "devDependencies": {

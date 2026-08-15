@@ -215,6 +215,7 @@ npm run test:skills      # Fertigkeitenbaum: Taste, Beruf, Zug auf die Leiste
 npm run test:e2e         # Spiel im Browser, Desktop und Berührung
 npm run test:prediction  # springt die eigene Figur beim Laufen zurück?
 npm run test:portal      # Tore: hineinlaufen, stehen, F drücken, zurück
+npm run test:flug        # Fliegen: aufsteigen, Schub, Nase, anhalten, absteigen
 npm run test:background  # überlebt die Verbindung einen Tab im Hintergrund?
 npm run test:editor      # Editor: Werkzeuge, Pinsel, Tore, Speichern
 npm run test:pages       # der Pages-Bau unter einem Unterpfad

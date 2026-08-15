@@ -29,11 +29,12 @@ export type CoreEntityState = (typeof CoreEntityState)[keyof typeof CoreEntitySt
 /**
  * Die Tastenbits, wie der Kern sie liest (`InputButton` in `types.hpp`).
  *
- * `Jump` heisst am Boden „abspringen" und in der Luft „steigen" — dieselbe
- * Taste, zwei Bedeutungen, entschieden vom Zustand und nicht von einem
- * zweiten Bit. `Sink` gibt es nur in der Luft.
+ * `Schub` sagt, dass der Antrieb **läuft** — es ist kein Umschalten. Der
+ * Client spielt unbestätigte Eingaben nach jedem Schnappschuss noch einmal ab,
+ * und ein Bit, das „umschalten" bedeutet, kippt bei jedem Nachspielen erneut.
+ * Umgeschaltet wird an der Tastatur, gesendet wird das Ergebnis.
  */
-export const CoreButton = { Attack: 1, Jump: 2, Interact: 4, Sit: 8, Sink: 16 } as const;
+export const CoreButton = { Attack: 1, Jump: 2, Interact: 4, Sit: 8, Schub: 16 } as const;
 
 export const CoreEventType = { Hit: 0, Death: 1, Spawn: 2, Exp: 3 } as const;
 export type CoreEventType = (typeof CoreEventType)[keyof typeof CoreEventType];

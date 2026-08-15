@@ -232,6 +232,12 @@ void World::setFlying(uint32_t id, bool on, float speed, float climb, float ceil
     // schlicht: hängt nicht am Boden.
     e.airborne = true;
     e.vy = 0.0f;
+    // Frisch aufgesteigen heisst: waagerecht, ohne Schub, ohne Tempo. Wer
+    // absteigt und gleich wieder aufsteigt, soll nicht die alte Nase von
+    // vorhin vorfinden.
+    e.pitch = 0.0f;
+    e.schub = false;
+    e.tempo = 0.0f;
     /*
      * Aufsteigen hebt ab — hier und nicht erst im nächsten Schritt.
      *
@@ -247,6 +253,9 @@ void World::setFlying(uint32_t id, bool on, float speed, float climb, float ceil
 
   if (!e.flying) return;
   e.flying = false;
+  e.schub = false;
+  e.tempo = 0.0f;
+  e.pitch = 0.0f;
   // Wer absteigt, steht in der Luft und fällt. Dieselbe Schwerkraft wie nach
   // einem Sprung — ein sanftes Herabgleiten wäre eine zweite Flugbahn neben
   // der einen, die es schon gibt.

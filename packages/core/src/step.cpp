@@ -52,7 +52,9 @@ void World::advanceJump(Entity& e, float dt) {
    * damit die Figur nicht im Hang steckt), nach oben die Decke des Geräts.
    */
   if (e.flying && isAlive(e)) {
-    e.y += e.vy * dt;
+    // Die Höhe rechnet `updateFlight` aus Lage und Schub; hier wird nur noch
+    // begrenzt. Zwei Stellen, die dieselbe Höhe fortschreiben, wären genau die
+    // doppelte Buchführung, die in diesem Kern nirgends steht.
     const float boden = terrainHeight(e.x, e.z, terrain_);
     const float unten = boden + kFlugMindesthoehe;
     const float oben = boden + e.ceiling;

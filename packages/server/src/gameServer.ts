@@ -991,7 +991,20 @@ export class GameServer {
           input.moveX,
           input.moveZ,
           input.yaw,
-          munitionFehlt ? 0 : input.buttons & CoreButton.Attack,
+          /*
+           * Die Tasten gehen durch — bis auf eine.
+           *
+           * Hier stand lange nur der Angriff, und das war richtig, solange
+           * alles andere eine Geste war: ein Sprung ändert nichts, was der
+           * Server entscheiden müsste. Seit die Leertaste in der Luft den
+           * Schub schaltet, ist das anders — und eine Taste, die nur im Client
+           * ankam, liess die Figur dort losfliegen, während sie hier stehen
+           * blieb. Sichtbar war das als eine Figur, die nicht vom Fleck kommt.
+           *
+           * Herausgenommen wird deshalb nur noch, was tatsächlich nicht geht:
+           * ein Schuss ohne Pfeile.
+           */
+          munitionFehlt ? input.buttons & ~CoreButton.Attack : input.buttons,
           TICK_SECONDS,
         );
         session.lastInputSeq = input.seq;

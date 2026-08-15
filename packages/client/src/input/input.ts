@@ -40,17 +40,19 @@ export interface InputSnapshot {
    */
   sprung: boolean;
   /**
-   * Steigen und Sinken — **gehalten**, nicht angetippt.
+   * Der Steuerknüppel **roh**, ohne Kamera und ohne Glättung.
    *
-   * Das ist der Unterschied zum Sprung: der ist ein Absprung und danach
-   * Physik, das Steigen hört auf, sobald die Taste hochgeht. Deshalb zwei
-   * eigene Merkmale und nicht `sprung` mitbenutzt — ein Impuls und ein
-   * Dauerzustand sind zwei Dinge, auch wenn dieselbe Taste sie auslöst.
+   * Am Boden ist die Eingabe ein Wunsch, wohin es gehen soll — dafür wird sie
+   * in Weltachsen gedreht und geglättet, und daraus folgt die Blickrichtung.
+   * In der Luft ist sie etwas ganz anderes: W und S kippen die Nase, A und D
+   * drehen den Kurs. Eine gedrehte Achse wäre dort sinnlos, denn es gibt keine
+   * Richtung, in die man laufen wollte.
    *
-   * Am Boden bedeutungslos: der Kern sieht sie nur an, wenn geflogen wird.
+   * Deshalb beides: `moveX`/`moveZ` für den Boden, diese hier für die Luft.
+   * Ein Wert, der je nach Zustand etwas anderes bedeutet, wäre schlimmer.
    */
-  steigt: boolean;
-  sinkt: boolean;
+  rohX: number;
+  rohZ: number;
   /**
    * Ob in diesem Takt tatsächlich jemand gesteuert hat.
    *
@@ -68,10 +70,6 @@ const TOUCH_LOOK_SPEED = 0.0075;
 
 export class InputManager {
   readonly joystick?: VirtualJoystick;
-
-  /** Die beiden Flugknöpfe am Telefon, solange sie gedrückt sind. */
-  private steigKnopf = false;
-  private sinkKnopf = false;
 
   /**
    * Der Spieler hat die Angriffstaste gedrückt.
@@ -378,21 +376,6 @@ export class InputManager {
   }
 
   /**
-   * Die beiden Flugknöpfe der Touch-Oberfläche — gehalten, nicht getippt.
-   *
-   * Am Telefon gibt es keine Leertaste zum Festhalten, also braucht das
-   * Steigen einen eigenen Knopf. Er steht nur da, solange geflogen wird; das
-   * entscheidet die Oberfläche, nicht diese Datei.
-   */
-  setzeSteigen(held: boolean): void {
-    this.steigKnopf = held;
-  }
-
-  setzeSinken(held: boolean): void {
-    this.sinkKnopf = held;
-  }
-
-  /**
    * Liefert den Eingabezustand dieses Schrittes in Weltachsen.
    *
    * `dt` ist die Schrittweite der Simulation, nicht die des Bildes: die
@@ -481,9 +464,8 @@ export class InputManager {
       yaw: steered.yaw,
       interact: !frozen && interact,
       sprung: !frozen && sprung,
-      // Gehalten gelesen und nicht über die Flanke: Steigen ist ein Zustand.
-      steigt: !frozen && (this.jumpKey || this.steigKnopf),
-      sinkt: !frozen && (this.keys.has('KeyC') || this.sinkKnopf),
+      rohX: frozen ? 0 : localX,
+      rohZ: frozen ? 0 : localZ,
       manual: selbst,
     };
   }

@@ -240,7 +240,7 @@ export interface Diagnostics {
    */
   playerSim: { x: number; y: number; z: number; yaw: number };
   /** Zuletzt gelesene Eingabe. Zeigt, ob Tastatur oder Joystick ankommen. */
-  input: { moveX: number; moveZ: number; yaw: number };
+  input: { moveX: number; moveZ: number; yaw: number; buttons: number };
   /**
    * Was die Figur von sich aus tut — Auftrag, Ziel, Schlag.
    *
@@ -513,7 +513,7 @@ export class Game {
     camera: { yaw: 0, pitch: 0, distance: 0 },
     player: { x: 0, y: 0, z: 0, yaw: 0, speed: 0 },
     playerSim: { x: 0, y: 0, z: 0, yaw: 0 },
-    input: { moveX: 0, moveZ: 0, yaw: 0 },
+    input: { moveX: 0, moveZ: 0, yaw: 0, buttons: 0 },
     auftrag: { art: 'nichts', zielId: 0, angriff: false },
     ticks: 0,
     laufmarke: { sichtbar: false, mitte: 0, punkte: [] },
@@ -2625,6 +2625,13 @@ export class Game {
   }
 
   /**
+   * Läuft der Schub? Umgeschaltet von der Leertaste, gesendet als Zustand.
+   *
+   * Hier und nicht im Kern: siehe die Stelle, an der er gesetzt wird.
+   */
+  private schubAn = false;
+
+  /**
    * Fliegt die eigene Figur gerade?
    *
    * Aus dem Beutel und nicht aus einer Meldung des Servers: was angelegt ist,
@@ -2783,16 +2790,28 @@ export class Game {
       ? this.inventar.some((e) => !e.equipped && getItem(e.itemId)?.kind === 'ammo')
       : true;
 
+    /*
+     * Die Leertaste schaltet den Schub um — **hier**, nicht im Kern.
+     *
+     * Über die Leitung geht danach der Zustand und nicht die Flanke: der
+     * Client spielt seine unbestätigten Eingaben nach jedem Schnappschuss noch
+     * einmal ab, und ein „umschalten" kippte dabei jedes Mal erneut. Genau das
+     * war zu sehen — die Figur flog im Browser los und stand auf dem Server.
+     */
+    const fliegtGerade = this.fliegt;
+    if (!fliegtGerade) this.schubAn = false;
+    else if (snapshot.sprung && !this.dead) this.schubAn = !this.schubAn;
+
     const buttons =
       (this.schlaegtZu && !this.dead && munition ? CoreButton.Attack : 0) |
-      (snapshot.sprung && !this.dead ? CoreButton.Jump : 0) |
-      // In der Luft wird gehalten, nicht angetippt: der Kern liest dieselbe
-      // Sprungtaste dann als „steigen".
-      (this.fliegt && snapshot.steigt && !this.dead ? CoreButton.Jump : 0) |
-      (this.fliegt && snapshot.sinkt && !this.dead ? CoreButton.Sink : 0);
+      // Am Boden ist die Leertaste ein Absprung, in der Luft schaltet sie oben
+      // den Schub um — dort hat das Sprungbit nichts mehr zu suchen.
+      (snapshot.sprung && !this.dead && !fliegtGerade ? CoreButton.Jump : 0) |
+      (this.schubAn ? CoreButton.Schub : 0);
 
     const seq = ++this.inputSeq;
 
+    this.diagnostics.input.buttons = buttons;
     this.diagnostics.input.moveX = snapshot.moveX;
     this.diagnostics.input.moveZ = snapshot.moveZ;
     this.diagnostics.input.yaw = snapshot.yaw;
@@ -2813,14 +2832,22 @@ export class Game {
     }));
     this.diagnostics.laufmarke.mitte = this.view.laufmarke.mittelpunkt();
 
-    world.applyInput(
-      this.localId,
-      snapshot.moveX,
-      snapshot.moveZ,
-      snapshot.yaw,
-      buttons,
-      TICK_SECONDS,
-    );
+    /*
+     * In der Luft geht der Knüppel **roh** hinein.
+     *
+     * Am Boden ist die Eingabe ein Wunsch, wohin es gehen soll — gedreht in
+     * Weltachsen, geglättet, und daraus folgt die Blickrichtung. In der Luft
+     * bedeutet dieselbe Taste etwas anderes: W und S kippen die Nase, A und D
+     * drehen den Kurs. Eine kameragedrehte Achse wäre dort sinnlos.
+     *
+     * Dieselbe Wahl trifft der Server nicht — er bekommt, was hier steht. Also
+     * muss **hier** entschieden werden, und die Vorhersage rechnet mit
+     * demselben Wert wie er.
+     */
+    const eingabeX = fliegtGerade ? snapshot.rohX : snapshot.moveX;
+    const eingabeZ = fliegtGerade ? snapshot.rohZ : snapshot.moveZ;
+
+    world.applyInput(this.localId, eingabeX, eingabeZ, snapshot.yaw, buttons, TICK_SECONDS);
     world.step(TICK_SECONDS);
     // Die Vorhersagewelt erzeugt Ereignisse, die niemanden angehen — der
     // Server ist die einzige Quelle für Treffer.
@@ -2855,8 +2882,8 @@ export class Game {
 
     this.pending.push({
       seq,
-      moveX: snapshot.moveX,
-      moveZ: snapshot.moveZ,
+      moveX: eingabeX,
+      moveZ: eingabeZ,
       yaw: snapshot.yaw,
       buttons,
       x: row?.x ?? 0,
@@ -2866,8 +2893,8 @@ export class Game {
 
     connection.sendInput({
       seq,
-      moveX: snapshot.moveX,
-      moveZ: snapshot.moveZ,
+      moveX: eingabeX,
+      moveZ: eingabeZ,
       yaw: snapshot.yaw,
       buttons,
     });
@@ -2913,6 +2940,9 @@ export class Game {
       // Die Laternenlichter folgen dem Spieler: ein fester Pool, verteilt auf
       // die nächstgelegenen. Siehe render/lanterns.ts.
       this.view.lanterns.update(x, z);
+      // In der Luft zieht die Kamera hinter den Kurs. Vor `follow`, damit sie
+      // im selben Bild an der neuen Stelle steht.
+      if (this.fliegt) this.scene.folgeRichtung(this.poseCurr.yaw, dt);
       this.scene.follow(x, y, z, this.prediction, dt);
       this.streamer.setViewer(x, z);
       this.updateNearbyPortal(x, z);

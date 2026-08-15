@@ -36,10 +36,34 @@ constexpr float kJumpSpeed = 7.2f;
 
 // --- Fliegen ---------------------------------------------------------------
 //
+// Geflogen wird über die **Lage**, nicht über Richtungstasten: die Figur zeigt
+// irgendwohin, und der Schub trägt sie dorthin. W und S kippen die Nase, A und
+// D drehen sie, die Leertaste schaltet den Schub an und aus.
+//
 // Wie hoch über dem Gelände ein Flug mindestens verläuft. Nicht null: bei null
 // schleifte die Figur über den Boden und steckte in jedem Hang, und „fliegen"
 // sähe aus wie „laufen, aber durch Bäume".
 constexpr float kFlugMindesthoehe = 1.2f;
+
+// Wie schnell sich die Lage ändert, im Bogenmass je Sekunde. Nicken ist
+// träger als Gieren — eine Nase, die so schnell kippt wie sich der Kurs
+// dreht, überschlägt sich beim Antippen.
+constexpr float kFlugNickRate = 1.1f;
+constexpr float kFlugGierRate = 1.7f;
+// Wie steil es höchstens hinauf und hinunter geht. Knapp über 60 Grad — steiler
+// sieht man von hinten nur noch den Rücken der Figur.
+constexpr float kFlugNickMax = 1.15f;
+
+/*
+ * Wie lange Anfahren und Ausrollen dauern, in Sekunden.
+ *
+ * Bewusst lang. Ein Schub, der sofort steht, macht aus dem Fliegen ein
+ * Teleportieren in Schritten: man drückt, ist auf Tempo, lässt los, steht.
+ * Mit zwei Sekunden Rampe wird aus dem Druck auf die Leertaste ein Anlauf,
+ * und aus dem zweiten ein Ausrollen — und genau daraus entsteht das Gefühl,
+ * etwas zu fliegen statt es zu schieben.
+ */
+constexpr float kFlugRampeSek = 2.0f;
 
 // Höchstzahl der Ziele eines Flächenangriffs. Deckelt den schlimmsten Fall —
 // wer in einer Herde steht, soll sie treffen, aber nicht den Server aufhalten.
@@ -119,9 +143,16 @@ enum InputButton : uint32_t {
   kButtonJump = 1u << 1,
   kButtonInteract = 1u << 2,
   kButtonSit = 1u << 3,
-  // Sinken. Das Gegenstück zum Sprung, und nur in der Luft von Bedeutung: am
-  // Boden gibt es nichts, wohin es abwärts ginge.
-  kButtonSink = 1u << 4,
+  /*
+   * Der Schub läuft — als **Zustand**, nicht als Umschalten.
+   *
+   * Umgeschaltet wird an der Tastatur, gesendet wird das Ergebnis. Der
+   * Unterschied ist nicht Geschmack: der Client spielt seine unbestätigten
+   * Eingaben nach jedem Schnappschuss noch einmal ab, und ein Bit, das
+   * „umschalten" bedeutet, kippt bei jedem Nachspielen erneut. Ein Bit, das
+   * „läuft" bedeutet, sagt beim zehnten Nachspielen dasselbe wie beim ersten.
+   */
+  kButtonSchub = 1u << 4,
 };
 
 enum EventType : uint8_t {
@@ -272,9 +303,23 @@ struct Entity {
    */
   bool flying = false;
   float flightSpeed = 10.0f;
+  /** Wie viel Höhe je Sekunde höchstens gewonnen wird. Kommt vom Gerät. */
   float climbSpeed = 6.0f;
   /** Höchste Höhe über dem Gelände. Darüber steigt nichts mehr. */
   float ceiling = 45.0f;
+  /**
+   * Die Nase — nach oben positiv.
+   *
+   * Nur beim Fliegen von Bedeutung, und **nicht** im Protokoll: der Client
+   * rechnet sie mit demselben Kern mit, und wie schräg eine fremde Figur
+   * gezeichnet wird, leitet er aus ihrer Bewegung ab. Ein Winkel je Wesen und
+   * Schnappschuss wäre der falsche Preis für eine Neigung.
+   */
+  float pitch = 0.0f;
+  /** Läuft der Schub? Die Leertaste schaltet ihn um. */
+  bool schub = false;
+  /** Das erreichte Tempo. Fährt an und rollt aus, siehe `kFlugRampeSek`. */
+  float tempo = 0.0f;
 
   float attackCooldown = 0.0f;
   // Negativ heißt: kein Schlag unterwegs.

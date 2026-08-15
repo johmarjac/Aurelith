@@ -611,42 +611,136 @@ void testFliegen() {
   aur::Entity* p = world.find(1);
   const float boden = p->y;
 
-  // Am Boden ändert die Sinktaste nichts — es gibt kein Unten.
-  world.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonSink, aur::kTickSeconds);
-  world.step(aur::kTickSeconds);
-  check(p->y == boden, "am Boden bewirkt die Sinktaste nichts");
+  const uint32_t keine = 0u;
+  const uint32_t schub = aur::kButtonSchub;
 
   world.setFlying(1, true, 12.0f, 6.0f, 20.0f);
   check(p->flying, "nach dem Aufsteigen fliegt die Figur");
+  check(p->y > boden, "und hebt dabei ab");
+  check(!p->schub && p->tempo == 0.0f, "aber ohne Schub und ohne Tempo");
 
   /*
-   * Ohne Taste steht sie in der Luft.
-   *
-   * Das ist der Unterschied zum Sprung: dort zieht die Schwerkraft, hier
-   * nicht. Zwanzig Schritte sind eine Sekunde — genug, dass ein Fehler von
-   * einem halben Meter je Sekunde auffiele.
+   * Ohne Schub steht sie. Eine Sekunde lang, damit ein Fehler von einem
+   * Zehntel je Schritt auffiele.
    */
-  const float gehalten = p->y;
+  const float stand = p->y;
+  const float standX = p->x;
   for (int i = 0; i < 20; ++i) {
-    world.applyInput(1, 0.0f, 0.0f, 0.0f, 0u, aur::kTickSeconds);
+    world.applyInput(1, 0.0f, 0.0f, 0.0f, keine, aur::kTickSeconds);
     world.step(aur::kTickSeconds);
   }
-  check(std::fabs(p->y - gehalten) < 1e-3f, "ohne Taste bleibt sie stehen");
+  check(std::fabs(p->y - stand) < 1e-3f, "ohne Schub bleibt sie stehen");
+  check(std::fabs(p->x - standX) < 1e-3f, "und bewegt sich auch nicht vom Fleck");
 
-  // Steigen, bis die Decke kommt. Sie liegt über dem Gelände, nicht über null.
+  // --- Der Schub schaltet um, und er fährt an ------------------------------
+  world.applyInput(1, 0.0f, 0.0f, 0.0f, schub, aur::kTickSeconds);
+  world.step(aur::kTickSeconds);
+  check(p->schub, "das Schubbit schaltet ihn ein");
+  /*
+   * Die Rampe ist der Punkt: nach einem Schritt darf noch lange nicht das
+   * volle Tempo stehen. Ohne diese Prüfung ginge ein Kern durch, in dem der
+   * Schub sofort steht — und genau das sollte er nicht.
+   */
+  check(p->tempo > 0.0f && p->tempo < 12.0f * 0.2f, "und fährt langsam an");
+
+  for (int i = 0; i < 80; ++i) {
+    world.applyInput(1, 0.0f, 0.0f, 0.0f, schub, aur::kTickSeconds);
+    world.step(aur::kTickSeconds);
+  }
+  check(std::fabs(p->tempo - 12.0f) < 0.01f, "nach vier Sekunden liegt das volle Tempo an");
+  check(p->z > standX + 10.0f, "und sie ist waagerecht davongeflogen");
+  check(std::fabs(p->y - stand) < 0.05f, "waagerecht heisst: ohne Höhe zu gewinnen");
+
+  // --- Die Nase steuert die Höhe -------------------------------------------
+  //
+  // S hebt sie (moveZ = −1), W senkt sie. Eine halbe Sekunde reicht für einen
+  // deutlichen Winkel.
+  const float vorSteig = p->y;
+  for (int i = 0; i < 10; ++i) {
+    world.applyInput(1, 0.0f, -1.0f, 0.0f, schub, aur::kTickSeconds);
+    world.step(aur::kTickSeconds);
+  }
+  check(p->pitch > 0.3f, "S hebt die Nase");
+  for (int i = 0; i < 40; ++i) {
+    world.applyInput(1, 0.0f, 0.0f, 0.0f, schub, aur::kTickSeconds);
+    world.step(aur::kTickSeconds);
+  }
+  check(p->y > vorSteig + 3.0f, "und mit gehobener Nase steigt sie");
+
+  // Die Gegenprobe: W senkt sie wieder.
+  const float oben = p->y;
+  for (int i = 0; i < 30; ++i) {
+    world.applyInput(1, 0.0f, 1.0f, 0.0f, schub, aur::kTickSeconds);
+    world.step(aur::kTickSeconds);
+  }
+  check(p->pitch < 0.0f, "W senkt die Nase");
+  for (int i = 0; i < 40; ++i) {
+    world.applyInput(1, 0.0f, 0.0f, 0.0f, schub, aur::kTickSeconds);
+    world.step(aur::kTickSeconds);
+  }
+  check(p->y < oben, "und dann geht es wieder hinunter");
+
+  // Steiler als der Anschlag wird es nicht — sonst überschlägt sich die Figur.
   for (int i = 0; i < 200; ++i) {
-    world.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonJump, aur::kTickSeconds);
+    world.applyInput(1, 0.0f, -1.0f, 0.0f, schub, aur::kTickSeconds);
     world.step(aur::kTickSeconds);
   }
-  check(p->y > boden + 10.0f, "mit Taste steigt sie");
-  check(p->y <= boden + 20.0f + 1e-3f, "und nicht über die Decke des Geräts");
+  check(p->pitch <= aur::kFlugNickMax + 1e-4f, "die Nase kippt nicht über den Anschlag");
 
-  // Und wieder herunter — bis zur Mindesthöhe, nicht bis in den Boden.
-  for (int i = 0; i < 400; ++i) {
-    world.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonSink, aur::kTickSeconds);
+  // --- Drehen: D nach rechts, also zu kleineren Winkeln ---------------------
+  const float vorKurve = p->yaw;
+  for (int i = 0; i < 10; ++i) {
+    world.applyInput(1, 1.0f, 0.0f, 0.0f, schub, aur::kTickSeconds);
     world.step(aur::kTickSeconds);
   }
-  check(p->y >= boden + aur::kFlugMindesthoehe - 1e-3f, "sie sinkt nicht in den Boden");
+  check(p->yaw < vorKurve, "D dreht nach rechts");
+
+  // --- Und ohne das Bit rollt er aus ---------------------------------------
+  world.applyInput(1, 0.0f, 0.0f, 0.0f, keine, aur::kTickSeconds);
+  world.step(aur::kTickSeconds);
+  check(!p->schub, "ohne Bit läuft der Schub nicht mehr");
+  check(p->tempo > 1.0f, "und er rollt aus, statt zu stehen");
+  for (int i = 0; i < 60; ++i) {
+    world.applyInput(1, 0.0f, 0.0f, 0.0f, keine, aur::kTickSeconds);
+    world.step(aur::kTickSeconds);
+  }
+  check(p->tempo == 0.0f, "nach der Rampe steht sie");
+
+  // --- Das Steigen ist gedeckelt -------------------------------------------
+  //
+  // Bei voll gehobener Nase und vollem Tempo gäbe die Lage rund elf Meter je
+  // Sekunde her; das Gerät gibt sechs. Ohne die Deckelung wäre `steig` aus der
+  // Inhaltsdatei eine Zahl ohne Wirkung, und das schnellste Gerät wäre
+  // automatisch auch das beste beim Steigen.
+  //
+  // Vorübergehend unter einer hohen Decke, sonst prüfte diese Stelle die
+  // Höhenbegrenzung statt der Steigrate.
+  world.setFlying(1, true, 12.0f, 6.0f, 200.0f);
+  for (int i = 0; i < 100; ++i) {
+    world.applyInput(1, 0.0f, -1.0f, 0.0f, schub, aur::kTickSeconds);
+    world.step(aur::kTickSeconds);
+  }
+  const float vorDeckel = p->y;
+  for (int i = 0; i < 20; ++i) {
+    world.applyInput(1, 0.0f, 0.0f, 0.0f, schub, aur::kTickSeconds);
+    world.step(aur::kTickSeconds);
+  }
+  check(std::fabs((p->y - vorDeckel) - 6.0f) < 0.2f,
+        "steil und schnell steigt sie trotzdem nur mit dem Wert des Geräts");
+
+  // --- Boden und Decke ------------------------------------------------------
+  world.setFlying(1, true, 12.0f, 6.0f, 20.0f);
+  for (int i = 0; i < 400; ++i) {
+    world.applyInput(1, 0.0f, -1.0f, 0.0f, schub, aur::kTickSeconds);
+    world.step(aur::kTickSeconds);
+  }
+  check(p->y <= boden + 20.0f + 1e-3f, "über die Decke des Geräts steigt sie nicht");
+
+  for (int i = 0; i < 600; ++i) {
+    world.applyInput(1, 0.0f, 1.0f, 0.0f, schub, aur::kTickSeconds);
+    world.step(aur::kTickSeconds);
+  }
+  check(p->y >= boden + aur::kFlugMindesthoehe - 1e-3f, "und in den Boden sinkt sie nicht");
 
   /*
    * Absteigen heisst fallen.
@@ -657,19 +751,19 @@ void testFliegen() {
    */
   world.setFlying(1, true, 12.0f, 6.0f, 20.0f);
   for (int i = 0; i < 60; ++i) {
-    world.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonJump, aur::kTickSeconds);
+    world.applyInput(1, 0.0f, -1.0f, 0.0f, schub, aur::kTickSeconds);
     world.step(aur::kTickSeconds);
   }
-  const float oben = p->y;
-  check(oben > boden + 5.0f, "vor dem Absteigen steht sie hoch genug");
+  const float hoch = p->y;
+  check(hoch > boden + 5.0f, "vor dem Absteigen steht sie hoch genug");
 
   world.setFlying(1, false, 0.0f, 0.0f, 0.0f);
   check(!p->flying, "nach dem Absteigen fliegt sie nicht mehr");
   for (int i = 0; i < 100; ++i) {
-    world.applyInput(1, 0.0f, 0.0f, 0.0f, 0u, aur::kTickSeconds);
+    world.applyInput(1, 0.0f, 0.0f, 0.0f, keine, aur::kTickSeconds);
     world.step(aur::kTickSeconds);
   }
-  check(p->y < oben - 1.0f, "und fällt");
+  check(p->y < hoch - 1.0f, "und fällt");
   check(std::fabs(p->y - boden) < 1e-3f, "bis auf den Boden");
   check(!p->airborne, "wo sie dann auch steht");
 }

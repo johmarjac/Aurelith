@@ -262,6 +262,8 @@ class World {
   void updateMonsterAi(Entity& e, float dt);
   /** Ein Begleiter läuft zu seinem Ziel und bleibt dort stehen. Mehr nicht. */
   void updatePetAi(Entity& e, float dt);
+  /** Ein Schritt in der Luft: Lage ändern, Schub schalten, sich bewegen. */
+  void updateFlight(Entity& e, float moveX, float moveZ, uint32_t buttons, float dt);
   /**
    * Wo ein Wesen hingehört: Mitte seines Feldes und dessen Radius.
    *

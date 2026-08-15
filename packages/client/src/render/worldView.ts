@@ -194,6 +194,18 @@ export interface EntityVisual {
   flug: string;
   /** Das Gerät unter ihr, solange sie fliegt. */
   flugMesh?: THREE.Object3D;
+  /**
+   * Wie schräg die Figur gerade in der Luft liegt.
+   *
+   * Aus der **Bewegung** abgeleitet und nicht aus dem Protokoll: die Neigung
+   * steckt im Kern, und sie über die Leitung zu schicken hiesse, ein Byte je
+   * Wesen und Schnappschuss für etwas auszugeben, das man auch sehen kann.
+   * Steigt eine Figur, hebt sich ihre Nase — das ist dieselbe Auskunft.
+   */
+  flugNeigung: number;
+  /** Wo sie im letzten Bild stand — nur für die Neigung. */
+  letztesX: number;
+  letztesZ: number;
   /** Der warme Schein um die Figur, sofern ein Satz leuchtet. */
   satzAura?: SetAura;
   /** Höhe über dem Boden für Nameplate und Schadenszahlen. */
@@ -534,6 +546,9 @@ export class WorldView {
       outfit: row.outfit,
       setGlow: row.setGlow,
       flug: '',
+      flugNeigung: 0,
+      letztesX: row.x,
+      letztesZ: row.z,
       aggro: row.aggro,
       height: heightFor(row.type, row.defId),
     };
@@ -864,6 +879,23 @@ export class WorldView {
         luft = Math.max(0, Math.min(1, (ueberBoden - 0.08) / 0.3));
         steigt = e.y > e.hoeheVorher + 1e-4;
       }
+      /*
+       * Die Neigung in der Luft — aus dem Weg, den die Figur zurücklegt.
+       *
+       * Waagerechtes Tempo gegen senkrechtes, als Winkel. Geglättet, weil die
+       * Zwischenwerte zwischen zwei Schnappschüssen springen und eine Nase,
+       * die im Takt der Pakete zuckt, schlimmer aussieht als gar keine.
+       */
+      if (e.flug !== '') {
+        const waagerecht = Math.hypot(e.x - e.letztesX, e.z - e.letztesZ);
+        const senkrecht = e.y - e.hoeheVorher;
+        const ziel = Math.atan2(senkrecht, Math.max(waagerecht, 1e-4));
+        e.flugNeigung += (ziel - e.flugNeigung) * Math.min(1, dt * 6);
+      } else {
+        e.flugNeigung = 0;
+      }
+      e.letztesX = e.x;
+      e.letztesZ = e.z;
       e.hoeheVorher = e.y;
 
       e.rig.update({
@@ -881,6 +913,21 @@ export class WorldView {
         time: this.elapsed,
         dt,
       });
+
+      /*
+       * Die Nase kippt das ganze Rig — **nach** dem Rig-Schritt.
+       *
+       * Der setzt `rotation.x` selbst zurück (auf null, oder beim Umfallen auf
+       * die Waagerechte). Davor gesetzt wäre die Neigung im selben Bild wieder
+       * weg, und der Fehler sähe aus wie „das Fliegen kippt die Figur nicht".
+       *
+       * Negativ, weil eine Drehung um +X die Vorderseite nach unten nimmt:
+       * `R_x(a)` bildet (0,0,1) auf (0,−sin a, cos a) ab. Wer steigt, soll die
+       * Nase heben — also das Gegenteil.
+       */
+      if (e.flug !== '' && e.state !== EntityState.Dead) {
+        e.rig.root.rotation.x = -e.flugNeigung;
+      }
 
       // Der Schweif gehört zu jeder Bewegung der Klinge, nicht nur zum Hieb:
       // beim Wirbel zieht er den Kreis nach, und genau der ist die Aussage der
