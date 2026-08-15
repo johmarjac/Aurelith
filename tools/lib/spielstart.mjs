@@ -16,8 +16,15 @@
  * gleich die Figurenliste.
  */
 
-/** Wählt in einer bestimmten Maske. Ohne sie träfe ein Klick eine versteckte. */
-const IN = (maske, rest) => `.${maske}:not([hidden]) ${rest}`;
+/**
+ * Wählt in einer bestimmten Maske. Ohne sie träfe ein Klick eine versteckte.
+ *
+ * Über `data-seite` und nicht über die Klasse: die Klassen sagen, wie eine
+ * Maske **aussieht**, und Kanalwahl und Figurenwahl teilen sich inzwischen
+ * eine davon. Welche Maske es ist, ist eine andere Frage — und die hat jetzt
+ * ihr eigenes Merkmal.
+ */
+const IN = (maske, rest) => `[data-seite="${maske}"]:not([hidden]) ${rest}`;
 
 /**
  * Meldet ein neues Konto an, legt eine Figur an und betritt mit ihr die Welt.
@@ -35,21 +42,21 @@ export async function anmeldenUndBetreten(
   passwort = 'pruefer-passwort',
   figur = name,
 ) {
-  await page.waitForSelector(IN('lobby-anmeldung', '.lobby-input'), { timeout: 40000 });
+  await page.waitForSelector(IN('anmeldung', '.lobby-input'), { timeout: 40000 });
 
-  await page.fill(IN('lobby-anmeldung', '.lobby-input[type="text"]'), name);
-  await page.fill(IN('lobby-anmeldung', '.lobby-input[type="password"]'), passwort);
-  await page.click(IN('lobby-anmeldung', '.btn:not(.btn-gross)')); // „Konto anlegen"
+  await page.fill(IN('anmeldung', '.lobby-input[type="text"]'), name);
+  await page.fill(IN('anmeldung', '.lobby-input[type="password"]'), passwort);
+  await page.click(IN('anmeldung', '.btn:not(.btn-gross)')); // „Konto anlegen"
 
   // Ein frisches Konto hat keine Figur. Der Weg zum Anlegen führt trotzdem
   // über die Liste — sie ist die Maske, die nach dem Anmelden kommt, leer oder
   // nicht.
-  await page.waitForSelector(IN('lobby-auswahl', '.btn-gross'), { timeout: 20000 });
-  await page.click(IN('lobby-auswahl', '.btn-gross')); // „＋ Neue Figur"
+  await page.waitForSelector(IN('figuren', '[data-tat="neu"]'), { timeout: 20000 });
+  await page.click(IN('figuren', '[data-tat="neu"]')); // „＋ Neue Figur"
 
-  await page.waitForSelector(IN('lobby-neu', '.lobby-input'), { timeout: 20000 });
-  await page.fill(IN('lobby-neu', '.lobby-input'), figur);
-  await page.click(IN('lobby-neu', '.btn-gross')); // „Figur anlegen"
+  await page.waitForSelector(IN('neu', '.lobby-input'), { timeout: 20000 });
+  await page.fill(IN('neu', '.lobby-input'), figur);
+  await page.click(IN('neu', '.btn-gross')); // „Figur anlegen"
 
   await betreteErsteFigur(page);
 }
@@ -61,19 +68,25 @@ export async function anmeldenUndBetreten(
  * schon, die Figur auch, und beides soll nicht doppelt entstehen.
  */
 export async function anmeldenBestehend(page, name, passwort = 'pruefer-passwort') {
-  await page.waitForSelector(IN('lobby-anmeldung', '.lobby-input'), { timeout: 40000 });
-  await page.fill(IN('lobby-anmeldung', '.lobby-input[type="text"]'), name);
-  await page.fill(IN('lobby-anmeldung', '.lobby-input[type="password"]'), passwort);
-  await page.click(IN('lobby-anmeldung', '.btn-gross')); // „Anmelden"
+  await page.waitForSelector(IN('anmeldung', '.lobby-input'), { timeout: 40000 });
+  await page.fill(IN('anmeldung', '.lobby-input[type="text"]'), name);
+  await page.fill(IN('anmeldung', '.lobby-input[type="password"]'), passwort);
+  await page.click(IN('anmeldung', '.btn-gross')); // „Anmelden"
 
   await betreteErsteFigur(page);
 }
 
-/** Betritt die Welt mit der ersten Figur der Liste. */
+/**
+ * Betritt die Welt mit der ersten Figur der Liste.
+ *
+ * Erst wählen, dann betreten — wie ein Mensch es täte. Die Liste wählt zwar
+ * von selbst die erste vor, aber ein Test, der sich darauf verlässt, prüft
+ * beim nächsten Umbau eine Vorauswahl statt eines Wegs in die Welt.
+ */
 async function betreteErsteFigur(page) {
-  await page.waitForSelector('.lobby-figur .btn', { timeout: 20000 });
-  // Die erste Schaltfläche der Zeile ist „Betreten"; die zweite löscht.
-  await page.click('.lobby-figur .btn:not(.btn-warn)');
+  await page.waitForSelector(IN('figuren', '.kanal-zeile'), { timeout: 20000 });
+  await page.click(IN('figuren', '.kanal-zeile'));
+  await page.click(IN('figuren', '[data-tat="betreten"]'));
   await warteAufWelt(page);
 }
 

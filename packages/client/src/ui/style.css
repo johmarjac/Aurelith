@@ -1818,12 +1818,6 @@ body.aktion-zuweisen .action-slot {
   gap: 0.7rem;
 }
 
-/* Die Figurenliste braucht mehr Breite als zwei Eingabefelder: in einer Zeile
-   stehen Name, Beruf, Karte und zwei Knöpfe. */
-.lobby-auswahl {
-  width: min(32rem, 100%);
-}
-
 /* Ein Satz unter der Überschrift — sagt, was diese Maske von einem will. */
 .lobby-unter {
   margin: -0.3rem 0 0;
@@ -2215,90 +2209,6 @@ body.aktion-zuweisen .action-slot {
  * Dunkle Tinte und nicht Gold: diese Zeile steht auf dem Pergament und nicht
  * auf einem Feld, und helles Gold verschwindet dort.
  */
-.lobby-wo {
-  margin: -0.3rem 0 0;
-  text-align: center;
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--ink-dim);
-}
-
-.lobby-konto {
-  margin: 0;
-  font-size: 0.8rem;
-  color: var(--ink-dim);
-  text-align: center;
-}
-
-.lobby-liste {
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-}
-
-/*
- * Eine Figurenzeile — dunkles Feld auf Pergament, wie die Eingabefelder und
- * die Kanalliste.
- *
- * `--kachel` stand hier vorher, und das ist die Kachelfarbe der **dunklen**
- * Spieloberfläche: über Pergament wird daraus ein blasses Beige, auf dem
- * weder der goldene Name noch die Zeile darunter noch zu lesen waren.
- */
-.lobby-figur {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.5rem 0.6rem;
-  border-radius: var(--radius);
-  background: var(--panel-dunkel);
-  border: 1px solid var(--panel-edge);
-}
-
-/*
- * Auf einem schmalen Telefon untereinander.
- *
- * Nebeneinander bleiben für „Stufe 17 · Krieger · lichtmoor" keine dreissig
- * Zeichen übrig, und die Zeile bricht mitten im Kartennamen um.
- */
-@media (max-width: 30rem) {
-  .lobby-figur {
-    flex-wrap: wrap;
-  }
-
-  .lobby-figur-text {
-    flex: 1 1 100%;
-  }
-
-  .lobby-figur .lobby-knoepfe {
-    flex: 1 1 100%;
-  }
-}
-
-.lobby-figur-text {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-}
-
-.lobby-figur-name {
-  font-weight: 600;
-  color: var(--gold-hell);
-}
-
-/* Hell genug für das dunkle Feld: die Randfarbe war es nicht. */
-.lobby-figur-info {
-  font-size: 0.74rem;
-  color: #d9c49a;
-}
-
-.lobby-leer {
-  margin: 0;
-  text-align: center;
-  font-size: 0.85rem;
-  color: var(--ink-dim);
-}
-
 /* --- Server und Kanal ------------------------------------------------------
  *
  * Zwei Spalten nebeneinander: links der Server, rechts seine Kanäle. Auf
@@ -2306,7 +2216,14 @@ body.aktion-zuweisen .action-slot {
  * aber nebeneinander wären beide Spalten zu schmal für einen Namen.
  */
 
-.lobby-kanaele {
+/*
+ * Kanalwahl und Figurenwahl teilen sich die Breite — und die Klasse.
+ *
+ * Zwei Zahlen, die gleich sein sollen, sind eine Zahl zu viel: sie waren es
+ * einmal (32 gegen 34 rem), und die Masken sprangen beim Weiterklicken um
+ * zwei Zentimeter in der Breite.
+ */
+.lobby-weit {
   width: min(34rem, 100%);
 }
 
@@ -2316,7 +2233,15 @@ body.aktion-zuweisen .action-slot {
   gap: 0.6rem;
 }
 
-@media (max-width: 30rem) {
+/*
+ * Nebeneinander, so lange es irgend geht.
+ *
+ * Der Bruch lag bei 30 rem, und damit standen die beiden Listen auf jedem
+ * Telefon untereinander — genau die Ansicht, die die Zugehörigkeit „dieser
+ * Kanal gehört zu diesem Server" wieder verschweigt. Erst wenn eine Spalte
+ * schmaler wäre als ein Kanalname, ist Untereinander die bessere Antwort.
+ */
+@media (max-width: 22rem) {
   .kanal-spalten {
     grid-template-columns: 1fr;
   }
@@ -2337,14 +2262,20 @@ body.aktion-zuweisen .action-slot {
   color: var(--ink-dim);
 }
 
-/* Rollend und mit fester Höhe: bei zwölf Kanälen soll die Maske nicht über
-   den Bildschirmrand hinauswachsen, und beide Spalten sollen gleich hoch
-   bleiben, egal wie viele Zeilen darin stehen. */
+/*
+ * Rollend und mit **fester** Höhe, nicht mit einer Höchsthöhe.
+ *
+ * Bei zwölf Kanälen soll die Maske nicht über den Bildschirmrand wachsen —
+ * das war der ursprüngliche Grund. Fest statt höchstens ist der zweite: die
+ * Knopfzeile darunter soll bei einem Kanal genauso tief liegen wie bei zwölf,
+ * und in der Figurenwahl daneben ebenso. Wer „Betreten" zweimal an derselben
+ * Stelle sucht, soll es zweimal dort finden.
+ */
 .kanal-spalte {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  max-height: 14rem;
+  height: 14rem;
   overflow-y: auto;
   overscroll-behavior: contain;
 }

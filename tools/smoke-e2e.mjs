@@ -784,7 +784,7 @@ const abgemeldet = await page
     () =>
       window.aurelith.localId === 0 &&
       document.querySelector('.lobby')?.hidden === false &&
-      document.querySelectorAll('.lobby-figur').length > 0,
+      document.querySelectorAll('[data-seite="figuren"] .kanal-zeile').length > 0,
     { timeout: 15000 },
   )
   .then(() => true)

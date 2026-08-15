@@ -236,7 +236,10 @@ export class LobbyView {
   private readonly kanalListe: HTMLDivElement;
   private readonly kanalKnopf: HTMLButtonElement;
   private readonly kanalWechsel: HTMLButtonElement;
-  private readonly woZeile: HTMLParagraphElement;
+  private readonly figurKnopf: HTMLButtonElement;
+  private readonly loeschKnopf: HTMLButtonElement;
+  /** Welche Figur gerade gewählt ist. Null: keine — dann ist „Betreten" tot. */
+  private gewaehlteFigur = 0;
   private readonly protokoll: HTMLDetailsElement;
   private readonly protokollKopf: HTMLElement;
   private readonly protokollText: HTMLPreElement;
@@ -352,6 +355,7 @@ export class LobbyView {
     marke.decoding = 'async';
 
     this.anmeldungSeite = el('div', 'lobby-box panel lobby-anmeldung');
+    this.anmeldungSeite.dataset.seite = 'anmeldung';
     this.anmeldungSeite.append(
       marke,
       el('h1', 'lobby-titel', 'Aurelith'),
@@ -414,40 +418,82 @@ export class LobbyView {
     this.anbieterBereich.append(el('p', 'lobby-oder', 'oder'), ...this.anbieterKnoepfe.values());
     this.anmeldungSeite.appendChild(this.anbieterBereich);
 
-    // --- Maske 2: Figuren --------------------------------------------------
-    this.figurenSeite = el('div', 'lobby-box panel lobby-auswahl');
+    /*
+     * --- Maske 2: Figuren -------------------------------------------------
+     *
+     * Aufgebaut wie die Kanalwahl daneben, und zwar bis in die Klassennamen:
+     * eine Überschrift, eine Zeile darunter, eine Liste fester Höhe, unten die
+     * Knöpfe. Dass beide Masken gleich hoch sind und „Betreten" an derselben
+     * Stelle steht, folgt damit aus **einem** Satz Regeln und nicht aus zwei
+     * Zahlen, die man gleich halten muss.
+     *
+     * Ausgewählt wird wie dort: die Zeile ist der Knopf, und unten steht einer
+     * für alle. Vorher trug jede Figur ihr eigenes „Betreten" und ihr eigenes
+     * „Löschen" — bei vier Figuren acht Knöpfe, von denen sieben nicht
+     * gemeint waren.
+     */
+    this.figurenSeite = el('div', 'lobby-box panel lobby-weit');
+    this.figurenSeite.dataset.seite = 'figuren';
     this.figurenSeite.hidden = true;
-    this.kontoZeile = el('p', 'lobby-konto', '');
-    this.liste = el('div', 'lobby-liste');
+    this.kontoZeile = el('p', 'lobby-unter', '');
+    this.liste = el('div', 'kanal-spalte');
 
-    const zurNeu = el('button', 'btn btn-gross', '＋ Neue Figur');
+    const figurenSpalte = el('div', 'kanal-seite');
+    figurenSpalte.append(el('h2', 'kanal-titel', 'Figur'), this.liste);
+
+    this.figurKnopf = el('button', 'btn btn-gross', 'Betreten');
+    this.figurKnopf.type = 'button';
+    // Woran eine Prüfung diesen Knopf erkennt. Am Text erkennt sie ihn beim
+    // ersten Umformulieren nicht mehr, an der Klasse nicht, sobald zwei
+    // Masken dieselbe benutzen.
+    this.figurKnopf.dataset.tat = 'betreten';
+    this.figurKnopf.addEventListener('click', () => this.betreteFigur());
+
+    const zurNeu = el('button', 'btn', '＋ Neue Figur');
     zurNeu.type = 'button';
+    zurNeu.dataset.tat = 'neu';
     zurNeu.addEventListener('click', () => this.zeigeSeite('neu'));
+
+    /*
+     * Löschen fragt nach — aber ohne Fenster davor: der Knopf wird zur
+     * Rückfrage und beim zweiten Druck ernst. Ein Bestätigungsfenster wäre
+     * dieselbe Frage mit mehr Aufbau, und `confirm()` blockiert auf dem
+     * Telefon die ganze Seite.
+     *
+     * Die Rückfrage hängt jetzt an der **Auswahl** und nicht mehr an einer
+     * Zeile: wer zwischendurch eine andere Figur anklickt, fängt von vorn an.
+     */
+    this.loeschKnopf = el('button', 'btn btn-warn', 'Löschen');
+    this.loeschKnopf.type = 'button';
+    this.loeschKnopf.dataset.tat = 'loeschen';
+    this.loeschKnopf.addEventListener('click', () => {
+      if (this.gewaehlteFigur === 0) return;
+      if (this.loeschKandidat === this.gewaehlteFigur) {
+        this.onDeleteCharacter?.(this.gewaehlteFigur);
+        return;
+      }
+      this.loeschKandidat = this.gewaehlteFigur;
+      this.loeschKnopf.textContent = 'Wirklich löschen?';
+    });
 
     // Der Weg zurück zur Kanalauswahl. Sichtbar nur, wenn es überhaupt eine
     // gab — im Alleinbetrieb führte er ins Leere.
     this.kanalWechsel = el('button', 'btn', 'Kanal wechseln');
     this.kanalWechsel.type = 'button';
     // Der Weg zurück führt über den Anmeldeserver, und der kennt diese
-    // Verbindung nicht mehr — die Eintrittskarte war einmalig. Also noch
-    // einmal anmelden. Das steht am Knopf, damit es niemanden überrascht.
+    // Verbindung nicht mehr. Also noch einmal anmelden — das steht am Knopf,
+    // damit es niemanden überrascht.
     this.kanalWechsel.title = 'Zurück zur Kanalauswahl — mit erneuter Anmeldung.';
     this.kanalWechsel.hidden = true;
     this.kanalWechsel.addEventListener('click', () => this.onBackToChannels?.());
 
     const figurenKnoepfe = el('div', 'lobby-knoepfe');
-    figurenKnoepfe.append(zurNeu, this.kanalWechsel);
-
-    // Wo man ist — Server und Kanal, über der Liste. Die Figuren gehören zum
-    // **Server**: auf einem anderen sind es andere.
-    this.woZeile = el('p', 'lobby-wo', '');
-    this.woZeile.hidden = true;
+    figurenKnoepfe.append(this.figurKnopf, zurNeu, this.loeschKnopf, this.kanalWechsel);
 
     this.figurenSeite.append(
       el('h1', 'lobby-titel', 'Deine Figuren'),
-      this.woZeile,
       this.kontoZeile,
-      this.liste,
+      figurenSpalte,
       figurenKnoepfe,
     );
     // Der Knopf wird ausgeblendet, wenn das Konto voll ist — gemerkt, damit
@@ -464,6 +510,7 @@ export class LobbyView {
      * neu verbunden.
      */
     this.verlorenSeite = el('div', 'lobby-box panel');
+    this.verlorenSeite.dataset.seite = 'verloren';
     this.verlorenSeite.hidden = true;
     this.verlorenText = el('p', 'lobby-hinweis', '');
 
@@ -490,7 +537,8 @@ export class LobbyView {
     // genau einem Server, und eine einzige lange Liste aus „Aurelith · Kanal
     // 1", „Aurelith · Kanal 2" würde diese Zugehörigkeit in jeder Zeile
     // wiederholen, statt sie einmal zu zeigen.
-    this.kanaeleSeite = el('div', 'lobby-box panel lobby-kanaele');
+    this.kanaeleSeite = el('div', 'lobby-box panel lobby-weit');
+    this.kanaeleSeite.dataset.seite = 'kanaele';
     this.kanaeleSeite.hidden = true;
     this.serverListe = el('div', 'kanal-spalte');
     this.kanalListe = el('div', 'kanal-spalte');
@@ -504,6 +552,7 @@ export class LobbyView {
 
     this.kanalKnopf = el('button', 'btn btn-gross', 'Betreten');
     this.kanalKnopf.type = 'button';
+    this.kanalKnopf.dataset.tat = 'betreten';
     this.kanalKnopf.addEventListener('click', () => this.betreteKanal());
     const neuLaden = el('button', 'btn', 'Liste neu laden');
     neuLaden.type = 'button';
@@ -520,6 +569,7 @@ export class LobbyView {
 
     // --- Maske 3: Figur anlegen -------------------------------------------
     this.neuSeite = el('div', 'lobby-box panel lobby-neu');
+    this.neuSeite.dataset.seite = 'neu';
     this.neuSeite.hidden = true;
 
     this.neuForm = el('form', 'lobby-form');
@@ -869,6 +919,37 @@ export class LobbyView {
     return !this.root.hidden;
   }
 
+  /**
+   * Wählt eine Figur aus. Genau eine, und die Rückfrage beim Löschen fällt.
+   *
+   * Sonst zeigte der Knopf „Wirklich löschen?" und meinte inzwischen eine
+   * andere Figur — die schlimmste Sorte Fehlbedienung, weil sie aussieht wie
+   * eine Bestätigung dessen, was man vorhatte.
+   */
+  private waehleFigur(id: number): void {
+    if (this.gewaehlteFigur === id) return;
+    this.gewaehlteFigur = id;
+    this.loeschKandidat = 0;
+    for (const zeile of this.liste.querySelectorAll<HTMLElement>('.kanal-zeile')) {
+      zeile.dataset.gewaehlt = zeile.dataset.characterId === String(id) ? '1' : '0';
+    }
+    this.zeigeFigurenwahl();
+  }
+
+  /** Knöpfe an die Auswahl anpassen. Eine Stelle für beide. */
+  private zeigeFigurenwahl(): void {
+    const gibt = this.gewaehlteFigur !== 0;
+    this.figurKnopf.disabled = !gibt;
+    this.loeschKnopf.disabled = !gibt;
+    if (this.loeschKandidat !== this.gewaehlteFigur) this.loeschKnopf.textContent = 'Löschen';
+  }
+
+  /** Betritt die Welt mit der gewählten Figur. */
+  private betreteFigur(): void {
+    if (this.gewaehlteFigur === 0) return;
+    this.onEnterWorld?.(this.gewaehlteFigur);
+  }
+
   /** Wie die Figur mit dieser Kennung heisst. */
   nameVon(characterId: number): string | undefined {
     return this.stand?.characters.find((c) => c.id === characterId)?.name;
@@ -910,60 +991,61 @@ export class LobbyView {
     this.zeigeFehler('');
     this.loeschKandidat = 0;
 
-    this.woZeile.textContent = this.wo;
-    this.woZeile.hidden = this.wo === '';
+    /*
+     * Konto **und** Ort in einer Zeile.
+     *
+     * Zwei Zeilen wären ehrlicher gegliedert und machten die Maske je nach
+     * Betriebsart verschieden hoch: im Alleinbetrieb gibt es keinen Kanal, im
+     * Verbund schon. Dann stünde „Betreten" mal hier und mal einen Zentimeter
+     * tiefer — und genau das soll es nicht.
+     */
     this.kanalWechsel.hidden = this.wo === '';
 
     const stufe = ['Spieler', 'Spielleiter', 'Entwickler', 'Verwalter'][stand.accessLevel] ?? '';
     this.kontoZeile.textContent =
-      `${stand.accountName} — ${stufe} · ` +
+      (this.wo === '' ? '' : `${this.wo} — `) +
+      `${stand.accountName} · ${stufe} · ` +
       `${stand.characters.length} von ${stand.maxCharacters} Figuren`;
+
+    /*
+     * Die Wahl überlebt das Neuzeichnen, solange es die Figur noch gibt.
+     *
+     * `setStand` kommt auch nach dem Löschen und nach dem Anlegen. Eine
+     * Auswahl, die dabei jedes Mal auf die erste Figur zurückspringt, wäre
+     * beim Löschen gefährlich: man drückt zweimal „Löschen" und trifft beim
+     * zweiten Mal eine andere.
+     */
+    if (!stand.characters.some((c) => c.id === this.gewaehlteFigur)) {
+      this.gewaehlteFigur = stand.characters[0]?.id ?? 0;
+    }
 
     const zeilen: HTMLElement[] = [];
     for (const figur of stand.characters) {
-      const zeile = el('div', 'lobby-figur');
-      zeile.dataset.characterId = String(figur.id);
-
       // Der Beruf steht als Name da, wenn die Inhalte ihn kennen, sonst als
       // Kennung: eine Figur mit einem Beruf, den dieser Client nicht kennt,
       // soll trotzdem betretbar bleiben.
       const beruf = getClass(figur.beruf);
-      const text = el('div', 'lobby-figur-text');
-      text.append(
-        el('span', 'lobby-figur-name', `${beruf?.glyph ?? ''} ${figur.name}`.trim()),
-        el(
-          'span',
-          'lobby-figur-info',
-          `Stufe ${figur.level} · ${beruf?.name ?? figur.beruf} · ${figur.mapId}`,
-        ),
+      const zeile = el('button', 'kanal-zeile');
+      zeile.type = 'button';
+      zeile.dataset.characterId = String(figur.id);
+      zeile.dataset.gewaehlt = figur.id === this.gewaehlteFigur ? '1' : '0';
+      // Leere Teile fallen weg statt als „· ·" dazustehen: eine Figur ohne
+      // Beruf gibt es (frisch angelegt), und die Lücke sah aus wie ein Fehler
+      // in der Zeile statt wie einer, den es gar nicht gibt.
+      const angaben = [`Stufe ${figur.level}`, beruf?.name ?? figur.beruf, figur.mapId].filter(
+        (t) => t !== '',
       );
-
-      const betreten = el('button', 'btn', 'Betreten');
-      betreten.type = 'button';
-      betreten.addEventListener('click', () => this.onEnterWorld?.(figur.id));
-
-      // Löschen fragt nach — aber ohne Fenster davor: der Knopf wird zur
-      // Rückfrage und beim zweiten Druck ernst. Ein Bestätigungsfenster wäre
-      // dieselbe Frage mit mehr Aufbau, und `confirm()` blockiert auf dem
-      // Telefon die ganze Seite.
-      const loeschen = el('button', 'btn btn-warn', 'Löschen');
-      loeschen.type = 'button';
-      loeschen.addEventListener('click', () => {
-        if (this.loeschKandidat === figur.id) {
-          this.onDeleteCharacter?.(figur.id);
-          return;
-        }
-        this.loeschKandidat = figur.id;
-        for (const anderer of zeilen) {
-          const knopf = anderer.querySelector<HTMLButtonElement>('.btn-warn');
-          if (knopf) knopf.textContent = 'Löschen';
-        }
-        loeschen.textContent = 'Wirklich löschen?';
+      zeile.append(
+        el('span', 'kanal-name', `${beruf?.glyph ?? ''} ${figur.name}`.trim()),
+        el('span', 'kanal-info', angaben.join(' · ')),
+      );
+      zeile.addEventListener('click', () => this.waehleFigur(figur.id));
+      // Der Doppelklick betritt gleich — die Abkürzung für alle, die sie
+      // erwarten. Kein zweiter Weg ins Spiel: er ruft dieselbe Stelle.
+      zeile.addEventListener('dblclick', () => {
+        this.waehleFigur(figur.id);
+        this.betreteFigur();
       });
-
-      const knoepfe = el('div', 'lobby-knoepfe');
-      knoepfe.append(betreten, loeschen);
-      zeile.append(text, knoepfe);
       zeilen.push(zeile);
     }
 
@@ -979,6 +1061,7 @@ export class LobbyView {
       );
     }
     this.liste.replaceChildren(...zeilen);
+    this.zeigeFigurenwahl();
 
     // Voll ist voll: der Weg zur Anlegemaske verschwindet, statt eine Absage
     // zu ernten.
