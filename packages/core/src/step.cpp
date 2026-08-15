@@ -71,11 +71,11 @@ void World::resolveOverlaps() {
   // Weiche Trennung zweier sich überlappender Entities. Verhindert Stapel.
   for (size_t i = 0; i < entities_.size(); ++i) {
     Entity& a = entities_[i];
-    if (a.type == kEntityNpc || !isAlive(a)) continue;
+    if (!isCombatant(a) || !isAlive(a)) continue;
 
     for (size_t j = i + 1; j < entities_.size(); ++j) {
       Entity& b = entities_[j];
-      if (b.type == kEntityNpc || !isAlive(b)) continue;
+      if (!isCombatant(b) || !isAlive(b)) continue;
 
       const float dx = b.x - a.x;
       const float dz = b.z - a.z;
@@ -127,7 +127,7 @@ bool World::inCombat(const Entity& e) const {
 
 void World::regenerate(float dt) {
   for (Entity& e : entities_) {
-    if (!isAlive(e) || e.type == kEntityNpc) continue;
+    if (!isAlive(e) || !isCombatant(e)) continue;
     // Ohne Eigenschaft keine Regeneration. Der häufigste Fall, und er kostet
     // damit auch nichts — die Suche nach Verfolgern läuft gar nicht erst an.
     if (e.hpRegen <= 0.0f && e.mpRegen <= 0.0f) continue;
@@ -216,6 +216,7 @@ void World::step(float dt) {
 
   for (size_t i = 0; i < entities_.size(); ++i) {
     if (entities_[i].type == kEntityMonster) updateMonsterAi(entities_[i], dt);
+    else if (entities_[i].type == kEntityPet) updatePetAi(entities_[i], dt);
   }
 
   resolveOverlaps();

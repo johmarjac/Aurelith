@@ -58,6 +58,15 @@ export interface ItemRecord {
   equipped: boolean;
   /** Aufwertungsstufe, 0 bis 10. Stapelbares hat immer 0. */
   upgrade: number;
+  /**
+   * Läuft dieses Haustier gerade draussen herum?
+   *
+   * Nur für `kind: 'pet'` und ausdrücklich **nicht** `equipped`: ein
+   * freigelassenes Tier bleibt im Beutel liegen, ein angelegter Panzer wandert
+   * an die Figur. Dieselbe Spalte für beides hiesse, dass der Beutel das Tier
+   * nicht mehr zeigt, sobald es draussen ist — und genau dort erwartet man es.
+   */
+  unterwegs: boolean;
 }
 
 export interface QuestRecord {

@@ -125,7 +125,7 @@ void World::updateMonsterAi(Entity& e, float dt) {
   }
 
   Entity* target = e.targetId != 0 ? find(e.targetId) : nullptr;
-  if (target != nullptr && (!isAlive(*target) || target->type == kEntityNpc)) {
+  if (target != nullptr && (!isAlive(*target) || !isCombatant(*target))) {
     target = nullptr;
     e.targetId = 0;
   }
@@ -174,6 +174,32 @@ void World::updateMonsterAi(Entity& e, float dt) {
   if (!tryStartSwing(e) && e.state != kStateAttack) {
     e.state = kStateIdle;
   }
+}
+
+/**
+ * Ein Begleiter läuft zu seinem Ziel und bleibt dort stehen.
+ *
+ * Das ist das ganze Verhalten im Kern. Ob das Ziel gerade der Mensch ist oder
+ * ein Haufen Beute, ob abgebrochen wird, weil man zu weit gelaufen ist, und ob
+ * das Tier irgendwo festhängt — all das entscheidet der Server und setzt je
+ * Tick einen Punkt. Er kennt Beutel und Beute; der Kern kennt Gelände und
+ * Hindernisse, und genau das steuert er bei.
+ *
+ * Der Ankunftsabstand kommt mit dem Ziel. Beim Folgen ist er der Abstand, den
+ * das Tier zum Menschen hält — ohne ihn liefe es in ihn hinein und zappelte
+ * dort, weil jeder Schritt des Menschen es wieder danebenstellt.
+ */
+void World::updatePetAi(Entity& e, float dt) {
+  const float dist = dist2D(e.x, e.z, e.goalX, e.goalZ);
+  if (dist <= e.goalArrive || e.moveSpeed <= 0.0f) {
+    e.vx = 0.0f;
+    e.vz = 0.0f;
+    e.state = kStateIdle;
+    return;
+  }
+
+  moveTowards(e, e.goalX, e.goalZ, dt, 1.0f);
+  e.state = kStateMove;
 }
 
 }  // namespace aur

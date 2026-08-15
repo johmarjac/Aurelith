@@ -1600,6 +1600,30 @@ export const CHARACTER_CONFIGS: Record<string, CharacterConfig> = {
     secondary: 0x35354a,
     accent: 0x9a7fe8,
   },
+  /*
+   * Die beiden Begleiter.
+   *
+   * Dieselbe Vierbeinerform wie die Monster und bewusst keine eigene: was ein
+   * Tier von einem anderen unterscheidet, sind Grösse und Farbe, und dafür
+   * eine zweite Bauart zu schreiben hiesse, jede Verbesserung am Gang
+   * zweimal zu machen.
+   */
+  pet_ratte: {
+    kind: 'creature',
+    variant: 'quadruped',
+    size: 0.5,
+    primary: 0x8f8578,
+    secondary: 0x6a6055,
+    accent: 0xd8b8a8,
+  },
+  pet_fuchs: {
+    kind: 'creature',
+    variant: 'quadruped',
+    size: 0.8,
+    primary: 0xc9762f,
+    secondary: 0x8a4a1c,
+    accent: 0xf0e0d0,
+  },
   mob_warden: {
     kind: 'humanoid',
     height: 3.4,

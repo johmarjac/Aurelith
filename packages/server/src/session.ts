@@ -3,7 +3,7 @@
  * keine Spielregeln. Die stehen im GameServer.
  */
 
-import { leereLeiste, type AktionsPlatz } from '@aurelith/shared';
+import { leereLeiste, type AktionsPlatz, type PetArt } from '@aurelith/shared';
 import type { WebSocket } from 'ws';
 import {
   AccessLevel,
@@ -16,6 +16,7 @@ import {
 } from '@aurelith/shared';
 import type { CharacterRecord, ItemRecord } from './db/index.ts';
 import { QuestBook } from './quests.ts';
+import type { PetLauf } from './pets.ts';
 
 /**
  * Wo eine Verbindung gerade steht.
@@ -80,6 +81,16 @@ export class Session {
   itemsDirty = false;
   questsDirty = false;
   aktionenDirty = false;
+
+  /**
+   * Was gerade draussen herumläuft — je Sorte höchstens eines.
+   *
+   * Eine Karte nach Sorte und keine Liste: „von jeder Sorte eines" ist damit
+   * keine Regel, die jemand prüfen muss, sondern die Form des Speichers. Eine
+   * Liste bräuchte an jeder Stelle, die etwas hineinlegt, dieselbe Zählung —
+   * und eine davon würde beim Portalwechsel vergessen.
+   */
+  readonly pets = new Map<PetArt, PetLauf>();
 
   /**
    * Schlug diese Figur im letzten Schritt schon zu?

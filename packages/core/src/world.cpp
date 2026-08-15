@@ -180,6 +180,43 @@ bool World::spawnNpc(uint32_t id, float x, float z, float yaw, float radius, flo
   return true;
 }
 
+bool World::spawnPet(uint32_t id, float x, float z, float radius, float height,
+                     float moveSpeed) {
+  if (index_.count(id) != 0) return false;
+
+  Entity e;
+  e.id = id;
+  e.type = kEntityPet;
+  e.state = kStateIdle;
+  e.x = x;
+  e.z = z;
+  e.y = terrainHeight(x, z, terrain_);
+  // Lebenspunkte, damit `isAlive` zutrifft — angegriffen wird ein Begleiter
+  // nicht, dafür sorgt `isCombatant`. Ein Wesen mit null Leben gälte als tot
+  // und würde weder gezeichnet noch bewegt.
+  e.hp = 1.0f;
+  e.maxHp = 1.0f;
+  e.moveSpeed = moveSpeed;
+  e.radius = radius;
+  e.height = height;
+  e.homeX = x;
+  e.homeZ = z;
+  e.goalX = x;
+  e.goalZ = z;
+
+  index_[e.id] = entities_.size();
+  entities_.push_back(e);
+  return true;
+}
+
+void World::setPetGoal(uint32_t id, float x, float z, float arrive) {
+  Entity* e = find(id);
+  if (e == nullptr || e->type != kEntityPet) return;
+  e->goalX = x;
+  e->goalZ = z;
+  e->goalArrive = arrive;
+}
+
 bool World::removeEntity(uint32_t id) {
   auto it = index_.find(id);
   if (it == index_.end()) return false;
@@ -384,8 +421,12 @@ bool isAlive(const Entity& e) {
   return e.state != kStateDead && e.hp > 0.0f;
 }
 
+bool isCombatant(const Entity& e) {
+  return e.type == kEntityPlayer || e.type == kEntityMonster;
+}
+
 bool isHostile(const Entity& a, const Entity& b) {
-  if (a.type == kEntityNpc || b.type == kEntityNpc) return false;
+  if (!isCombatant(a) || !isCombatant(b)) return false;
   if (a.id == b.id) return false;
   if (a.type == kEntityPlayer && b.type == kEntityMonster) return true;
   if (a.type == kEntityMonster && b.type == kEntityPlayer) return true;

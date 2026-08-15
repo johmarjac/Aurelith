@@ -79,6 +79,8 @@ export interface InventoryEntry {
   equipped: boolean;
   /** Aufwertungsstufe, 0 bis 10. */
   upgrade: number;
+  /** Läuft dieses Haustier gerade draussen herum? */
+  unterwegs: boolean;
 }
 
 /** Wie eine Gegenstandsart in der Beschreibung heisst. */
@@ -88,6 +90,7 @@ const KIND_LABEL: Record<string, string> = {
   consumable: 'Verbrauchsgegenstand',
   material: 'Material',
   quest: 'Auftragsgegenstand',
+  pet: 'Begleiter',
 };
 
 /**
@@ -2173,6 +2176,21 @@ export class UI {
       slot.title = def ? `${upgradeName(def, entry.upgrade)}\n${def.description}` : entry.itemId;
 
       if (equippable) slot.classList.add('item-equippable');
+      /*
+       * Ein laufender Begleiter bleibt liegen — und muss trotzdem zu sehen
+       * sein.
+       *
+       * Der Gegenstand wandert beim Freilassen nirgendwohin, anders als ein
+       * Panzer, der an die Figur geht. Ohne ein Zeichen auf der Kachel sähe
+       * ein Tier, das gerade neben einem herläuft, genauso aus wie eines im
+       * Beutel — und der einzige Weg, es herauszufinden, wäre der Blick nach
+       * draussen.
+       */
+      if (entry.unterwegs) {
+        slot.classList.add('item-unterwegs');
+        slot.appendChild(el('span', 'item-marke', '❋'));
+        slot.title += '\nLäuft gerade bei dir.';
+      }
 
       // Ein **einfacher** Klick zeigt die Beschreibung. Vorher hing sie am
       // `title`-Attribut, und das gibt es auf einem Telefon nicht: dort liess
@@ -2186,6 +2204,10 @@ export class UI {
       // unzuverlässig — dort führt der Weg über den Knopf in der Beschreibung.
       if (equippable) {
         slot.addEventListener('dblclick', () => this.onEquipItem?.(entry.slot));
+      } else if (def?.pet) {
+        // Beim Begleiter tut der Doppelklick dasselbe wie der Knopf: laufen
+        // lassen, und beim zweiten Mal einsammeln.
+        slot.addEventListener('dblclick', () => this.onUseItem?.(entry.slot));
       }
 
       this.bindDrag(slot, entry.slot);
@@ -2520,7 +2542,16 @@ export class UI {
     };
 
     const knoepfe: HTMLElement[] = [];
-    if (def.kind === 'consumable') {
+    if (def.pet) {
+      // Derselbe Weg wie „Benutzen", nur mit dem Wort, das dazu passt. Der
+      // Server entscheidet ohnehin, was ein Druck bedeutet — hier steht nur,
+      // was er gerade bedeutet.
+      knoepfe.push(
+        knopf(entry.unterwegs ? 'Einsammeln' : 'Laufen lassen', 'btn', () =>
+          this.onUseItem?.(entry.slot),
+        ),
+      );
+    } else if (def.kind === 'consumable') {
       knoepfe.push(knopf('Benutzen', 'btn', () => this.onUseItem?.(entry.slot)));
     } else if (entry.equipped) {
       // Ablegen steht dort, wo vorher nur „Angelegt" stand. Ein Zustand ohne

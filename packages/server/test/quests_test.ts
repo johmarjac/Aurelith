@@ -63,7 +63,7 @@ console.log('\nBeutel');
   // Angelegtes bleibt liegen. Sonst verkauft man beim Aufräumen die Waffe,
   // die man gerade in der Hand hält.
   const getragen: ItemRecord[] = [
-    { itemId: 'iron_blade', count: 1, slot: 0, equipped: true, upgrade: 0 },
+    { itemId: 'iron_blade', count: 1, slot: 0, equipped: true, upgrade: 0, unterwegs: false },
   ];
   check(!removeItem(getragen, 'iron_blade', 1), 'Angelegtes wird nicht herausgenommen');
 
@@ -82,9 +82,9 @@ console.log('\nBeutel');
   // Unterhose.
   const grenze = inventorySlots();
   const getragenImBeutel: ItemRecord[] = [
-    { itemId: 'iron_blade', count: 1, slot: 3, equipped: true, upgrade: 0 },
-    { itemId: 'leather_cap', count: 1, slot: 7, equipped: true, upgrade: 0 },
-    { itemId: 'potion_hp_small', count: 1, slot: 4, equipped: false, upgrade: 0 },
+    { itemId: 'iron_blade', count: 1, slot: 3, equipped: true, upgrade: 0, unterwegs: false },
+    { itemId: 'leather_cap', count: 1, slot: 7, equipped: true, upgrade: 0, unterwegs: false },
+    { itemId: 'potion_hp_small', count: 1, slot: 4, equipped: false, upgrade: 0, unterwegs: false },
   ];
   check(normalizeSlots(getragenImBeutel), 'ein alter Spielstand wird zurechtgerückt');
   check(
@@ -113,7 +113,7 @@ console.log('\nBeutel');
 
   // Voller Beutel plus Angelegtes: das Angelegte darf nichts wegnehmen.
   const vollMitRuestung: ItemRecord[] = [
-    { itemId: 'iron_blade', count: 1, slot: 0, equipped: true, upgrade: 0 },
+    { itemId: 'iron_blade', count: 1, slot: 0, equipped: true, upgrade: 0, unterwegs: false },
   ];
   normalizeSlots(vollMitRuestung);
   for (let i = 0; i < grenze; i++) addItem(vollMitRuestung, 'wooden_sword', 1);

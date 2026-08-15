@@ -98,6 +98,21 @@ class World {
   bool spawnMob(uint32_t id, uint32_t mobIndex, float x, float z, int32_t levelOverride,
                 uint32_t spawnerIndex);
   bool spawnNpc(uint32_t id, float x, float z, float yaw, float radius, float height);
+  /**
+   * Ein Begleiter. Läuft zu einem Punkt, den der Server je Tick setzt.
+   *
+   * Kein Angriffsprofil, keine Lebenspunkte, die etwas bedeuten, kein
+   * Bezugsfeld: was ein Haustier tut, entscheidet der Server — der Kern trägt
+   * es dorthin, wo es hinsoll, über das Gelände und um die Hindernisse herum.
+   */
+  bool spawnPet(uint32_t id, float x, float z, float radius, float height, float moveSpeed);
+  /**
+   * Wohin der Begleiter will, und ab wann er angekommen ist.
+   *
+   * Je Tick gesetzt und nicht einmal beim Erscheinen: das Ziel ist meistens
+   * ein Mensch, und der bewegt sich.
+   */
+  void setPetGoal(uint32_t id, float x, float z, float arrive);
   bool removeEntity(uint32_t id);
 
   Entity* find(uint32_t id);
@@ -231,6 +246,8 @@ class World {
   void advanceTimers(Entity& e, float dt);
   void advanceJump(Entity& e, float dt);
   void updateMonsterAi(Entity& e, float dt);
+  /** Ein Begleiter läuft zu seinem Ziel und bleibt dort stehen. Mehr nicht. */
+  void updatePetAi(Entity& e, float dt);
   /**
    * Wo ein Wesen hingehört: Mitte seines Feldes und dessen Radius.
    *
@@ -271,6 +288,20 @@ class World {
 };
 
 bool isAlive(const Entity& e);
+
+/**
+ * Nimmt dieses Wesen am Geschehen teil?
+ *
+ * Spieler und Monster tun es: sie schlagen zu, werden getroffen, schieben
+ * einander auseinander und heilen sich. NPCs und Begleiter tun nichts davon —
+ * sie stehen oder laufen herum, und der Rest der Welt geht durch sie hindurch.
+ *
+ * Eine Frage statt vier Vergleichen: dieselbe Unterscheidung wurde an vier
+ * Stellen einzeln getroffen (Trennung, Feindschaft, Regeneration, Zielwahl),
+ * und die dritte Sorte hätte an allen vieren nachgetragen werden müssen —
+ * eine davon hätte man vergessen.
+ */
+bool isCombatant(const Entity& e);
 bool isHostile(const Entity& a, const Entity& b);
 
 // Schadensformel. Verteidigung dämpft, statt hart abzuziehen.

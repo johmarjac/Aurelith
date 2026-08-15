@@ -336,6 +336,7 @@ export class PostgresWelt extends PostgresBasis implements WeltStore {
         slot: Number(r.slot),
         equipped: Boolean(r.equipped),
         upgrade: Number(r.upgrade ?? 0),
+        unterwegs: Boolean(r.unterwegs),
       })),
       quests: quests.rows.map((r) => ({
         questId: String(r.quest_id),
@@ -388,9 +389,17 @@ export class PostgresWelt extends PostgresBasis implements WeltStore {
       await client.query('DELETE FROM character_items WHERE character_id = $1', [characterId]);
       for (const item of items) {
         await client.query(
-          `INSERT INTO character_items (character_id, item_id, count, slot, equipped, upgrade)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [characterId, item.itemId, item.count, item.slot, item.equipped, item.upgrade],
+          `INSERT INTO character_items (character_id, item_id, count, slot, equipped, upgrade, unterwegs)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [
+            characterId,
+            item.itemId,
+            item.count,
+            item.slot,
+            item.equipped,
+            item.upgrade,
+            item.unterwegs,
+          ],
         );
       }
       await client.query('COMMIT');

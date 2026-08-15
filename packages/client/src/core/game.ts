@@ -361,6 +361,15 @@ export interface Diagnostics {
    */
   lootNearest: number;
   /**
+   * Die eigenen Begleiter, so wie sie gerade gezeichnet werden.
+   *
+   * Ein lesender Blick von aussen — dieselbe Aufgabe wie `lootNearest`: dass
+   * ein Tier „läuft", sagt nichts darüber, ob es hinter einem herläuft oder
+   * irgendwo stehen bleibt. Mit Kennung und Abstand lässt sich beides von
+   * einem Prüflauf aus unterscheiden.
+   */
+  haustiere: { defId: string; abstand: number }[];
+  /**
    * Der Stand des Tageszyklus, gerundet.
    *
    * Helligkeit lässt sich rechnen, aber nicht ansehen — und umgekehrt sieht
@@ -522,6 +531,7 @@ export class Game {
     entityCount: 0,
     lootCount: 0,
     lootNearest: Infinity,
+    haustiere: [],
     doll: { bilder: 0, rig: false, breite: 0, hoehe: 0 },
     sky: { uhr: '', dunkelheit: 0, sonne: 0, umgebung: 0, lichtfarbe: '', kuppelfarbe: '' },
     targetId: 0,
@@ -2958,6 +2968,12 @@ export class Game {
       naechster = Math.min(naechster, Math.hypot(dx, dz));
     }
     d.lootNearest = naechster;
+    d.haustiere = [...this.view.entities.values()]
+      .filter((e) => e.type === EntityType.Pet)
+      .map((e) => ({
+        defId: e.defId,
+        abstand: Math.hypot(e.x - this.poseCurr.x, e.z - this.poseCurr.z),
+      }));
     d.doll = this.ui.dollState;
 
     const himmel = this.dayCycle.state;

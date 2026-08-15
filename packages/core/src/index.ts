@@ -155,6 +155,15 @@ interface RawWorld {
     spawnerIndex: number,
   ): boolean;
   spawnNpc(id: number, x: number, z: number, yaw: number, radius: number, height: number): boolean;
+  spawnPet(
+    id: number,
+    x: number,
+    z: number,
+    radius: number,
+    height: number,
+    moveSpeed: number,
+  ): boolean;
+  setPetGoal(id: number, x: number, z: number, arrive: number): void;
   removeEntity(id: number): boolean;
   applyInput(
     id: number,
@@ -326,6 +335,23 @@ export class CoreWorld {
 
   spawnNpc(id: number, x: number, z: number, yaw: number, radius: number, height: number): boolean {
     return this.raw.spawnNpc(id, x, z, yaw, radius, height);
+  }
+
+  /** Ein Begleiter. Was er tut, sagt ihm der Server über `setPetGoal`. */
+  spawnPet(
+    id: number,
+    x: number,
+    z: number,
+    radius: number,
+    height: number,
+    moveSpeed: number,
+  ): boolean {
+    return this.raw.spawnPet(id, x, z, radius, height, moveSpeed);
+  }
+
+  /** Wohin er will, und ab welchem Abstand er stehenbleibt. */
+  setPetGoal(id: number, x: number, z: number, arrive: number): void {
+    this.raw.setPetGoal(id, x, z, arrive);
   }
 
   removeEntity(id: number): boolean {

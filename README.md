@@ -209,6 +209,7 @@ npm run test:setglow     # derselbe Satz über das Netz, vom Schmied bis zum Sch
 npm run test:npcflow     # ansprechen, annehmen, erlegen, aufheben, abgeben
 npm run test:npc         # NPC-Fenster und Inventar im Browser
 npm run test:identitaet  # ein Mensch, zwei Anbieter, ein Konto
+npm run test:haustier    # Begleiter: Sorten, Leine, Werte
 npm run test:loot-ui     # Beute im Bild: Schild, Antippen, Aufheben
 npm run test:skills      # Fertigkeitenbaum: Taste, Beruf, Zug auf die Leiste
 npm run test:e2e         # Spiel im Browser, Desktop und Berührung

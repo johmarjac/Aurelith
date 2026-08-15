@@ -18,6 +18,7 @@ import type { CoreWorld } from '@aurelith/core';
 import {
   EntityState,
   EntityType,
+  getItem,
   getMob,
   getNpc,
   type MapDocument,
@@ -197,11 +198,17 @@ export interface EntityVisual {
 function modelKeyFor(type: EntityType, defId: string): string {
   if (type === EntityType.Player) return 'player';
   if (type === EntityType.Npc) return getNpc(defId)?.model ?? 'npc_guide';
+  // Ein Begleiter kommt aus der Gegenstandstabelle: seine Kennung **ist** die
+  // des Gegenstands im Beutel. Zwei Tabellen für dasselbe Tier — eine für den
+  // Beutel, eine für die Welt — wären zwei Stellen, an denen es umbenannt
+  // werden müsste.
+  if (type === EntityType.Pet) return getItem(defId)?.pet?.model ?? 'mob_mote';
   return getMob(defId)?.model ?? 'mob_mote';
 }
 
 function heightFor(type: EntityType, defId: string): number {
   if (type === EntityType.Player) return 1.8;
+  if (type === EntityType.Pet) return getItem(defId)?.pet?.height ?? 0.7;
   if (type === EntityType.Npc) {
     const def = getNpc(defId);
     return (def?.height ?? 1.8) * (def?.scale ?? 1);

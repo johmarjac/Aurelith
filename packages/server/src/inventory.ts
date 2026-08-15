@@ -163,7 +163,7 @@ export function addItem(
     const slot = freeSlot(items);
     if (slot < 0) break;
     const nimm = def.stackable && upgrade === 0 ? Math.min(def.maxStack, rest) : 1;
-    items.push({ itemId, count: nimm, slot, equipped: false, upgrade });
+    items.push({ itemId, count: nimm, slot, equipped: false, upgrade, unterwegs: false });
     rest -= nimm;
   }
 
@@ -239,6 +239,7 @@ export function starterRows(): ItemRecord[] {
     slot: -1,
     equipped: s.equipped,
     upgrade: 0,
+    unterwegs: false,
   }));
   normalizeSlots(rows);
   return rows;

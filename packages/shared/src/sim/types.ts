@@ -39,6 +39,11 @@ export const EntityType = {
   Player: 0,
   Monster: 1,
   Npc: 2,
+  /**
+   * Ein Begleiter. Läuft hinter jemandem her, kämpft nicht und lässt sich
+   * nicht anvisieren — im Kern sorgt `isCombatant` dafür.
+   */
+  Pet: 3,
 } as const;
 export type EntityType = (typeof EntityType)[keyof typeof EntityType];
 

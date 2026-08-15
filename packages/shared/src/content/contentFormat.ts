@@ -27,6 +27,7 @@ import {
   type ArmorSetDef,
   type ItemDef,
   type ItemKind,
+  type PetArt,
   type EquipSlot,
   type AttackStyle,
   type MobDef,
@@ -160,7 +161,8 @@ function body(raw: unknown, key: string, source: string): { doc: Record<string, 
 // Gegenstände
 // ---------------------------------------------------------------------------
 
-const ITEM_KINDS = ['weapon', 'armor', 'consumable', 'material', 'quest', 'ammo'] as const;
+const ITEM_KINDS = ['weapon', 'armor', 'consumable', 'material', 'quest', 'ammo', 'pet'] as const;
+const PET_ARTEN = ['support', 'sammler'] as const;
 const SLOT_NAMEN = [
   'mainhand',
   'offhand',
@@ -225,8 +227,44 @@ export function parseItems(raw: unknown, source = 'items.json'): {
       def.weaponRig = oneOf<'sword' | 'club' | 'staff' | 'bow'>(o, 'weaponRig', WEAPON_RIGS, path);
     }
 
+    /*
+     * Haustier und Angaben dazu gehören zusammen — in beide Richtungen.
+     *
+     * Ohne diese Prüfung gäbe es zwei Sorten halber Wahrheit: ein `kind: pet`
+     * ohne Block liefe als unsichtbares Nichts hinter jemandem her, und ein
+     * Block an einem gewöhnlichen Gegenstand wäre eine Angabe, die niemand
+     * liest. Beides fällt hier auf und nicht im Spiel.
+     */
+    if ((o.pet !== undefined) !== (def.kind === 'pet')) {
+      throw new ContentFormatError(
+        def.kind === 'pet' ? 'Haustier ohne pet-Block' : 'pet-Block an einem Nicht-Haustier',
+        path,
+      );
+    }
+    if (o.pet !== undefined) {
+      const p = obj(o.pet, `${path}.pet`);
+      def.pet = {
+        art: oneOf<PetArt>(p, 'art', PET_ARTEN, `${path}.pet`),
+        model: str(p, 'model', `${path}.pet`),
+        height: optNum(p, 'height', 0.7, `${path}.pet`),
+        sammelRadius: optNum(p, 'sammelRadius', 12, `${path}.pet`),
+        heimweg: optNum(p, 'heimweg', 18, `${path}.pet`),
+      };
+      // Ein Sammler ohne Umkreis sähe aus wie ein kaputter Sammler. Ein
+      // Support-Tier braucht ihn nicht — es sammelt ja nichts.
+      if (def.pet.art === 'sammler' && def.pet.sammelRadius <= 0) {
+        throw new ContentFormatError('Sammler ohne sammelRadius', `${path}.pet`);
+      }
+    }
+
     if (def.stackable && def.maxStack < 2) {
       throw new ContentFormatError('stapelbar, aber maxStack unter 2', path);
+    }
+    // Ein Haustier ist eines und kein Stapel: freigelassen wird ein bestimmtes
+    // Stück auf einem bestimmten Platz, und „drei Ratten auf Platz 4" liesse
+    // sich nicht sagen.
+    if (def.kind === 'pet' && def.stackable) {
+      throw new ContentFormatError('Haustiere sind nicht stapelbar', path);
     }
     return def;
   });

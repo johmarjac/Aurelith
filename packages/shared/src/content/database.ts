@@ -118,7 +118,39 @@ export function getNpc(id: string): NpcDef | undefined {
  * Beutel. Wären Pfeile Material, müsste er die eine Kennung `arrow` kennen —
  * und beim zweiten Bogen mit anderer Munition stünde sie an zwei Stellen.
  */
-export type ItemKind = 'weapon' | 'armor' | 'consumable' | 'material' | 'quest' | 'ammo';
+export type ItemKind = 'weapon' | 'armor' | 'consumable' | 'material' | 'quest' | 'ammo' | 'pet';
+
+/**
+ * Was für ein Begleiter das ist.
+ *
+ * Zwei Sorten, und je eine darf gleichzeitig draussen sein — sie tun
+ * Verschiedenes und stehen einander deshalb nicht im Weg.
+ *
+ *   `support` verbessert die Werte seines Menschen, solange er läuft. Womit,
+ *            steht in denselben Feldern wie bei einem Ring: `attackDamage`,
+ *            `maxHp` und die anderen. Ein eigener Satz Felder wäre eine zweite
+ *            Art, dieselbe Sache zu sagen — und `sheetFor` müsste sie beide
+ *            kennen.
+ *   `sammler` hebt auf, was in der Nähe liegt.
+ */
+export type PetArt = 'support' | 'sammler';
+
+export interface PetDef {
+  art: PetArt;
+  /** Schlüssel des Modells, siehe `rigs.ts` im Client. */
+  model: string;
+  /** Wie gross das Tier gezeichnet wird und wie hoch sein Kopf sitzt. */
+  height: number;
+  /**
+   * Umkreis, in dem ein Sammler Beute sieht — um **sich**, nicht um den
+   * Spieler. So kann er einem Haufen nachgehen, den man selbst schon hinter
+   * sich gelassen hat, und bleibt trotzdem an der kurzen Leine: weiter als
+   * `heimweg` vom Menschen weg geht er nie.
+   */
+  sammelRadius: number;
+  /** Ab hier bricht er ab und kommt zurück — gemessen vom Menschen. */
+  heimweg: number;
+}
 /**
  * Wo ein Gegenstand getragen wird.
  *
@@ -208,6 +240,16 @@ export interface ItemDef {
    */
   armorStyle?: string;
   description: string;
+
+  /**
+   * Der Begleiter, falls dieses Stück einer ist.
+   *
+   * Da **oder nicht da** — `kind: 'pet'` und dieser Block gehören zusammen,
+   * und der Lader weist das eine ohne das andere zurück. Ein Haustier ohne
+   * Angaben wäre ein Gegenstand, den man freilassen kann und der dann als
+   * unsichtbares Nichts hinter einem herliefe.
+   */
+  pet?: PetDef;
 
   // --- Nur für Waffen ------------------------------------------------------
 

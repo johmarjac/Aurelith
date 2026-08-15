@@ -220,6 +220,16 @@ export class Overlay {
        * dem Kopf tragen, so wie andere sie an ihm sehen würden.
        */
       if (e.state === EntityState.Dead) continue;
+      /*
+       * Begleiter bekommen keines.
+       *
+       * Es sind zwölf Schilder gleichzeitig, und die gehen an die nächsten
+       * zwölf Wesen — das eigene Tier läuft immer daneben und hätte damit
+       * dauerhaft eines der zwölf. Wer es ansieht, weiss ohnehin, wessen es
+       * ist; ein Name über dem Kopf beantwortete eine Frage, die niemand hat,
+       * und verdeckte dafür eine, die man hat.
+       */
+      if (e.type === EntityType.Pet) continue;
       const dist = camera.position.distanceTo(this.projected.set(e.x, e.y, e.z));
       if (dist > NAMEPLATE_RANGE) continue;
       candidates.push({ e, dist });

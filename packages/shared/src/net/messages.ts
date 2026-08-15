@@ -1037,6 +1037,15 @@ export interface InventoryRow {
   equipped: boolean;
   /** Aufwertungsstufe, 0 bis 10. Stapelbare Sachen haben immer 0. */
   upgrade: number;
+  /**
+   * Läuft dieses Haustier gerade draussen herum?
+   *
+   * Ein eigenes Byte neben `equipped` und nicht dasselbe: ein freigelassenes
+   * Tier bleibt im Beutel liegen, ein angelegter Panzer wandert an die Figur.
+   * Der Client räumt getragene Stücke aus dem Beutel — ein Tier, das dasselbe
+   * Merkmal trüge, wäre beim Freilassen verschwunden.
+   */
+  unterwegs: boolean;
 }
 
 /**
@@ -1048,7 +1057,12 @@ export function encodeInventory(rows: InventoryRow[]): Uint8Array {
   const w = packet(ServerOp.Inventory, 256);
   w.u16(rows.length);
   for (const row of rows) {
-    w.str(row.itemId).u16(row.count).u16(row.slot).bool(row.equipped).u8(row.upgrade);
+    w.str(row.itemId)
+      .u16(row.count)
+      .u16(row.slot)
+      .bool(row.equipped)
+      .u8(row.upgrade)
+      .bool(row.unterwegs);
   }
   return w.finish();
 }
@@ -1063,6 +1077,7 @@ export function decodeInventory(r: ByteReader): InventoryRow[] {
       slot: r.u16(),
       equipped: r.bool(),
       upgrade: r.u8(),
+      unterwegs: r.bool(),
     };
   }
   return rows;

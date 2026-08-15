@@ -204,6 +204,8 @@ EMSCRIPTEN_BINDINGS(aurelith_core) {
       .function("spawnPlayer", &aur::World::spawnPlayer)
       .function("spawnMob", &aur::World::spawnMob)
       .function("spawnNpc", &aur::World::spawnNpc)
+      .function("spawnPet", &aur::World::spawnPet)
+      .function("setPetGoal", &aur::World::setPetGoal)
       .function("removeEntity", &aur::World::removeEntity)
 
       // Ablauf

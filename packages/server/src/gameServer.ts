@@ -12,6 +12,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import type { Server } from 'node:http';
 import {
   AktionsArt,
+  type PetArt,
   skillsFor,
   decodeSetActionSlot,
   decodeSetzePunkt,
@@ -129,6 +130,15 @@ import {
 import type { CoreBundle } from './core.ts';
 import type { MapStore } from './maps.ts';
 import { MapInstance, type EntityMeta } from './mapInstance.ts';
+import type { LootPile } from './loot.ts';
+import {
+  FOLGE_ABSTAND,
+  HAENGT_ABSTAND,
+  HAENGT_MS,
+  SAMMEL_ABSTAND,
+  zielNochErlaubt,
+  type PetLauf,
+} from './pets.ts';
 import { INPUT_QUEUE_DRAIN_AT, INPUT_QUEUE_DRAIN_MAX, Session } from './session.ts';
 import {
   addItem,
@@ -284,6 +294,10 @@ export class GameServer {
     this.sessions.delete(session);
 
     if (session.entityId !== 0) {
+      // Erst die Begleiter aus der Welt, dann speichern: das Merkmal am
+      // Gegenstand bleibt dabei stehen, damit sie beim nächsten Anmelden
+      // wieder danebenstehen.
+      this.raeumeHaustiere(session);
       await this.persist(session).catch((err) =>
         console.error('[db] Speichern beim Trennen fehlgeschlagen:', err),
       );
@@ -850,6 +864,9 @@ export class GameServer {
     this.sendInventory(session);
     this.sendQuestLog(session);
     this.sendAktionen(session);
+    // Wer sich mit einem laufenden Begleiter abgemeldet hat, findet ihn wieder
+    // neben sich. Das Merkmal steht am Gegenstand und damit im Spielstand.
+    this.stelleHaustiereHer(session);
     this.systemMessage(session, `Willkommen in ${instance.doc.name}, ${geladen.character.name}.`);
     session.flush();
 
@@ -981,6 +998,18 @@ export class GameServer {
     // „schlägt gerade zu" entsteht beim Anwenden der Eingabe.
     for (const session of this.sessions) {
       if (session.state === 'playing') this.verbraucheMunition(session);
+    }
+
+    /*
+     * Die Begleiter entscheiden **vor** dem Schritt, wohin sie wollen.
+     *
+     * Danach wäre ein Tick Rückstand: der Kern liefe auf ein Ziel zu, das aus
+     * dem Bild davor stammt. Bei zwanzig Schritten je Sekunde sieht man das
+     * nicht — aber es ist dieselbe Sorte Fehler wie das Namensschild, das der
+     * Kamera hinterherhinkte, und die stand am Ende auf dem Bildschirm.
+     */
+    for (const session of this.sessions) {
+      if (session.state === 'playing') this.updateHaustiere(session, TICK_SECONDS * 1000);
     }
 
     for (const instance of this.instances.values()) {
@@ -1321,6 +1350,11 @@ export class GameServer {
     const stats = this.statsFor(session);
     const profile = this.attackProfileOf(session);
 
+    // Die Begleiter bleiben nicht in der alten Karte stehen. Ihr Merkmal am
+    // Gegenstand bleibt, und `stelleHaustiereHer` lässt sie drüben wieder
+    // erscheinen — sonst käme man durch ein Tor und stünde allein da.
+    this.raeumeHaustiere(session);
+
     from.removePlayer(session.entityId);
     this.sessionByEntity.delete(session.entityId);
 
@@ -1388,6 +1422,9 @@ export class GameServer {
       }),
     );
     this.systemMessage(session, `${to.doc.name} betreten.`);
+    // Und die Begleiter wieder dazu. Nach dem Willkommen, damit der Client die
+    // neue Welt schon kennt, wenn das Tier darin erscheint.
+    this.stelleHaustiereHer(session);
   }
 
   /**
@@ -1616,6 +1653,15 @@ export class GameServer {
      */
     if (def.slot !== 'none') {
       this.equipItem(session, slot);
+      return;
+    }
+
+    // Ein Haustier „benutzen" heisst: laufen lassen — und beim zweiten Mal
+    // wieder einsammeln. Dieselbe Überlegung wie beim Schwert eine Zeile
+    // höher: ein Druck ist ein Druck, und was er bewirkt, entscheidet das
+    // Stück und nicht ein zweiter Knopf daneben.
+    if (def.pet) {
+      this.schalteHaustier(session, entry);
       return;
     }
 
@@ -1907,6 +1953,9 @@ export class GameServer {
     // fallen lassen, verkaufen, verbrauchen) hiesse, sie viermal zu schreiben
     // und beim fünften Weg zu vergessen.
     if (this.pflegeAktionen(session)) this.sendAktionen(session);
+    // Dieselbe Überlegung, dieselbe Stelle: ein Tier, dessen Gegenstand nicht
+    // mehr im Beutel liegt, hat draussen nichts mehr verloren.
+    this.pflegeHaustiere(session);
 
     session.send(
       encodeInventory(
@@ -1916,6 +1965,7 @@ export class GameServer {
           slot: i.slot,
           equipped: i.equipped,
           upgrade: i.upgrade,
+          unterwegs: i.unterwegs,
         })),
       ),
     );
@@ -2358,13 +2408,24 @@ export class GameServer {
       return;
     }
 
-    const pile = ergebnis.pile;
-    const character = session.character;
-    if (!character) return;
-
     // Gebückt hat sie sich in jedem Fall — auch wenn gleich der Beutel voll
     // ist. Die Geste gehört zur Handlung, nicht zum Ergebnis.
     this.broadcastNear(instance, self.x, self.z, encodeEmote(session.entityId, EmoteKind.Pickup));
+    this.nimmHaufen(session, instance, ergebnis.pile);
+  }
+
+  /**
+   * Der Haufen wandert in den Beutel — von wem auch immer geholt.
+   *
+   * Getrennt vom Prüfen, weil es zwei Aufhebende gibt: den Menschen, der
+   * danebensteht, und seinen Sammler, der hingelaufen ist. Was danach
+   * geschieht, ist für beide dasselbe — und zweimal geschrieben wäre es
+   * zweimal zu pflegen, mit dem Auftragsfortschritt als erstem Kandidaten fürs
+   * Vergessen.
+   */
+  private nimmHaufen(session: Session, instance: MapInstance, pile: LootPile): void {
+    const character = session.character;
+    if (!character) return;
 
     if (pile.gold > 0) {
       character.gold += pile.gold;
@@ -2400,6 +2461,338 @@ export class GameServer {
       this.sendQuestLog(session);
     }
     this.sendInventory(session);
+  }
+
+  // --- Begleiter -----------------------------------------------------------
+
+  /**
+   * Ein Haustier laufen lassen — oder wieder einsammeln.
+   *
+   * Der Gegenstand bleibt in **beiden** Fällen im Beutel liegen. Das ist der
+   * Unterschied zu allem Anziehbaren: ein Brustpanzer wandert beim Anlegen an
+   * die Figur, ein Tier läuft daneben her, und sein Gegenstand ist die Leine.
+   */
+  private schalteHaustier(session: Session, entry: ItemRecord): void {
+    const def = getItem(entry.itemId);
+    const pet = def?.pet;
+    if (!def || !pet) return;
+
+    if (entry.unterwegs) {
+      this.holeHaustierZurueck(session, pet.art, `${def.name} ist wieder bei dir.`);
+      return;
+    }
+
+    const level = session.character?.level ?? 1;
+    if (level < def.levelReq) {
+      this.systemMessage(session, `${def.name} braucht Stufe ${def.levelReq}.`);
+      return;
+    }
+
+    /*
+     * Von jeder Sorte eines. Das zweite verdrängt das erste, statt abgewiesen
+     * zu werden.
+     *
+     * „Du hast schon einen Sammler draussen" wäre formal richtig und in der
+     * Sache lästig: wer den anderen will, will nicht erst den einen
+     * wegräumen. Verdrängen ist genau das, was das Anlegen eines zweiten
+     * Brustpanzers auch tut.
+     */
+    const bisher = session.pets.get(pet.art);
+    if (bisher) {
+      const alt = getItem(bisher.itemId);
+      this.holeHaustierZurueck(session, pet.art, `${alt?.name ?? 'Dein Begleiter'} macht Platz.`);
+    }
+
+    if (!this.erscheineHaustier(session, entry, def.name)) return;
+
+    entry.unterwegs = true;
+    session.itemsDirty = true;
+    this.systemMessage(session, `${def.name} läuft jetzt bei dir.`);
+    this.sendInventory(session);
+    // Ein Support-Tier wirkt sofort — die Werte hängen an `sheetFor`, und das
+    // liest `session.pets`.
+    this.applyLoadout(session);
+    this.sendStats(session);
+  }
+
+  /**
+   * Setzt das Tier neben seinen Menschen und merkt es sich.
+   *
+   * Gibt `false` zurück, wenn die Welt es nicht angenommen hat. Dann bleibt
+   * der Gegenstand unangetastet: ein Tier, das als „unterwegs" gilt und
+   * nirgends läuft, wäre für den Spieler ein Knopf, der nichts mehr tut.
+   */
+  private erscheineHaustier(session: Session, entry: ItemRecord, name: string): boolean {
+    const instance = this.instances.get(session.mapId);
+    const self = instance?.entity(session.entityId);
+    const def = getItem(entry.itemId);
+    const pet = def?.pet;
+    if (!instance || !self || !pet) return false;
+
+    const id = this.nextEntityId++;
+    /*
+     * Einen Schritt **hinter** dem Menschen und nicht auf ihm.
+     *
+     * Auf ihm stünde das Tier im ersten Bild in der Figur; hinter ihm steht
+     * es dort, wo es gleich ohnehin herläuft. Die Blickrichtung zeigt im Kern
+     * entlang (sin yaw, cos yaw) — dahinter liegt das Gegenteil davon.
+     */
+    const ok = instance.world.spawnPet(
+      id,
+      self.x - Math.sin(self.yaw) * FOLGE_ABSTAND,
+      self.z - Math.cos(self.yaw) * FOLGE_ABSTAND,
+      0.35,
+      pet.height,
+      // Etwas schneller als sein Mensch, sonst fällt es bei jedem Schritt
+      // weiter zurück und holt nie wieder auf.
+      this.statsFor(session).moveSpeed * 1.25,
+    );
+    if (!ok) return false;
+
+    instance.meta.set(id, { defId: entry.itemId, name, type: EntityType.Pet });
+    session.pets.set(pet.art, {
+      itemId: entry.itemId,
+      art: pet.art,
+      entityId: id,
+      zustand: 'folgen',
+      seitHeimweg: 0,
+    });
+    return true;
+  }
+
+  /**
+   * Nimmt das Tier aus der Welt und aus dem Beutel-Merkmal.
+   *
+   * Eine Stelle für alle Wege dorthin — Einsammeln, Verdrängen, Kartenwechsel,
+   * Abmelden. Getrennt geschrieben wäre spätestens beim Portal ein Wesen in
+   * der alten Karte stehengeblieben, das niemandem mehr gehört.
+   */
+  private holeHaustierZurueck(session: Session, art: PetArt, meldung?: string): void {
+    const lauf = session.pets.get(art);
+    if (!lauf) return;
+
+    const instance = this.instances.get(session.mapId);
+    instance?.world.removeEntity(lauf.entityId);
+    instance?.meta.delete(lauf.entityId);
+    session.pets.delete(art);
+
+    const entry = this.eintragVon(session, lauf);
+    if (entry) {
+      entry.unterwegs = false;
+      session.itemsDirty = true;
+    }
+
+    if (meldung) this.systemMessage(session, meldung);
+    if (session.state === 'playing') {
+      this.sendInventory(session);
+      this.applyLoadout(session);
+      this.sendStats(session);
+    }
+  }
+
+  /**
+   * Der Beutelplatz zu einem laufenden Begleiter.
+   *
+   * Gesucht wird über die Kennung und das Merkmal, nicht über eine gemerkte
+   * Platznummer: die verschiebt sich beim Anlegen und Ablegen, und eine
+   * gemerkte zeigte danach auf einen fremden Gegenstand.
+   */
+  private eintragVon(session: Session, lauf: PetLauf): ItemRecord | undefined {
+    return session.items.find((i) => i.itemId === lauf.itemId && i.unterwegs);
+  }
+
+  /**
+   * Ruft zurück, was keinen Gegenstand mehr hat.
+   *
+   * Verkauft, fallen gelassen, vernichtet — es gibt vier Wege, auf denen ein
+   * Gegenstand den Beutel verlässt, und jeder von ihnen kommt hier vorbei
+   * (siehe `sendInventory`). Die Prüfung an die vier Stellen zu hängen hiesse,
+   * sie viermal zu schreiben und beim fünften Weg zu vergessen — dann liefe
+   * ein Tier neben jemandem her, dem es nicht mehr gehört.
+   */
+  private pflegeHaustiere(session: Session): void {
+    for (const lauf of [...session.pets.values()]) {
+      if (this.eintragVon(session, lauf)) continue;
+      const instance = this.instances.get(session.mapId);
+      instance?.world.removeEntity(lauf.entityId);
+      instance?.meta.delete(lauf.entityId);
+      session.pets.delete(lauf.art);
+      const def = getItem(lauf.itemId);
+      this.systemMessage(session, `${def?.name ?? 'Dein Begleiter'} ist nicht mehr bei dir.`);
+    }
+  }
+
+  /** Alle Begleiter dieser Sitzung aus der Welt nehmen — ohne Meldung. */
+  private raeumeHaustiere(session: Session): void {
+    for (const art of [...session.pets.keys()]) {
+      const lauf = session.pets.get(art)!;
+      const instance = this.instances.get(session.mapId);
+      instance?.world.removeEntity(lauf.entityId);
+      instance?.meta.delete(lauf.entityId);
+      session.pets.delete(art);
+      // Das Merkmal am Gegenstand bleibt **stehen**: draussen war es, und nach
+      // dem Tor oder dem nächsten Anmelden soll es wieder draussen sein.
+    }
+  }
+
+  /**
+   * Lässt wieder erscheinen, was laut Beutel draussen sein sollte.
+   *
+   * Gerufen beim Betreten der Welt und nach jedem Kartenwechsel. Der Beutel
+   * ist dabei die Wahrheit und nicht `session.pets`: Letzteres ist der Zustand
+   * *dieser* Welt, Ersteres der des Spielstands.
+   */
+  private stelleHaustiereHer(session: Session): void {
+    for (const entry of session.items) {
+      if (!entry.unterwegs) continue;
+      const def = getItem(entry.itemId);
+      if (!def?.pet) {
+        // Ein Merkmal an etwas, das kein Tier (mehr) ist. Kommt vor, wenn eine
+        // Inhaltsdatei sich ändert — dann ist es schlicht ein Gegenstand.
+        entry.unterwegs = false;
+        session.itemsDirty = true;
+        continue;
+      }
+      if (session.pets.has(def.pet.art)) continue;
+      if (!this.erscheineHaustier(session, entry, def.name)) {
+        entry.unterwegs = false;
+        session.itemsDirty = true;
+      }
+    }
+  }
+
+  /**
+   * Ein Tick für alle Begleiter.
+   *
+   * Hier steht, **wohin** ein Tier will; der Kern trägt es dorthin. Die
+   * Trennung ist der Grund, warum das Sammeln hier oben stehen kann: Beutel
+   * und Beute liegen auf dieser Seite, Gelände und Hindernisse auf jener.
+   */
+  private updateHaustiere(session: Session, dtMs: number): void {
+    if (session.pets.size === 0) return;
+    const instance = this.instances.get(session.mapId);
+    const self = instance?.entity(session.entityId);
+    if (!instance || !self) return;
+
+    for (const lauf of [...session.pets.values()]) {
+      const def = getItem(lauf.itemId);
+      const pet = def?.pet;
+      const tier = instance.entity(lauf.entityId);
+      if (!pet || !tier) {
+        // Das Wesen ist weg, ohne dass wir es weggenommen hätten. Dann gilt
+        // der Beutel und nicht die Erinnerung: neu erscheinen lassen.
+        session.pets.delete(lauf.art);
+        const entry = this.eintragVon(session, lauf);
+        if (entry) this.erscheineHaustier(session, entry, def?.name ?? 'Begleiter');
+        continue;
+      }
+
+      const zumMenschen = Math.hypot(tier.x - self.x, tier.z - self.z);
+
+      // --- Sammeln: das ausgesuchte Ziel prüfen und, wenn erreicht, aufheben.
+      if (lauf.zustand === 'sammeln') {
+        const haufen = lauf.ziel === undefined ? undefined : instance.loot.get(lauf.ziel);
+        const nochErlaubt =
+          haufen !== undefined &&
+          zielNochErlaubt(self.x, self.z, haufen.x, haufen.z, pet.heimweg);
+
+        if (!haufen || !nochErlaubt) {
+          // Weg, aufgehoben von jemand anderem, oder der Mensch ist
+          // weitergelaufen. Kein Fehler — nur das Ende dieses Gangs.
+          lauf.ziel = undefined;
+          lauf.zustand = 'heimweg';
+          lauf.seitHeimweg = 0;
+        } else if (Math.hypot(tier.x - haufen.x, tier.z - haufen.z) <= SAMMEL_ABSTAND) {
+          this.nimmHaufen(session, instance, haufen);
+          lauf.ziel = undefined;
+          lauf.zustand = 'heimweg';
+          lauf.seitHeimweg = 0;
+        } else {
+          instance.world.setPetGoal(lauf.entityId, haufen.x, haufen.z, SAMMEL_ABSTAND * 0.6);
+          continue;
+        }
+      }
+
+      // --- Heimweg: dieselbe Bewegung wie beim Folgen, aber mit laufender Uhr.
+      if (lauf.zustand === 'heimweg') {
+        lauf.seitHeimweg += dtMs;
+        if (zumMenschen <= FOLGE_ABSTAND * 1.5) {
+          lauf.zustand = 'folgen';
+          lauf.seitHeimweg = 0;
+        } else if (lauf.seitHeimweg >= HAENGT_MS && zumMenschen >= HAENGT_ABSTAND) {
+          /*
+           * Es kommt nicht mehr an.
+           *
+           * Zeit **und** Entfernung zusammen: nur die Zeit träfe ein Tier, das
+           * gemütlich zwei Schritte hinterherläuft, nur die Entfernung eines,
+           * das gerade erst losgelaufen ist. Beides zugleich heisst: es steht
+           * an einer Kiste, einem Zaun oder in einer Felsspalte, und der Weg
+           * darum herum ist mehr Wegfindung, als ein Haustier verdient.
+           *
+           * Verschwinden und neu erscheinen, nicht schieben: der Client
+           * bewegt Wesen weich zwischen den Schnappschüssen, und ein Sprung
+           * über dreissig Einheiten sähe aus wie ein Tier, das durch die
+           * Landschaft segelt.
+           */
+          const entry = this.eintragVon(session, lauf);
+          this.holeHaustierZurueck(session, lauf.art);
+          if (entry) {
+            entry.unterwegs = true;
+            this.erscheineHaustier(session, entry, def?.name ?? 'Begleiter');
+          }
+          continue;
+        }
+      }
+
+      // --- Folgen: nach Beute sehen, sonst hinterher.
+      if (lauf.zustand === 'folgen' && pet.art === 'sammler') {
+        const haufen = this.naechsteBeute(session, instance, tier.x, tier.z, pet.sammelRadius, pet.heimweg, self);
+        if (haufen) {
+          lauf.ziel = haufen.id;
+          lauf.zustand = 'sammeln';
+          instance.world.setPetGoal(lauf.entityId, haufen.x, haufen.z, SAMMEL_ABSTAND * 0.6);
+          continue;
+        }
+      }
+
+      instance.world.setPetGoal(lauf.entityId, self.x, self.z, FOLGE_ABSTAND);
+    }
+  }
+
+  /**
+   * Der nächste Haufen, den dieser Sammler holen darf.
+   *
+   * Gesucht wird um das **Tier**, damit es einem Haufen nachgehen kann, den
+   * man selbst schon hinter sich gelassen hat — begrenzt aber durch den
+   * Abstand vom Menschen, damit es nicht über die halbe Karte zieht.
+   *
+   * Fremde Beute bleibt liegen: was noch für einen anderen Erleger reserviert
+   * ist, würde beim Aufheben ohnehin abgewiesen, und ein Tier, das dorthin
+   * läuft und mit leeren Pfoten zurückkommt, sieht kaputt aus.
+   */
+  private naechsteBeute(
+    session: Session,
+    instance: MapInstance,
+    x: number,
+    z: number,
+    radius: number,
+    heimweg: number,
+    self: { x: number; z: number },
+  ): LootPile | undefined {
+    const jetzt = Date.now();
+    let beste: LootPile | undefined;
+    let besteDist = Infinity;
+
+    for (const pile of instance.loot.near(x, z, radius)) {
+      if (pile.owner !== session.entityId && pile.reservedUntil > jetzt) continue;
+      if (!zielNochErlaubt(self.x, self.z, pile.x, pile.z, heimweg)) continue;
+      const d = (pile.x - x) ** 2 + (pile.z - z) ** 2;
+      if (d < besteDist) {
+        besteDist = d;
+        beste = pile;
+      }
+    }
+    return beste;
   }
 
   /** Stufenaufstiege einlösen, solange die Erfahrung reicht. */
@@ -2919,6 +3312,29 @@ export class GameServer {
       sheet.fuege('critChance', name, def.critChance);
       sheet.fuege('hpRegen', name, def.hpRegen);
       sheet.fuege('mpRegen', name, def.mpRegen);
+    }
+
+    /*
+     * Der Begleiter, sofern einer läuft.
+     *
+     * In denselben Feldern wie ein Ring und über denselben Weg: was er
+     * beiträgt, steht in `attackDamage`, `maxHp` und den anderen. Ein eigener
+     * Satz Felder wäre eine zweite Art, dieselbe Sache zu sagen — und die
+     * Zeile im Charakterfenster müsste beide kennen.
+     *
+     * Aus `session.pets` und nicht aus dem Beutel: nur was **läuft**, wirkt.
+     * Ein Tier, das im Beutel liegt, ist ein Gegenstand.
+     */
+    for (const lauf of session.pets.values()) {
+      const def = getItem(lauf.itemId);
+      if (!def) continue;
+      sheet.fuege('attackDamage', def.name, def.attackDamage);
+      sheet.fuege('defense', def.name, def.defense);
+      sheet.fuege('maxHp', def.name, def.maxHp);
+      sheet.fuege('maxMp', def.name, def.maxMp);
+      sheet.fuege('critChance', def.name, def.critChance);
+      sheet.fuege('hpRegen', def.name, def.hpRegen);
+      sheet.fuege('mpRegen', def.name, def.mpRegen);
     }
 
     // Und ganz zum Schluss der Satz. Er wird auf die Summe der Teile addiert

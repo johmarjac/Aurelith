@@ -389,6 +389,57 @@
       "iconColor": "#c9a44a",
       "description": "Ein Messingreif mit einem Tropfen Irrlichtessenz. Klingelt leise beim Laufen.",
       "icon": "icons/moor_earring.webp"
+    },
+    {
+      "id": "pet_ratte",
+      "name": "Sammelratte",
+      "kind": "pet",
+      "slot": "none",
+      "levelReq": 1,
+      "attackDamage": 0,
+      "defense": 0,
+      "effectValue": 0,
+      "stackable": false,
+      "maxStack": 1,
+      "value": 320,
+      "model": "",
+      "iconColor": "#9a8c7a",
+      "description": "Zutraulich, flink und unbestechlich neugierig. Lässt du sie laufen, klaubt sie auf, was um sie herum liegt, und bringt es dir.",
+      "pet": {
+        "art": "sammler",
+        "model": "pet_ratte",
+        "height": 0.45,
+        "sammelRadius": 12,
+        "heimweg": 18
+      }
+    },
+    {
+      "id": "pet_fuchs",
+      "name": "Moorfuchs",
+      "kind": "pet",
+      "slot": "none",
+      "levelReq": 1,
+      "attackDamage": 4,
+      "defense": 2,
+      "maxHp": 25,
+      "maxMp": 10,
+      "critChance": 0.02,
+      "hpRegen": 0.5,
+      "mpRegen": 0.3,
+      "effectValue": 0,
+      "stackable": false,
+      "maxStack": 1,
+      "value": 480,
+      "model": "",
+      "iconColor": "#c9762f",
+      "description": "Er kämpft nicht und trägt nichts. Er läuft neben dir, und solange er das tut, gehst du aufrechter.",
+      "pet": {
+        "art": "support",
+        "model": "pet_fuchs",
+        "height": 0.75,
+        "sammelRadius": 0,
+        "heimweg": 18
+      }
     }
   ],
   "sets": [

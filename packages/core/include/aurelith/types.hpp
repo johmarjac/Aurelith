@@ -95,6 +95,9 @@ enum EntityType : uint8_t {
   kEntityPlayer = 0,
   kEntityMonster = 1,
   kEntityNpc = 2,
+  // Ein Begleiter. Läuft, kämpft aber nicht und steht niemandem im Weg —
+  // siehe `isCombatant` in `world.hpp`.
+  kEntityPet = 3,
 };
 
 enum EntityState : uint8_t {
@@ -297,6 +300,16 @@ struct Entity {
   // nicht — dann bleibt es, wo es steht.
   float wanderRadius = 0.0f;
   bool wanderWalking = false;
+
+  // --- Begleiter ------------------------------------------------------------
+  //
+  // Wohin er gerade will, und ab wann er angekommen ist. **Wohin** entscheidet
+  // der Server und setzt es je Tick: mal ist es der Mensch, mal ein Haufen
+  // Beute. Der Kern läuft nur hin — er kennt weder Beutel noch Beute, und ihm
+  // beides beizubringen hiesse, die halbe Spiellogik in wasm zu heben, damit
+  // ein Tier um eine Ecke findet.
+  float goalX = 0.0f, goalZ = 0.0f;
+  float goalArrive = 1.0f;
 
   uint32_t spawnerIndex = kNoSpawner;
   uint32_t defIndex = kNoDef;
