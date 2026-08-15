@@ -113,6 +113,23 @@ export class ModelRegistry {
   createRig(key: string, weapon?: string, outfit?: string): CharacterRig {
     const rig = createRig(key, this.material, weapon, outfit);
 
+    /*
+     * Erst drehen, dann kippen — und deshalb `YXZ`.
+     *
+     * Die Voreinstellung von three.js ist `XYZ`, und das heisst: die Neigung
+     * um X wirkt **nach** der Drehung um Y, also um die Achse der Welt und
+     * nicht um die der Figur. Nach Norden sieht das richtig aus; wer nach
+     * Osten fliegt, dessen gehobene Nase wird zur Schräglage, und bei genau
+     * 90 Grad Kurs kippt die Figur seitwärts, statt zu steigen.
+     *
+     * `YXZ` dreht zuerst auf den Kurs und kippt dann um die mitgedrehte
+     * Querachse. Hier und nicht an der Stelle, die den Winkel setzt: an der
+     * Reihenfolge hängt auch der umgefallene Kadaver (`rotation.x` im Rig),
+     * und zwei Rigs mit verschiedenen Konventionen wären ein Fehler, der nur
+     * in eine Richtung sichtbar ist.
+     */
+    rig.root.rotation.order = 'YXZ';
+
     // Ist das Modell schon da, bekommt die frische Figur es sofort; sonst
     // merken wir sie uns für später. Beides ohne Warten — sie steht in jedem
     // Fall im nächsten Bild, notfalls mit dem Platzhalter.
