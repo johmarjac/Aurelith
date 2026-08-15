@@ -58,6 +58,15 @@ export class Session {
   /** Kennung des angemeldeten Kontos. Null, solange niemand angemeldet ist. */
   accountId = 0;
   accountName = '';
+  /**
+   * Die Eintrittskarte, mit der diese Sitzung hereinkam. Leer bei Passwort.
+   *
+   * Aufgehoben, weil sie am Leben gehalten werden muss: die Karte gilt auf
+   * Zeit, und der Kanal schiebt ihre Frist weiter, solange die Verbindung
+   * steht. Reisst sie ab, bleibt die Karte eine halbe Stunde gültig — genau
+   * daraus besteht der Wiedereinstieg. Siehe `login/tickets.ts`.
+   */
+  ticket = '';
   /** Was dieses Konto darf — `AccessLevel`. */
   access: AccessLevel = AccessLevel.Player;
   /**

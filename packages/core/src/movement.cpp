@@ -178,6 +178,20 @@ void World::applyInput(uint32_t id, float moveX, float moveZ, float yaw, uint32_
  */
 void World::updateFlight(Entity& e, float moveX, float moveZ, uint32_t buttons, float dt) {
   /*
+   * Geschlagen wird auch in der Luft.
+   *
+   * Hier fehlte das, weil der Flug vor dem Schlag aus `applyInput` heraus
+   * abbiegt — und damit war ein Monster vom Besen aus zwar anvisierbar, aber
+   * unantastbar. Ein Zustand, in dem die eine Hälfte des Kampfes geht und die
+   * andere nicht, ist schlimmer als beides oder keines.
+   *
+   * Ob der Schlag ankommt, entscheidet wie am Boden erst das Auflösen — und
+   * das misst die Entfernung im Raum, nicht auf der Karte. Sonst träfe man
+   * aus vierzig Metern Höhe die Wiese darunter.
+   */
+  if ((buttons & kButtonAttack) != 0u) tryStartSwing(e);
+
+  /*
    * --- Lage: W/S kippen die Nase, A/D drehen den Kurs.
    *
    * `moveZ` kommt roh vom Steuerknüppel und ist **nicht** in Weltachsen

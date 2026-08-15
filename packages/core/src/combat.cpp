@@ -53,9 +53,20 @@ void World::resolveSwing(Entity& attacker) {
 
   const float dx = target->x - attacker.x;
   const float dz = target->z - attacker.z;
-  // Bis zur Hülle, nicht bis zum Mittelpunkt — ein dickes Monster ist eher
-  // getroffen als ein dünnes an derselben Stelle.
-  const float dist = std::sqrt(dx * dx + dz * dz) - target->radius;
+  /*
+   * Im Raum gemessen und nicht auf der Karte.
+   *
+   * Der Höhenunterschied stand hier lange nicht, und am Boden fällt das auch
+   * nicht auf: zwei Figuren auf derselben Wiese unterscheiden sich in der Höhe
+   * um nichts. Seit es Fluggeräte gibt, schon — ohne diesen Summanden träfe
+   * ein Schlag aus vierzig Metern Höhe das Monster darunter, und die
+   * Wiese wäre vom Besen aus abzuernten.
+   *
+   * Bis zur Hülle, nicht bis zum Mittelpunkt — ein dickes Monster ist eher
+   * getroffen als ein dünnes an derselben Stelle.
+   */
+  const float dy = target->y - attacker.y;
+  const float dist = std::sqrt(dx * dx + dy * dy + dz * dz) - target->radius;
   if (dist > attacker.attackRange) return;
 
   // Zum Ziel drehen. Auf dem Server ist das die Wahrheit, die per Snapshot bei

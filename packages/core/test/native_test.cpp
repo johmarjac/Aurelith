@@ -743,6 +743,44 @@ void testFliegen() {
   check(p->y >= boden + aur::kFlugMindesthoehe - 1e-3f, "und in den Boden sinkt sie nicht");
 
   /*
+   * --- Vom Gerät aus schlagen ----------------------------------------------
+   *
+   * Anvisieren ohne schlagen zu können war der Zustand vorher: der Flug biegt
+   * in `applyInput` vor dem Schlag ab, und damit kam die Angriffstaste nie an.
+   *
+   * Zwei Prüfungen, weil eine allein die falsche Antwort zuliesse: der Schlag
+   * muss beginnen **und** die Höhe muss zählen. Ein Kern, der bloss wieder
+   * zuschlägt, ohne den Abstand im Raum zu messen, träfe vom Besen aus die
+   * ganze Wiese.
+   */
+  {
+    aur::MobRegistry mobs2;
+    const uint32_t art = registerTestMob(mobs2, false);
+    aur::World nah(21u, flatTerrain(), &mobs2);
+    nah.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+    nah.spawnMob(10, art, 0.0f, 2.0f, -1, aur::kNoSpawner);
+
+    nah.setFlying(1, true, 12.0f, 6.0f, 40.0f);
+    nah.setTarget(1, 10);
+    nah.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonAttack, aur::kTickSeconds);
+    check(nah.find(1)->swingTimer >= 0.0f, "auf dem Gerät beginnt der Schlag");
+    for (int i = 0; i < 8; ++i) nah.step(aur::kTickSeconds);
+    check(nah.find(10)->hp < 100.0f, "und trifft ein Ziel in Reichweite");
+
+    // Dasselbe aus dreissig Metern Höhe: dieselbe Stelle auf der Karte, und
+    // trotzdem ausser Reichweite.
+    aur::World hoch(22u, flatTerrain(), &mobs2);
+    hoch.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+    hoch.spawnMob(10, art, 0.0f, 2.0f, -1, aur::kNoSpawner);
+    hoch.setFlying(1, true, 12.0f, 6.0f, 40.0f);
+    hoch.find(1)->y += 30.0f;
+    hoch.setTarget(1, 10);
+    hoch.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonAttack, aur::kTickSeconds);
+    for (int i = 0; i < 8; ++i) hoch.step(aur::kTickSeconds);
+    check(hoch.find(10)->hp == 100.0f, "aus dreissig Metern Höhe trifft er nicht");
+  }
+
+  /*
    * --- Versetzt heisst nicht gelandet --------------------------------------
    *
    * `teleport` ist nicht nur das Tor: mit demselben Aufruf korrigiert sich die

@@ -151,7 +151,7 @@ function istVoll(r: RealmRow): boolean {
 }
 
 /** Welche der Masken gerade gilt. */
-type Seite = 'anmeldung' | 'kanaele' | 'figuren' | 'neu';
+type Seite = 'anmeldung' | 'kanaele' | 'figuren' | 'neu' | 'verloren';
 
 /**
  * Die fremden Anbieter, über die man hereinkommt.
@@ -186,6 +186,21 @@ export class LobbyView {
    * dahinter eine zweite Verbindung aufgebaut wird.
    */
   onEnterChannel?: (url: string, ticket: string) => void;
+  /**
+   * „Ja, neu verbinden" auf der Seite nach einem Abriss.
+   *
+   * Die Maske entscheidet nicht, **wie** wiederverbunden wird — sie kennt
+   * weder Karte noch Kanal. Sie fragt nur, und das Spiel weiss den Rest.
+   */
+  onReconnect?: () => void;
+  /**
+   * „Zur Anmeldung" von der Seite nach einem Abriss.
+   *
+   * Ein eigener Rückruf und nicht bloss ein `zeigeAnmeldung()`: dort steht
+   * keine Verbindung mehr, und ein Formular ohne Leitung dahinter ist eine
+   * Maske, deren Knopf nichts tut.
+   */
+  onBackToLogin?: () => void;
   /** Die Kanalliste neu holen. Bringt auch eine frische Eintrittskarte mit. */
   onRefreshRealms?: () => void;
   /**
@@ -200,6 +215,8 @@ export class LobbyView {
   private readonly root: HTMLDivElement;
   private readonly anmeldungSeite: HTMLDivElement;
   private readonly figurenSeite: HTMLDivElement;
+  private readonly verlorenSeite: HTMLDivElement;
+  private readonly verlorenText: HTMLParagraphElement;
   private readonly neuSeite: HTMLDivElement;
 
   private readonly loginForm: HTMLFormElement;
@@ -437,6 +454,35 @@ export class LobbyView {
     // `setStand` ihn wiederfindet, ohne im DOM zu suchen.
     this.neuKnopf = zurNeu;
 
+    /*
+     * --- Maske 5: Verbindung verloren -------------------------------------
+     *
+     * Eine eigene Maske statt eines Fensters über dem Spiel: hier ist die
+     * Verbindung weg, und alles, was das Spiel zeigen könnte, ist ein
+     * Standbild von vorhin. Zwei Wege heraus, und keiner davon führt
+     * versehentlich irgendwohin — deshalb wird gefragt und nicht von selbst
+     * neu verbunden.
+     */
+    this.verlorenSeite = el('div', 'lobby-box panel');
+    this.verlorenSeite.hidden = true;
+    this.verlorenText = el('p', 'lobby-hinweis', '');
+
+    const wieder = el('button', 'btn btn-gross', 'Neu verbinden');
+    wieder.type = 'button';
+    wieder.addEventListener('click', () => this.onReconnect?.());
+
+    const zurAnmeldung = el('button', 'btn', 'Zur Anmeldung');
+    zurAnmeldung.type = 'button';
+    zurAnmeldung.addEventListener('click', () => this.onBackToLogin?.());
+
+    const verlorenKnoepfe = el('div', 'lobby-knoepfe');
+    verlorenKnoepfe.append(wieder, zurAnmeldung);
+    this.verlorenSeite.append(
+      el('h1', 'lobby-titel', 'Verbindung verloren'),
+      this.verlorenText,
+      verlorenKnoepfe,
+    );
+
     // --- Maske 2b: Server und Kanal ---------------------------------------
     //
     // Zwei Spalten: links, welcher Server — rechts, welcher Kanal darin. Das
@@ -512,7 +558,13 @@ export class LobbyView {
 
     this.neuSeite.append(el('h1', 'lobby-titel', 'Neue Figur'), this.neuForm);
 
-    this.root.append(this.anmeldungSeite, this.kanaeleSeite, this.figurenSeite, this.neuSeite);
+    this.root.append(
+      this.anmeldungSeite,
+      this.kanaeleSeite,
+      this.figurenSeite,
+      this.neuSeite,
+      this.verlorenSeite,
+    );
     host.appendChild(this.root);
     this.zeigeSeite('anmeldung');
   }
@@ -530,6 +582,7 @@ export class LobbyView {
     this.kanaeleSeite.hidden = seite !== 'kanaele';
     this.figurenSeite.hidden = seite !== 'figuren';
     this.neuSeite.hidden = seite !== 'neu';
+    this.verlorenSeite.hidden = seite !== 'verloren';
 
     const kasten =
       seite === 'anmeldung'
@@ -538,7 +591,9 @@ export class LobbyView {
           ? this.kanaeleSeite
           : seite === 'figuren'
             ? this.figurenSeite
-            : this.neuSeite;
+            : seite === 'verloren'
+              ? this.verlorenSeite
+              : this.neuSeite;
     // Nach der Überschrift, vor allem anderen.
     kasten.insertBefore(this.meldung, kasten.children[1] ?? null);
     // Und das Protokoll ganz unten, unter den Knöpfen.
@@ -621,6 +676,26 @@ export class LobbyView {
     this.formularSteht = true;
     this.zeigeSeite('anmeldung');
     this.nameInput.focus();
+  }
+
+  /**
+   * Zeigt die Frage nach dem Wiederverbinden.
+   *
+   * Sie kommt statt des Anmeldeformulars, wenn eine Kanalverbindung
+   * abgerissen ist und noch eine gültige Eintrittskarte in der Hand liegt.
+   * Gefragt und nicht von selbst wiederverbunden: wer das Telefon weglegt und
+   * am nächsten Tag draufschaut, soll nicht in einer Welt landen, in der seine
+   * Figur derweil irgendwo stand.
+   */
+  zeigeVerbindungVerloren(text: string): void {
+    this.root.hidden = false;
+    // Die Anmeldung gilt als nicht mehr stehend: wer „Zur Anmeldung" wählt,
+    // soll das Formular bekommen und nicht wieder diese Seite.
+    this.angemeldet = false;
+    this.formularSteht = false;
+    this.verlorenText.textContent = text;
+    this.zeigeFehler('');
+    this.zeigeSeite('verloren');
   }
 
   /**

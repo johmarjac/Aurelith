@@ -162,6 +162,16 @@ import type { ItemRecord, KontoStore, WeltStore } from './db/index.ts';
  */
 const MAX_LOGIN_ATTEMPTS = 6;
 
+/**
+ * Abstand zwischen zwei Lebenszeichen für die Eintrittskarten.
+ *
+ * Deutlich kürzer als die halbe Stunde, die eine Karte gilt — aber nicht
+ * knapp: ein ausgefallenes Lebenszeichen darf niemanden aussperren, und
+ * neunundzwanzig weitere folgen, bevor die Frist überhaupt in Reichweite
+ * kommt.
+ */
+const KARTEN_FRISCH_MS = 60_000;
+
 /** Wie nah man an einem NPC stehen muss — aus den Stellschrauben. */
 const interactRange = (): number => tuning().world.interactRange;
 
@@ -182,6 +192,8 @@ export class GameServer {
   private nextEntityId = 1;
   private nextSessionId = 1;
   private timer?: NodeJS.Timeout;
+  /** Hält die Eintrittskarten am Leben — siehe `haltekarten`. */
+  private kartenTimer?: NodeJS.Timeout;
   private accumulator = 0;
   private lastTickAt = 0;
   private persistCountdown = config.persistIntervalSeconds;
@@ -236,10 +248,32 @@ export class GameServer {
 
     this.lastTickAt = Date.now();
     this.timer = setInterval(() => this.pump(), Math.max(1, Math.floor(TICK_MS / 2)));
+
+    /*
+     * Die Eintrittskarten der laufenden Sitzungen am Leben halten.
+     *
+     * Die Karte gilt eine halbe Stunde ab ihrem letzten Lebenszeichen. Solange
+     * jemand spielt, kommt es von hier; hört es auf, läuft die Frist ab dem
+     * Abriss — und genau in dieser Zeit kann er sich wieder verbinden, ohne
+     * sein Passwort zu tippen.
+     *
+     * Jede Minute und nicht je Tick: es geht um eine halbe Stunde Frist, und
+     * eine HTTP-Anfrage je Spieler und Sekunde wäre ein Sturm für nichts.
+     */
+    this.kartenTimer = setInterval(() => this.haltekarten(), KARTEN_FRISCH_MS);
+    this.kartenTimer.unref?.();
+  }
+
+  /** Ein Lebenszeichen je Karte. Siehe `start`. */
+  private haltekarten(): void {
+    for (const session of this.sessions) {
+      if (session.ticket !== '') void this.login.frischeKarte(session.ticket);
+    }
   }
 
   async stop(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
+    if (this.kartenTimer) clearInterval(this.kartenTimer);
     for (const session of this.sessions) {
       session.send(encodeKick(KickReason.ServerShutdown, 'Server fährt herunter.'));
       session.flush();
@@ -616,6 +650,10 @@ export class GameServer {
       return;
     }
 
+    // Aufgehoben, damit die Frist offen bleibt, solange diese Verbindung
+    // steht — siehe `haltekarten`.
+    session.ticket = ticket;
+
     // Die Zugriffsstufe kommt **mit der Karte**. Sie am Konto nachzusehen
     // hiesse, in die Masterdatenbank zu greifen — die in einer anderen
     // Erdhälfte steht und die dieser Prozess sonst gar nicht kennt.
@@ -927,6 +965,17 @@ export class GameServer {
 
     // Abgewartet, nicht nur abgeschickt. Genau dafür gibt es dieses Paket.
     await this.login.meldeAnwesenheit(session.accountId, false);
+
+    /*
+     * Und die Karte weg — hier und **nicht** beim Trennen.
+     *
+     * Das ist der ganze Unterschied zwischen „ich gehe" und „die Leitung ist
+     * weg": wer sich abmeldet, soll kein Papier zurücklassen, mit dem eine
+     * halbe Stunde lang jemand in seine Figur käme. Wem der Zug in den Tunnel
+     * fährt, dem bleibt genau das.
+     */
+    await this.login.verwirfKarte(session.ticket);
+    session.ticket = '';
 
     console.log(`[sitzung] ${session.accountName} meldet sich ab`);
     session.close(1000, 'abgemeldet');

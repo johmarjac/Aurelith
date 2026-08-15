@@ -618,8 +618,46 @@ export class Game {
         this.ui.debug(`[kanal] ${geprueft.warning}`, 'warnung');
         this.lobby.notiere(geprueft.warning, 'fehler');
       }
+      this.kanalKarte = ticket;
       this.connect(geprueft.url, ticket);
     };
+    /*
+     * „Ja, neu verbinden" nach einem Abriss.
+     *
+     * Dieselbe Karte, derselbe Kanal, dieselbe Figur — und deshalb ohne jede
+     * Maske dazwischen: `autoFigur` sorgt dafür, dass die Figurenliste, die
+     * gleich kommt, nicht angezeigt, sondern beantwortet wird.
+     *
+     * Gilt die Karte nicht mehr, sagt das der Kanal (`onLobbyError`), und von
+     * dort geht es zum Anmeldeformular. Diese Stelle muss das nicht prüfen —
+     * sie könnte es auch nicht.
+     */
+    this.lobby.onReconnect = () => {
+      if (this.wiederKanal === '' || this.kanalKarte === '') {
+        this.connect();
+        this.lobby.zeigeAnmeldung();
+        return;
+      }
+      this.autoFigur = this.letzteFigur;
+      this.lobby.notiere('Wiedereinstieg mit derselben Eintrittskarte …');
+      this.connect(this.wiederKanal, this.kanalKarte);
+    };
+
+    /*
+     * „Zur Anmeldung" von derselben Seite aus.
+     *
+     * Hier steht keine Verbindung mehr — die Frage nach dem Wiedereinstieg
+     * wird ohne eine gestellt. Nur die Maske umzuschalten ergäbe also ein
+     * Formular, dessen „Anmelden" ins Leere ginge.
+     */
+    this.lobby.onBackToLogin = () => {
+      this.kanalKarte = '';
+      this.letzteFigur = 0;
+      this.wiederKanal = '';
+      this.connect();
+      this.lobby.zeigeAnmeldung();
+    };
+
     this.lobby.onRefreshRealms = () => this.connection?.sendRealmList();
     // Zurück zur Kanalauswahl heisst: zurück zum Anmeldeserver. Die
     // Eintrittskarte für den nächsten Kanal gibt es nur dort, und sie wird
@@ -630,6 +668,9 @@ export class Game {
     // Anmeldeserver eine neue Anmeldung annimmt.
     this.lobby.onBackToChannels = () => this.abmelden();
     this.lobby.onEnterWorld = (id) => {
+      // Gemerkt für den Fall, dass die Leitung abreisst: dann wird genau diese
+      // Figur wieder betreten, ohne Liste und ohne Auswahl.
+      this.letzteFigur = id;
       // Der Name für den Kasten oben links steht in der Liste, nicht im
       // Willkommen: der Server nennt dort die Karte, nicht die Figur.
       this.playerName = this.lobby.nameVon(id) ?? this.playerName;
@@ -1092,6 +1133,9 @@ export class Game {
         if (status === 'getrennt' && this.kanalUrl !== '') {
           const nichtAngekommen = this.amKanal;
           const gewollt = this.abmeldeWunsch;
+          // Vor dem Aufräumen festhalten: der Wiedereinstieg geht an denselben
+          // Kanal, und gleich steht dort nichts mehr.
+          const kanal = this.kanalUrl;
           this.amKanal = false;
           this.kanalUrl = '';
           this.abmeldeWunsch = false;
@@ -1101,6 +1145,10 @@ export class Game {
           this.lobby.zuruecksetzen();
 
           if (gewollt) {
+            // Wer sich abmeldet, will nicht gefragt werden, ob er zurück will.
+            // Die Karte hat der Kanal dabei ohnehin weggeworfen.
+            this.kanalKarte = '';
+            this.letzteFigur = 0;
             this.lobby.notiere('Abgemeldet. Der Kanal hat die Sitzung aufgeräumt.');
             this.lobby.zeigeHinweis(
               'Du bist abgemeldet. Melde dich an, um wieder einen Kanal zu betreten.',
@@ -1126,14 +1174,40 @@ export class Game {
             // zustande gekommen" und nennt keinen Grund. Die Nachfrage über
             // HTTP trennt die beiden Fälle — siehe `pruefeKanal`.
             void this.pruefeKanal(url);
+          } else if (this.kanalKarte !== '' && this.letzteFigur !== 0) {
+            /*
+             * Mittendrin abgerissen — und es gibt einen Weg zurück.
+             *
+             * Die Eintrittskarte gilt eine halbe Stunde über den Abriss
+             * hinaus (siehe `login/tickets.ts`), also wird nicht zum
+             * Anmeldeformular geschickt, sondern gefragt. Genau der Fall, der
+             * auf dem Telefon dauernd eintritt: einmal in eine andere App
+             * gewechselt, und der Browser lässt die Verbindung fallen.
+             *
+             * Gefragt und nicht von selbst wiederverbunden: wer das Gerät
+             * weglegt und Stunden später draufschaut, soll nicht in einer Welt
+             * landen, in der seine Figur derweil irgendwo herumstand.
+             */
+            this.lobby.notiere(
+              'Kanalverbindung verloren — die Eintrittskarte gilt noch, ' +
+                'ein Wiedereinstieg ist möglich.',
+              'fehler',
+            );
+            this.wiederKanal = kanal;
+            this.lobby.zeigeVerbindungVerloren(
+              `Die Verbindung zum Kanal ist abgerissen${detail ? ` (${detail})` : ''}. ` +
+                `Du kannst direkt wieder mit ${this.lobby.nameVon(this.letzteFigur) ?? 'deiner Figur'} ` +
+                'einsteigen — das geht bis zu einer halben Stunde nach dem Abriss.',
+            );
+            return;
           } else {
             this.lobby.zeigeFehler(
               `Die Verbindung zum Kanal ist abgerissen${detail ? ` (${detail})` : ''}. ` +
-                'Die Eintrittskarte gilt nur einmal — melde dich neu an, dann geht es weiter.',
+                'Melde dich neu an, dann geht es weiter.',
             );
             this.lobby.notiere(
-              'Kanalverbindung verloren — die verbrauchte Eintrittskarte taugt für ' +
-                'keinen zweiten Versuch, also zurück zum Anmeldeserver.',
+              'Kanalverbindung verloren und keine Karte in der Hand — zurück zum ' +
+                'Anmeldeserver.',
               'fehler',
             );
           }
@@ -1216,6 +1290,28 @@ export class Game {
         this.resetSession();
         this.lobby.setStand(msg);
         this.accessLevel = msg.accessLevel;
+
+        /*
+         * Nach einem Wiedereinstieg gleich weiter in die Welt.
+         *
+         * Ohne diese Stelle bliebe man vor der Figurenliste stehen, obwohl
+         * eben schon feststand, um welche Figur es geht. Genau einmal gültig:
+         * `autoFigur` wird geleert, bevor sie gebraucht wird, damit ein
+         * späteres „Abmelden" nicht in dieselbe Welt zurückspringt.
+         *
+         * Gibt es die Figur nicht mehr — gelöscht, während man weg war —,
+         * bleibt die Liste stehen. Das ist die richtige Antwort: hier ist
+         * nichts zu raten.
+         */
+        const gewuenscht = this.autoFigur;
+        this.autoFigur = 0;
+        if (gewuenscht !== 0 && msg.characters.some((c) => c.id === gewuenscht)) {
+          this.letzteFigur = gewuenscht;
+          this.playerName = this.lobby.nameVon(gewuenscht) ?? this.playerName;
+          this.ui.setPlayerName(this.playerName);
+          this.lobby.notiere(`Wiedereinstieg als ${this.playerName}.`);
+          this.connection?.sendEnterWorld(gewuenscht);
+        }
         // Das Kurzzeichen fürs Schild über dem eigenen Kopf. Hier und nicht
         // beim Betreten: die Stufe gehört zum Konto und steht schon fest,
         // bevor eine Figur gewählt ist.
@@ -1680,6 +1776,29 @@ export class Game {
   private stilleWache = 0;
   /** Wir haben uns abgemeldet und warten darauf, dass der Kanal auflegt. */
   private abmeldeWunsch = false;
+
+  /*
+   * Was ein Wiedereinstieg braucht: Karte und Figur.
+   *
+   * Die Karte gilt eine halbe Stunde über den Abriss hinaus — siehe
+   * `login/tickets.ts` —, und die Figur ist die, in der man gerade stand. Mehr
+   * ist es nicht: der Kanal steht schon in `kanalUrl`.
+   *
+   * Beides bleibt **über** den Abriss hinweg stehen. `resetSession` räumt die
+   * Welt auf, nicht die Frage, wie man in sie zurückkommt.
+   */
+  private kanalKarte = '';
+  /** Der Kanal, an dem der Wiedereinstieg hängt. Steht erst nach dem Abriss. */
+  private wiederKanal = '';
+  private letzteFigur = 0;
+  /**
+   * Diese Figur soll betreten werden, sobald die Liste kommt.
+   *
+   * Null heisst: von Hand aussuchen. Gesetzt wird sie nur beim
+   * Wiederverbinden — und gleich beim Betreten wieder geleert, damit ein
+   * späteres „Abmelden" nicht in dieselbe Welt zurückspringt.
+   */
+  private autoFigur = 0;
   /** Notausgang, falls der Kanal auf das Abmelden nicht antwortet. */
   private abmeldeFrist = 0;
   /**

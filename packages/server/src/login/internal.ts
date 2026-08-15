@@ -1,15 +1,17 @@
 /**
  * Die internen Wege zwischen Spielserver und Anmeldeserver.
  *
- * Fünf Nachrichten, alle in dieselbe Richtung — vom Spielserver zum
+ * Sieben Nachrichten, alle in dieselbe Richtung — vom Spielserver zum
  * Anmeldeserver:
  *
- *   `register`   „Ich bin Kanal 2 auf Aurelith und nehme unter dieser
- *                Adresse Spieler auf."
- *   `heartbeat`  „Ich bin noch da, und es spielen gerade so viele."
- *   `ticket`     „Zu wem gehört diese Eintrittskarte?"
- *   `presence`   „Dieses Konto ist bei mir drin / wieder draussen."
- *   `stufe`      „Setz die Zugriffsstufe dieses Kontos." — für /accesslevel.
+ *   `register`      „Ich bin Kanal 2 auf Aurelith und nehme unter dieser
+ *                   Adresse Spieler auf."
+ *   `heartbeat`     „Ich bin noch da, und es spielen gerade so viele."
+ *   `ticket`        „Zu wem gehört diese Eintrittskarte?"
+ *   `karte-frisch`  „Diese Karte ist noch in Gebrauch." — hält die Frist offen.
+ *   `karte-weg`     „Diese Karte gilt nicht mehr." — beim Abmelden.
+ *   `presence`      „Dieses Konto ist bei mir drin / wieder draussen."
+ *   `stufe`         „Setz die Zugriffsstufe dieses Kontos." — für /accesslevel.
  *
  * Der Anmeldeserver ruft **nie** von sich aus an. Er weiss nicht, wo die
  * Spielserver stehen — er weiss nur, was sie über sich gesagt haben. Deshalb
@@ -137,6 +139,30 @@ export async function behandleIntern(
       register.entferne(server, channel);
       register.raeumeVerfallene();
       console.log(`[kanal] ${server} · ${channel} abgemeldet`);
+      json(res, 200, { ok: true });
+      return true;
+    }
+
+    /*
+     * Die Karte am Leben halten — solange der Kanal die Verbindung hält.
+     *
+     * Daran hängt der Wiedereinstieg nach einem Abriss: die Frist läuft ab dem
+     * letzten Lebenszeichen, nicht ab dem Anmelden. Antwort ist bewusst nur
+     * `ok` — der Kanal soll daraus nichts weiter ableiten, siehe `frischeAuf`.
+     */
+    case '/intern/karte-frisch': {
+      json(res, 200, { ok: karten.frischeAuf(text(body, 'ticket')) });
+      return true;
+    }
+
+    /*
+     * Und weg damit — beim gewollten Abmelden.
+     *
+     * Der Abriss geht diesen Weg ausdrücklich nicht: dort soll die Karte
+     * liegenbleiben, sonst gäbe es nichts wiederaufzunehmen.
+     */
+    case '/intern/karte-weg': {
+      karten.verwirf(text(body, 'ticket'));
       json(res, 200, { ok: true });
       return true;
     }

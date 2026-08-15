@@ -113,6 +113,29 @@ export class LoginClient {
   }
 
   /**
+   * Hält eine Karte am Leben.
+   *
+   * Ruft der Kanal in Abständen für jede Sitzung, die mit einer Karte
+   * hereinkam. Solange das geschieht, läuft die Frist nicht ab; hört es auf —
+   * weil die Verbindung weg ist —, verfällt sie eine halbe Stunde später.
+   * Genau daraus besteht der Wiedereinstieg.
+   *
+   * Fehlschläge werden verschluckt. Eine Karte, die sich nicht auffrischen
+   * lässt, kostet ihren Besitzer den bequemen Wiedereinstieg; ihn deswegen aus
+   * der laufenden Sitzung zu werfen wäre die schlechtere Antwort.
+   */
+  async frischeKarte(ticket: string): Promise<void> {
+    if (!this.aktiv || ticket === '') return;
+    await this.ruf('/intern/karte-frisch', { ticket });
+  }
+
+  /** Wirft eine Karte weg — nur beim **gewollten** Abmelden. */
+  async verwirfKarte(ticket: string): Promise<void> {
+    if (!this.aktiv || ticket === '') return;
+    await this.ruf('/intern/karte-weg', { ticket });
+  }
+
+  /**
    * Meldet ein Konto als spielend oder als weg.
    *
    * Darauf stützt der Anmeldeserver „ein Konto, eine Sitzung" über alle
