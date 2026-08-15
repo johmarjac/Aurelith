@@ -60,8 +60,59 @@ export interface PetLauf {
  * jeder Schritt des Menschen es wieder danebenstellt. Anderthalb Einheiten
  * sehen aus wie „dabei" und nicht wie „im Weg" — im Weg steht es ohnehin
  * niemandem, `isCombatant` hält es aus der Trennung heraus.
+ *
+ * Gilt als Mass für „ist wieder da": wie weit hinten und wie weit zur Seite
+ * ein Tier tatsächlich geht, sagt `folgePunkt`.
  */
 export const FOLGE_ABSTAND = 1.8;
+
+/**
+ * Wo genau ein Begleiter geht — hinter dem Menschen und zur Seite versetzt.
+ *
+ * Der seitliche Versatz ist der ganze Punkt dieser Funktion. Ohne ihn hatten
+ * beide Tiere **denselben** Zielpunkt und standen ineinander: aus der
+ * Trennung überlappender Wesen sind Begleiter herausgenommen (`isCombatant`),
+ * damit sie niemanden schieben — und damit schieben sie auch einander nicht
+ * auseinander.
+ *
+ * Zwei feste Plätze statt einer Ausweichrechnung: der Sammler links, das
+ * Support-Tier rechts. Wer stattdessen ausweichen liesse, bekäme zwei Tiere,
+ * die sich umeinander drehen, solange sie stehen — und die Frage, wer
+ * nachgibt, hätte keine Antwort.
+ *
+ * Die Plätze drehen sich mit der Blickrichtung mit. Feste Himmelsrichtungen
+ * wären ruhiger zu rechnen und sähen aus, als liefen die Tiere ihre eigene
+ * Route.
+ */
+export const FOLGE_HINTEN = 1.5;
+export const FOLGE_SEITE = 1.0;
+/**
+ * So nah am eigenen Platz gilt er als erreicht.
+ *
+ * Deutlich enger als der Abstand zum Menschen, und das muss so sein: die
+ * beiden Plätze liegen zwei Einheiten auseinander, und bei einem grosszügigen
+ * Ankunftskreis stünden die Tiere trotz verschiedener Ziele wieder
+ * nebeneinander in derselben Pfütze.
+ */
+export const FOLGE_ANKUNFT = 0.4;
+
+export function folgePunkt(
+  x: number,
+  z: number,
+  yaw: number,
+  art: PetArt,
+): { x: number; z: number } {
+  // Blickrichtung im Kern ist (sin yaw, cos yaw); senkrecht dazu (cos yaw,
+  // −sin yaw). Welche der beiden Seiten „links" heisst, ist gleichgültig —
+  // wichtig ist nur, dass die Sorten entgegengesetzte Vorzeichen bekommen.
+  const vorX = Math.sin(yaw);
+  const vorZ = Math.cos(yaw);
+  const seite = art === 'support' ? 1 : -1;
+  return {
+    x: x - vorX * FOLGE_HINTEN + vorZ * FOLGE_SEITE * seite,
+    z: z - vorZ * FOLGE_HINTEN - vorX * FOLGE_SEITE * seite,
+  };
+}
 
 /** So nah muss es an einem Haufen stehen, um ihn aufzuheben. */
 export const SAMMEL_ABSTAND = 0.8;

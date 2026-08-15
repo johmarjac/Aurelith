@@ -133,6 +133,8 @@ import { MapInstance, type EntityMeta } from './mapInstance.ts';
 import type { LootPile } from './loot.ts';
 import {
   FOLGE_ABSTAND,
+  FOLGE_ANKUNFT,
+  folgePunkt,
   HAENGT_ABSTAND,
   HAENGT_MS,
   SAMMEL_ABSTAND,
@@ -2539,13 +2541,15 @@ export class GameServer {
      * Einen Schritt **hinter** dem Menschen und nicht auf ihm.
      *
      * Auf ihm stünde das Tier im ersten Bild in der Figur; hinter ihm steht
-     * es dort, wo es gleich ohnehin herläuft. Die Blickrichtung zeigt im Kern
-     * entlang (sin yaw, cos yaw) — dahinter liegt das Gegenteil davon.
+     * es dort, wo es gleich ohnehin herläuft — auf genau dem Platz, den
+     * `folgePunkt` ihm zuweist. Damit erscheint es nicht erst irgendwo und
+     * rückt dann nach.
      */
+    const platz = folgePunkt(self.x, self.z, self.yaw, pet.art);
     const ok = instance.world.spawnPet(
       id,
-      self.x - Math.sin(self.yaw) * FOLGE_ABSTAND,
-      self.z - Math.cos(self.yaw) * FOLGE_ABSTAND,
+      platz.x,
+      platz.z,
       0.35,
       pet.height,
       // Etwas schneller als sein Mensch, sonst fällt es bei jedem Schritt
@@ -2803,7 +2807,9 @@ export class GameServer {
         }
       }
 
-      instance.world.setPetGoal(lauf.entityId, self.x, self.z, FOLGE_ABSTAND);
+      // Je Sorte ein eigener Platz — sonst stehen zwei Tiere ineinander.
+      const platz = folgePunkt(self.x, self.z, self.yaw, lauf.art);
+      instance.world.setPetGoal(lauf.entityId, platz.x, platz.z, FOLGE_ANKUNFT);
     }
   }
 

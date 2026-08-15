@@ -12,10 +12,14 @@
  *   3. Was trägt ein Support-Tier bei? Es rechnet über dieselben Felder wie
  *      ein Ring, und genau das soll die Werteliste zeigen.
  *
+ *   4. Stehen zwei Tiere einander im Weg? Sie schieben sich nicht gegenseitig
+ *      auseinander — Begleiter sind aus der Trennung überlappender Wesen
+ *      herausgenommen —, also muss ihr Platz von vornherein ein eigener sein.
+ *
  * Was hier **nicht** geprüft wird: das Laufen selbst. Der Weg über das Gelände
  * gehört dem Kern, und dessen native Prüfungen decken ihn ab. Die Kette bis
- * zum Bild — freilassen, danebenherlaufen, aufheben — prüft
- * `tools/smoke-haustier.mjs` im Browser.
+ * zum Bild — freilassen, danebenherlaufen, aufheben — steht noch aus und wird
+ * heute von Hand gegangen.
  *
  *   npx tsx packages/server/test/haustier_test.ts
  */
@@ -30,7 +34,13 @@ import {
   loadContent,
   parseItems,
 } from '@aurelith/shared';
-import { zielNochErlaubt, FOLGE_ABSTAND, SAMMEL_ABSTAND } from '../src/pets.ts';
+import {
+  folgePunkt,
+  zielNochErlaubt,
+  FOLGE_ABSTAND,
+  FOLGE_ANKUNFT,
+  SAMMEL_ABSTAND,
+} from '../src/pets.ts';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const datei = (name: string): unknown =>
@@ -148,6 +158,41 @@ check(
 );
 
 check(SAMMEL_ABSTAND < FOLGE_ABSTAND, 'aufgehoben wird näher, als gefolgt wird');
+
+console.log('\nZwei Tiere, zwei Plätze');
+
+/*
+ * Der Anlass: beide standen ineinander. Sie bekamen denselben Zielpunkt, und
+ * auseinanderschieben tut sie niemand — Begleiter sind aus der Trennung
+ * überlappender Wesen herausgenommen, damit sie keinen Menschen schieben.
+ *
+ * Geprüft wird deshalb der Abstand der beiden Plätze, und zwar mit dem
+ * Ankunftskreis darin: was zählt, ist nicht, dass die Punkte
+ * auseinanderliegen, sondern dass die Tiere es tun, wenn beide am Rand ihres
+ * Kreises stehen.
+ */
+const PET_RADIUS = 0.35;
+for (const yaw of [0, 0.7, Math.PI / 2, 2.5, -1.9, Math.PI]) {
+  const a = folgePunkt(10, -4, yaw, 'sammler');
+  const b = folgePunkt(10, -4, yaw, 'support');
+  const abstand = Math.hypot(a.x - b.x, a.z - b.z);
+  const engstens = abstand - 2 * FOLGE_ANKUNFT;
+  check(
+    engstens > 2 * PET_RADIUS,
+    `bei Blickrichtung ${yaw.toFixed(2)} bleibt Platz zwischen ihnen`,
+    `${engstens.toFixed(2)} statt ${(2 * PET_RADIUS).toFixed(2)}`,
+  );
+}
+
+// Und beide hinter dem Menschen, nicht vor ihm: die Blickrichtung zeigt im
+// Kern entlang (sin yaw, cos yaw), der Platz muss dagegen liegen.
+const hinten = folgePunkt(0, 0, 0, 'sammler');
+check(hinten.z < 0, 'der Platz liegt hinter dem Menschen', `z = ${hinten.z.toFixed(2)}`);
+
+// Die Gegenprobe zum Ankunftskreis: er ist enger als der Abstand zum
+// Menschen. Wäre er das nicht, stünden die Tiere trotz zweier Plätze wieder
+// in derselben Pfütze.
+check(FOLGE_ANKUNFT < FOLGE_ABSTAND, 'der Ankunftskreis ist enger als die Leine');
 
 console.log('\nWas ein Support-Tier beiträgt');
 
