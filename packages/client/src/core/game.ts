@@ -2101,6 +2101,36 @@ export class Game {
     const world = this.prediction;
     if (!world || this.localId === 0) return;
 
+    /*
+     * Steht die eigene Figur schon in der Vorhersage, ist das hier kein
+     * Erscheinen, sondern eine **Auffrischung**.
+     *
+     * Der Server streicht die Figur nach jedem Ausrüstungswechsel bei allen
+     * aus der Bekanntenliste, damit die neue Waffe ankommt (`applyLoadout`) —
+     * und damit kommt sie auch bei einem selbst noch einmal als volle Zeile
+     * an. Wurde die Vorhersage dabei neu aufgebaut, setzte `spawnPlayer` die
+     * Figur auf das Gelände: wer aus vierzig Metern abstieg, stand im nächsten
+     * Bild unten, als hätte ihn jemand hingestellt. Der Sturz lief im Server,
+     * im Bild fand er nie statt.
+     *
+     * Die Stelle korrigiert deshalb nur noch, was wirklich ein Ortswechsel
+     * ist — Wiedergeburt, Tor. Was um ein paar Schritte auseinanderliegt,
+     * gehört dem Abgleich (`reconcile`), und der spielt die offenen Eingaben
+     * dabei nach, statt die Figur zurückzuwerfen.
+     */
+    const schonDa = this.localRow();
+    if (schonDa) {
+      this.applyProfileToPrediction();
+      this.applyFlugToPrediction();
+      // Deutlich mehr als die Schwelle des Abgleichs (1,2): ein Ortswechsel
+      // sind Dutzende Einheiten, ein Nachlauf sind Bruchteile davon.
+      if (Math.hypot(x - schonDa.x, z - schonDa.z) < 4) return;
+      world.teleport(this.localId, x, z, yaw);
+      this.poseValid = false;
+      this.input.setFacing(yaw);
+      return;
+    }
+
     // Ueber einen Sprung hinweg darf nicht interpoliert werden — sonst
     // schwebt die Figur sichtbar von der alten zur neuen Stelle.
     this.poseValid = false;

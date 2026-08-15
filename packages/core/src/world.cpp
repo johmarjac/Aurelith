@@ -307,15 +307,23 @@ const Entity* World::find(uint32_t id) const {
 /**
  * Setzt ein Wesen an eine Stelle und entscheidet dabei über seine Höhe.
  *
- * Am Boden: auf das Gelände, und der Sprung ist vorbei. In der Luft: auf
- * dieselbe Höhe über dem Gelände, die es vorher hatte — ein Fluggerät setzt
- * nicht auf, bloss weil die Figur versetzt wurde.
+ * Am Boden: auf das Gelände, und der Sprung ist vorbei. **In der Luft: auf
+ * dieselbe Höhe über dem Gelände, die es vorher hatte** — wer nicht am Boden
+ * hängt, setzt durch einen Versatz nicht auf.
  *
  * Der Unterschied ist nicht kosmetisch. `airborne` entscheidet im Tick, ob
  * überhaupt begrenzt wird (`advanceJump` steigt sonst gleich wieder aus).
  * Hier stand für alle „auf dem Boden, nicht mehr in der Luft", und weil die
  * Vorhersage sich mit genau diesem Aufruf korrigiert, schaltete jede
  * Korrektur die Bodengrenze ab: die Figur flog danach durch das Gelände.
+ *
+ * Die Bedingung fragt seit demselben Fund nach `airborne` und nicht mehr nach
+ * `flying`. Wer aus vierzig Metern abstieg, sollte fallen — und wurde
+ * stattdessen abgesetzt: `setFlying(false)` schaltet das Fliegen aus, die
+ * nächste Korrektur der Vorhersage kam zwei Ticks später, und die stellte die
+ * Figur auf das Gelände, weil sie ja nicht mehr flog. Der Sturz war vorbei,
+ * bevor er anfing. Ein Sprung durch ein Tor hatte dasselbe Problem, nur fällt
+ * es dort über einen halben Meter nicht auf.
  */
 void World::versetze(Entity& e, float x, float z) {
   const float ueberBoden = e.y - terrainHeight(e.x, e.z, terrain_);
@@ -323,10 +331,19 @@ void World::versetze(Entity& e, float x, float z) {
   e.z = clampToMap(z, terrain_);
   const float boden = terrainHeight(e.x, e.z, terrain_);
 
-  if (e.flying && isAlive(e)) {
+  // `|| e.flying` als Gürtel zum Hosenträger: wer fliegt, hängt nicht am
+  // Boden, und diese Zeile hält das auch dann fest, wenn irgendwo doch einmal
+  // ein `airborne` verlorengeht. Genau der Fall war der ursprüngliche Fehler.
+  if ((e.airborne || e.flying) && isAlive(e)) {
     float hoehe = ueberBoden;
-    if (hoehe < kFlugMindesthoehe) hoehe = kFlugMindesthoehe;
-    if (hoehe > e.ceiling) hoehe = e.ceiling;
+    if (e.flying) {
+      // Nur ein Gerät hat einen Mindestabstand und eine Decke. Ein Fallender
+      // hat beides nicht — er hat nur noch die Höhe, die ihm geblieben ist.
+      if (hoehe < kFlugMindesthoehe) hoehe = kFlugMindesthoehe;
+      if (hoehe > e.ceiling) hoehe = e.ceiling;
+    } else if (hoehe < 0.0f) {
+      hoehe = 0.0f;
+    }
     e.y = boden + hoehe;
     e.airborne = true;
     return;

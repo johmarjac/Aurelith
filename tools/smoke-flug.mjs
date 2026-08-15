@@ -521,28 +521,53 @@ check(
   `${Math.hypot(b.x - a.x, b.z - a.z).toFixed(2)} Einheiten in 24 Ticks`,
 );
 
+/*
+ * Vor dem Absteigen noch einmal deutlich Höhe holen.
+ *
+ * Der Sturz ist die eigentliche Prüfung, und aus einem halben Meter fällt
+ * niemand sichtbar. Wie hoch es am Ende wird, hängt am Gelände darunter —
+ * gemessen wird deshalb immer gegen `boden` und nie gegen eine feste Zahl.
+ */
+await page.keyboard.press('Space');
+await halte('KeyW', 30);
+await warte(70);
+await page.keyboard.press('Space');
+await warte(50);
+const hoch = await stelle();
+check(
+  hoch.y > hoch.boden + 8,
+  `vor dem Absteigen steht sie hoch (${(hoch.y - hoch.boden).toFixed(1)} über Grund)`,
+);
+
 await page.keyboard.press('KeyI');
 await page.waitForTimeout(400);
 await page.dblclick('.equip-slot[data-slot="flug"]');
-await warte(40);
-await page.keyboard.press('KeyI');
 
 /*
- * Gegen den **Boden** gemessen und nicht gegen die vorige Höhe.
+ * Wer absteigt, **fällt** — er wird nicht abgesetzt.
  *
- * Vorher stand hier „mindestens einen Meter tiefer als eben". Das ging so
- * lange gut, wie der Flug zufällig über abfallendem Gelände endete: in der
- * Luft hält die Figur ihre Höhe, das Gelände sinkt darunter weg, und der Sturz
- * beim Absteigen ist so hoch wie dieser Zufall. Endete der Flug über
- * ansteigendem Boden, hing sie am Mindestabstand von einem halben Meter — und
- * die Prüfung war rot, ohne dass etwas kaputt war.
+ * Genau das ging verloren: der Server strich die eigene Figur nach dem
+ * Ausrüstungswechsel aus der Bekanntenliste, schickte sie als volle Zeile, und
+ * der Client baute daraufhin seine Vorhersage neu auf — auf dem Gelände. Aus
+ * vierzig Metern stand die Figur im nächsten Bild unten, als hätte jemand sie
+ * hingestellt. Der Sturz lief im Server, im Bild fand er nie statt.
  *
- * Was sie sagen soll, ist einfacher: vorher in der Luft, danach auf dem Boden.
+ * Deshalb zwei Messungen und nicht eine: gleich danach noch oben, später
+ * unten. Eine einzelne Messung am Ende wäre in **beiden** Fällen grün.
  */
+await warte(6);
+const gleichNach = await stelle();
+check(
+  gleichNach.y > gleichNach.boden + 4,
+  `gleich nach dem Absteigen ist sie noch in der Luft (${(gleichNach.y - gleichNach.boden).toFixed(1)} über Grund)`,
+);
+
+await warte(70);
+await page.keyboard.press('KeyI');
 const gelandet = await stelle();
 check(
-  b.y > b.boden + 0.3 && gelandet.y <= gelandet.boden + 0.05,
-  `nach dem Absteigen liegt sie auf dem Boden (${(b.y - b.boden).toFixed(1)} → ${(gelandet.y - gelandet.boden).toFixed(1)} über Grund)`,
+  gelandet.y <= gelandet.boden + 0.05,
+  `und kommt dann unten an (${(gelandet.y - gelandet.boden).toFixed(2)} über Grund)`,
 );
 check(
   (await beutel()).find((e) => e.itemId === 'flug_besen')?.equipped === false,

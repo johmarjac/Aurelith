@@ -358,7 +358,10 @@ check(
   'die Leinwand hat eine brauchbare Größe',
   puppe ? `${puppe.leinwand.breite}×${puppe.leinwand.hoehe} px` : '—',
 );
-check(puppe?.plaetze === 13, 'dreizehn Ausrüstungsplätze', String(puppe?.plaetze));
+// Vierzehn seit dem Fluggerät: dreizehn zum Anziehen und der Platz darunter.
+// Die Zahl steht hier als Zahl und nicht als „mehr als zwölf" — ein Platz, der
+// beim Umbau verlorengeht, soll auffallen.
+check(puppe?.plaetze === 14, 'vierzehn Ausrüstungsplätze', String(puppe?.plaetze));
 check(
   puppe?.sichtbar === puppe?.plaetze,
   'und alle liegen im Fenster',

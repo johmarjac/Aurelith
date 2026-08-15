@@ -1281,15 +1281,22 @@ function makeHumanoid(cfg: HumanoidConfig, material: THREE.Material): CharacterR
          * Die Arme: auf dem Besen nach vorn an den Stiel, auf dem Brett weit
          * zur Seite — die Haltung, mit der man über einen Balken geht.
          *
-         * Weit heisst wirklich weit (knapp siebzig Grad vom Körper). Bei einem
-         * halben Radiant sah es aus, als hinge jemand die Arme hängen; das
+         * **Das Vorzeichen ist nicht frei wählbar.** Ein Arm hängt an seiner
+         * Schulter und dreht um deren Punkt: der linke sitzt bei −X, und eine
+         * positive Drehung um Z schwingt ihn nach +X, also **vor die Brust**.
+         * Genau so standen die Arme hier — mit 1,15 gekreuzt vor dem Körper,
+         * und von aussen sah es aus, als seien sie gar nicht da. Nach aussen
+         * geht der linke Arm mit negativem, der rechte mit positivem Wert.
+         * Dieselbe Regel wie bei der Wirbelklinge, siehe `armLinksSeite`.
+         *
+         * Weit heisst wirklich weit (knapp siebzig Grad vom Körper). Das
          * Balancieren liest man erst, wenn die Arme deutlich abstehen und die
          * Ellbogen fast gerade sind.
          */
         armL.rotation.x = sitzt ? -1.15 : -0.1;
         armR.rotation.x = sitzt ? -1.15 : -0.1;
-        armL.rotation.z = sitzt ? 0.12 : 1.15;
-        armR.rotation.z = sitzt ? -0.12 : -1.15;
+        armL.rotation.z = sitzt ? 0.12 : -1.15;
+        armR.rotation.z = sitzt ? -0.12 : 1.15;
         ellbogenL.rotation.x = sitzt ? -0.35 : -0.05;
         ellbogenR.rotation.x = sitzt ? -0.35 : -0.05;
 

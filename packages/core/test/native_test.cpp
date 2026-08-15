@@ -876,6 +876,58 @@ void testFliegen() {
   check(p->pitch == nase && p->tempo == fahrt, "ein zweites Aufsteigen ändert die Lage nicht");
   world.teleport(1, 5.0f, 5.0f, 0.0f);
   check(p->airborne, "wer fliegt, bleibt nach einem Versatz in der Luft");
+
+  /*
+   * --- Wer absteigt, fällt — und wird nicht abgesetzt ----------------------
+   *
+   * Der Fehler war von aussen nicht zu erklären: aus vierzig Metern abgestiegen
+   * stand die Figur im nächsten Augenblick unten, als hätte jemand sie
+   * hingestellt. Der Sturz begann sehr wohl, aber die nächste Korrektur der
+   * Vorhersage kam zwei Ticks später — und `versetze` stellte damals jeden auf
+   * das Gelände, der nicht **flog**. Dass er gerade fiel, zählte nicht.
+   *
+   * Deshalb steht hier beides: der Sturz selbst, und dass ein Versatz mitten
+   * darin ihn nicht beendet. Die Gegenprobe zum Versatz ist der Abschnitt
+   * darunter — wer am Boden steht, bleibt beim Versetzen am Boden.
+   */
+  {
+    aur::World fall(27u, flatTerrain(), &mobs);
+    fall.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+    aur::Entity* f = fall.find(1);
+    const float grund = f->y;
+    fall.setFlying(1, true, 12.0f, 6.0f, 60.0f);
+    f->y = grund + 40.0f;
+
+    fall.setFlying(1, false, 0.0f, 0.0f, 0.0f);
+    check(f->airborne, "nach dem Absteigen hängt sie nicht am Boden");
+    check(std::fabs(f->y - (grund + 40.0f)) < 1e-3f, "und steht noch dort, wo sie abstieg");
+
+    // Zwei Ticks fallen, dann ein Versatz — genau die Reihenfolge, in der die
+    // Vorhersage sich korrigiert.
+    fall.step(aur::kTickSeconds);
+    fall.step(aur::kTickSeconds);
+    const float nachZwei = f->y;
+    check(nachZwei < grund + 40.0f && nachZwei > grund + 39.0f,
+          "sie fängt an zu fallen, statt hinunterzuspringen");
+
+    fall.teleport(1, 1.0f, 1.0f, 0.0f);
+    check(std::fabs(f->y - nachZwei) < 1e-3f, "und ein Versatz setzt sie dabei nicht ab");
+
+    // Und der Rest des Weges dauert: vierzig Meter sind bei dieser Schwerkraft
+    // keine halbe Sekunde. Ohne diese Zeile ginge auch ein Kern durch, der
+    // nach dem zweiten Tick doch noch springt.
+    for (int i = 0; i < 20; ++i) fall.step(aur::kTickSeconds);
+    check(f->y > grund + 20.0f, "nach einer Sekunde ist sie noch lange nicht unten");
+    for (int i = 0; i < 200; ++i) fall.step(aur::kTickSeconds);
+    check(!f->airborne && std::fabs(f->y - grund) < 1e-3f, "irgendwann kommt sie an");
+
+    // Gegenprobe: wer am Boden steht, wird von einem Versatz auch dorthin
+    // gesetzt. Sonst genügte ein `airborne = true` überall, und niemand
+    // landete je wieder.
+    fall.teleport(1, -3.0f, -3.0f, 0.0f);
+    check(!f->airborne && std::fabs(f->y - grund) < 1e-3f,
+          "am Boden bleibt ein Versatz am Boden");
+  }
   checkNear(p->y - boden, vorVersatz, 0.1f, "und behält seine Höhe über dem Gelände");
 
   // Und die Begrenzung wirkt danach weiter.
