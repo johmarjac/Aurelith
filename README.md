@@ -53,7 +53,9 @@ bewussten Abweichung, die weiter unten begründet ist.
 - **Drei Karten** mit Gates und einem Dungeon, dazu ein **Map-Editor**, der
   dasselbe Dateiformat liest und schreibt, und eine **Modellschau**, in der man
   jedes Prop einzeln ansieht — am Telefon mit einem Finger drehen, mit zweien
-  zoomen und schieben.
+  zoomen und schieben. Sie zeigt auf Wunsch den **Kollisionskörper** unter dem
+  Modell und misst in einem **festen Massstab**, damit ein Baum im Bild so viel
+  grösser ist als ein Busch, wie er es im Spiel ist.
 - **Lichtmoor** ist die Heimatkarte: ein rechteckiger Streifen, rundum von
   Gebirge verdeckt und gesperrt. Unten die Hauptstadt Silberfurt mit den
   Hauptquests, nach Norden Stufengebiete von 1 bis 20, dazwischen Nebenquests,
@@ -143,7 +145,8 @@ packages/
   modelviewer
             Modellschau: jedes Prop, jede Figur, jede Waffe einzeln und
             drehbar. Lädt weder Karte noch wasm-Kern — sie baut die Modelle
-            aus denselben Bauern wie der Client.
+            aus denselben Bauern wie der Client und liest den Kollisionsradius
+            aus derselben Tabelle wie Generator und Editor.
 assets/
   maps      aurelith.map-Dokumente
   core      gebauter wasm-Kern (erzeugt)

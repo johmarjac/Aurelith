@@ -23,6 +23,11 @@ import * as THREE from 'three';
 import { loadModel } from '@aurelith/client/render/gltf.ts';
 import type { CharacterRig } from '@aurelith/client/render/rigs.ts';
 import {
+  baueKollisionsanzeige,
+  beschreibeKollision,
+  loeseKollisionAuf,
+} from './kollision.ts';
+import {
   baueKatalog,
   createFoliageMaterial,
   createSharedMaterial,
@@ -77,6 +82,16 @@ scene.add(achsen);
 const halter = new THREE.Group();
 scene.add(halter);
 
+/**
+ * Die Kollisionsanzeige — **neben** dem Halter und nicht darin.
+ *
+ * Sonst dreht sie mit, wenn „von selbst drehen" an ist. Bei einem Kreis fiele
+ * das nicht auf, bei der Wand darüber aber schon: ihre Segmentkanten liefen
+ * mit, und das sähe aus, als drehte sich der Kollisionskörper gegen das
+ * Modell.
+ */
+let kollisionsNetz: THREE.Object3D | undefined;
+
 // ---------------------------------------------------------------------------
 // Zustand
 // ---------------------------------------------------------------------------
@@ -103,6 +118,19 @@ const einstellungen = {
   hell: false,
   /** Zeigt die Figuren im Lauf statt im Stand. Nur für Rigs. */
   laufen: false,
+  /** Zeigt den Kollisionskörper — Kreis oder Plattform. Nur bei Props. */
+  kollision: false,
+  /**
+   * Wie viele Meter Bildhöhe die Kamera zeigt.
+   *
+   * `0` heisst „an das Modell anpassen": jedes Modell füllt dann das Bild.
+   * Bequem zum Ansehen, aber irreführend zum Vergleichen — ein Grasbüschel
+   * sieht damit so gross aus wie ein Torbogen, und beim Durchblättern hält man
+   * ein Prop für zu gross, das im Spiel richtig ist. Eine feste Bildhöhe ist
+   * ein Massstab: der Baum ist dann zehnmal so hoch wie der Busch, weil er es
+   * ist.
+   */
+  bezug: 12,
 };
 
 const gespeichert = localStorage.getItem('aurelith.modellschau');
@@ -126,6 +154,11 @@ function leere(): void {
   for (const kind of [...halter.children]) halter.remove(kind);
   rig?.dispose();
   rig = undefined;
+  if (kollisionsNetz) {
+    scene.remove(kollisionsNetz);
+    loeseKollisionAuf(kollisionsNetz);
+    kollisionsNetz = undefined;
+  }
 }
 
 /**
@@ -189,18 +222,63 @@ function richteKameraAus(objekt: THREE.Object3D): void {
   kasten.getSize(groesse);
   kasten.getCenter(mitte);
   const spanne = Math.max(groesse.x, groesse.y, groesse.z, 0.3);
+  hoeheDesModells = groesse.y;
 
-  blickpunkt.set(mitte.x, mitte.y, mitte.z);
-  abstand = spanne * 2.4;
-  gitter.scale.setScalar(Math.max(0.15, spanne / 6));
+  if (einstellungen.bezug > 0) {
+    /*
+     * Fester Massstab: die Kamera zeigt immer dieselbe Zahl Meter, ganz gleich,
+     * wie gross das Modell ist. Der Abstand folgt aus dem Öffnungswinkel —
+     * halbe Bildhöhe geteilt durch den Tangens des halben Winkels.
+     *
+     * Der Blickpunkt liegt **nicht** in der Mitte des Modells, sondern bei
+     * 40 % der Bildhöhe über dem Boden. Sonst wanderte der Boden von Modell zu
+     * Modell im Bild herum, und der Massstab wäre wieder keiner: man
+     * vergliche Höhen ohne gemeinsame Grundlinie.
+     */
+    const halb = einstellungen.bezug * 0.5;
+    abstand = halb / Math.tan((camera.fov * Math.PI) / 360);
+    blickpunkt.set(0, einstellungen.bezug * 0.4, 0);
+    // Das Raster bleibt bei einem Meter je Feld — es ist in dieser Betriebsart
+    // das Lineal, und ein mitwachsendes Lineal misst nichts.
+    gitter.scale.setScalar(1);
+  } else {
+    blickpunkt.set(mitte.x, mitte.y, mitte.z);
+    abstand = spanne * 2.4;
+    gitter.scale.setScalar(Math.max(0.15, spanne / 6));
+  }
   zeigeMasse(groesse, kasten);
+  baueKollision();
+}
+
+/** Höhe des zuletzt gebauten Modells — die Kollisionswand wird so hoch. */
+let hoeheDesModells = 1;
+
+/**
+ * Legt die Kollisionsanzeige unter das Modell, oder räumt sie weg.
+ *
+ * Wird bei jedem Wechsel und bei jedem Umschalten gerufen. Neu gebaut und
+ * nicht nur versteckt, weil der Radius am Modell hängt: ein verstecktes Netz
+ * vom vorigen Prop wäre beim nächsten Einschalten der falsche Kreis.
+ */
+function baueKollision(): void {
+  if (kollisionsNetz) {
+    scene.remove(kollisionsNetz);
+    loeseKollisionAuf(kollisionsNetz);
+    kollisionsNetz = undefined;
+  }
+  if (!einstellungen.kollision || !aktuell.kollision) return;
+  kollisionsNetz = baueKollisionsanzeige(aktuell.kollision, hoeheDesModells);
+  scene.add(kollisionsNetz);
 }
 
 function zeigeMasse(groesse: THREE.Vector3, kasten: THREE.Box3): void {
   const dreiecke = zaehleDreiecke();
+  // Die Kollision steht immer im Fuss, auch wenn der Kreis nicht gezeichnet
+  // ist: die Zahl ist die Frage, und das Bild ist nur die Antwort darauf.
+  const kollision = aktuell.kollision ? ` · ${beschreibeKollision(aktuell.kollision)}` : '';
   fuss.textContent =
     `${aktuell.id} · ${groesse.x.toFixed(2)} × ${groesse.y.toFixed(2)} × ${groesse.z.toFixed(2)} m` +
-    ` · Boden bei y = ${kasten.min.y.toFixed(2)} · ${dreiecke} Dreiecke`;
+    ` · Boden bei y = ${kasten.min.y.toFixed(2)} · ${dreiecke} Dreiecke${kollision}`;
 }
 
 /**
@@ -283,6 +361,37 @@ function zeichnePanel(): void {
   }
   panel.appendChild(blaettern);
 
+  // --- Massstab ------------------------------------------------------------
+
+  const massLabel = document.createElement('h2');
+  massLabel.textContent = 'Massstab';
+  const masse = document.createElement('div');
+  masse.className = 'palette';
+  // Drei feste Bildhöhen und die Anpassung. Die Zahlen decken ab, was es gibt:
+  // ein Pilz, ein Baum, ein schwebender Fels.
+  const BEZUEGE: [string, number][] = [
+    ['2 m', 2],
+    ['12 m', 12],
+    ['40 m', 40],
+    ['Anpassen', 0],
+  ];
+  for (const [text, wert] of BEZUEGE) {
+    const knopf = document.createElement('button');
+    knopf.type = 'button';
+    knopf.textContent = text;
+    knopf.setAttribute('aria-pressed', String(einstellungen.bezug === wert));
+    knopf.addEventListener('click', () => {
+      einstellungen.bezug = wert;
+      merke();
+      // Neu ausrichten und nicht nur den Abstand setzen: bei „Anpassen" hängt
+      // auch der Blickpunkt am Modell, und der steht sonst noch auf der festen
+      // Höhe von vorhin.
+      zeige(aktuell);
+    });
+    masse.appendChild(knopf);
+  }
+  panel.append(massLabel, masse);
+
   // --- Licht ---------------------------------------------------------------
 
   const lichtLabel = document.createElement('h2');
@@ -317,6 +426,7 @@ function zeichnePanel(): void {
   panel.appendChild(schalterLabel);
 
   const SCHALTER: [keyof typeof einstellungen, string][] = [
+    ['kollision', 'Kollision zeigen'],
     ['wireframe', 'Drahtgitter'],
     ['gitter', 'Bodenraster'],
     ['achsen', 'Achsen'],
@@ -367,6 +477,7 @@ function wendeAn(): void {
   laubMaterial.wireframe = einstellungen.wireframe;
   gitter.visible = einstellungen.gitter;
   achsen.visible = einstellungen.achsen;
+  baueKollision();
   renderer.setClearColor(einstellungen.hell ? 0xdfe7ec : 0x0b1014, 1);
   document.body.dataset.hell = einstellungen.hell ? '1' : '0';
 }
@@ -585,6 +696,21 @@ Object.defineProperty(window, 'modellschau', {
     },
     get einstellungen() {
       return { ...einstellungen };
+    },
+    /**
+     * Was von der Kollision zu sehen ist.
+     *
+     * `gezeichnet` und nicht nur der Schalter: eingeschaltet, aber nichts in
+     * der Szene, ist genau der Fehler, den ein Blick auf die Einstellung nicht
+     * findet — und bei einer Figur ist er sogar richtig, denn Figuren haben
+     * keine.
+     */
+    get kollision() {
+      return {
+        an: einstellungen.kollision,
+        gezeichnet: Boolean(kollisionsNetz),
+        text: aktuell.kollision ? beschreibeKollision(aktuell.kollision) : null,
+      };
     },
   },
 });

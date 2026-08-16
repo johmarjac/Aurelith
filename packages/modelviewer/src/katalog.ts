@@ -14,6 +14,7 @@
  */
 
 import * as THREE from 'three';
+import { standardKollision, type PropKollision } from '@aurelith/shared';
 import {
   createFoliageMaterial,
   createSharedMaterial,
@@ -77,6 +78,15 @@ export interface Eintrag {
     material: THREE.Material,
     laubMaterial: THREE.Material,
   ): { objekt: THREE.Object3D; rig?: CharacterRig };
+  /**
+   * Womit das Modell im Weg steht — nur bei Props.
+   *
+   * Aus `PROP_KOLLISION` und nicht aus einer Liste hier: den Radius kennt
+   * schon der Kartengenerator, der Editor und der Kern. Eine vierte Fassung
+   * davon zeigte irgendwann einen Kreis, den es im Spiel nicht gibt — und das
+   * wäre schlimmer als gar keinen zu zeigen.
+   */
+  kollision?: PropKollision;
 }
 
 /**
@@ -92,10 +102,12 @@ function ausGeometrie(
   gruppe: Gruppe,
   bauer: () => THREE.BufferGeometry,
   laub = false,
+  kollision?: PropKollision,
 ): Eintrag {
   return {
     id,
     gruppe,
+    ...(kollision ? { kollision } : {}),
     baue: (material, laubMaterial) => ({
       objekt: new THREE.Mesh(bauer(), laub ? laubMaterial : material),
     }),
@@ -106,7 +118,15 @@ export function baueKatalog(): Eintrag[] {
   const out: Eintrag[] = [];
 
   for (const key of Object.keys(PROP_BUILDERS).sort()) {
-    out.push(ausGeometrie(key, 'Props', () => PROP_BUILDERS[key]!(), LAUB_MODELLE.has(key)));
+    out.push(
+      ausGeometrie(
+        key,
+        'Props',
+        () => PROP_BUILDERS[key]!(),
+        LAUB_MODELLE.has(key),
+        standardKollision(key),
+      ),
+    );
   }
 
   for (const spec of weaponModelSpecs()) {

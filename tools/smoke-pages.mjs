@@ -260,6 +260,102 @@ for (const [name, path] of [
     await page.mouse.click(400, 400);
     const ruheNach = await page.evaluate(() => window.modellschau.kamera.gier);
     check(Math.abs(ruheNach - ruheVor) < 0.01, 'Modellschau: ein Klick allein dreht nichts');
+
+    // --- Massstab und Kollision --------------------------------------------
+
+    /** Wählt ein Modell so, wie man es von Hand wählt: über die Liste. */
+    const waehle = async (id) => {
+      await page.selectOption('#modellwahl', id);
+      await page.waitForTimeout(120);
+    };
+    /** Drückt einen Knopf des Bedienfelds über seine Beschriftung. */
+    const druecke = async (text) => {
+      await page.evaluate((t) => {
+        for (const b of document.querySelectorAll('#panel button')) {
+          if (b.textContent === t) b.click();
+        }
+      }, text);
+      await page.waitForTimeout(120);
+    };
+    /** Schaltet ein Kästchen um. */
+    const schalte = async (text) => {
+      await page.evaluate((t) => {
+        for (const l of document.querySelectorAll('#panel label.schalter')) {
+          if (l.textContent.includes(t)) l.querySelector('input').click();
+        }
+      }, text);
+      await page.waitForTimeout(120);
+    };
+    const abstandVon = async (id) => {
+      await waehle(id);
+      return page.evaluate(() => window.modellschau.kamera.abstand);
+    };
+
+    /*
+     * Der feste Massstab ist der Grund, warum diese Seite zum Vergleichen
+     * taugt: bei „12 m" zeigt die Kamera immer dieselbe Zahl Meter, und damit
+     * ist ein Baum im Bild so viel grösser als ein Busch, wie er es im Spiel
+     * ist. Ohne diese Prüfung ginge auch eine Fassung durch, die jedes Modell
+     * bildfüllend zeigt — die sieht auf jedem Bildschirmfoto richtig aus.
+     */
+    await druecke('12 m');
+    const fernBusch = await abstandVon('bush');
+    const fernBaum = await abstandVon('tree_fir');
+    check(
+      Math.abs(fernBusch - fernBaum) < 0.01,
+      `Modellschau: fester Massstab hält den Abstand (${fernBusch.toFixed(2)} = ${fernBaum.toFixed(2)})`,
+    );
+
+    // Gegenprobe: bei „Anpassen" darf er sich gerade unterscheiden — sonst
+    // prüfte die Zeile darüber nur, dass zwei Zahlen gleich sind.
+    await druecke('Anpassen');
+    const nahBusch = await abstandVon('bush');
+    const nahBaum = await abstandVon('tree_fir');
+    check(
+      nahBaum > nahBusch * 2,
+      `Modellschau: „Anpassen" rückt an das Modell heran (${nahBusch.toFixed(2)} ↔ ${nahBaum.toFixed(2)})`,
+    );
+    await druecke('12 m');
+
+    /*
+     * Und die Kollision. Sie kommt aus `PROP_KOLLISION` — dieselbe Tabelle,
+     * aus der der Kartengenerator und der Editor schöpfen. Steht hier ein
+     * anderer Radius als dort, sieht man in der Schau einen Kreis, den es im
+     * Spiel nicht gibt, und das wäre schlimmer als gar keiner.
+     */
+    await waehle('rock_large');
+    await schalte('Kollision zeigen');
+    const koll = await page.evaluate(() => window.modellschau.kollision);
+    check(
+      koll.an && koll.gezeichnet && koll.text === 'Kreis r = 2.00 m',
+      `Modellschau: die Kollision liegt unter dem Prop (${koll.text})`,
+    );
+
+    // Der schwebende Fels ist keine Wand, sondern eine Fläche — und wenn die
+    // beiden Formen zusammenfielen, stünde man im Spiel auf einer Säule.
+    await waehle('fels_schwebend');
+    const platte = await page.evaluate(() => window.modellschau.kollision);
+    check(
+      platte.gezeichnet && platte.text === 'Plattform r = 9.00 m',
+      `Modellschau: der schwebende Fels ist eine Plattform (${platte.text})`,
+    );
+
+    // Gegenprobe eins: was keine Kollision hat, bekommt auch keine gezeichnet.
+    await waehle('arrow');
+    const ohne = await page.evaluate(() => window.modellschau.kollision);
+    check(
+      ohne.an && !ohne.gezeichnet && ohne.text === null,
+      'Modellschau: ein Pfeil hat keine Kollision und bekommt keine',
+    );
+
+    // Gegenprobe zwei: ausgeschaltet verschwindet sie wieder.
+    await waehle('rock_large');
+    await schalte('Kollision zeigen');
+    const aus = await page.evaluate(() => window.modellschau.kollision);
+    check(
+      !aus.an && !aus.gezeichnet,
+      'Modellschau: ausgeschaltet ist sie weg',
+    );
   }
 
   await page.screenshot({ path: join(root, 'artefakte', `pages-${name.toLowerCase()}.png`) });
