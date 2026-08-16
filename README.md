@@ -234,6 +234,7 @@ npm run test:flugachse   # kippt die Nase um die Achse der Figur oder der Welt?
 npm run test:laub        # Laubkarten: richtige Atlaskachel, Stand auf dem Boden
 npm run test:fels        # Findlinge: Grösse passt zum Kollisionskreis, Körnung in Metern
 npm run test:sterben     # jedes Wesen fällt um, und die Weltansicht stellt es nicht wieder auf
+npm run test:koerper     # Grundkörper: ein Netz, Gewichte am Skelett, Mass und Stand
 npm run test:tag         # Tag- und Nachtwechsel: Licht, Farben, Uhr
 npm run test:quests      # das Auftragsbuch — ohne Server
 npm run test:content     # die Inhaltsdateien: Format und Verweise

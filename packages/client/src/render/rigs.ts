@@ -15,6 +15,7 @@
 import * as THREE from 'three';
 import { decodeOutfit, type Outfit } from '@aurelith/shared';
 import { assemble, box, cone, cylinder, paint, rundeBox, sphere, type Part } from './geometry.ts';
+import { baueKoerper, type KoerperConfig } from './koerper.ts';
 
 export interface RigState {
   /** Weltnenheiten pro Sekunde. Treibt die Schrittfrequenz. */
@@ -1574,7 +1575,7 @@ function makeCrawler(cfg: CreatureConfig, material: THREE.Material): CharacterRi
 // Katalog
 // ---------------------------------------------------------------------------
 
-export type CharacterConfig = HumanoidConfig | CreatureConfig;
+export type CharacterConfig = HumanoidConfig | CreatureConfig | KoerperConfig;
 
 export const CHARACTER_CONFIGS: Record<string, CharacterConfig> = {
   player: {
@@ -1592,6 +1593,31 @@ export const CHARACTER_CONFIGS: Record<string, CharacterConfig> = {
     // eine Figur, die aus irgendeinem Grund ohne Ausrüstungsangabe gebaut
     // wird, und für die Farbe der nackten Haut spielen sie keine Rolle.
     dressed: false,
+  },
+
+  /*
+   * Die Grundkörper — ein durchgehendes Netz, kein Haufen Grundkörper.
+   *
+   * Sie stehen hier, damit die Modellschau sie kennt; auf einer Karte kommen
+   * sie noch nicht vor. Gebaut werden sie aus einem Distanzfeld, siehe
+   * `koerper.ts` — das dauert beim Erzeugen ein paar hundert Millisekunden und
+   * ist deshalb nichts, was man je Figur in der Welt tun würde.
+   */
+  koerper_m: {
+    kind: 'koerper',
+    geschlecht: 'm',
+    height: 1.62,
+    haut: 0xf0cbb2,
+    waesche: 0xb3c9d8,
+    augen: 0x5c4436,
+  },
+  koerper_w: {
+    kind: 'koerper',
+    geschlecht: 'w',
+    height: 1.56,
+    haut: 0xf4d3ba,
+    waesche: 0xd9c0cc,
+    augen: 0x5a4a6a,
   },
 
   npc_guide: {
@@ -1823,6 +1849,7 @@ export function createRig(
   }
 
   if (cfg.kind === 'humanoid') return makeHumanoid(cfg, material);
+  if (cfg.kind === 'koerper') return baueKoerper(cfg, material);
   switch (cfg.variant) {
     case 'blob':
       return makeBlob(cfg, material);
