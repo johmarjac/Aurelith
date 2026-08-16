@@ -60,7 +60,18 @@ function kippung(schluessel: string, tot: boolean): number {
  * aufgefallen ist. Der Distelkeiler war der Vierbeiner; der Höhlenkriecher
  * hatte denselben Fehler und wäre einzeln geprüft nie aufgefallen.
  */
-const WESEN = ['mob_pup', 'mob_boar', 'mob_bandit', 'mob_crawler', 'mob_warden', 'player'];
+const WESEN = [
+  'mob_pup',
+  'mob_boar',
+  'mob_bandit',
+  'mob_crawler',
+  'mob_warden',
+  'player',
+  // Die Grundkörper im Flyff-Stil sind ein eigener Bauer und müssen deshalb
+  // eigens dastehen — ihr Umfallen erbt nichts von der erwachsenen Figur.
+  'jugend_m',
+  'jugend_w',
+];
 for (const schluessel of WESEN) {
   const tot = kippung(schluessel, true);
   check(tot > 1, `${schluessel} liegt im Tod`, `${tot.toFixed(2)} rad`);

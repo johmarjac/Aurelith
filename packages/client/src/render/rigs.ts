@@ -15,6 +15,7 @@
 import * as THREE from 'three';
 import { decodeOutfit, type Outfit } from '@aurelith/shared';
 import { assemble, box, cone, cylinder, paint, rundeBox, sphere, type Part } from './geometry.ts';
+import { baueJugend, type JugendConfig } from './jugend.ts';
 
 export interface RigState {
   /** Weltnenheiten pro Sekunde. Treibt die Schrittfrequenz. */
@@ -1574,7 +1575,7 @@ function makeCrawler(cfg: CreatureConfig, material: THREE.Material): CharacterRi
 // Katalog
 // ---------------------------------------------------------------------------
 
-export type CharacterConfig = HumanoidConfig | CreatureConfig;
+export type CharacterConfig = HumanoidConfig | CreatureConfig | JugendConfig;
 
 export const CHARACTER_CONFIGS: Record<string, CharacterConfig> = {
   player: {
@@ -1592,6 +1593,35 @@ export const CHARACTER_CONFIGS: Record<string, CharacterConfig> = {
     // eine Figur, die aus irgendeinem Grund ohne Ausrüstungsangabe gebaut
     // wird, und für die Farbe der nackten Haut spielen sie keine Rolle.
     dressed: false,
+  },
+
+  /*
+   * Die Grundkörper — die Figur, bevor irgendetwas angelegt ist.
+   *
+   * Anderer Stil als `player` und die NPCs, und das mit Absicht: gut vier
+   * Köpfe hoch statt siebeneinhalb, grosse Augen, schmale Glieder. Sie stehen
+   * hier, damit die Modellschau sie kennt — auf einer Karte kommen sie
+   * (noch) nicht vor.
+   */
+  jugend_m: {
+    kind: 'jugend',
+    geschlecht: 'm',
+    height: 1.52,
+    skin: 0xf3cdaa,
+    hair: 0x5a3a26,
+    augen: 0x3f7fb0,
+    waesche: 0xeef1f6,
+    waescheTrim: 0x8fa6c4,
+  },
+  jugend_w: {
+    kind: 'jugend',
+    geschlecht: 'w',
+    height: 1.47,
+    skin: 0xf7d6b6,
+    hair: 0x8a4f2e,
+    augen: 0x6a4aa0,
+    waesche: 0xfbeef1,
+    waescheTrim: 0xe8a4b6,
   },
 
   npc_guide: {
@@ -1823,6 +1853,7 @@ export function createRig(
   }
 
   if (cfg.kind === 'humanoid') return makeHumanoid(cfg, material);
+  if (cfg.kind === 'jugend') return baueJugend(cfg, material);
   switch (cfg.variant) {
     case 'blob':
       return makeBlob(cfg, material);
