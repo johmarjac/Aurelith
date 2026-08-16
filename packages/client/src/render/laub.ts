@@ -28,19 +28,41 @@ import * as THREE from 'three';
 /** Kantenlänge einer Kachel im Atlas. */
 const KACHEL = 256;
 
+/** Spalten und Zeilen des Atlas. */
+const SPALTEN = 4;
+const ZEILEN = 2;
+
 /**
- * Die vier Kacheln, als Zeile/Spalte im 2×2-Atlas.
+ * Dieselbe Aufteilung, nach aussen sichtbar.
  *
- * Ein Atlas und nicht vier Texturen: alle Laubprops teilen sich damit **ein**
+ * Der Test rechnet die Lage der Kacheln nach, und er muss dafür wissen, wie
+ * gross ein Feld ist. Die Zahl dort noch einmal hinzuschreiben hiesse, sie an
+ * zwei Stellen zu pflegen — und beim nächsten Wachsen des Atlas prüfte der
+ * Test die alte Aufteilung und wäre trotzdem grün.
+ */
+export const LAUB_ATLAS = { spalten: SPALTEN, zeilen: ZEILEN } as const;
+
+/**
+ * Die Kacheln, als Spalte/Zeile im Atlas.
+ *
+ * Ein Atlas und nicht sieben Texturen: alle Laubprops teilen sich damit **ein**
  * Material, und ein Material heisst ein Zeichenaufruf je Modell statt einem je
- * Sorte. Auf einer Karte mit vierhundert Büschen und Grasbüscheln ist das der
- * Unterschied zwischen zwei Aufrufen und acht.
+ * Sorte. Auf einer Karte mit vierhundert Büschen, Bäumen und Grasbüscheln ist
+ * das der Unterschied zwischen zwei Aufrufen und einem Dutzend.
+ *
+ * `rinde` ist die Ausnahme unter ihnen: sie ist **deckend**. Damit passt auch
+ * ein Stamm auf dasselbe Material — ein Baum ist sonst zwei Zeichenaufrufe,
+ * einer für das Holz und einer für die Blätter, und davon stehen dreihundert
+ * auf der Karte.
  */
 export const LAUB_KACHEL = {
   blatt: [0, 0],
   gras: [1, 0],
-  farn: [0, 1],
-  bluete: [1, 1],
+  farn: [2, 0],
+  bluete: [3, 0],
+  nadel: [0, 1],
+  krone: [1, 1],
+  rinde: [2, 1],
 } as const;
 
 export type LaubKachel = keyof typeof LAUB_KACHEL;
@@ -264,6 +286,185 @@ function zeichneBluete(ctx: CanvasRenderingContext2D, ox: number, oy: number): v
   }
 }
 
+
+/**
+ * Rechnet Bildkoordinaten einer Kachel in die des Atlas um.
+ *
+ * An einer Stelle, weil die Umkehrung der Zeile hier steckt: die Kacheln
+ * liegen in **Bildzeilen** von oben nach unten, die Texturachse läuft von
+ * unten nach oben. Zeile 0 ist also die obere Hälfte. Wer das an zwei Stellen
+ * rechnet, hat es an einer falsch — und dann trägt der Busch Gras.
+ */
+export function kachelUV(
+  spalte: number,
+  zeile: number,
+  u: number,
+  v: number,
+): [number, number] {
+  return [(spalte + u) / SPALTEN, (ZEILEN - 1 - zeile + v) / ZEILEN];
+}
+
+/**
+ * Ein Nadelzweig — **ein** Zweig, der die ganze Kachel füllt.
+ *
+ * Zuerst waren es drei dünne Rippen mit Nadeln als Haarstrichen. Am Baum sah
+ * das aus wie Flusen: ein Strich von einem Bildpunkt Breite deckt nach dem
+ * Alphatest fast nichts, und was übrigbleibt, flimmert. Ein Nadelzweig ist
+ * aus zehn Metern eine **Fläche** und kein Gitter.
+ *
+ * Deshalb zuerst ein gefüllter Umriss — die Linsenform, die ein Zweig von oben
+ * hat — und die einzelnen Nadeln nur als Zeichnung darauf. Damit stimmt die
+ * Deckung, und die Nadeln sind das, was sie sein sollen: Struktur, nicht
+ * Substanz.
+ *
+ * Der Zweig liegt **waagerecht**: Ansatz links, Spitze rechts. So wird die
+ * Karte im Baum flach gelegt und ragt vom Stamm nach aussen, ohne dass jemand
+ * sie noch drehen müsste.
+ */
+function zeichneNadel(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+  const rand = wuerfel(0x2fad);
+  const mitte = oy + KACHEL * 0.5;
+  const links = ox + SAUM;
+  const laenge = KACHEL - 2 * SAUM;
+  const maxBreite = (KACHEL * 0.5 - SAUM) * 0.95;
+
+  /** Halbe Breite des Zweiges an der Stelle `t` (0 am Ansatz, 1 an der Spitze). */
+  const breite = (t: number): number =>
+    maxBreite * Math.sin(Math.PI * Math.min(1, t * 0.92 + 0.08)) ** 0.65;
+
+  // --- Der gefüllte Umriss ------------------------------------------------
+  ctx.fillStyle = 'rgb(170, 196, 158)';
+  ctx.beginPath();
+  for (let i = 0; i <= 40; i++) {
+    const t = i / 40;
+    const x = links + laenge * t;
+    const y = mitte - breite(t) * (0.72 + rand() * 0.28);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  for (let i = 40; i >= 0; i--) {
+    const t = i / 40;
+    ctx.lineTo(links + laenge * t, mitte + breite(t) * (0.72 + rand() * 0.28));
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // --- Die Rippe ----------------------------------------------------------
+  ctx.strokeStyle = 'rgba(120, 96, 62, 0.9)';
+  ctx.lineWidth = KACHEL * 0.02;
+  ctx.beginPath();
+  ctx.moveTo(links, mitte);
+  ctx.lineTo(links + laenge, mitte);
+  ctx.stroke();
+
+  // --- Die einzelnen Nadeln, als Zeichnung auf der Fläche -----------------
+  //
+  // Nach hinten geneigt, wie sie am Zweig sitzen. Breit genug, dass sie auch
+  // in der zweiten Mipmap-Stufe noch etwas beitragen — ein Haarstrich wäre
+  // dort längst weggemittelt.
+  const nadeln = 46;
+  for (let i = 0; i < nadeln; i++) {
+    const t = (i + 0.5) / nadeln;
+    const x = links + laenge * t;
+    const spanne = breite(t);
+    for (const seite of [-1, 1]) {
+      const lang = spanne * (0.75 + rand() * 0.4);
+      const g = Math.round(255 * (0.55 + rand() * 0.42));
+      ctx.strokeStyle = `rgb(${Math.round(g * 0.84)}, ${g}, ${Math.round(g * 0.74)})`;
+      ctx.lineWidth = KACHEL * (0.012 + rand() * 0.01);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x, mitte);
+      ctx.lineTo(x - lang * 0.42, mitte + seite * lang);
+      ctx.stroke();
+    }
+  }
+  ctx.lineCap = 'butt';
+}
+
+/**
+ * Eine dichte Laubkrone — die grosse Schwester der Blattkachel.
+ *
+ * Für Bäume: dort steht die Karte für ein ganzes Kronensegment und nicht für
+ * ein Büschel. Deshalb mehr, kleinere Blätter und ein voller Kern — eine
+ * Krone mit Löchern in der Mitte sieht aus wie ein Kranz.
+ */
+function zeichneKrone(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+  const rand = wuerfel(0x8c31);
+  const mitte = KACHEL * 0.5;
+  const platz = KACHEL * 0.5 - SAUM;
+
+  for (const lage of [
+    { anzahl: 44, weite: 1.0, laenge: 0.2, hell: 0.6 },
+    { anzahl: 34, weite: 0.78, laenge: 0.17, hell: 0.8 },
+    { anzahl: 24, weite: 0.5, laenge: 0.15, hell: 1.0 },
+  ]) {
+    for (let i = 0; i < lage.anzahl; i++) {
+      const winkel = rand() * Math.PI * 2;
+      // Die Wurzel des Zufalls, damit die Blätter zur Mitte hin dichter
+      // stehen: gleichmässig gestreut wäre der Rand voll und der Kern leer.
+      const weite = platz * lage.weite * Math.sqrt(rand());
+      blatt(
+        ctx,
+        ox + mitte + Math.cos(winkel) * weite,
+        oy + mitte + Math.sin(winkel) * weite * 0.92,
+        KACHEL * lage.laenge * (0.8 + rand() * 0.5),
+        KACHEL * lage.laenge * (0.5 + rand() * 0.2),
+        rand() * Math.PI * 2,
+        lage.hell * (0.84 + rand() * 0.16),
+      );
+    }
+  }
+}
+
+/**
+ * Rinde — die einzige **deckende** Kachel.
+ *
+ * Sie füllt ihre Kachel bis an den Rand, ohne durchsichtigen Saum: ein Stamm
+ * mit durchsichtigen Kanten hätte Löcher. Der Preis ist, dass sie in den Saum
+ * der Nachbarkacheln blutet, sobald die Mipmaps grob werden — deshalb legt
+ * `rindenUV` die Bildkoordinaten des Stamms ein Stück nach innen.
+ */
+function zeichneRinde(ctx: CanvasRenderingContext2D, ox: number, oy: number): void {
+  const rand = wuerfel(0x5b17);
+  ctx.fillStyle = 'rgb(226, 214, 198)';
+  ctx.fillRect(ox, oy, KACHEL, KACHEL);
+
+  // Senkrechte Furchen. Ein Stamm ohne sie ist ein brauner Zylinder, und aus
+  // drei Metern sieht man ihm an, dass er aus nichts besteht.
+  for (let i = 0; i < 46; i++) {
+    const x = ox + rand() * KACHEL;
+    const breite = KACHEL * (0.006 + rand() * 0.022);
+    const dunkel = 0.5 + rand() * 0.42;
+    const g = Math.round(255 * dunkel);
+    ctx.strokeStyle = `rgb(${Math.round(g * 1.02)}, ${Math.round(g * 0.94)}, ${Math.round(g * 0.82)})`;
+    ctx.lineWidth = breite;
+    ctx.beginPath();
+    let y = oy - 4;
+    let px = x;
+    ctx.moveTo(px, y);
+    while (y < oy + KACHEL + 4) {
+      y += KACHEL * 0.12;
+      px += (rand() - 0.5) * KACHEL * 0.03;
+      ctx.lineTo(px, y);
+    }
+    ctx.stroke();
+  }
+}
+
+/**
+ * Bildkoordinaten für den Stamm — ein Stück innerhalb der Rindenkachel.
+ *
+ * Der Einzug hält die Mipmaps vom Kachelrand fern. Ohne ihn mischt sich bei
+ * grober Auflösung der durchsichtige Saum der Nachbarkachel in die Rinde, der
+ * Alphatest verwirft sie stellenweise, und der Stamm bekommt aus der Ferne
+ * Löcher.
+ */
+export function rindenUV(u: number, v: number): [number, number] {
+  const [spalte, zeile] = LAUB_KACHEL.rinde;
+  return kachelUV(spalte, zeile, 0.06 + u * 0.88, 0.06 + v * 0.88);
+}
+
 let atlas: THREE.Texture | undefined;
 
 /**
@@ -276,8 +477,8 @@ export function laubAtlas(): THREE.Texture {
   if (atlas) return atlas;
 
   const leinwand = document.createElement('canvas');
-  leinwand.width = KACHEL * 2;
-  leinwand.height = KACHEL * 2;
+  leinwand.width = KACHEL * SPALTEN;
+  leinwand.height = KACHEL * ZEILEN;
   const ctx = leinwand.getContext('2d');
   if (!ctx) throw new Error('Kein 2D-Kontext für den Laubatlas');
 
@@ -308,6 +509,9 @@ export function laubAtlas(): THREE.Texture {
   kachel(zeichneGras, LAUB_KACHEL.gras);
   kachel(zeichneFarn, LAUB_KACHEL.farn);
   kachel(zeichneBluete, LAUB_KACHEL.bluete);
+  kachel(zeichneNadel, LAUB_KACHEL.nadel);
+  kachel(zeichneKrone, LAUB_KACHEL.krone);
+  kachel(zeichneRinde, LAUB_KACHEL.rinde);
 
   const textur = new THREE.CanvasTexture(leinwand);
   textur.colorSpace = THREE.SRGBColorSpace;
@@ -342,11 +546,10 @@ export function laubKarte(
    * Textur (v von 0,5 bis 1) und Zeile 1 die untere. Ohne das `1 −` trägt der
    * Busch Gras und das Gras Blätter.
    */
-  const u0 = spalte * 0.5;
-  const v0 = (1 - zeile) * 0.5;
   const uv = geo.attributes.uv as THREE.BufferAttribute;
   for (let i = 0; i < uv.count; i++) {
-    uv.setXY(i, u0 + uv.getX(i) * 0.5, v0 + uv.getY(i) * 0.5);
+    const [u, v] = kachelUV(spalte, zeile, uv.getX(i), uv.getY(i));
+    uv.setXY(i, u, v);
   }
   uv.needsUpdate = true;
   return geo;

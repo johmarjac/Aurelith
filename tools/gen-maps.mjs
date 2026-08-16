@@ -649,6 +649,7 @@ function lichtmoor() {
     place('tree_broad', -26, cz - 40, { scale: 1.1, collision: 'circle', collisionRadius: 1.3 }),
     place('tree_pine', 30, cz - 36, { scale: 1.2, collision: 'circle', collisionRadius: 1.1 }),
     place('tree_pine', 38, cz - 30, { scale: 1.35, collision: 'circle', collisionRadius: 1.2 }),
+    place('tree_fir', 34, cz - 42, { scale: 1.1, collision: 'circle', collisionRadius: 1.0 }),
     place('bush', -20, cz - 42, { scale: 1.2 }),
     place('bush', 22, cz - 44, { scale: 1.1 }),
   ];
@@ -809,6 +810,10 @@ function lichtmoor() {
       models: [
         { key: 'tree_pine', collision: 'circle', collisionRadius: 1.1 },
         { key: 'tree_broad', collision: 'circle', collisionRadius: 1.4 },
+        // Die Tanne ist höher und schmaler als die Fichte. Ein Wald aus einer
+        // Sorte sieht aus wie ein Wald aus Kopien; erst die zweite Nadelform
+        // gibt der Ferne eine unruhige Kante.
+        { key: 'tree_fir', collision: 'circle', collisionRadius: 1.0 },
       ],
       keepOut,
       tints: [0x4f8a3e, 0x5f9a4a, 0x437a36, 0x6aa855],
@@ -823,6 +828,7 @@ function lichtmoor() {
       models: [
         { key: 'tree_broad', collision: 'circle', collisionRadius: 1.4 },
         { key: 'tree_pine', collision: 'circle', collisionRadius: 1.1 },
+        { key: 'tree_fir', collision: 'circle', collisionRadius: 1.0 },
       ],
       keepOut,
       tints: [0x5f9a4a, 0x6aa855, 0x74b45e],
@@ -1104,6 +1110,7 @@ function dornwald() {
         { key: 'tree_pine', collision: 'circle', collisionRadius: 1.2 },
         { key: 'tree_dead', collision: 'circle', collisionRadius: 0.9 },
         { key: 'tree_broad', collision: 'circle', collisionRadius: 1.5 },
+        { key: 'tree_fir', collision: 'circle', collisionRadius: 1.0 },
       ],
       keepOut,
       tints: [0x3c6b33, 0x2f5a2b, 0x486f3a, 0x59503c],

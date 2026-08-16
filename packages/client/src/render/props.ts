@@ -8,9 +8,10 @@
  */
 
 import * as THREE from 'three';
-import { assemble, cone, cylinder, roughen, sphere, box, type Part } from './geometry.ts';
+import { assemble, cone, cylinder, sphere, box, type Part } from './geometry.ts';
 import { laubKarte, laubNormalen, type LaubKachel } from './laub.ts';
 import { baueFindling, baueSchwebfels } from './schwebfels.ts';
+import { baueFichte, baueLaubbaum, baueTanne } from './baeume.ts';
 
 export type PropBuilder = () => THREE.BufferGeometry;
 
@@ -18,41 +19,6 @@ const BARK = 0x6b4f34;
 const DEAD_BARK = 0x5c5245;
 const STONE = 0x7d7a70;
 const DARK_STONE = 0x4a4a52;
-const NEEDLE = 0x3f7a3a;
-const LEAF = 0x59a44b;
-
-function pine(): THREE.BufferGeometry {
-  const parts: Part[] = [
-    { geometry: cylinder(0.16, 0.24, 2.2, 6), color: BARK, position: [0, 1.1, 0] },
-  ];
-  // Drei Kronenlagen, nach oben schmaler — ergibt die Silhouette einer Fichte.
-  const layers = [
-    { y: 2.1, r: 1.35, h: 1.7 },
-    { y: 3.0, r: 1.05, h: 1.5 },
-    { y: 3.8, r: 0.7, h: 1.2 },
-  ];
-  for (const l of layers) {
-    parts.push({ geometry: cone(l.r, l.h, 7), color: NEEDLE, position: [0, l.y, 0] });
-  }
-  return assemble(parts);
-}
-
-function broadleaf(): THREE.BufferGeometry {
-  return assemble([
-    { geometry: cylinder(0.18, 0.3, 2.6, 6), color: BARK, position: [0, 1.3, 0] },
-    { geometry: roughen(sphere(1.5, 1), 0.28, 0x1234), color: LEAF, position: [0, 3.3, 0] },
-    {
-      geometry: roughen(sphere(1.0, 1), 0.3, 0x5678),
-      color: LEAF,
-      position: [0.8, 2.9, 0.4],
-    },
-    {
-      geometry: roughen(sphere(0.9, 1), 0.3, 0x9abc),
-      color: LEAF,
-      position: [-0.7, 3.0, -0.5],
-    },
-  ]);
-}
 
 function deadTree(): THREE.BufferGeometry {
   const parts: Part[] = [
@@ -371,12 +337,21 @@ function archway(stoneColor: number, accent: number): THREE.BufferGeometry {
  * fragen dieselbe Menge, und eine vierte Stelle, die es nachtragen müsste,
  * gäbe es sonst beim nächsten Laubprop.
  */
-export const LAUB_MODELLE: ReadonlySet<string> = new Set(['bush', 'grass_tuft']);
+export const LAUB_MODELLE: ReadonlySet<string> = new Set([
+  'bush',
+  'grass_tuft',
+  // Bäume gehören dazu, seit ihre Kronen aus Karten bestehen — und der Stamm
+  // gleich mit: seine Rinde liegt als deckende Kachel in demselben Atlas.
+  'tree_pine',
+  'tree_fir',
+  'tree_broad',
+]);
 
 /** Der Katalog. Schlüssel entsprechen dem `model`-Feld im Map-Dokument. */
 export const PROP_BUILDERS: Record<string, PropBuilder> = {
-  tree_pine: pine,
-  tree_broad: broadleaf,
+  tree_pine: () => baueFichte(0x71c3),
+  tree_fir: () => baueTanne(0x8ad4),
+  tree_broad: () => baueLaubbaum(0x93e5),
   tree_dead: deadTree,
   rock_small: () => baueFindling(0.75, 0xaa11),
   rock_large: () => baueFindling(1.9, 0xbb22),

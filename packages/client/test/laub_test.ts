@@ -1,7 +1,7 @@
 /**
  * Laubkarten — liegt die richtige Kachel auf der richtigen Karte?
  *
- * Der Atlas ist 2×2, und die Bildzeilen laufen von oben nach unten, während
+ * Der Atlas ist ein Raster, und die Bildzeilen laufen von oben nach unten, während
  * die Texturachse von unten nach oben läuft. Genau an dieser Umkehrung geht es
  * schief, und zwar **still**: der Busch trägt dann Gras und das Gras Blätter.
  * Man sieht es sofort, sobald man hinschaut — aber nur, wenn jemand hinschaut.
@@ -13,7 +13,13 @@
  */
 
 import * as THREE from 'three';
-import { LAUB_KACHEL, laubKarte, laubNormalen, type LaubKachel } from '../src/render/laub.ts';
+import {
+  LAUB_ATLAS,
+  LAUB_KACHEL,
+  laubKarte,
+  laubNormalen,
+  type LaubKachel,
+} from '../src/render/laub.ts';
 
 let failures = 0;
 function check(ok: boolean, was: string, detail = ''): void {
@@ -23,7 +29,11 @@ function check(ok: boolean, was: string, detail = ''): void {
 
 console.log('Aurelith — Laubkarten\n');
 
-console.log('Jede Kachel liegt in ihrem Viertel');
+console.log('Jede Kachel liegt in ihrem Feld');
+
+/** Breite und Höhe eines Atlasfelds in Bildkoordinaten. */
+const FELD_U = 1 / LAUB_ATLAS.spalten;
+const FELD_V = 1 / LAUB_ATLAS.zeilen;
 
 /** Der Bereich, den die Bildkoordinaten einer Karte tatsächlich abdecken. */
 function spanne(kachel: LaubKachel): { u0: number; u1: number; v0: number; v1: number } {
@@ -48,26 +58,26 @@ const nah = (a: number, b: number): boolean => Math.abs(a - b) < 1e-6;
 for (const kachel of Object.keys(LAUB_KACHEL) as LaubKachel[]) {
   const [spalte, zeile] = LAUB_KACHEL[kachel];
   const s = spanne(kachel);
-  // Die Zeile kehrt sich um: Bildzeile 0 ist die **obere** Hälfte der Textur.
-  const vSoll = (1 - zeile) * 0.5;
+  // Die Zeile kehrt sich um: Bildzeile 0 ist die **oberste** Zeile der Textur.
+  const vSoll = (LAUB_ATLAS.zeilen - 1 - zeile) * FELD_V;
   check(
-    nah(s.u0, spalte * 0.5) && nah(s.u1, spalte * 0.5 + 0.5),
-    `${kachel}: waagerecht im richtigen Viertel`,
-    `u ${s.u0.toFixed(2)}…${s.u1.toFixed(2)}`,
+    nah(s.u0, spalte * FELD_U) && nah(s.u1, spalte * FELD_U + FELD_U),
+    `${kachel}: waagerecht im richtigen Feld`,
+    `u ${s.u0.toFixed(3)}…${s.u1.toFixed(3)}`,
   );
   check(
-    nah(s.v0, vSoll) && nah(s.v1, vSoll + 0.5),
-    `${kachel}: senkrecht im richtigen Viertel`,
-    `v ${s.v0.toFixed(2)}…${s.v1.toFixed(2)}`,
+    nah(s.v0, vSoll) && nah(s.v1, vSoll + FELD_V),
+    `${kachel}: senkrecht im richtigen Feld`,
+    `v ${s.v0.toFixed(3)}…${s.v1.toFixed(3)}`,
   );
 }
 
 /*
  * Die Gegenprobe: keine zwei Kacheln decken denselben Bereich.
  *
- * Ohne sie ginge auch eine Fassung durch, in der alle vier auf demselben
- * Viertel liegen — jede Prüfung darüber wäre dann für genau eine Kachel richtig
- * und für die anderen drei zufällig auch, wenn die Zahlen zusammenfallen.
+ * Ohne sie ginge auch eine Fassung durch, in der alle auf demselben Feld
+ * liegen — jede Prüfung darüber wäre dann für genau eine Kachel richtig und für
+ * die anderen zufällig auch, wenn die Zahlen zusammenfallen.
  */
 const bereiche = (Object.keys(LAUB_KACHEL) as LaubKachel[]).map((k) => {
   const s = spanne(k);
