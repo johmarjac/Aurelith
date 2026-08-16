@@ -10,7 +10,8 @@
 import * as THREE from 'three';
 import { assemble, cone, cylinder, sphere, box, type Part } from './geometry.ts';
 import { laubKarte, laubNormalen, type LaubKachel } from './laub.ts';
-import { baueFindling, baueSchwebfels } from './schwebfels.ts';
+import { baueFindling } from './findling.ts';
+import { baueSchwebfels } from './schwebfels.ts';
 import { baueFichte, baueLaubbaum, baueTanne } from './baeume.ts';
 
 export type PropBuilder = () => THREE.BufferGeometry;

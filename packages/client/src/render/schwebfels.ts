@@ -20,6 +20,11 @@
  * Flach schattiert und mit Farbe je Dreieck: dieselbe Sprache wie der Rest der
  * Modelle. Die Kanten sollen zu sehen sein.
  *
+ * **Der Umriss endet dort, wo die Fläche endet.** Vorher stand der Fels vier
+ * Meter weiter hinaus, als man laufen konnte: der Rand sah nach Boden aus und
+ * war Luft. Deshalb reicht der Ausschlag der Stützpunkte nur noch knapp über
+ * eins hinaus — was man sieht, ist ungefähr das, was der Kern kennt.
+ *
  * **Der Ursprung liegt in der begehbaren Fläche**, also bei y = 0, und alles
  * andere hängt darunter. Das ist keine Geschmacksfrage: der Kern liest die
  * Höhe der Fläche als `position[1]` des Props (`collision: 'plattform'`).
@@ -46,19 +51,24 @@ const SEGMENTE = 13;
  * abgebrochen aussieht und nicht nach abgedreht.
  */
 const RINGE: ReadonlyArray<{ y: number; r: number; farbe: number; streu: number }> = [
-  { y: 0, r: 1.0, farbe: 0x7e6448, streu: 0.1 },
-  { y: -0.09, r: 1.05, farbe: 0x74593f, streu: 0.14 },
-  { y: -0.26, r: 0.95, farbe: 0x9a9082, streu: 0.2 },
-  // Die dritte und vierte Zeile liegen dicht beieinander und springen dann
-  // weit: eine gleichmässige Verjüngung ist ein Kegel, und einen Kegel hatten
-  // wir schon.
-  { y: -0.4, r: 0.88, farbe: 0x958c7f, streu: 0.22 },
-  { y: -0.72, r: 0.58, farbe: 0x8a8175, streu: 0.24 },
-  { y: -1.02, r: 0.36, farbe: 0x776f66, streu: 0.26 },
+  { y: 0, r: 1.0, farbe: 0x7a6046, streu: 0.1 },
+  { y: -0.1, r: 1.02, farbe: 0x6e553d, streu: 0.14 },
+  { y: -0.3, r: 0.92, farbe: 0x6f685f, streu: 0.2 },
+  /*
+   * Und hier springt es weit.
+   *
+   * Eine gleichmässige Verjüngung ist ein Kegel, und mit runden Kanten ist sie
+   * eine Zwiebel — beides hatten wir schon. Der Absatz zwischen der dritten
+   * und der vierten Zeile ist der Bruch: darüber die Scholle, darunter das,
+   * was beim Herausreissen mitgekommen ist.
+   */
+  { y: -0.62, r: 0.6, farbe: 0x6a635b, streu: 0.22 },
+  { y: -1.1, r: 0.38, farbe: 0x5f5951, streu: 0.24 },
+  { y: -1.6, r: 0.18, farbe: 0x534e47, streu: 0.26 },
 ];
 
 /** Wo der Zapfen endet, in Vielfachen des Radius. */
-const SPITZE = -1.38;
+const SPITZE = -2.05;
 
 /** Wiederholbarer Zufall — derselbe Felsen bei jedem Start. */
 function wuerfel(seed: number): () => number {
@@ -131,7 +141,22 @@ function brocken(
    * durchlaufen — mit einem eigenen Wurf je Ring wäre es Rauschen statt Form.
    */
   const kante: number[] = [];
-  for (let i = 0; i < SEGMENTE; i++) kante.push(0.74 + rand() * 0.52);
+  for (let i = 0; i < SEGMENTE; i++) kante.push(0.82 + rand() * 0.24);
+
+  /*
+   * Und je Stützpunkt eine eigene **Tiefe** für den Zapfen.
+   *
+   * Das ist der Griff, ohne den es eine Zwiebel bleibt: läuft jede Kante gleich
+   * tief nach unten, ist der Umriss von der Seite eine glatte Kurve, so
+   * unregelmässig der Grundriss auch ist. Mit unterschiedlichen Tiefen wird
+   * daraus ein Bündel Zacken — und ein herausgerissenes Stück Land bricht
+   * genau so.
+   *
+   * Nur unterhalb des Absatzes: die obersten Ringe tragen die Grasnarbe und
+   * ihre Lippe, und die soll waagerecht bleiben.
+   */
+  const tiefe: number[] = [];
+  for (let i = 0; i < SEGMENTE; i++) tiefe.push(0.62 + rand() * 0.72);
 
   /*
    * Und ein Höhenversatz je Stützpunkt **und** Ring.
@@ -158,11 +183,14 @@ function brocken(
     const v = versatz[ring]!;
     const winkel = (seg / SEGMENTE) * Math.PI * 2;
     const weite = radius * r.r * kante[seg % SEGMENTE]!;
+    // Der Absatz liegt bei Ring 3; ab dort zieht jede Kante unterschiedlich
+    // weit nach unten.
+    const zug = ring >= 3 ? tiefe[seg % SEGMENTE]! : 1;
     return new THREE.Vector3(
       mitte.x + v.x + Math.cos(winkel) * weite,
       // Der oberste Ring bleibt eben: dort liegt die begehbare Fläche, und
       // eine wellige Wiese wäre eine Lüge über das, was der Kern kennt.
-      mitte.y + radius * r.y + hoehenversatz[ring]![seg % SEGMENTE]!,
+      mitte.y + radius * r.y * zug + hoehenversatz[ring]![seg % SEGMENTE]!,
       mitte.z + v.z + Math.sin(winkel) * weite,
     );
   };
@@ -178,8 +206,11 @@ function brocken(
       // Helligkeit je Facette: ohne sie sieht ein Ring aus wie ein Band,
       // obwohl die Kanten stimmen. Das Licht allein reicht nicht — die
       // Facetten liegen zu flach zueinander.
-      const h1 = 0.72 + rand() * 0.56;
-      const h2 = 0.72 + rand() * 0.56;
+      // Ruhig genug, dass das Licht noch die Form zeigt: mit 0,72 bis 1,28 war
+      // der Zufall stärker als die Schattierung, und der Fels sah verrauscht
+      // aus statt facettiert.
+      const h1 = 0.88 + rand() * 0.24;
+      const h2 = 0.88 + rand() * 0.24;
       netz.dreieck(a, b, c, oben.farbe, h1 * (1 + oben.streu * (rand() - 0.5)));
       netz.dreieck(a, c, d, oben.farbe, h2 * (1 + oben.streu * (rand() - 0.5)));
     }
@@ -316,40 +347,6 @@ function steine(netz: Netz, radius: number, rand: () => number): void {
       netz.dreieck(kranz[(e + 1) % ecken]!, kranz[e]!, kuppe, 0x6f6b62, 0.8 + rand() * 0.35);
     }
   }
-}
-
-/**
- * Ein Findling auf dem Boden — derselbe Brocken, nur andersherum.
- *
- * Vorher war das eine flachgedrückte Kugel mit `roughen`: dieselbe Silhouette
- * aus jeder Richtung, weiche Kanten, und im Bild ein grauer Klumpen. Ein Stein
- * hat Facetten, und Facetten sind genau das, was die Ringe hier machen.
- *
- * `RINGE` beschreibt einen Brocken, der nach **unten** schmaler wird — bei
- * einem Findling ist das richtig herum: er sitzt breit im Boden und läuft nach
- * oben zusammen. Also wird die Form gestürzt und der Ursprung an die
- * Unterkante gelegt, damit `snapToGround` sie auf das Gelände setzt.
- */
-export function baueFindling(radius: number, seed: number): THREE.BufferGeometry {
-  const rand = wuerfel(seed);
-  const netz = new Netz();
-  brocken(netz, new THREE.Vector3(0, 0, 0), radius, rand, undefined);
-
-  const geo = netz.fertig();
-  // Umdrehen: aus dem Zapfen nach unten wird eine Kuppe nach oben.
-  geo.rotateX(Math.PI);
-  // Und flacher als der schwebende Felsen — ein Findling ist ein Stein und
-  // kein Turm.
-  geo.scale(1, 0.62, 1);
-
-  // Auf den Boden setzen. Ohne das steckte der halbe Stein im Gelände: der
-  // Ursprung der Ringe liegt in ihrer breitesten Ebene, nicht unten.
-  const kasten = new THREE.Box3().setFromBufferAttribute(
-    geo.attributes.position as THREE.BufferAttribute,
-  );
-  geo.translate(0, -kasten.min.y, 0);
-  geo.computeVertexNormals();
-  return geo;
 }
 
 /**
