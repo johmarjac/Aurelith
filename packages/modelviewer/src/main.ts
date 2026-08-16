@@ -59,12 +59,25 @@ const camera = new THREE.PerspectiveCamera(45, 1, 0.05, 500);
  * Frage, die man hier beantworten will („stimmt die Form?"), wäre damit nicht
  * zu beantworten. Führung von schräg oben, Aufhellung von der Gegenseite,
  * Umgebung als Rest.
+ *
+ * **Die Zahlen sind die von Lichtmoor am Mittag**, und das ist keine
+ * Kleinigkeit. Vorher stand hier eine Führung von 2,1 und ein gleichmässiges
+ * Umgebungslicht — eine eigene Beleuchtung, die mit der des Spiels nichts zu
+ * tun hatte. Wer die Farbe eines Modells danach beurteilt, beurteilt sie
+ * verkehrt: was hier stimmte, war im Spiel zu dunkel, und umgekehrt.
+ *
+ * Und die Umgebung ist ein Halbkugellicht wie dort: von oben der Himmel, von
+ * unten ein dunkler Boden. Ein gleichmässiges Umgebungslicht hellt die
+ * Unterseite genauso auf wie die Oberseite, und damit verschwindet genau der
+ * Unterschied, an dem man einen Stein als Stein erkennt.
  */
-const fuehrung = new THREE.DirectionalLight(0xfff2dd, 2.1);
+const fuehrung = new THREE.DirectionalLight(0xfff8de, 1.9);
 fuehrung.position.set(4, 7, 5);
-const gegenlicht = new THREE.DirectionalLight(0xbfd6ff, 0.8);
+// Nur eine Aufhellung, damit die Rückseite nicht schwarz ist. Im Spiel gibt es
+// sie nicht — sie darf deshalb auch nichts an der Form erzählen.
+const gegenlicht = new THREE.DirectionalLight(0xbfd6ff, 0.3);
 gegenlicht.position.set(-5, 3, -4);
-const umgebung = new THREE.AmbientLight(0xc6d6e6, 0.85);
+const umgebung = new THREE.HemisphereLight(0x8ec0ee, 0x444444, 1.2);
 scene.add(fuehrung, gegenlicht, umgebung);
 
 const material = createSharedMaterial();
@@ -467,12 +480,12 @@ function zeichnePanel(): void {
 /** Trägt die Einstellungen in die Szene. */
 function wendeAn(): void {
   const l = einstellungen.licht;
-  fuehrung.intensity = 2.1 * l;
-  gegenlicht.intensity = 0.8 * l;
+  fuehrung.intensity = 1.9 * l;
+  gegenlicht.intensity = 0.3 * l;
   // Bei ausgeschaltetem Licht bleibt die Umgebung stehen und wird sogar
   // stärker: sonst wäre das Bild schwarz, und „Licht aus" soll die Form ohne
   // Schattierung zeigen und nicht gar nichts.
-  umgebung.intensity = l === 0 ? 1.6 : 0.85 * l;
+  umgebung.intensity = l === 0 ? 1.6 : 1.2 * l;
   material.wireframe = einstellungen.wireframe;
   laubMaterial.wireframe = einstellungen.wireframe;
   gitter.visible = einstellungen.gitter;
