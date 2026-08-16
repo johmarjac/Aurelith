@@ -180,6 +180,20 @@ type Auftrag =
  */
 const VERSION_TIMEOUT_MS = 4000;
 /**
+ * So lange bleibt die Anzeige eines erschlagenen Ziels noch stehen.
+ *
+ * Nicht null und nicht bis zum Respawn. **Nicht null**, weil man den letzten
+ * Treffer sehen will: verschwände der Balken im selben Bild, in dem er leer
+ * wird, bliebe offen, ob man getroffen hat oder das Wesen weggelaufen ist.
+ * **Nicht bis zum Respawn**, weil der Kadaber bis zu einer halben Minute
+ * liegenbleibt und der Kopf oben so lange einen Gegner behauptet, den es nicht
+ * mehr gibt — man rennt zum nächsten und liest immer noch den alten Namen.
+ *
+ * Drei Sekunden sind lang genug zum Hinsehen und kurz genug, dass die Anzeige
+ * frei ist, bevor man das nächste anvisiert.
+ */
+const ZIEL_NACHLAUF_MS = 3500;
+/**
  * So viel der Aufhebereichweite nutzt der Client — der Rest ist Luft für den
  * Abstand zwischen Vorhersage und Server. Siehe `inPickupRange`.
  */
@@ -463,6 +477,14 @@ export class Game {
   private inputSeq = 0;
   private pending: PendingInput[] = [];
   private targetId = 0;
+
+  /**
+   * Seit wann das Ziel tot ist, oder 0.
+   *
+   * In Wanduhrzeit und nicht in Ticks: die Anzeige ist Sache des Clients, und
+   * drei Sekunden sollen drei Sekunden sein, auch wenn die Verbindung stockt.
+   */
+  private zielTotSeit = 0;
   private dead = false;
   /** Das Tor, in dem die Figur gerade steht. Nur Anzeige — der Server prüft. */
   private nearbyPortalId?: string;
@@ -2114,7 +2136,27 @@ export class Game {
       this.reconcile(msg.ackInputSeq, self.targetX, self.targetZ, self.targetYaw);
     }
 
-    const target = this.targetId ? this.view.entities.get(this.targetId) : undefined;
+    let target = this.targetId ? this.view.entities.get(this.targetId) : undefined;
+    /*
+     * Ein erschlagenes Ziel läuft aus.
+     *
+     * Der Kadaver bleibt bis zum Respawn liegen, und solange fand die Anzeige
+     * ihn auch — oben stand also eine halbe Minute lang ein Gegner, den es
+     * nicht mehr gibt, samt leerem Balken. Nach `ZIEL_NACHLAUF_MS` wird die
+     * Auswahl aufgehoben; das meldet zugleich dem Server, dass hier nichts
+     * mehr anvisiert ist.
+     */
+    if (target && target.state === EntityState.Dead) {
+      if (this.zielTotSeit === 0) this.zielTotSeit = performance.now();
+      else if (performance.now() - this.zielTotSeit >= ZIEL_NACHLAUF_MS) {
+        this.setTarget(0);
+        target = undefined;
+      }
+    } else {
+      // Auch beim Wechsel auf ein lebendes Ziel: sonst zählte die Uhr des
+      // vorigen weiter und das neue verschwände nach dessen Rest.
+      this.zielTotSeit = 0;
+    }
     this.ui.setTarget(target);
   }
 
@@ -3012,6 +3054,9 @@ export class Game {
    */
   private setTarget(id: number): void {
     if (this.targetId === id) return;
+    // Die Uhr gehört dem alten Ziel. Ohne das Zurücksetzen erbte ein frisch
+    // anvisiertes Wesen deren Rest und verschwände nach Bruchteilen.
+    this.zielTotSeit = 0;
     if (this.auftrag?.art === 'kampf') this.brichAuftragAb();
     this.targetId = id;
     this.connection?.sendTarget(id);

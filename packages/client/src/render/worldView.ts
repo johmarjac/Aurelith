@@ -247,6 +247,34 @@ function heightFor(type: EntityType, defId: string): number {
   return (def?.height ?? 1.5) * (def?.scale ?? 1);
 }
 
+/**
+ * Wer die Lage des Rigs bestimmt — die Weltansicht oder das Rig selbst.
+ *
+ * Drei Fälle, und der dritte hat gefehlt:
+ *
+ * - `flug` — die Weltansicht kippt die Nase und legt die Figur in die Kurve.
+ * - `gerade` — sie dreht eine übriggebliebene Querlage zurück. Ohne das bliebe
+ *   die letzte Schräglage nach dem Absteigen für immer stehen, und die Figur
+ *   liefe schief über die Wiese.
+ * - `rig` — **Hände weg.** Ein Kadaver liegt so, wie ihn sein Rig hingelegt
+ *   hat.
+ *
+ * Der dritte Fall war der Fehler: Vierbeiner und Kriecher fallen um, indem ihr
+ * Rig `rotation.z` setzt (der Distelkeiler auf die Seite, der Höhlenkriecher
+ * auf den Rücken). Das Zurückdrehen für die Fluggeräte griff auch bei ihnen und
+ * stellte sie im selben Bild wieder auf — der erschlagene Keiler stand da, als
+ * wäre nichts gewesen. Figuren und Banditen fielen weiterhin ordentlich um,
+ * weil die für ihr Umfallen `rotation.x` benutzen; genau deshalb sah es aus wie
+ * „manche Monster haben eben keine Sterbeanimation".
+ *
+ * Als eigene Funktion und nicht als `if` mittendrin, damit die Regel ohne
+ * Browser und ohne GPU prüfbar ist — siehe `sterben_test.ts`.
+ */
+export function rigLage(flug: string, tot: boolean): 'flug' | 'gerade' | 'rig' {
+  if (tot) return 'rig';
+  return flug !== '' ? 'flug' : 'gerade';
+}
+
 export class WorldView {
   readonly root = new THREE.Group();
   readonly entities = new Map<number, EntityVisual>();
@@ -962,15 +990,21 @@ export class WorldView {
        * `R_x(a)` bildet (0,0,1) auf (0,−sin a, cos a) ab. Wer steigt, soll die
        * Nase heben — also das Gegenteil.
        */
-      if (e.flug !== '' && e.state !== EntityState.Dead) {
-        e.rig.root.rotation.x = -e.neigung;
-        e.rig.root.rotation.z = e.rollen;
-        this.zeichneFlugspur(e, dt);
-      } else if (e.rig.root.rotation.z !== 0) {
-        // Wer absteigt, steht wieder gerade. Der Rig-Schritt setzt nur
-        // `rotation.x` zurück, nicht `z` — ohne diese Zeile bliebe die letzte
-        // Querlage für immer stehen, und die Figur liefe schief über die Wiese.
-        e.rig.root.rotation.z = 0;
+      switch (rigLage(e.flug, e.state === EntityState.Dead)) {
+        case 'flug':
+          e.rig.root.rotation.x = -e.neigung;
+          e.rig.root.rotation.z = e.rollen;
+          this.zeichneFlugspur(e, dt);
+          break;
+        case 'gerade':
+          // Wer absteigt, steht wieder gerade. Der Rig-Schritt setzt nur
+          // `rotation.x` zurück, nicht `z` — ohne diese Zeile bliebe die
+          // letzte Querlage für immer stehen.
+          if (e.rig.root.rotation.z !== 0) e.rig.root.rotation.z = 0;
+          break;
+        case 'rig':
+          // Nichts anfassen: der Kadaver liegt, wie das Rig ihn hingelegt hat.
+          break;
       }
 
       // Der Schweif gehört zu jeder Bewegung der Klinge, nicht nur zum Hieb:

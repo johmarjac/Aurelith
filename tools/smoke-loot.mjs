@@ -325,6 +325,9 @@ async function drehe(pixel, schritte = 6) {
 
 let runde = 0;
 
+/** Ob während des Kampfes überhaupt einmal etwas anvisiert war. */
+let zielImKampf = false;
+
 /**
  * Kämpft, bis etwas am Boden liegt.
  *
@@ -352,6 +355,10 @@ async function kaempfeBisBeute() {
     }
 
     const auftrag = await page.evaluate(() => ({ ...window.aurelith.auftrag }));
+    // Für die Prüfung unten: im Kampf **stand** ein Ziel. Ohne diese Notiz
+    // wäre „nach dem Tod steht keins mehr" auch dann wahr, wenn nie eines da
+    // war — und genau das ist der Fall, den man nicht bemerken würde.
+    if (await page.evaluate(() => window.aurelith.targetId)) zielImKampf = true;
     let ziel = await schildOrt(true);
 
     if (!ziel) {
@@ -420,6 +427,21 @@ if (!gefallen) {
   console.log(`\n${failures} Prüfung(en) fehlgeschlagen.\n`);
   process.exit(1);
 }
+
+/*
+ * Die Zielanzeige läuft nach dem Tod aus.
+ *
+ * Der Kadaver bleibt bis zum Respawn liegen, und solange fand die Auswahl ihn
+ * auch: oben stand eine halbe Minute lang ein Gegner mit leerem Balken, den es
+ * nicht mehr gab. Ein paar Sekunden soll er stehenbleiben — man will den
+ * letzten Treffer sehen —, danach ist die Anzeige frei.
+ */
+check(zielImKampf, 'im Kampf war etwas anvisiert');
+check(
+  await waitUntil(async () => (await page.evaluate(() => window.aurelith.targetId)) === 0, 9000),
+  'und nach dem Tod erlischt die Anvisierung',
+  `targetId ${await page.evaluate(() => window.aurelith.targetId)}`,
+);
 
 const schilder = page.locator('.loot-label');
 check(
