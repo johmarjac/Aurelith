@@ -18,9 +18,17 @@ import { standardKollision, type PropKollision } from '@aurelith/shared';
 import {
   createFoliageMaterial,
   createSharedMaterial,
+  createStoneMaterial,
 } from '@aurelith/client/render/geometry.ts';
+import { gesteinsTextur } from '@aurelith/client/render/gestein.ts';
 import { laubAtlas } from '@aurelith/client/render/laub.ts';
-import { LAUB_MODELLE, PROP_BUILDERS, buildArrow, buildGateArch } from '@aurelith/client/render/props.ts';
+import {
+  materialArt,
+  PROP_BUILDERS,
+  buildArrow,
+  buildGateArch,
+  type MaterialArt,
+} from '@aurelith/client/render/props.ts';
 import { ITEM_BUILDERS } from '@aurelith/client/render/itemModels.ts';
 import {
   CHARACTER_CONFIGS,
@@ -77,6 +85,7 @@ export interface Eintrag {
   baue(
     material: THREE.Material,
     laubMaterial: THREE.Material,
+    felsMaterial: THREE.Material,
   ): { objekt: THREE.Object3D; rig?: CharacterRig };
   /**
    * Womit das Modell im Weg steht — nur bei Props.
@@ -92,24 +101,27 @@ export interface Eintrag {
 /**
  * Ein Modell aus einer reinen Geometrie.
  *
- * `laub` sagt, dass es die Textur mit Loch braucht — Blätter und Gras werden
- * mit einem anderen Material gezeichnet als Fässer. Die Frage beantwortet
- * `LAUB_MODELLE` und nicht diese Datei: die Schau soll zeigen, was das Spiel
- * zeigt, und nicht ihre eigene Meinung dazu haben.
+ * `art` sagt, mit welchem Material es gezeichnet wird — Laub braucht die
+ * Textur mit Loch, Fels die Gesteinskörnung, alles andere das gemeinsame.
+ * Die Frage beantwortet `materialArt` und nicht diese Datei: die Schau soll
+ * zeigen, was das Spiel zeigt, und nicht ihre eigene Meinung dazu haben.
  */
 function ausGeometrie(
   id: string,
   gruppe: Gruppe,
   bauer: () => THREE.BufferGeometry,
-  laub = false,
+  art: MaterialArt = 'standard',
   kollision?: PropKollision,
 ): Eintrag {
   return {
     id,
     gruppe,
     ...(kollision ? { kollision } : {}),
-    baue: (material, laubMaterial) => ({
-      objekt: new THREE.Mesh(bauer(), laub ? laubMaterial : material),
+    baue: (material, laubMaterial, felsMaterial) => ({
+      objekt: new THREE.Mesh(
+        bauer(),
+        art === 'laub' ? laubMaterial : art === 'fels' ? felsMaterial : material,
+      ),
     }),
   };
 }
@@ -123,7 +135,7 @@ export function baueKatalog(): Eintrag[] {
         key,
         'Props',
         () => PROP_BUILDERS[key]!(),
-        LAUB_MODELLE.has(key),
+        materialArt(key),
         standardKollision(key),
       ),
     );
@@ -192,4 +204,4 @@ export function baueKatalog(): Eintrag[] {
   return out;
 }
 
-export { createFoliageMaterial, createSharedMaterial, laubAtlas };
+export { createFoliageMaterial, createSharedMaterial, createStoneMaterial, gesteinsTextur, laubAtlas };

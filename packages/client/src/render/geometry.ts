@@ -241,3 +241,15 @@ export function createFoliageMaterial(map: THREE.Texture): THREE.MeshLambertMate
     side: THREE.DoubleSide,
   });
 }
+
+/**
+ * Das Material für Fels — Findlinge und die schwebenden Inseln.
+ *
+ * Anders als beim Laub ist hier nichts durchsichtig und nichts doppelseitig:
+ * ein Stein ist ein geschlossener Körper. Die Textur trägt nur die Struktur,
+ * die Farbe kommt weiter aus den Vertizes — derselbe Fels in einem anderen
+ * Grau ist damit eine Zeile in der Karte und kein zweites Modell.
+ */
+export function createStoneMaterial(map: THREE.Texture): THREE.MeshLambertMaterial {
+  return new THREE.MeshLambertMaterial({ map, vertexColors: true });
+}

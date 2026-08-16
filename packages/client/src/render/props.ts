@@ -333,12 +333,9 @@ function archway(stoneColor: number, accent: number): THREE.BufferGeometry {
  * Welche Props aus Laubkarten bestehen.
  *
  * Sie brauchen ein anderes Material — eines mit Textur und Alphatest, siehe
- * `createFoliageMaterial`. Die Liste steht **hier**, neben den Bauern, und
- * nicht bei jedem, der Props zeichnet: Weltansicht, Editor und Modellschau
- * fragen dieselbe Menge, und eine vierte Stelle, die es nachtragen müsste,
- * gäbe es sonst beim nächsten Laubprop.
+ * `createFoliageMaterial`.
  */
-export const LAUB_MODELLE: ReadonlySet<string> = new Set([
+const LAUB_MODELLE: ReadonlySet<string> = new Set([
   'bush',
   'grass_tuft',
   // Bäume gehören dazu, seit ihre Kronen aus Karten bestehen — und der Stamm
@@ -347,6 +344,38 @@ export const LAUB_MODELLE: ReadonlySet<string> = new Set([
   'tree_fir',
   'tree_broad',
 ]);
+
+/**
+ * Welche Props die Gesteinstextur tragen.
+ *
+ * Deckend und einseitig, siehe `createStoneMaterial`. Der schwebende Fels
+ * gehört dazu, obwohl oben Gras liegt: die Körnung ist fast farblos, und mal
+ * Grün ergibt sie eine Wiese mit Struktur statt einer grünen Scheibe.
+ */
+const FELS_MODELLE: ReadonlySet<string> = new Set([
+  'rock_small',
+  'rock_large',
+  'fels_schwebend',
+  'fels_schwebend_klein',
+]);
+
+/** Aus welchem Material ein Prop gezeichnet wird. */
+export type MaterialArt = 'standard' | 'laub' | 'fels';
+
+/**
+ * Welches Material ein Prop braucht.
+ *
+ * Eine Funktion und nicht mehrere ausgestellte Mengen: Weltansicht, Editor und
+ * Modellschau fragen dieselbe Frage, und drei Stellen, die je Sorte ein
+ * weiteres `has(...)` nachtragen müssten, sind drei Gelegenheiten, es zu
+ * vergessen. Wer eine vierte Sorte einführt, ändert diese Zeile — und die drei
+ * bekommen sie geschenkt, sobald sie den neuen Fall behandeln.
+ */
+export function materialArt(key: string): MaterialArt {
+  if (LAUB_MODELLE.has(key)) return 'laub';
+  if (FELS_MODELLE.has(key)) return 'fels';
+  return 'standard';
+}
 
 /** Der Katalog. Schlüssel entsprechen dem `model`-Feld im Map-Dokument. */
 export const PROP_BUILDERS: Record<string, PropBuilder> = {

@@ -32,6 +32,7 @@
  */
 
 import * as THREE from 'three';
+import { gesteinsUV } from './gestein.ts';
 
 /**
  * Stützpunkte auf dem Ring.
@@ -117,6 +118,10 @@ class Netz {
     // Flach: `computeVertexNormals` mittelt über geteilte Vertizes, und die
     // gibt es hier keine — jedes Dreieck bekommt damit seine eigene Normale.
     geo.computeVertexNormals();
+    // Und die Gesteinskörnung darüber, je Dreieck projiziert. Auch über der
+    // Grasnarbe: die Kachel ist fast farblos, mal Grün ergibt sie eine Wiese
+    // mit Struktur statt einer grünen Scheibe.
+    gesteinsUV(geo);
     return geo;
   }
 }

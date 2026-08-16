@@ -23,7 +23,10 @@ bewussten Abweichung, die weiter unten begründet ist.
   eingezogener — heute abgeschalteter — Cipher-Schicht.
 - **Client-Prediction** der eigenen Bewegung samt Abgleich gegen den Server.
 - **Three.js auf WebGL 2**, prozedurale Modelle, instanziierte Props,
-  Terrainnetz aus den Höhen des Kerns.
+  Terrainnetz aus den Höhen des Kerns. Auch die Texturen entstehen im Code: eine
+  Laubkachel mit durchsichtigem Rand für Blätter, Gras und Baumkronen, eine
+  Gesteinskachel mit Körnung und Sprüngen für Felsen. Drei Materialien für alle
+  Props — welches ein Modell braucht, sagt `materialArt`.
 - **Desktop und Mobil**: WASD und Maus am Rechner, virtueller Joystick und
   Angriffsknopf am Telefon.
 - **Kampf mit Zielauswahl**: ein Klick visiert an, der zweite greift an — die
@@ -229,6 +232,7 @@ npm run test:audio       # Richtung und Entfernung im Raumklang
 npm run test:gait        # Laufbewegung: springt eine Pose?
 npm run test:flugachse   # kippt die Nase um die Achse der Figur oder der Welt?
 npm run test:laub        # Laubkarten: richtige Atlaskachel, Stand auf dem Boden
+npm run test:fels        # Findlinge: Grösse passt zum Kollisionskreis, Körnung in Metern
 npm run test:tag         # Tag- und Nachtwechsel: Licht, Farben, Uhr
 npm run test:quests      # das Auftragsbuch — ohne Server
 npm run test:content     # die Inhaltsdateien: Format und Verweise

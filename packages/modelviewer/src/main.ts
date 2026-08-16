@@ -31,6 +31,8 @@ import {
   baueKatalog,
   createFoliageMaterial,
   createSharedMaterial,
+  createStoneMaterial,
+  gesteinsTextur,
   laubAtlas,
   type Eintrag,
 } from './katalog.ts';
@@ -84,6 +86,8 @@ const material = createSharedMaterial();
 // Und das Material für alles mit Löchern. Anders als im Spiel gleich angelegt:
 // hier wird ohnehin durch den ganzen Katalog geblättert.
 const laubMaterial = createFoliageMaterial(laubAtlas());
+// Und das für Fels. Aus demselben Grund gleich angelegt.
+const felsMaterial = createStoneMaterial(gesteinsTextur());
 
 /** Der Boden — nur als Bezug. Ohne ihn schwebt jedes Modell im Nichts. */
 const gitter = new THREE.GridHelper(20, 20, 0x4cc9bf, 0x2c3a45);
@@ -188,7 +192,7 @@ function zeige(eintrag: Eintrag): void {
   aktuell = eintrag;
   const meins = ++wechsel;
 
-  const gebaut = eintrag.baue(material, laubMaterial);
+  const gebaut = eintrag.baue(material, laubMaterial, felsMaterial);
   rig = gebaut.rig;
   halter.add(gebaut.objekt);
 
@@ -488,6 +492,7 @@ function wendeAn(): void {
   umgebung.intensity = l === 0 ? 1.6 : 1.2 * l;
   material.wireframe = einstellungen.wireframe;
   laubMaterial.wireframe = einstellungen.wireframe;
+  felsMaterial.wireframe = einstellungen.wireframe;
   gitter.visible = einstellungen.gitter;
   achsen.visible = einstellungen.achsen;
   baueKollision();

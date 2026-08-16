@@ -20,9 +20,14 @@
  */
 
 import * as THREE from 'three';
-import { createFoliageMaterial, createSharedMaterial } from './geometry.ts';
+import {
+  createFoliageMaterial,
+  createSharedMaterial,
+  createStoneMaterial,
+} from './geometry.ts';
+import { gesteinsTextur } from './gestein.ts';
 import { laubAtlas } from './laub.ts';
-import { LAUB_MODELLE, PROP_BUILDERS, buildArrow, buildGateArch, fallbackProp } from './props.ts';
+import { materialArt, PROP_BUILDERS, buildArrow, buildGateArch, fallbackProp } from './props.ts';
 import {
   createRig,
   weaponModelSpecs,
@@ -50,6 +55,9 @@ export class ModelRegistry {
    */
   private laubMaterial?: THREE.MeshLambertMaterial;
 
+  /** Und eines für Fels. Ebenso erst beim ersten Stein angelegt. */
+  private felsMaterial?: THREE.MeshLambertMaterial;
+
   /**
    * Womit dieses Prop gezeichnet wird.
    *
@@ -59,9 +67,16 @@ export class ModelRegistry {
    * hätte man vergessen.
    */
   propMaterial(key: string): THREE.MeshLambertMaterial {
-    if (!LAUB_MODELLE.has(key)) return this.material;
-    this.laubMaterial ??= createFoliageMaterial(laubAtlas());
-    return this.laubMaterial;
+    switch (materialArt(key)) {
+      case 'laub':
+        this.laubMaterial ??= createFoliageMaterial(laubAtlas());
+        return this.laubMaterial;
+      case 'fels':
+        this.felsMaterial ??= createStoneMaterial(gesteinsTextur());
+        return this.felsMaterial;
+      default:
+        return this.material;
+    }
   }
 
   private readonly propGeometries = new Map<string, THREE.BufferGeometry>();

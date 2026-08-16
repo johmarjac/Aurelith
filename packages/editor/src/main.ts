@@ -36,9 +36,11 @@ import {
 import {
   createFoliageMaterial,
   createSharedMaterial,
+  createStoneMaterial,
 } from '@aurelith/client/render/geometry.ts';
+import { gesteinsTextur } from '@aurelith/client/render/gestein.ts';
 import { laubAtlas } from '@aurelith/client/render/laub.ts';
-import { LAUB_MODELLE, PROP_BUILDERS, buildGateArch } from '@aurelith/client/render/props.ts';
+import { materialArt, PROP_BUILDERS, buildGateArch } from '@aurelith/client/render/props.ts';
 import { buildTerrain, type TerrainMesh } from '@aurelith/client/render/terrain.ts';
 import { TextureLoader } from '@aurelith/client/render/textures.ts';
 import {
@@ -100,10 +102,19 @@ const material = createSharedMaterial();
  * einer Leinwand, und eine Karte ohne Busch soll dafür nicht zahlen.
  */
 let laubMaterial: THREE.MeshLambertMaterial | undefined;
+/** Und eines für Fels — Findlinge und die schwebenden Inseln. */
+let felsMaterial: THREE.MeshLambertMaterial | undefined;
 function propMaterial(key: string): THREE.MeshLambertMaterial {
-  if (!LAUB_MODELLE.has(key)) return material;
-  laubMaterial ??= createFoliageMaterial(laubAtlas());
-  return laubMaterial;
+  switch (materialArt(key)) {
+    case 'laub':
+      laubMaterial ??= createFoliageMaterial(laubAtlas());
+      return laubMaterial;
+    case 'fels':
+      felsMaterial ??= createStoneMaterial(gesteinsTextur());
+      return felsMaterial;
+    default:
+      return material;
+  }
 }
 
 // Derselbe Texturlader wie im Client, nur mit schlichtem fetch statt Streamer:
