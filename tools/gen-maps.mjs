@@ -457,17 +457,64 @@ function lichtmoorHoehe(x, z) {
    */
   h += 4;
 
-  // --- 1. Gebirge ---------------------------------------------------------
-  const ausX = Math.max(0, Math.abs(x) - LM.x) / 62;
-  const ausZ = Math.max(0, Math.max(z - LM.zNord, LM.zSued - z)) / 62;
-  const aussen = Math.max(ausX, ausZ);
+  /*
+   * --- 1. Gebirge ----------------------------------------------------------
+   *
+   * Hier stand einmal ein **Wall**: 118 m hoch auf 62 m Rampe. Nachgerechnet
+   * waren das im Steilsten siebzig Grad, und schon achtundzwanzig Meter neben
+   * dem begehbaren Streifen war die Neigung über den zweiundfünfzig Grad, bis
+   * zu denen der Kern einen gehen lässt — bei einer Höhe von erst neun Metern.
+   * Vom Boden aus sah man deshalb keine Berge, sondern eine dunkle Wand, die
+   * das halbe Bild füllte: eine Fläche, die so steil steht, bekommt kein
+   * Sonnenlicht ab und wird grau, egal welche Farbe darauf liegt.
+   *
+   * Jetzt drei Dinge anders:
+   *
+   *   1. **Flacher und niedriger.** Zweiundvierzig Meter statt hundertachtzehn,
+   *      und die Rampe ist doppelt so lang. Das Steilste liegt damit bei rund
+   *      dreissig Grad — eine Bergflanke, die das Licht noch annimmt.
+   *   2. **Die Rampe je Richtung verschieden.** Nach Westen und Osten sind
+   *      hundertsechsundfünfzig Meter Platz bis zum Kartenrand, nach Norden nur
+   *      zweiundfünfzig. Eine gemeinsame Breite hiesse: entweder im Norden ein
+   *      abgeschnittener Hang oder im Westen wieder ein Wall.
+   *   3. **Der Fuss wandert.** Zwei Wellen verschieben den Beginn des Anstiegs
+   *      um bis zu einundzwanzig Meter hin und her. Ohne sie läuft der
+   *      Gebirgsfuss schnurgerade parallel zum Kartenrand — und nichts verrät
+   *      ein Rechteck schneller als eine Bergkette, die eines nachzeichnet.
+   */
+  const fussX = Math.sin(z * 0.021) * 13 + Math.sin(z * 0.009) * 8;
+  const fussZ = Math.sin(x * 0.019) * 11 + Math.sin(x * 0.011) * 7;
+  const ausX = (Math.abs(x) - (LM.x - 10) + fussX) / 122;
+  const ausNord = (z - (LM.zNord - 6) + fussZ) / 70;
+  const ausSued = (LM.zSued + 6 - z + fussZ) / 76;
+  const aussen = Math.max(ausX, ausNord, ausSued);
   if (aussen > 0) {
     // Drei überlagerte Wellen: ein Gebirge aus einer einzigen Rampe sähe aus
     // wie ein Wall. Die Zahlen sind teilerfremd, damit sich das Muster nicht
     // sichtbar wiederholt.
     const grat =
-      Math.sin(x * 0.031) * 7 + Math.sin(z * 0.023) * 9 + Math.sin((x + z) * 0.017) * 6;
-    h += glatt(aussen) * (118 + grat);
+      Math.sin(x * 0.031) * 3.5 + Math.sin(z * 0.023) * 4.5 + Math.sin((x + z) * 0.017) * 3;
+    /*
+     * Zwei Stufen statt einer Rampe: der erste Term ist doppelt so schnell
+     * fertig und macht die Vorberge, der zweite zieht den Hauptkamm nach.
+     * Eine einzelne Glättungskurve ist eine Böschung — zwei versetzte sind
+     * eine Kette mit Vorgelände.
+     */
+    h += (0.42 * glatt(aussen * 1.6) + 0.58 * glatt(aussen)) * (42 + grat);
+    /*
+     * Und dahinter steigt es weiter, langsam.
+     *
+     * Das ist der Preis für die niedrigere Kette und keine Zierde. Ein
+     * Sturmbrett fliegt sechzig Meter über dem Boden, über dem Streifen also
+     * bis vierundsechzig — mit einem Kamm von zweiundvierzig sieht man von
+     * dort **über** ihn hinweg, und dahinter lag bisher eine ebene Hochfläche
+     * bis zur Kante der Welt. Hinaus kommt man deswegen nicht, dafür sorgen
+     * die Sperrzonen; hinaussehen aber schon.
+     *
+     * Mit dem Nachstieg staffeln sich stattdessen zwei Kämme hintereinander,
+     * und der hintere steht über der Flughöhe.
+     */
+    h += Math.max(0, aussen - 1) * 22;
   }
 
   // --- 2. Hügel innen -----------------------------------------------------
@@ -1302,8 +1349,26 @@ function lichtmoor() {
       sunDirection: [0.42, 0.82, 0.38],
       sunColor: 0xfff4de,
       sunIntensity: 1.9,
-      ambientColor: 0xc2d8ea,
-      ambientIntensity: 1.2,
+      /*
+       * Der Boden strahlt zurück, und zwar warm.
+       *
+       * `ambientColor` ist die **untere** Farbe des Halbkugellichts — das,
+       * womit der Boden von unten aufhellt. Hier stand ein kühles Blau, und
+       * damit bekam jede nach unten gerichtete Fläche einen kalten Stich:
+       * Baumkronen von unten, Gesichter im Gegenlicht, die Unterseite der
+       * schwebenden Felsen. Über einer Sommerwiese ist das reflektierte Licht
+       * grünlich-warm.
+       */
+      ambientColor: 0xd6d8bc,
+      /*
+       * Von 1,2 auf 1,6 angehoben, zusammen mit der Tonwertkurve im Renderer.
+       *
+       * Die beiden gehören zusammen: mehr Umgebungslicht **ohne** Kurve hätte
+       * nur die Schattenseiten angehoben und die Sonnenseiten endgültig
+       * weissgebrannt. Mit Kurve hebt es die Schattenseiten und lässt die
+       * hellen Flächen ihre Farbe behalten.
+       */
+      ambientIntensity: 1.6,
     },
     terrain: {
       size,
@@ -1575,8 +1640,10 @@ function dornwald() {
       sunDirection: [-0.3, 0.68, 0.55],
       sunColor: 0xe8e4d2,
       sunIntensity: 1.45,
-      ambientColor: 0x76889a,
-      ambientIntensity: 1.05,
+      // Auch hier wärmer und heller — der Dornwald soll düster sein, aber
+      // düster heisst finstere Farben und nicht „man sieht nichts".
+      ambientColor: 0x93967e,
+      ambientIntensity: 1.35,
     },
     terrain: {
       size,

@@ -53,8 +53,8 @@ const SEGMENTE = 13;
  */
 const RINGE: ReadonlyArray<{ y: number; r: number; farbe: number; streu: number }> = [
   { y: 0, r: 1.0, farbe: 0x7a6046, streu: 0.1 },
-  { y: -0.1, r: 1.02, farbe: 0x6e553d, streu: 0.14 },
-  { y: -0.3, r: 0.92, farbe: 0x6f685f, streu: 0.2 },
+  { y: -0.06, r: 1.02, farbe: 0x6e553d, streu: 0.14 },
+  { y: -0.16, r: 0.94, farbe: 0x6f685f, streu: 0.2 },
   /*
    * Und hier springt es weit.
    *
@@ -63,13 +63,25 @@ const RINGE: ReadonlyArray<{ y: number; r: number; farbe: number; streu: number 
    * und der vierten Zeile ist der Bruch: darüber die Scholle, darunter das,
    * was beim Herausreissen mitgekommen ist.
    */
-  { y: -0.62, r: 0.6, farbe: 0x6a635b, streu: 0.22 },
-  { y: -1.1, r: 0.38, farbe: 0x5f5951, streu: 0.24 },
-  { y: -1.6, r: 0.18, farbe: 0x534e47, streu: 0.26 },
+  { y: -0.32, r: 0.72, farbe: 0x6a635b, streu: 0.22 },
+  { y: -0.5, r: 0.47, farbe: 0x5f5951, streu: 0.24 },
+  { y: -0.68, r: 0.24, farbe: 0x534e47, streu: 0.26 },
 ];
 
-/** Wo der Zapfen endet, in Vielfachen des Radius. */
-const SPITZE = -2.05;
+/**
+ * Wo der Zapfen endet, in Vielfachen des Radius.
+ *
+ * Hier stand −2,05, und das war der Fehler, den man von der Wiese aus sah: der
+ * grosse Fels ist neunzehn Meter breit und hing damit **zwanzig Meter** nach
+ * unten. Aus der Ferne war das kein Stück Land mehr, sondern ein Zapfen am
+ * Himmel — die Silhouette war ein Kegel mit einer Scheibe obendrauf, und der
+ * Kegel war das Grössere daran.
+ *
+ * Eine abgebrochene Scholle ist **breiter als tief**. Knapp ein Radius Tiefe
+ * heisst bei neunzehn Metern Breite gut neun Meter Bruchkante — das liest sich
+ * als Insel und nicht als Tropfen.
+ */
+const SPITZE = -0.95;
 
 /** Wiederholbarer Zufall — derselbe Felsen bei jedem Start. */
 function wuerfel(seed: number): () => number {
@@ -160,8 +172,16 @@ function brocken(
    * Nur unterhalb des Absatzes: die obersten Ringe tragen die Grasnarbe und
    * ihre Lippe, und die soll waagerecht bleiben.
    */
+  /*
+   * Die Spanne ist enger als früher (0,62 bis 1,34), und zwar aus einem
+   * nachrechenbaren Grund: der unterste Ring liegt bei −0,68, der Grat bei
+   * −0,95. Zieht ein Segment mit 1,34 nach unten, landet es bei −0,91 plus dem
+   * Höhenversatz von bis zu −0,07 — also **unter** dem Grat, an dem es hängen
+   * soll. Beim grossen Felsen war genau das der Fall: ein Zacken hing 1,1 m
+   * tiefer als die Bruchkante, und zwei Dreiecke standen auf dem Kopf.
+   */
   const tiefe: number[] = [];
-  for (let i = 0; i < SEGMENTE; i++) tiefe.push(0.62 + rand() * 0.72);
+  for (let i = 0; i < SEGMENTE; i++) tiefe.push(0.72 + rand() * 0.5);
 
   /*
    * Und ein Höhenversatz je Stützpunkt **und** Ring.

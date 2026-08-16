@@ -26,7 +26,9 @@ import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  decodeSculptField,
   parseMapDocument,
+  SCULPT_UNIT,
   standardKollision,
   type MapDocument,
   type ZoneDef,
@@ -173,6 +175,71 @@ check(
   plattformen.every((p) => p.collisionRadius > 2),
   'und jeder hat eine Fläche, auf der man steht',
 );
+
+/*
+ * --- Das Randgebirge ist eine Kette und keine Mauer -------------------------
+ *
+ * Es stand einmal bei hundertachtzehn Metern auf zweiundsechzig Metern Rampe.
+ * Nachgerechnet waren das siebzig Grad, und vom Boden aus sah man keine Berge,
+ * sondern eine dunkle Wand über der halben Bildbreite — eine so steile Fläche
+ * bekommt kaum Sonnenlicht ab und wird grau, egal welche Farbe darauf liegt.
+ *
+ * Beides steht hier als Zahl, weil beides beim Drehen an der Landschaft
+ * unbemerkt zurückkommen kann: **wie hoch** und **wie steil**. Und beides
+ * braucht seine Gegenprobe — ein Gebirge, das man wegoptimiert hat, ist kein
+ * Fortschritt, sondern ein Blick über den Rand der Welt.
+ */
+console.log('\nDas Randgebirge ist eine Kette und keine Mauer');
+
+/*
+ * Ohne geformtes Feld gäbe es kein Gebirge zu prüfen — dann ist der Test
+ * nicht grün, sondern hinfällig, und das soll er sagen.
+ */
+const feld = doc.terrain.sculpt ? decodeSculptField(doc.terrain.sculpt) : undefined;
+check(feld !== undefined, 'die Karte bringt ein geformtes Höhenfeld mit');
+const werte = feld ?? new Int16Array(0);
+const aufloesung = Math.round(Math.sqrt(werte.length));
+const halbeKarte = doc.terrain.size / 2;
+const gitter = doc.terrain.size / (aufloesung - 1);
+const hoeheBei = (ix: number, iz: number): number => werte[iz * aufloesung + ix]! / SCULPT_UNIT;
+
+let hoechster = 0;
+let amRand = 0;
+const neigungen: number[] = [];
+for (let iz = 1; iz < aufloesung - 1; iz++) {
+  for (let ix = 1; ix < aufloesung - 1; ix++) {
+    const x = -halbeKarte + ix * gitter;
+    const z = -halbeKarte + iz * gitter;
+    hoechster = Math.max(hoechster, hoeheBei(ix, iz));
+    // Nur ausserhalb des begehbaren Streifens: drinnen liegt der Fluss, und
+    // dessen Böschung **soll** über sechzig Grad steil sein.
+    if (Math.abs(x) < 95 && z > -165 && z < 199) continue;
+    amRand = Math.max(amRand, hoeheBei(ix, iz));
+    neigungen.push(
+      Math.hypot(
+        (hoeheBei(ix + 1, iz) - hoeheBei(ix - 1, iz)) / (2 * gitter),
+        (hoeheBei(ix, iz + 1) - hoeheBei(ix, iz - 1)) / (2 * gitter),
+      ),
+    );
+  }
+}
+neigungen.sort((a, b) => a - b);
+const grad = (g: number): number => (Math.atan(g) * 180) / Math.PI;
+const mittlere = grad(neigungen.reduce((a, b) => a + b, 0) / neigungen.length);
+const neunzig = grad(neigungen[Math.floor(neigungen.length * 0.9)]!);
+
+check(hoechster < 75, 'kein Gipfel über fünfundsiebzig Metern', `${hoechster.toFixed(0)} m`);
+check(mittlere < 26, 'die Flanken sind im Mittel begehbar flach', `${mittlere.toFixed(0)}°`);
+check(neunzig < 45, 'und auch die steilen Zehntel bleiben unter fünfundvierzig Grad', `${neunzig.toFixed(0)}°`);
+/*
+ * Die Gegenprobe, und sie ist die wichtigere Hälfte: das Gebirge muss den
+ * Blick über den Rand der Welt trotzdem verstellen. Fünfundzwanzig Meter über
+ * dem Streifen sind aus hundert Metern Abstand vierzehn Grad — genug, um den
+ * Horizont zu decken. Eine Landschaft, die diese Prüfung durch Abtragen
+ * besteht, hat das Problem nur getauscht.
+ */
+check(amRand > 25, 'aber es steht überhaupt eines da', `höchster Randpunkt ${amRand.toFixed(0)} m`);
+check(neunzig > 12, 'und es ist kein Hügel', `${neunzig.toFixed(0)}° im obersten Zehntel`);
 
 console.log('\nJedes Prop steht so im Weg, wie die Tabelle es sagt');
 

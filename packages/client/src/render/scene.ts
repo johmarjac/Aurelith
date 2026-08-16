@@ -123,6 +123,28 @@ export class Scene3D {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
 
+    /*
+     * Eine Tonwertkurve — und der Grund dafür ist gemessen, nicht Geschmack.
+     *
+     * Ohne sie schneidet der Renderer alles über eins hart ab. Das klingt
+     * harmlos, hat aber zwei Folgen, die beide falsch aussehen: eine Fläche,
+     * die von Sonne **und** Himmel getroffen wird, ist bei 3,1 Einheiten Licht
+     * längst weiss und verliert ihre Farbe, während die Schattenseite nur das
+     * Umgebungslicht abbekommt und absäuft. Ein Bildschirmfoto vom Mittag hatte
+     * eine mittlere Helligkeit von 74 bis 99 von 255 — bei einem Fünftel der
+     * Bildpunkte unter 45. Für einen hellen Sommertag ist das anderthalb
+     * Blenden zu wenig.
+     *
+     * `NeutralToneMapping` (die Khronos-Kurve) lässt alles bis etwa 0,8 in
+     * Ruhe und rollt nur die Spitzen ab. Damit kostet mehr Licht keine Farbe
+     * mehr, und die Belichtung darf über eins gehen, ohne dass der Himmel zu
+     * einer weissen Fläche wird. ACES wäre die andere Wahl gewesen — die
+     * entsättigt aber kräftig, und ein Spiel in diesen Farben lebt davon, dass
+     * das Gras grün bleibt.
+     */
+    this.renderer.toneMapping = THREE.NeutralToneMapping;
+    this.renderer.toneMappingExposure = 1.3;
+
     // Nahebene bei 5 cm statt 10: nah an der Figur schneidet 0,1 sonst sichtbar
     // in Nase und Schulter. Die Tiefengenauigkeit trägt das — die Fernebene
     // liegt bei einigen hundert Metern, nicht bei Kilometern.
