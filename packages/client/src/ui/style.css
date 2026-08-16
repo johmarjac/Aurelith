@@ -734,7 +734,16 @@ body.aktion-zuweisen .action-slot {
   inset: 0;
   display: grid;
   place-items: center;
-  border-radius: 3px;
+  /*
+   * Dieselbe Form wie der Platz, und zwar geerbt statt hingeschrieben.
+   *
+   * Hier stand einmal `3px` — dieselbe Zahl wie beim Platz am Schreibtisch,
+   * also fiel es dort nicht auf. Am Telefon ist der Platz aber ein **Kreis**,
+   * und darüber lag ein dunkles Quadrat mit abgerundeten Ecken: die Ecken
+   * standen über den Rand hinaus, und der Knopf sah kaputt aus, sobald die
+   * Abklingzeit lief. Geerbt gibt es die Zahl nur noch einmal.
+   */
+  border-radius: inherit;
   font-family: var(--font-mono);
   font-size: 0.95rem;
   font-weight: 700;

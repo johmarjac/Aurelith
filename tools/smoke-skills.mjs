@@ -341,6 +341,64 @@ check((await abkling(6)) === '1', 'und der andere mit derselben Fertigkeit auch'
 // Messung davor steht damit fest, dass die Eins von diesem Klick kommt.
 check((await abkling(5)) !== '1', 'der leere Platz dazwischen bleibt bereit', await abkling(5));
 
+/*
+ * Und der Schleier hat die Form des Platzes.
+ *
+ * Am Schreibtisch ist der Platz ein Fach mit 3 px Rundung, am Telefon ein
+ * Kreis — der Schleier stand aber mit einer eigenen, fest hingeschriebenen
+ * Rundung da. Auf dem Telefon lag damit ein dunkles Quadrat über einem runden
+ * Knopf, und der sah kaputt aus, sobald die Abklingzeit lief.
+ *
+ * Geprüft wird in **beiden** Betriebsarten, indem `data-touch` von Hand
+ * umgestellt wird: die Regel hängt an dieser Kennzeichnung und nicht am Gerät,
+ * und ohne den zweiten Durchgang wäre die Prüfung genau für den Fall blind, in
+ * dem der Fehler steckte.
+ */
+const rundung = () =>
+  page.evaluate(() => {
+    const platz = document.querySelector('.action-slot[data-abkling="1"]');
+    const schleier = platz?.querySelector('.action-abkling');
+    if (!platz || !schleier) return null;
+    return {
+      platz: getComputedStyle(platz).borderTopLeftRadius,
+      schleier: getComputedStyle(schleier).borderTopLeftRadius,
+    };
+  });
+
+const eckig = await rundung();
+check(
+  eckig !== null && eckig.platz === eckig.schleier,
+  'am Schreibtisch hat der Schleier die Rundung des Fachs',
+  `${eckig?.platz} / ${eckig?.schleier}`,
+);
+
+const touchVorher = await page.evaluate(() => {
+  const host = document.querySelector('[data-touch]');
+  const alt = host.dataset.touch;
+  host.dataset.touch = 'true';
+  return alt;
+});
+await page.waitForTimeout(80);
+const rund = await rundung();
+await page.evaluate((alt) => {
+  document.querySelector('[data-touch]').dataset.touch = alt;
+}, touchVorher);
+
+check(
+  rund !== null && rund.platz === rund.schleier,
+  'und am Telefon die des Knopfes',
+  `${rund?.platz} / ${rund?.schleier}`,
+);
+
+// Die Gegenprobe: die beiden Formen sind wirklich verschieden. Ohne sie ginge
+// auch eine Fassung durch, in der der Platz am Telefon gar nicht rund ist —
+// dann verglichen die zwei Zeilen darüber zweimal dieselben 3 px.
+check(
+  eckig !== null && rund !== null && eckig.platz !== rund.platz,
+  'und die beiden Formen unterscheiden sich überhaupt',
+  `${eckig?.platz} ↔ ${rund?.platz}`,
+);
+
 console.log('\nAuf dem Fluggerät wird nicht gewirkt');
 
 /*
