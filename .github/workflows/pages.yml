@@ -1,4 +1,8 @@
-# Veröffentlicht Client und Map-Editor auf GitHub Pages.
+# Veröffentlicht Client, Map-Editor und Modellschau auf GitHub Pages.
+#
+#   /                Client
+#   /editor/         Map-Editor
+#   /model_viewer/   Modellschau — jedes Prop einzeln, drehbar, am Telefon
 #
 # Pages liefert nur Dateien aus. Der Client läuft dort vollständig — auch der
 # wasm-Kern, denn Pages setzt für `.wasm` den richtigen MIME-Typ, und unser Kern
@@ -122,12 +126,19 @@ jobs:
           AURELITH_EDITOR_BASE: /${{ github.event.repository.name }}/editor/
         run: npm run build --workspace @aurelith/editor
 
+      - name: Modellschau bauen
+        env:
+          AURELITH_VIEWER_BASE: /${{ github.event.repository.name }}/model_viewer/
+        run: npm run build --workspace @aurelith/modelviewer
+
       - name: Ausgabe zusammenstellen
         run: |
           mkdir -p site
           cp -r packages/client/dist/. site/
           mkdir -p site/editor
           cp -r packages/editor/dist/. site/editor/
+          mkdir -p site/model_viewer
+          cp -r packages/modelviewer/dist/. site/model_viewer/
           # Pages liefert 404.html bei unbekannten Pfaden aus. Da der Client
           # eine einzige Seite ist, führt das zurück auf ihn statt ins Leere.
           cp site/index.html site/404.html

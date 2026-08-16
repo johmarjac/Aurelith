@@ -1,0 +1,223 @@
+/*
+ * Modellschau.
+ *
+ * Dieselbe Farbwelt wie der Editor — es ist dasselbe Werkzeugkabinett, nur ein
+ * anderes Fach. Der Unterschied liegt in den Massen: hier ist die Seite
+ * zuerst für den Daumen gemacht, also sind Knöpfe gross, das Bedienfeld klappt
+ * weg, und nichts liegt im Bereich, den eine Hand am Rand verdeckt.
+ */
+
+:root {
+  --ink: #e8eef2;
+  --ink-dim: #9fb0bc;
+  --panel: #12181e;
+  --edge: #2c3a45;
+  --accent: #4cc9bf;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #0b1014;
+  color: var(--ink);
+  font: 14px/1.5 'Segoe UI', system-ui, sans-serif;
+  /* Kein Doppeltipp-Zoom und keine Textauswahl: jede Berührung gehört der
+     Geste. Ohne das markiert ein Wischen über die Beschriftung den Text. */
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+
+body[data-hell='1'] {
+  --ink: #16202a;
+  --ink-dim: #4b5b68;
+  --panel: #eef3f6;
+  --edge: #b9c7d1;
+  color-scheme: light;
+}
+
+#viewport {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+#kopf {
+  position: fixed;
+  top: 0;
+  left: 0;
+  padding: calc(env(safe-area-inset-top) + 0.5rem) 0.9rem 0.5rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-dim);
+  pointer-events: none;
+}
+
+/* --- Bedienfeld ------------------------------------------------------------
+ *
+ * Rechts angeschlagen und weggeklappt statt verkleinert: ein halb sichtbares
+ * Feld nimmt trotzdem Fläche, und die will man beim Ansehen ganz haben.
+ */
+
+#panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(20rem, 86vw);
+  padding: calc(env(safe-area-inset-top) + 0.8rem) 0.9rem
+    calc(env(safe-area-inset-bottom) + 3.2rem);
+  background: color-mix(in srgb, var(--panel) 94%, transparent);
+  border-left: 1px solid var(--edge);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  transition: transform 180ms ease-out;
+  touch-action: pan-y;
+}
+
+#panel[data-zu='1'] {
+  transform: translateX(101%);
+}
+
+#panel h2 {
+  margin: 1.1rem 0 0.4rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+}
+
+#panel label {
+  display: block;
+  margin-bottom: 0.3rem;
+  color: var(--ink-dim);
+  font-size: 0.8rem;
+}
+
+.wahl {
+  width: 100%;
+  /* Sechzehn Pixel und keiner weniger: iOS zoomt sonst beim Antippen eines
+     Auswahlfeldes in die Seite hinein, und danach passt nichts mehr. */
+  font-size: 16px;
+  padding: 0.55rem 0.5rem;
+  background: #0d1319;
+  color: var(--ink);
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+}
+
+body[data-hell='1'] .wahl {
+  background: #fff;
+}
+
+#panel button {
+  font: inherit;
+  padding: 0.6rem 0.5rem;
+  background: #182129;
+  color: var(--ink);
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  cursor: pointer;
+  /* Vierundvierzig Punkte ist die Grösse, die ein Daumen sicher trifft. */
+  min-height: 2.75rem;
+}
+
+body[data-hell='1'] #panel button {
+  background: #fff;
+}
+
+#panel button[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.reihe,
+.palette {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.reihe {
+  grid-template-columns: 1fr 1fr;
+}
+
+.palette {
+  grid-template-columns: 1fr 1fr;
+}
+
+.weit {
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.schalter {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0;
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.schalter input {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--accent);
+}
+
+/* --- Klappknopf und Fusszeile --------------------------------------------- */
+
+#klapp {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 0.5rem);
+  right: 0.7rem;
+  width: 2.9rem;
+  height: 2.9rem;
+  font-size: 1.2rem;
+  background: color-mix(in srgb, var(--panel) 94%, transparent);
+  color: var(--ink);
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  cursor: pointer;
+  z-index: 2;
+}
+
+#fuss {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0.5rem 0.9rem calc(env(safe-area-inset-bottom) + 0.5rem);
+  background: linear-gradient(to top, rgba(11, 16, 20, 0.9), transparent);
+  color: var(--ink-dim);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+body[data-hell='1'] #fuss {
+  background: linear-gradient(to top, rgba(223, 231, 236, 0.92), transparent);
+}
+
+/* Auf breiten Fenstern steht das Bedienfeld immer offen; der Klappknopf rückt
+   daneben, damit er es nicht verdeckt. */
+@media (min-width: 720px) {
+  #klapp {
+    right: calc(min(20rem, 86vw) + 0.7rem);
+  }
+
+  #panel[data-zu='1'] ~ #klapp {
+    right: 0.7rem;
+  }
+}

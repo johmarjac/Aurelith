@@ -51,7 +51,9 @@ bewussten Abweichung, die weiter unten begründet ist.
   begehbar sind — wer ein Fluggerät hat, landet darauf. Beides entscheidet der
   Kern, beides setzt der Editor.
 - **Drei Karten** mit Gates und einem Dungeon, dazu ein **Map-Editor**, der
-  dasselbe Dateiformat liest und schreibt.
+  dasselbe Dateiformat liest und schreibt, und eine **Modellschau**, in der man
+  jedes Prop einzeln ansieht — am Telefon mit einem Finger drehen, mit zweien
+  zoomen und schieben.
 - **Lichtmoor** ist die Heimatkarte: ein rechteckiger Streifen, rundum von
   Gebirge verdeckt und gesperrt. Unten die Hauptstadt Silberfurt mit den
   Hauptquests, nach Norden Stufengebiete von 1 bis 20, dazwischen Nebenquests,
@@ -71,10 +73,11 @@ npm run dev      # Server und Client zusammen
 
 Danach: <http://localhost:5173>
 
-Der Map-Editor läuft getrennt:
+Map-Editor und Modellschau laufen getrennt:
 
 ```bash
 npm run dev:editor   # → http://localhost:5174
+npm run dev:schau    # → http://localhost:5175
 ```
 
 ### Emscripten
@@ -137,6 +140,10 @@ packages/
             `icons/aurelith.webp` ist die Zeichnung der Marke; alles andere
             in dem Ordner leitet `tools/gen-icons.mjs` daraus ab.
   editor    Map-Editor auf demselben Stack.
+  modelviewer
+            Modellschau: jedes Prop, jede Figur, jede Waffe einzeln und
+            drehbar. Lädt weder Karte noch wasm-Kern — sie baut die Modelle
+            aus denselben Bauern wie der Client.
 assets/
   maps      aurelith.map-Dokumente
   core      gebauter wasm-Kern (erzeugt)
@@ -239,7 +246,7 @@ npm run test:portal      # Tore: hineinlaufen, stehen, F drücken, zurück
 npm run test:flug        # Fliegen: aufsteigen, Schub, Nase, anhalten, absteigen
 npm run test:background  # überlebt die Verbindung einen Tab im Hintergrund?
 npm run test:editor      # Editor: Werkzeuge, Pinsel, Tore, Speichern
-npm run test:pages       # der Pages-Bau unter einem Unterpfad
+npm run test:pages       # der Pages-Bau unter einem Unterpfad, samt Modellschau
 ```
 
 Die native Prüfung enthält eine auf **Reproduzierbarkeit**: zwei gleiche Läufe
@@ -448,6 +455,7 @@ Danach veröffentlicht `.github/workflows/pages.yml` bei jedem Push:
 |---|---|
 | Client | `https://<name>.github.io/Aurelith/` |
 | Editor | `https://<name>.github.io/Aurelith/editor/` |
+| Modellschau | `https://<name>.github.io/Aurelith/model_viewer/` |
 
 Die Laufnummer des Workflows wird zur Build-Kennung und hängt als `?v=` an
 jeder Asset-Adresse. Emscripten ist auf `6.0.6` festgenagelt und wird

@@ -12,7 +12,8 @@
     "packages/shared",
     "packages/server",
     "packages/client",
-    "packages/editor"
+    "packages/editor",
+    "packages/modelviewer"
   ],
   "scripts": {
     "dev": "node tools/dev.mjs",
@@ -27,9 +28,10 @@
     "dev:login": "npm run dev:login --workspace @aurelith/server",
     "dev:client": "npm run dev --workspace @aurelith/client",
     "dev:editor": "npm run dev --workspace @aurelith/editor",
+    "dev:schau": "npm run dev --workspace @aurelith/modelviewer",
     "build": "npm run core && npm run manifest && npm run build --workspace @aurelith/client",
     "manifest": "node tools/build-manifest.mjs",
-    "typecheck": "tsc --noEmit -p packages/shared && tsc --noEmit -p packages/core && tsc --noEmit -p packages/server && tsc --noEmit -p packages/client && tsc --noEmit -p packages/editor",
+    "typecheck": "tsc --noEmit -p packages/shared && tsc --noEmit -p packages/core && tsc --noEmit -p packages/server && tsc --noEmit -p packages/client && tsc --noEmit -p packages/editor && tsc --noEmit -p packages/modelviewer",
     "db:migrate": "npm run migrate --workspace @aurelith/server",
     "db:migrate:welt": "npm run migrate:welt --workspace @aurelith/server",
     "test": "npm run core:test && npm run test:wasm && npm run test:gfx && npm run test:steering && npm run test:brushes && npm run test:particles && npm run test:gait && npm run test:flugachse && npm run test:audio && npm run test:tag && npm run test:quests && npm run test:content && npm run test:loot && npm run test:sets && npm run test:setglow && npm run test:npcflow && npm run test:version && npm run test:account && npm run test:attributes && npm run test:pfeile && npm run test:chat && npm run test:mana && npm run test:anmeldeweg && npm run test:identitaet && npm run test:karten && npm run test:karte && npm run test:vorgang && npm run test:haustier && node tools/smoke-e2e.mjs && node tools/smoke-npc.mjs && node tools/smoke-loot.mjs && node tools/smoke-prediction.mjs && node tools/smoke-portal.mjs && node tools/smoke-flug.mjs && node tools/smoke-laufmarke.mjs && node tools/smoke-aktionsleiste.mjs && node tools/smoke-skills.mjs && node tools/smoke-background.mjs && node tools/smoke-editor.mjs && node tools/smoke-pages.mjs",
