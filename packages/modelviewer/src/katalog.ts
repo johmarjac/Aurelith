@@ -14,8 +14,12 @@
  */
 
 import * as THREE from 'three';
-import { createSharedMaterial } from '@aurelith/client/render/geometry.ts';
-import { PROP_BUILDERS, buildArrow, buildGateArch } from '@aurelith/client/render/props.ts';
+import {
+  createFoliageMaterial,
+  createSharedMaterial,
+} from '@aurelith/client/render/geometry.ts';
+import { laubAtlas } from '@aurelith/client/render/laub.ts';
+import { LAUB_MODELLE, PROP_BUILDERS, buildArrow, buildGateArch } from '@aurelith/client/render/props.ts';
 import { ITEM_BUILDERS } from '@aurelith/client/render/itemModels.ts';
 import {
   CHARACTER_CONFIGS,
@@ -69,19 +73,32 @@ export interface Eintrag {
    * stillsteht, sieht kaputt aus, und man sähe ihr nicht an, ob die Gelenke
    * überhaupt greifen.
    */
-  baue(material: THREE.Material): { objekt: THREE.Object3D; rig?: CharacterRig };
+  baue(
+    material: THREE.Material,
+    laubMaterial: THREE.Material,
+  ): { objekt: THREE.Object3D; rig?: CharacterRig };
 }
 
-/** Ein Modell aus einer reinen Geometrie. */
+/**
+ * Ein Modell aus einer reinen Geometrie.
+ *
+ * `laub` sagt, dass es die Textur mit Loch braucht — Blätter und Gras werden
+ * mit einem anderen Material gezeichnet als Fässer. Die Frage beantwortet
+ * `LAUB_MODELLE` und nicht diese Datei: die Schau soll zeigen, was das Spiel
+ * zeigt, und nicht ihre eigene Meinung dazu haben.
+ */
 function ausGeometrie(
   id: string,
   gruppe: Gruppe,
   bauer: () => THREE.BufferGeometry,
+  laub = false,
 ): Eintrag {
   return {
     id,
     gruppe,
-    baue: (material) => ({ objekt: new THREE.Mesh(bauer(), material) }),
+    baue: (material, laubMaterial) => ({
+      objekt: new THREE.Mesh(bauer(), laub ? laubMaterial : material),
+    }),
   };
 }
 
@@ -89,7 +106,7 @@ export function baueKatalog(): Eintrag[] {
   const out: Eintrag[] = [];
 
   for (const key of Object.keys(PROP_BUILDERS).sort()) {
-    out.push(ausGeometrie(key, 'Props', () => PROP_BUILDERS[key]!()));
+    out.push(ausGeometrie(key, 'Props', () => PROP_BUILDERS[key]!(), LAUB_MODELLE.has(key)));
   }
 
   for (const spec of weaponModelSpecs()) {
@@ -155,4 +172,4 @@ export function baueKatalog(): Eintrag[] {
   return out;
 }
 
-export { createSharedMaterial };
+export { createFoliageMaterial, createSharedMaterial, laubAtlas };

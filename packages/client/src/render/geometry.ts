@@ -216,3 +216,28 @@ export function roughen(
 export function createSharedMaterial(): THREE.MeshLambertMaterial {
   return new THREE.MeshLambertMaterial({ vertexColors: true });
 }
+
+/**
+ * Das Material für alles, was Löcher hat — Blätter, Gras, Farn, Blüten.
+ *
+ * Drei Eigenschaften, und jede verhindert einen bestimmten Fehler:
+ *
+ * - **`alphaTest` statt `transparent`.** Durchsichtige Flächen müssen von
+ *   hinten nach vorn gezeichnet werden, sonst verdecken sie einander falsch —
+ *   und ein Busch aus acht gekreuzten Karten hat keine Reihenfolge, die für
+ *   alle Blickwinkel stimmt. Ein Alphatest verwirft das Bildpunkt-Fragment
+ *   ganz: die Tiefe stimmt wieder, und es gibt nichts zu sortieren.
+ * - **`side: DoubleSide`.** Eine Karte hat keine Rückseite; wer um den Busch
+ *   herumgeht, sähe sonst die Hälfte der Blätter verschwinden.
+ * - **`vertexColors`.** Wie bei allen Props kommt die Farbe aus den Vertizes.
+ *   Die Textur ist fast farblos gezeichnet, also färbt dieselbe Kachel einen
+ *   Frühlingsbusch und einen Herbstbusch.
+ */
+export function createFoliageMaterial(map: THREE.Texture): THREE.MeshLambertMaterial {
+  return new THREE.MeshLambertMaterial({
+    map,
+    vertexColors: true,
+    alphaTest: 0.45,
+    side: THREE.DoubleSide,
+  });
+}

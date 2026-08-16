@@ -409,7 +409,13 @@ export class WorldView {
 
     for (const [model, props] of byModel) {
       const geometry = this.registry.propGeometry(model);
-      const mesh = new THREE.InstancedMesh(geometry, this.registry.material, props.length);
+      // Laub bekommt ein anderes Material — Textur mit Alphatest. Welches,
+      // entscheidet die Ablage; siehe `propMaterial`.
+      const mesh = new THREE.InstancedMesh(
+        geometry,
+        this.registry.propMaterial(model),
+        props.length,
+      );
       mesh.name = `props:${model}`;
       // Props liegen über die ganze Map verteilt; eine Hüllkugel dafür wäre so
       // groß wie die Map und würde ohnehin nie aussortiert.

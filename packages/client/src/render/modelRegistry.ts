@@ -20,8 +20,9 @@
  */
 
 import * as THREE from 'three';
-import { createSharedMaterial } from './geometry.ts';
-import { PROP_BUILDERS, buildArrow, buildGateArch, fallbackProp } from './props.ts';
+import { createFoliageMaterial, createSharedMaterial } from './geometry.ts';
+import { laubAtlas } from './laub.ts';
+import { LAUB_MODELLE, PROP_BUILDERS, buildArrow, buildGateArch, fallbackProp } from './props.ts';
 import {
   createRig,
   weaponModelSpecs,
@@ -41,6 +42,27 @@ const ARROW_KEY = '\0arrow';
 export class ModelRegistry {
   /** Ein Material für die ganze Szene. Farbe kommt aus den Vertizes. */
   readonly material = createSharedMaterial();
+  /**
+   * Und eines für alles mit Löchern — Blätter, Gras, Farn.
+   *
+   * Erst beim ersten Laubprop angelegt: die Textur wird auf einer Leinwand
+   * gezeichnet, und eine Karte ganz ohne Laub soll dafür nicht zahlen.
+   */
+  private laubMaterial?: THREE.MeshLambertMaterial;
+
+  /**
+   * Womit dieses Prop gezeichnet wird.
+   *
+   * **Eine** Stelle für die Frage. Weltansicht, Editor und Modellschau bauen
+   * jeweils ihre eigenen Instanzennetze, und jede von ihnen müsste sonst
+   * wissen, dass ein Busch anders behandelt wird als ein Fass — die dritte
+   * hätte man vergessen.
+   */
+  propMaterial(key: string): THREE.MeshLambertMaterial {
+    if (!LAUB_MODELLE.has(key)) return this.material;
+    this.laubMaterial ??= createFoliageMaterial(laubAtlas());
+    return this.laubMaterial;
+  }
 
   private readonly propGeometries = new Map<string, THREE.BufferGeometry>();
   private readonly missing = new Set<string>();
@@ -184,5 +206,6 @@ export class ModelRegistry {
     this.weaponModels.clear();
     this.armedRigs.clear();
     this.material.dispose();
+    this.laubMaterial?.dispose();
   }
 }

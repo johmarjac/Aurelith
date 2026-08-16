@@ -9,6 +9,7 @@
 
 import * as THREE from 'three';
 import { assemble, cone, cylinder, roughen, sphere, box, type Part } from './geometry.ts';
+import { laubKarte, laubNormalen, type LaubKachel } from './laub.ts';
 
 export type PropBuilder = () => THREE.BufferGeometry;
 
@@ -84,30 +85,111 @@ function rock(size: number, seed: number): THREE.BufferGeometry {
   ]);
 }
 
+/**
+ * Ein Busch aus Laubkarten.
+ *
+ * Hier standen drei zerknautschte Kugeln, und das war von aussen genau das:
+ * drei Kugeln mit sichtbaren Schnittkanten und einer Silhouette wie ein
+ * Gummiball. Ein Busch hat aber vor allem **Lücken** — und die kann eine
+ * geschlossene Fläche nicht.
+ *
+ * Also gekreuzte Karten mit einer Blatttextur, deren Rand durchsichtig ist.
+ * Die Silhouette kommt aus dem Bild, nicht aus der Geometrie: sechzehn
+ * Dreiecke, und trotzdem sieht man Blätter.
+ *
+ * Die Karten stehen **nicht alle senkrecht**. Ein Kranz senkrechter Karten
+ * sieht von oben aus wie ein Stern; ein paar geneigte füllen die Sicht von
+ * oben, ohne dass es mehr Karten braucht.
+ */
 function bush(): THREE.BufferGeometry {
-  return assemble([
-    { geometry: roughen(sphere(0.55, 0), 0.35, 0x2468), color: 0x4a7f3c, position: [0, 0.45, 0] },
-    { geometry: roughen(sphere(0.4, 0), 0.35, 0x1357), color: 0x54903f, position: [0.35, 0.3, 0.2] },
-    {
-      geometry: roughen(sphere(0.35, 0), 0.35, 0x8642),
-      color: 0x3f6f33,
-      position: [-0.3, 0.28, -0.25],
-    },
-  ]);
-}
-
-function grassTuft(): THREE.BufferGeometry {
   const parts: Part[] = [];
-  for (let i = 0; i < 5; i++) {
-    const a = (i / 5) * Math.PI * 2;
+  const karten: Array<{
+    kachel: LaubKachel;
+    b: number;
+    h: number;
+    x: number;
+    y: number;
+    z: number;
+    gier: number;
+    kipp: number;
+    farbe: number;
+  }> = [
+    { kachel: 'blatt', b: 1.25, h: 1.0, x: 0, y: 0, z: 0, gier: 0.2, kipp: 0, farbe: 0x5d9a4a },
+    { kachel: 'blatt', b: 1.15, h: 0.95, x: 0, y: 0.02, z: 0, gier: 1.25, kipp: 0, farbe: 0x69a852 },
+    { kachel: 'blatt', b: 1.05, h: 0.85, x: 0, y: 0.04, z: 0, gier: 2.4, kipp: 0, farbe: 0x4d8639 },
+    // Zwei liegende oben drauf — sie schliessen die Sicht von oben.
+    {
+      kachel: 'blatt', b: 1.0, h: 0.9, x: 0.05, y: 0.72, z: -0.05,
+      gier: 0.7, kipp: 1.35, farbe: 0x6fb055,
+    },
+    {
+      kachel: 'blatt', b: 0.85, h: 0.8, x: -0.12, y: 0.6, z: 0.14,
+      gier: 2.1, kipp: 1.1, farbe: 0x568f42,
+    },
+    // Und zwei kleine schräg an den Seiten, damit die Umrisslinie nicht
+    // symmetrisch wird.
+    {
+      kachel: 'blatt', b: 0.8, h: 0.66, x: 0.34, y: 0.16, z: 0.2,
+      gier: 0.9, kipp: 0.35, farbe: 0x6aa84c,
+    },
+    {
+      kachel: 'blatt', b: 0.75, h: 0.62, x: -0.3, y: 0.12, z: -0.22,
+      gier: 2.7, kipp: -0.3, farbe: 0x4a8038,
+    },
+    // Eine Blütenkachel: der Busch bekommt damit einen hellen Punkt, an dem
+    // das Auge hängenbleibt.
+    {
+      kachel: 'bluete', b: 0.7, h: 0.6, x: 0.1, y: 0.42, z: 0.26,
+      gier: 0.35, kipp: 0.2, farbe: 0x86c25e,
+    },
+  ];
+
+  for (const k of karten) {
     parts.push({
-      geometry: cone(0.07, 0.55, 3),
-      color: i % 2 === 0 ? 0x6fae52 : 0x5c9644,
-      position: [Math.cos(a) * 0.12, 0.28, Math.sin(a) * 0.12],
-      rotation: [Math.cos(a) * 0.3, 0, -Math.sin(a) * 0.3],
+      geometry: laubKarte(k.kachel, k.b, k.h),
+      color: k.farbe,
+      position: [k.x, k.y, k.z],
+      rotation: [k.kipp, k.gier, 0],
     });
   }
-  return assemble(parts);
+
+  const geo = assemble(parts);
+  // Von der Mitte des Busches nach aussen: eine Karte, die zur Seite steht,
+  // wäre mit ihrer eigenen Normalen von oben schwarz.
+  laubNormalen(geo, 0.5);
+  return geo;
+}
+
+/**
+ * Ein Grasbüschel — drei gekreuzte Karten mit Halmen.
+ *
+ * Vorher waren es fünf Kegel, und die sahen aus wie fünf Kegel: dicke Spitzen
+ * ohne Kante. Halme sind dünn, und dünn heisst bei Dreiecken teuer — auf einer
+ * Textur mit Loch kostet es nichts.
+ *
+ * Der Ursprung liegt am Boden: `laubKarte` setzt die Karte auf y = 0 auf, und
+ * ein Grasbüschel, das in der Luft anfängt, sieht man auf jeder Wiese sofort.
+ */
+function grassTuft(): THREE.BufferGeometry {
+  const parts: Part[] = [];
+  const karten = [
+    { kachel: 'gras' as const, b: 0.9, h: 0.62, gier: 0.15, farbe: 0x84c264 },
+    { kachel: 'gras' as const, b: 0.8, h: 0.55, gier: 1.1, farbe: 0x6faa50 },
+    { kachel: 'gras' as const, b: 0.75, h: 0.5, gier: 2.2, farbe: 0x8ecb6b },
+    // Ein Farnwedel dazwischen: derselbe Aufwand, und aus einer Wiese aus
+    // lauter gleichen Büscheln wird eine mit Unterholz.
+    { kachel: 'farn' as const, b: 0.6, h: 0.52, gier: 0.7, farbe: 0x5f9c48 },
+  ];
+  for (const k of karten) {
+    parts.push({
+      geometry: laubKarte(k.kachel, k.b, k.h),
+      color: k.farbe,
+      rotation: [0, k.gier, 0],
+    });
+  }
+  const geo = assemble(parts);
+  laubNormalen(geo, 0.25);
+  return geo;
 }
 
 function stump(): THREE.BufferGeometry {
@@ -339,6 +421,17 @@ function schwebfels(radius: number, seed: number): THREE.BufferGeometry {
   }
   return assemble(parts);
 }
+
+/**
+ * Welche Props aus Laubkarten bestehen.
+ *
+ * Sie brauchen ein anderes Material — eines mit Textur und Alphatest, siehe
+ * `createFoliageMaterial`. Die Liste steht **hier**, neben den Bauern, und
+ * nicht bei jedem, der Props zeichnet: Weltansicht, Editor und Modellschau
+ * fragen dieselbe Menge, und eine vierte Stelle, die es nachtragen müsste,
+ * gäbe es sonst beim nächsten Laubprop.
+ */
+export const LAUB_MODELLE: ReadonlySet<string> = new Set(['bush', 'grass_tuft']);
 
 /** Der Katalog. Schlüssel entsprechen dem `model`-Feld im Map-Dokument. */
 export const PROP_BUILDERS: Record<string, PropBuilder> = {

@@ -225,6 +225,7 @@ npm run test:particles   # die Funkenwolke und der Pfeilschweif
 npm run test:audio       # Richtung und Entfernung im Raumklang
 npm run test:gait        # Laufbewegung: springt eine Pose?
 npm run test:flugachse   # kippt die Nase um die Achse der Figur oder der Welt?
+npm run test:laub        # Laubkarten: richtige Atlaskachel, Stand auf dem Boden
 npm run test:tag         # Tag- und Nachtwechsel: Licht, Farben, Uhr
 npm run test:quests      # das Auftragsbuch — ohne Server
 npm run test:content     # die Inhaltsdateien: Format und Verweise

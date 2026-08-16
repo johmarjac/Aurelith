@@ -32,8 +32,12 @@ import {
   paintFieldIsEmpty,
   terrainSetup,
 } from '@aurelith/shared';
-import { createSharedMaterial } from '@aurelith/client/render/geometry.ts';
-import { PROP_BUILDERS, buildGateArch } from '@aurelith/client/render/props.ts';
+import {
+  createFoliageMaterial,
+  createSharedMaterial,
+} from '@aurelith/client/render/geometry.ts';
+import { laubAtlas } from '@aurelith/client/render/laub.ts';
+import { LAUB_MODELLE, PROP_BUILDERS, buildGateArch } from '@aurelith/client/render/props.ts';
 import { buildTerrain, type TerrainMesh } from '@aurelith/client/render/terrain.ts';
 import { TextureLoader } from '@aurelith/client/render/textures.ts';
 import {
@@ -88,6 +92,18 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(58, 1, 0.5, 2000);
 const material = createSharedMaterial();
+/**
+ * Und eines für Laub — Blätter und Gras sind Texturen mit Loch.
+ *
+ * Erst beim ersten Laubprop angelegt, wie im Spiel: die Textur entsteht auf
+ * einer Leinwand, und eine Karte ohne Busch soll dafür nicht zahlen.
+ */
+let laubMaterial: THREE.MeshLambertMaterial | undefined;
+function propMaterial(key: string): THREE.MeshLambertMaterial {
+  if (!LAUB_MODELLE.has(key)) return material;
+  laubMaterial ??= createFoliageMaterial(laubAtlas());
+  return laubMaterial;
+}
 
 // Derselbe Texturlader wie im Client, nur mit schlichtem fetch statt Streamer:
 // der Editor muss denselben Boden zeigen wie das Spiel, sonst setzt man Props
@@ -485,7 +501,7 @@ function rebuildProps(): void {
   const color = new THREE.Color();
 
   for (const [model, props] of byModel) {
-    const mesh = new THREE.InstancedMesh(propGeometry(model), material, props.length);
+    const mesh = new THREE.InstancedMesh(propGeometry(model), propMaterial(model), props.length);
     mesh.frustumCulled = false;
     mesh.userData.model = model;
     for (let i = 0; i < props.length; i++) {

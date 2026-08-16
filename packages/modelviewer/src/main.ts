@@ -22,7 +22,13 @@
 import * as THREE from 'three';
 import { loadModel } from '@aurelith/client/render/gltf.ts';
 import type { CharacterRig } from '@aurelith/client/render/rigs.ts';
-import { baueKatalog, createSharedMaterial, type Eintrag } from './katalog.ts';
+import {
+  baueKatalog,
+  createFoliageMaterial,
+  createSharedMaterial,
+  laubAtlas,
+  type Eintrag,
+} from './katalog.ts';
 import './style.css';
 
 // ---------------------------------------------------------------------------
@@ -57,6 +63,9 @@ const umgebung = new THREE.AmbientLight(0xc6d6e6, 0.85);
 scene.add(fuehrung, gegenlicht, umgebung);
 
 const material = createSharedMaterial();
+// Und das Material für alles mit Löchern. Anders als im Spiel gleich angelegt:
+// hier wird ohnehin durch den ganzen Katalog geblättert.
+const laubMaterial = createFoliageMaterial(laubAtlas());
 
 /** Der Boden — nur als Bezug. Ohne ihn schwebt jedes Modell im Nichts. */
 const gitter = new THREE.GridHelper(20, 20, 0x4cc9bf, 0x2c3a45);
@@ -133,7 +142,7 @@ function zeige(eintrag: Eintrag): void {
   aktuell = eintrag;
   const meins = ++wechsel;
 
-  const gebaut = eintrag.baue(material);
+  const gebaut = eintrag.baue(material, laubMaterial);
   rig = gebaut.rig;
   halter.add(gebaut.objekt);
 
@@ -355,6 +364,7 @@ function wendeAn(): void {
   // Schattierung zeigen und nicht gar nichts.
   umgebung.intensity = l === 0 ? 1.6 : 0.85 * l;
   material.wireframe = einstellungen.wireframe;
+  laubMaterial.wireframe = einstellungen.wireframe;
   gitter.visible = einstellungen.gitter;
   achsen.visible = einstellungen.achsen;
   renderer.setClearColor(einstellungen.hell ? 0xdfe7ec : 0x0b1014, 1);
