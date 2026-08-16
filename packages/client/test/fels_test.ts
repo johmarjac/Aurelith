@@ -19,7 +19,7 @@
  */
 
 import * as THREE from 'three';
-import { baueFindling } from '../src/render/findling.ts';
+import { baueFindling, knicke } from '../src/render/findling.ts';
 import { GESTEIN_KACHEL_METER } from '../src/render/gestein.ts';
 import { materialArt } from '../src/render/props.ts';
 
@@ -132,6 +132,105 @@ check(
   'der kleine Stein deckt weniger Kacheln ab',
   `${spanneKlein.toFixed(2)} ↔ ${spanne.toFixed(2)}`,
 );
+
+console.log('\nDie Oberfläche knickt — aber nicht zu Kristall');
+
+/*
+ * `knicke` mischt die weiche Normale mit der der Fläche. Die beiden Enden sind
+ * die Fehler, zwischen denen der Fels liegt, und sie werden hier beide
+ * geprüft: ganz weich sieht der Stein aus wie ein Kieselstein mit aufgemaltem
+ * Granit, ganz flach wie ein geschliffener Kristall.
+ */
+function spanneZurFlaeche(geo: THREE.BufferGeometry): { klein: number; gross: number } {
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  const nor = geo.attributes.normal as THREE.BufferAttribute;
+  let klein = 1;
+  let gross = -1;
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const n = new THREE.Vector3();
+  const eigen = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i += 3) {
+    a.fromBufferAttribute(pos, i);
+    b.fromBufferAttribute(pos, i + 1);
+    c.fromBufferAttribute(pos, i + 2);
+    n.copy(b).sub(a).cross(eigen.copy(c).sub(a)).normalize();
+    for (let j = 0; j < 3; j++) {
+      const d = eigen.fromBufferAttribute(nor, i + j).dot(n);
+      klein = Math.min(klein, d);
+      gross = Math.max(gross, d);
+    }
+  }
+  return { klein, gross };
+}
+
+/**
+ * Eine verbeulte Kugel mit weichen Normalen — dieselbe Ausgangslage wie beim
+ * Fels: **indiziert** gerechnet, damit `computeVertexNormals` über geteilte
+ * Ecken mitteln kann, und erst danach aufgetrennt.
+ *
+ * Der erste Anlauf hier nahm das Ikosaeder von three, und das ist nicht
+ * indiziert — jede Ecke steht so oft im Puffer, wie Flächen an ihr hängen.
+ * Gemittelt wurde damit über nichts, die „weichen" Normalen waren flach, und
+ * die Prüfung darunter verglich zweimal dasselbe.
+ */
+function beulenKugel(): THREE.BufferGeometry {
+  const kugel = new THREE.SphereGeometry(1, 24, 16);
+  const pos = kugel.attributes.position as THREE.BufferAttribute;
+  for (let i = 0; i < pos.count; i++) {
+    const f = 1 + 0.25 * Math.sin(pos.getX(i) * 5) * Math.cos(pos.getZ(i) * 4);
+    pos.setXYZ(i, pos.getX(i) * f, pos.getY(i) * f, pos.getZ(i) * f);
+  }
+  kugel.computeVertexNormals();
+  const offen = kugel.toNonIndexed();
+  kugel.dispose();
+  return offen;
+}
+
+const ganzFlach = beulenKugel();
+knicke(ganzFlach, 1);
+const flach = spanneZurFlaeche(ganzFlach);
+check(
+  flach.klein > 0.9999,
+  'bei Anteil 1 liegt jede Normale auf ihrer Fläche',
+  flach.klein.toFixed(4),
+);
+
+// Gegenprobe: bei Anteil 0 bleibt sie, wie sie war — und weicht dann von der
+// Fläche ab. Ohne diese Zeile ginge auch eine Fassung durch, die immer die
+// Flächennormale setzt und den Anteil gar nicht liest.
+const ganzWeich = beulenKugel();
+const weichVorher = spanneZurFlaeche(ganzWeich);
+knicke(ganzWeich, 0);
+const weich = spanneZurFlaeche(ganzWeich);
+check(
+  Math.abs(weich.klein - weichVorher.klein) < 1e-6 && weich.klein < 0.99,
+  'bei Anteil 0 bleibt sie unverändert weich',
+  `${weich.klein.toFixed(3)} (vorher ${weichVorher.klein.toFixed(3)})`,
+);
+
+const gemischt = beulenKugel();
+knicke(gemischt, 0.55);
+const mitte = spanneZurFlaeche(gemischt);
+check(
+  mitte.klein > weich.klein && mitte.klein < 0.9999,
+  'und dazwischen liegt sie dazwischen',
+  `weich ${weich.klein.toFixed(3)} < gemischt ${mitte.klein.toFixed(3)} < flach 1`,
+);
+
+// Und der fertige Findling nutzt das auch: seine Normalen liegen weder auf der
+// Fläche noch dort, wo sie eine glatte Kugel hätte.
+const felsSpanne = spanneZurFlaeche(gross.geo);
+check(
+  felsSpanne.klein < 0.999 && felsSpanne.klein > 0.6,
+  'der Findling ist uneben, aber kein Kristall',
+  felsSpanne.klein.toFixed(3),
+);
+
+ganzFlach.dispose();
+ganzWeich.dispose();
+gemischt.dispose();
 
 console.log('\nJedes Prop weiss, woraus es gezeichnet wird');
 

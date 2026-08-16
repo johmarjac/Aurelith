@@ -38,7 +38,7 @@ const GROESSE = 512;
  * Körnung haben. Sonst sieht der kleine aus wie der grosse in der Ferne, und
  * die beiden nebeneinander verraten, dass es dasselbe Modell ist.
  */
-export const GESTEIN_KACHEL_METER = 1.6;
+export const GESTEIN_KACHEL_METER = 1.15;
 
 /** Kleiner, wiederholbarer Zufall. Dieselbe Textur bei jedem Start. */
 function wuerfel(seed: number): () => number {
@@ -91,10 +91,10 @@ function zonen(ctx: CanvasRenderingContext2D, rand: () => number): void {
     const x = rand() * GROESSE;
     const y = rand() * GROESSE;
     const r = 26 + rand() * 90;
-    const hell = 0.78 + (rand() - 0.5) * 0.26;
+    const hell = 0.76 + (rand() - 0.5) * 0.42;
     ringsum(ctx, () => {
       const verlauf = ctx.createRadialGradient(x, y, 0, x, y, r);
-      verlauf.addColorStop(0, grau(hell, 0.5));
+      verlauf.addColorStop(0, grau(hell, 0.62));
       verlauf.addColorStop(1, grau(hell, 0));
       ctx.fillStyle = verlauf;
       ctx.beginPath();
@@ -112,9 +112,9 @@ function koerner(ctx: CanvasRenderingContext2D, rand: () => number): void {
     const r = 0.7 + rand() * 2.2;
     // Zwei Drittel dunkler, ein Drittel heller — sonst wird die Fläche mit
     // jedem Korn insgesamt heller und die Textur verliert ihren Mittelwert.
-    const hell = rand() < 0.66 ? 0.62 + rand() * 0.16 : 0.9 + rand() * 0.1;
+    const hell = rand() < 0.66 ? 0.42 + rand() * 0.24 : 0.94 + rand() * 0.06;
     ringsum(ctx, () => {
-      ctx.fillStyle = grau(hell, 0.55);
+      ctx.fillStyle = grau(hell, 0.7);
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fill();
@@ -131,7 +131,7 @@ function koerner(ctx: CanvasRenderingContext2D, rand: () => number): void {
  * Ecken.
  */
 function spruenge(ctx: CanvasRenderingContext2D, rand: () => number): void {
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 34; i++) {
     let x = rand() * GROESSE;
     let y = rand() * GROESSE;
     let richtung = rand() * Math.PI * 2;
@@ -146,7 +146,7 @@ function spruenge(ctx: CanvasRenderingContext2D, rand: () => number): void {
     }
     const breite = 0.8 + rand() * 1.8;
     ringsum(ctx, () => {
-      ctx.strokeStyle = grau(0.5, 0.55);
+      ctx.strokeStyle = grau(0.3, 0.7);
       ctx.lineWidth = breite;
       ctx.lineJoin = 'round';
       ctx.beginPath();
@@ -156,11 +156,51 @@ function spruenge(ctx: CanvasRenderingContext2D, rand: () => number): void {
       // Ein heller Streifen daneben: eine Kante hat eine Sonnen- und eine
       // Schattenseite, und erst dadurch sieht der Riss nach Tiefe aus statt
       // nach aufgemaltem Strich.
-      ctx.strokeStyle = grau(0.95, 0.28);
+      ctx.strokeStyle = grau(1, 0.34);
       ctx.lineWidth = breite * 0.7;
       ctx.beginPath();
       ctx.moveTo(punkte[0]![0] + 1.4, punkte[0]![1] + 1.4);
       for (const p of punkte.slice(1)) ctx.lineTo(p[0] + 1.4, p[1] + 1.4);
+      ctx.stroke();
+    });
+  }
+}
+
+/**
+ * Ausbrüche — kleine Muschelbrüche, wie sie ein Stein am Schlag bekommt.
+ *
+ * Der Unterschied zwischen einer Körnung und einer **Oberfläche**. Körner sind
+ * gleich gross und gleich verteilt; ein Stein hat dazwischen Stellen, an denen
+ * ein Stück herausgesprungen ist — dunkel in der Vertiefung, hell an der
+ * Kante, die zum Licht zeigt. Fünf oder sechs davon in einer Kachel reichen,
+ * denn man sieht sie einzeln, und genau darum geht es.
+ */
+function ausbrueche(ctx: CanvasRenderingContext2D, rand: () => number): void {
+  for (let i = 0; i < 90; i++) {
+    const x = rand() * GROESSE;
+    const y = rand() * GROESSE;
+    const r = 4 + rand() * 16;
+    const ecken = 5 + Math.floor(rand() * 4);
+    const punkte: Array<[number, number]> = [];
+    for (let e = 0; e < ecken; e++) {
+      const w = (e / ecken) * Math.PI * 2;
+      const d = r * (0.55 + rand() * 0.7);
+      punkte.push([x + Math.cos(w) * d, y + Math.sin(w) * d]);
+    }
+    ringsum(ctx, () => {
+      ctx.beginPath();
+      ctx.moveTo(punkte[0]![0], punkte[0]![1]);
+      for (const p of punkte.slice(1)) ctx.lineTo(p[0], p[1]);
+      ctx.closePath();
+      ctx.fillStyle = grau(0.52, 0.45);
+      ctx.fill();
+      // Die obere Kante fängt Licht: erst dadurch liest sich der Fleck als
+      // Vertiefung und nicht als Schmutz.
+      ctx.strokeStyle = grau(1, 0.4);
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(punkte[0]![0], punkte[0]![1] - 1.6);
+      for (const p of punkte.slice(1, Math.ceil(ecken / 2) + 1)) ctx.lineTo(p[0], p[1] - 1.6);
       ctx.stroke();
     });
   }
@@ -187,6 +227,7 @@ export function gesteinsTextur(): THREE.Texture {
   ctx.fillStyle = grau(0.8);
   ctx.fillRect(0, 0, GROESSE, GROESSE);
   zonen(ctx, rand);
+  ausbrueche(ctx, rand);
   koerner(ctx, rand);
   spruenge(ctx, rand);
 
@@ -238,6 +279,21 @@ export function gesteinsUV(geo: THREE.BufferGeometry, meterJeKachel = GESTEIN_KA
     const ax = Math.abs(n.x);
     const ay = Math.abs(n.y);
     const az = Math.abs(n.z);
+    /*
+     * Die Schrägstellung herausrechnen.
+     *
+     * Eine Fläche, die zur gewählten Achse gekippt steht, erscheint in der
+     * Projektion kürzer, als sie ist — die Kachel wird über sie **gezogen**.
+     * Bei einer Fläche, deren Normale zwischen allen drei Achsen steht, ist
+     * das der Faktor 1/0,577, also fast das Doppelte, und man sieht es sofort:
+     * ein Sprung, der über zwei Dreiecke zu einem langen Streifen verschmiert.
+     * Geteilt durch den Kosinus stimmt die Dichte wieder. Kleiner als 0,577
+     * kann er bei der grössten Komponente einer Einheitsnormalen nicht werden;
+     * der Schutz davor kostet nichts und verhindert eine Division durch null,
+     * falls doch einmal eine entartete Fläche ankommt.
+     */
+    const kippung = Math.max(0.5, Math.max(ax, ay, az));
+    const teiler = meterJeKachel * kippung;
     for (let j = 0; j < 3; j++) {
       const p = j === 0 ? a : j === 1 ? b : c;
       let u: number;
@@ -252,8 +308,8 @@ export function gesteinsUV(geo: THREE.BufferGeometry, meterJeKachel = GESTEIN_KA
         u = p.x;
         v = p.y;
       }
-      uv[(i + j) * 2] = u / meterJeKachel;
-      uv[(i + j) * 2 + 1] = v / meterJeKachel;
+      uv[(i + j) * 2] = u / teiler;
+      uv[(i + j) * 2 + 1] = v / teiler;
     }
   }
   geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));

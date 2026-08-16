@@ -12,17 +12,23 @@
  *      Form stimmte endlich, aber zwanzig bis achtzig grosse ebene Flächen
  *      lesen sich als **geschliffener** Stein: ein Kristall, kein Findling.
  *
- * Daraus die Regel dieser Datei: **die Unruhe gehört ins Bild, nicht in die
- * Geometrie.** Der Körper ist rund und weich schattiert — eine Kartoffel aus
- * dreihundert Dreiecken mit weichen Beulen —, und was ihn zu Stein macht, ist
- * die Körnung der Textur (`gestein.ts`). Das ist zugleich das billigere
- * Geschäft: Körnung, Sprünge und Flechten kosten einmal eine Kachel und auf
- * jedem Stein der Karte kein einziges Dreieck.
+ *   4. Rund und weich schattiert, mit der Körnung allein in der Textur. Die
+ *      Kanten waren weg — und mit ihnen die Rauheit: ein Kieselstein mit
+ *      aufgemaltem Granit. Eine Textur legt ein Muster auf eine Fläche, sie
+ *      macht sie nicht uneben.
  *
- * Die Beulen kommen aus wenigen grossen Lappen und nicht aus einem Wurf je
- * Ecke. Ein Wurf je Ecke ist Rauschen: bei dreihundert Dreiecken sieht man
- * davon aus fünf Metern nichts mehr, und aus einem Meter sieht es aus wie ein
- * Schwamm. Vier bis sechs Lappen ergeben eine Silhouette, die man wiedererkennt.
+ * Daraus die Regel dieser Datei: **beides, und in unterschiedlichen
+ * Grössenordnungen.** Die Form kommt aus drei Lagen von Keulen —
+ *
+ *   - fünf bis sieben **weiche** für die Silhouette,
+ *   - ein Dutzend **mittlere** für Schultern und Dellen,
+ *   - vierzig **scharfe** für die Rauheit, jede eine Handbreit gross,
+ *
+ * — dazu Rauschen je Ecke. Die Normalen bleiben dabei gemittelt: der Stein ist
+ * uneben, aber nicht facettiert. Und alles darunter, was feiner ist als ein
+ * Dreieck, trägt die Textur (`gestein.ts`). Das ist die billige Hälfte:
+ * Körnung, Sprünge und Flechten kosten einmal eine Kachel und auf jedem Stein
+ * der Karte kein einziges Dreieck.
  */
 
 import * as THREE from 'three';
@@ -73,6 +79,52 @@ function mische(a: number, b: number, t: number): number {
 }
 
 /**
+ * Mischt die weiche Normale mit der der Fläche.
+ *
+ * Der Griff, der aus einer Kartoffel einen Fels macht — und der Grund, warum
+ * hier nicht einfach „weich" oder „flach" steht:
+ *
+ * - **Weich** mittelt jede Kante weg. Der Stein ist dann uneben gebaut und
+ *   sieht trotzdem glatt aus: das Licht läuft über die Buckel hinweg, als wäre
+ *   da nichts. Genau das war der vorige Anlauf — ein Kieselstein mit
+ *   aufgemaltem Granit.
+ * - **Flach** gibt jeder der dreihundert Facetten ihre eigene Helligkeit. Das
+ *   ist zu viel: der Stein wird zum geschliffenen Kristall, und den hatten wir
+ *   davor.
+ *
+ * Dazwischen liegt, was ein Fels ist. `anteil` sagt, wie weit die Fläche sich
+ * durchsetzt; bei 0,55 sieht man jede Kante, aber keine spiegelt.
+ *
+ * Erwartet ein **nicht indiziertes** Netz: je drei Einträge ein Dreieck. Auf
+ * einem indizierten stünde jede Ecke einmal da und bekäme die Normale der
+ * zuletzt behandelten Fläche — also Zufall.
+ */
+export function knicke(geo: THREE.BufferGeometry, anteil: number): void {
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  const nor = geo.attributes.normal as THREE.BufferAttribute;
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const flaeche = new THREE.Vector3();
+  const k1 = new THREE.Vector3();
+  const k2 = new THREE.Vector3();
+  const weich = new THREE.Vector3();
+
+  for (let i = 0; i < pos.count; i += 3) {
+    a.fromBufferAttribute(pos, i);
+    b.fromBufferAttribute(pos, i + 1);
+    c.fromBufferAttribute(pos, i + 2);
+    flaeche.copy(k1.subVectors(b, a).cross(k2.subVectors(c, a))).normalize();
+    for (let j = 0; j < 3; j++) {
+      weich.fromBufferAttribute(nor, i + j).multiplyScalar(1 - anteil);
+      weich.addScaledVector(flaeche, anteil).normalize();
+      nor.setXYZ(i + j, weich.x, weich.y, weich.z);
+    }
+  }
+  nor.needsUpdate = true;
+}
+
+/**
  * Ein Findling.
  *
  * `radius` ist der halbe Durchmesser in der Breite — nicht die Höhe: der Stein
@@ -82,15 +134,18 @@ export function baueFindling(radius: number, seed: number): THREE.BufferGeometry
   const rand = wuerfel(seed);
 
   /*
-   * Zweimal unterteilt: 320 Dreiecke, 162 Ecken.
+   * Dreimal unterteilt: 320 Dreiecke, 162 Ecken.
    *
-   * Genug, dass die Rundung rund ist und die weichen Normalen etwas zu mitteln
-   * haben — bei achtzig Flächen bleibt trotz weicher Schattierung eine
-   * kantige Silhouette. Und wenig genug, dass hundertfünfzig Steine auf einer
-   * Karte fünfzigtausend Dreiecke sind, gezeichnet in **einem** Aufruf, weil
+   * Eine Stufe feiner als beim ersten runden Anlauf, und zwar wegen der
+   * Rauheit: die kleinen Buckel unten brauchen Ecken, an denen sie angreifen
+   * können. Bei 180 Dreiecken verteilte sich eine scharfe Keule über zwei
+   * Ecken und wurde zur Delle statt zur Kante.
+   *
+   * Wenig genug bleibt es trotzdem: hundertfünfzig Steine auf einer Karte sind
+   * damit achtundvierzigtausend Dreiecke, gezeichnet in **einem** Aufruf, weil
    * Props instanziert werden.
    */
-  const basis = new THREE.IcosahedronGeometry(1, 2);
+  const basis = new THREE.IcosahedronGeometry(1, 3);
   const pos = basis.attributes.position as THREE.BufferAttribute;
 
   /*
@@ -126,6 +181,23 @@ export function baueFindling(radius: number, seed: number): THREE.BufferGeometry
       schaerfe: 6,
     });
   }
+  /*
+   * Und zuletzt vierzig sehr scharfe: die Rauheit.
+   *
+   * `dot^18` reicht über eine Handbreit der Kugel — das ist ein Buckel, keine
+   * Beule. Vierzig davon ergeben eine Oberfläche, die aus einem Meter
+   * Entfernung uneben ist, ohne dass die Silhouette zappelt: das entscheidet
+   * die Schärfe, nicht die Zahl. Genau hier lag der Unterschied zwischen
+   * „Kartoffel" und „Fels" — die Textur allein macht eine glatte Kugel nicht
+   * rau, sie legt nur ein Muster darauf.
+   */
+  for (let i = 0, n = 34 + Math.floor(rand() * 14); i < n; i++) {
+    lappen.push({
+      richtung: new THREE.Vector3(rand() - 0.5, rand() - 0.5, rand() - 0.5).normalize(),
+      staerke: (rand() - 0.5) * 0.42,
+      schaerfe: 18,
+    });
+  }
 
   /*
    * Ecken zusammenfassen und dabei verschieben.
@@ -151,9 +223,10 @@ export function baueFindling(radius: number, seed: number): THREE.BufferGeometry
         const d = Math.max(0, v.dot(l.richtung));
         f += l.staerke * Math.pow(d, l.schaerfe);
       }
-      // Eine Spur Unruhe obendrauf, damit die Lappen nicht wie Blasen
-      // aussehen. Klein genug, dass die Silhouette weich bleibt.
-      f += (rand() - 0.5) * 0.06;
+      // Und Rauschen je Ecke obendrauf — die Körnung des Bruchs. Klein genug,
+      // dass die Silhouette nicht zappelt, gross genug, dass keine zwei
+      // Nachbarflächen in einer Ebene liegen.
+      f += (rand() - 0.5) * 0.11;
       idx = richtungen.length;
       nummer.set(schluessel, idx);
       richtungen.push(v);
@@ -220,6 +293,7 @@ export function baueFindling(radius: number, seed: number): THREE.BufferGeometry
   const offen = geo.toNonIndexed();
   geo.dispose();
   gesteinsUV(offen);
+  knicke(offen, 0.55);
 
   /*
    * Die Farbe je Ecke, aus der **weichen** Normalen.
