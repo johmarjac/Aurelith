@@ -71,6 +71,25 @@ export function assemble(parts: Part[]): THREE.BufferGeometry {
   return merged;
 }
 
+/**
+ * Fügt fertige, **schon gefärbte** Geometrien zusammen.
+ *
+ * `assemble` färbt jedes Teil neu ein — das ist dort richtig, hier aber genau
+ * falsch: eine Pflanze bekommt ihre Blattnormalen erst nach dem Verschmelzen
+ * der Karten (`laubNormalen`), und der Stiel darf davon nichts abbekommen.
+ * Also zwei Hälften getrennt bauen und hier zusammenlegen — ohne die Farben
+ * und ohne die Normalen anzufassen.
+ */
+export function fuegeZusammen(geometries: THREE.BufferGeometry[]): THREE.BufferGeometry {
+  const teile = geometries.map((g) => (g.index ? g.toNonIndexed() : g));
+  const merged = mergeGeometries(teile, false);
+  for (let i = 0; i < teile.length; i++) {
+    if (teile[i] !== geometries[i]) teile[i]!.dispose();
+  }
+  if (!merged) throw new Error('Geometrien ließen sich nicht verschmelzen');
+  return merged;
+}
+
 // --- Grundkörper, einmal erzeugt und geteilt --------------------------------
 
 const shared = {

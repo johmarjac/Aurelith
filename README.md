@@ -26,7 +26,10 @@ bewussten Abweichung, die weiter unten begründet ist.
   Terrainnetz aus den Höhen des Kerns. Auch die Texturen entstehen im Code: eine
   Laubkachel mit durchsichtigem Rand für Blätter, Gras und Baumkronen, eine
   Gesteinskachel mit Körnung und Sprüngen für Felsen. Drei Materialien für alle
-  Props — welches ein Modell braucht, sagt `materialArt`.
+  Props — welches ein Modell braucht, sagt `materialArt`. Der Katalog umfasst
+  **131 Modelle**, sortiert nach dem, wofür sie da sind: Bewuchs
+  (`propsFlora.ts`), Stein (`propsFels.ts`), Siedlung und Handwerk
+  (`propsSiedlung.ts`), Lager und Ruine (`propsRuine.ts`).
 - **Desktop und Mobil**: WASD und Maus am Rechner, virtueller Joystick und
   Angriffsknopf am Telefon.
 - **Kampf mit Zielauswahl**: ein Klick visiert an, der zweite greift an — die
@@ -234,6 +237,7 @@ npm run test:flugachse   # kippt die Nase um die Achse der Figur oder der Welt?
 npm run test:laub        # Laubkarten: richtige Atlaskachel, Stand auf dem Boden
 npm run test:fels        # Findlinge: Grösse passt zum Kollisionskreis, Körnung in Metern
 npm run test:sterben     # jedes Wesen fällt um, und die Weltansicht stellt es nicht wieder auf
+npm run test:props       # Prop-Katalog: Tabelle deckt sich, alles steht am Boden, Kreise passen
 npm run test:tag         # Tag- und Nachtwechsel: Licht, Farben, Uhr
 npm run test:quests      # das Auftragsbuch — ohne Server
 npm run test:content     # die Inhaltsdateien: Format und Verweise

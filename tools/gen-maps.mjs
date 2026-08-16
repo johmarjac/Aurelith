@@ -171,26 +171,10 @@ function baueSculpt(size, fn, { schrittweite = 2 } = {}) {
  * ist also `θ = atan2(−dz, dx)` — das Minus ist kein Tippfehler.
  */
 function fenceRun(model, from, to, { scale = 1 } = {}) {
-  const dx = to[0] - from[0];
-  const dz = to[1] - from[1];
-  const laenge = Math.hypot(dx, dz);
-  const feld = 2 * scale;
-  const felder = Math.max(1, Math.round(laenge / feld));
-  const yaw = round(Math.atan2(-dz, dx));
-
-  const out = [];
-  for (let i = 0; i < felder; i++) {
-    const t = (i + 0.5) / felder;
-    out.push({
-      model,
-      position: [round(from[0] + dx * t), 0, round(from[1] + dz * t)],
-      rotation: [0, yaw, 0],
-      scale,
-      snapToGround: true,
-      ...kollision(model),
-    });
-  }
-  return out;
+  // Ein Zaunlauf ist eine Reihe mit zwei Metern Feldbreite — und nichts
+  // sonst. Die Rechnung stand hier einmal ausgeschrieben; seit es auch Stege
+  // und Palisaden gibt, wäre das dieselbe Formel an zwei Stellen.
+  return reihe(model, from, to, 2, { scale });
 }
 
 /** Ein geschlossenes Gehege. Vier Läufe, an den Ecken gestoßen. */
@@ -203,16 +187,50 @@ function fenceRect(model, cx, cz, halfX, halfZ, opts = {}) {
   ];
 }
 
-/** Ein einzelnes gesetztes Prop. */
-function place(model, x, z, { yaw = 0, scale = 1 } = {}) {
+/**
+ * Ein einzelnes gesetztes Prop.
+ *
+ * `y` schaltet `snapToGround` ab und setzt die Höhe von Hand — für alles, was
+ * nicht auf dem Boden steht: ein Tropfstein an der Decke, eine Wandfackel.
+ * Ohne diese Möglichkeit klebte die Spitze des Zapfens im Gras.
+ */
+function place(model, x, z, { yaw = 0, scale = 1, y } = {}) {
   return {
     model,
-    position: [round(x), 0, round(z)],
+    position: [round(x), round(y ?? 0), round(z)],
     rotation: [0, round(yaw), 0],
     scale,
-    snapToGround: true,
+    snapToGround: y === undefined,
     ...kollision(model),
   };
+}
+
+/**
+ * Eine Reihe gleicher Props entlang einer Strecke.
+ *
+ * Wie `fenceRun`, aber ohne die feste Feldbreite von zwei Metern: Stege,
+ * Palisaden und Steinplattenwege haben jeweils ihre eigene. Der Winkel wird
+ * mitgegeben, damit ein Steg in Laufrichtung zeigt und nicht quer dazu.
+ */
+function reihe(model, from, to, feld, { scale = 1, drehung = 0 } = {}) {
+  const dx = to[0] - from[0];
+  const dz = to[1] - from[1];
+  const laenge = Math.hypot(dx, dz);
+  const stueck = Math.max(1, Math.round(laenge / (feld * scale)));
+  const yaw = round(Math.atan2(-dz, dx) + drehung);
+  const out = [];
+  for (let i = 0; i < stueck; i++) {
+    const t = (i + 0.5) / stueck;
+    out.push({
+      model,
+      position: [round(from[0] + dx * t), 0, round(from[1] + dz * t)],
+      rotation: [0, yaw, 0],
+      scale,
+      snapToGround: true,
+      ...kollision(model),
+    });
+  }
+  return out;
 }
 
 /**
@@ -614,8 +632,40 @@ function lichtmoor() {
     place('lantern_post', -14, cz + mauerHalb - 3),
     place('lantern_post', 14, cz + mauerHalb - 3),
 
-    // Marktplatz.
-    place('well', 0, cz),
+    /*
+     * Der Marktplatz.
+     *
+     * Ein Platz ist erst einer, wenn er einen **Mittelpunkt** hat und drumherum
+     * Betrieb. Der Zierbrunnen ist die Mitte, der alte Ziehbrunnen steht
+     * daneben weiter (er war zuerst da), und die Stände stehen im Halbkreis
+     * darum — nicht in einer Reihe: eine Reihe liest sich als Zaun.
+     */
+    place('zierbrunnen', 0, cz),
+    place('well', -14, cz + 6),
+    /*
+     * Die Statue steht **südlich** des Brunnens und nicht nördlich davon.
+     *
+     * Nördlich stand sie zwei Meter neben dem Startpunkt der Karte (0, −106),
+     * und weil sie einen Kollisionskreis hat, erschien man beim ersten
+     * Betreten im Sockel. Der Punkt, an dem jeder Spieler auftaucht, muss frei
+     * bleiben — `props_test.ts` prüft das jetzt für alle drei Karten.
+     */
+    place('statue', 0, cz - 14),
+    place('marktstand', -8, cz - 6, { yaw: 0.5 }),
+    place('marktstand', 8, cz - 5, { yaw: 5.7 }),
+    place('marktstand', 11, cz + 6, { yaw: 4.4 }),
+    place('markttisch', -11, cz - 2, { yaw: 1.4 }),
+    place('markttisch', 6, cz + 10, { yaw: 2.8 }),
+    place('korb', -9.6, cz - 4.4, { yaw: 0.3 }),
+    place('korb', -10.4, cz - 3.2, { yaw: 1.9, scale: 0.85 }),
+    place('korb', 9.4, cz - 3.6, { yaw: 2.6 }),
+    place('sackstapel', 12.4, cz + 4.2, { yaw: 0.7 }),
+    place('tonkrug', -12.6, cz - 1.0, { yaw: 0.4 }),
+    place('tonkrug', 7.4, cz + 11.4, { yaw: 2.1, scale: 0.9 }),
+    place('bank', -5, cz + 9, { yaw: 0.2 }),
+    place('bank', 5, cz + 9, { yaw: 2.9 }),
+    place('bank', -13, cz + 12, { yaw: 1.5 }),
+    place('handkarre', 14, cz - 1, { yaw: 1.2 }),
     place('signpost', 4, cz + 8, { yaw: 0.5 }),
     place('brazier', -7, cz - 7),
     place('brazier', 7, cz - 7),
@@ -626,14 +676,29 @@ function lichtmoor() {
     place('lantern_post', -10, cz - 10),
     place('lantern_post', 10, cz - 10),
 
-    // Handwerkerviertel im Osten: die Schmiede.
+    /*
+     * Handwerkerviertel im Osten: die Schmiede.
+     *
+     * Esse, Amboss und Schleifstein stehen **beieinander** und in dieser
+     * Reihenfolge — so arbeitet ein Schmied, und so liest man es auch ohne
+     * Beschriftung. Das Holz und der Hackklotz liegen daneben, der Trog
+     * dazwischen: er kühlt das Eisen.
+     */
     ...fenceRun('fence_stone', [13, cz - 12], [26, cz - 12]),
-    place('barrel', 20.6, cz - 8.4, { yaw: 0.7 }),
-    place('barrel', 22.4, cz - 6.8, { yaw: 2.4 }),
+    place('esse', 21, cz - 9.5, { yaw: 3.1 }),
+    place('amboss', 21.4, cz - 6.6, { yaw: 0.6 }),
+    place('schleifstein', 24.2, cz - 7.4, { yaw: 1.2 }),
+    place('wassertrog', 18.2, cz - 6.2, { yaw: 1.6 }),
+    place('holzstapel', 25.6, cz - 10.4, { yaw: 0.2 }),
+    place('hackklotz', 17, cz - 9.8),
+    place('barrel', 20.6, cz - 3.4, { yaw: 0.7 }),
+    place('barrel', 22.4, cz - 2.2, { yaw: 2.4 }),
     place('crate', 19.2, cz - 10.2, { yaw: 0.9 }),
-    place('crate', 24.4, cz - 3.4, { yaw: 2.1, scale: 0.9 }),
+    place('kistenstapel', 24.4, cz - 3.4, { yaw: 2.1 }),
     place('brazier', 26, cz - 8),
     place('lantern_post', 28, cz + 2),
+    place('fackel', 19, cz - 12.6),
+    place('fackel', 24, cz - 12.6),
 
     // Lagerhof im Westen: die Händlerin.
     ...fenceRect('fence_wood', -24, cz - 2, 9, 8),
@@ -643,6 +708,30 @@ function lichtmoor() {
     place('barrel', -22.2, cz - 3.6, { yaw: 1.1 }),
     place('hay_bale', -28, cz - 6, { yaw: 0.3 }),
     place('lantern_post', -30, cz + 6),
+    place('planwagen', -19, cz - 6, { yaw: 1.5 }),
+    place('sackstapel', -25.8, cz + 5.4, { yaw: 1.8 }),
+    place('sackstapel', -23.4, cz - 5.2, { yaw: 0.4, scale: 0.9 }),
+    place('kistenstapel', -28.6, cz + 1.4, { yaw: 0.6 }),
+    place('waescheleine', -32, cz - 10, { yaw: 0.4 }),
+    place('taubenschlag', -34, cz + 12),
+    place('huehnerstall', -30, cz + 16, { yaw: 2.4 }),
+    place('bienenkorb', -33.5, cz + 20, { yaw: 0.5 }),
+    place('bienenkorb', -31.8, cz + 21.4, { yaw: 2.1, scale: 0.9 }),
+    place('blumenkasten', -20, cz + 9, { yaw: 0.1 }),
+    place('blumenkasten', -16, cz + 12, { yaw: 1.6 }),
+
+    /*
+     * Der Anger im Südwesten: Gemüse, Pflug, ein Feld.
+     *
+     * Eine Stadt, die nur aus Handwerk besteht, hat nichts zu essen. Das Feld
+     * ist der Grund, warum Silberfurt dort liegt, wo es liegt.
+     */
+    ...reihe('getreide', [-38, cz - 20], [-16, cz - 20], 2.4),
+    ...reihe('getreide', [-38, cz - 24], [-16, cz - 24], 2.4),
+    ...reihe('getreide', [-36, cz - 28], [-18, cz - 28], 2.4),
+    place('pflug', -14, cz - 24, { yaw: 0.3 }),
+    place('hay_bale', -40, cz - 22, { yaw: 1.1 }),
+    place('wagenrad', -12, cz - 20, { yaw: 0.8 }),
 
     // Der Übungsplatz beim Kampfmeister, im Norden der Stadt. Er selbst steht
     // **neben** dem Zaun und nicht darin: wer ihn ansprechen will, klickt sonst
@@ -652,6 +741,10 @@ function lichtmoor() {
     place('hay_bale', 15, cz + 24, { yaw: 2.8 }),
     place('crate', 17.5, cz + 19, { yaw: 0.4 }),
 
+    // Der Übungsplatz braucht Ziele und einen Ständer für die Waffen.
+    place('waffenstaender', 6, cz + 20, { yaw: 1.6 }),
+    place('bank', 8, cz + 27, { yaw: 3.0 }),
+
     // Ein Hain am Südrand, damit die Mauer nicht nackt in der Landschaft steht.
     place('tree_broad', -34, cz - 34, { scale: 1.3 }),
     place('tree_broad', -26, cz - 40, { scale: 1.1 }),
@@ -660,6 +753,16 @@ function lichtmoor() {
     place('tree_fir', 34, cz - 42, { scale: 1.1 }),
     place('bush', -20, cz - 42, { scale: 1.2 }),
     place('bush', 22, cz - 44, { scale: 1.1 }),
+    place('blume_weiss', -18, cz - 38, { scale: 1.2 }),
+    place('blume_gelb', 24, cz - 40),
+    place('farn', -30, cz - 36, { scale: 1.3 }),
+
+    // Vor den Toren: zwei Pfosten, ein Bildstock, ein Meilenstein. Wer die
+    // Stadt verlässt, geht an einem Zeichen vorbei.
+    place('torpfosten', -13, cz + mauerHalb + 6),
+    place('torpfosten', 13, cz + mauerHalb + 6),
+    place('bildstock', -17, cz + mauerHalb + 12, { yaw: 0.6 }),
+    place('meilenstein', 4.5, cz + mauerHalb + 16, { yaw: 0.2 }),
   ];
 
   /*
@@ -694,6 +797,28 @@ function lichtmoor() {
     place('signpost', -5.5, 120, { yaw: 2.9 }),
     place('signpost', 5.5, 170, { yaw: 0.4 }),
 
+    /*
+     * Meilensteine, Bänke und ein Bildstock.
+     *
+     * Sie stehen **enger** als die Wegweiser: der Weg von der Stadt zum Tor
+     * ist dreihundert Einheiten lang, und eine Strasse, auf der zwischen zwei
+     * Zeichen nichts steht, fühlt sich doppelt so lang an. Alle drei stehen
+     * nicht im Weg (`collision: 'none'` bzw. weit genug am Rand) — ein
+     * Hindernis auf der einzigen Strecke ist die Sorte Fehler, um die jeder
+     * zweimal am Tag herumläuft.
+     */
+    place('meilenstein', -4.5, -30, { yaw: 3.0 }),
+    place('meilenstein', 4.5, 30, { yaw: 0.2 }),
+    place('meilenstein', -4.5, 90, { yaw: 3.0 }),
+    place('meilenstein', 4.5, 150, { yaw: 0.2 }),
+    place('bank', -6.5, -14, { yaw: 1.6 }),
+    place('bank', 6.5, 96, { yaw: 4.7 }),
+    place('bildstock', -7, 44, { yaw: 1.3 }),
+    place('bildstock', 7.5, 134, { yaw: 4.6 }),
+    // Ein liegen gebliebener Karren am Wegrand, halb im Gras.
+    place('handkarre', -8.5, 12, { yaw: 2.2 }),
+    place('planwagen', 9.5, 72, { yaw: 1.4 }),
+
     // Die Brücken über die Silberader. Zwei Geländer und vier Pfeiler je
     // Übergang — mehr braucht es nicht, damit man sieht, wo man hinüberkommt.
     ...brueckenbau,
@@ -715,31 +840,77 @@ function lichtmoor() {
    * gegangen.
    */
   const lager = [
-    // Kräuterfrau.
-    place('brazier', -21, -49),
+    /*
+     * Kräuterfrau — sie sammelt, also liegt bei ihr, was sie sammelt.
+     */
+    place('lagerfeuer', -21, -49),
     place('crate', -27, -44, { yaw: 0.8 }),
+    place('markttisch', -24, -46, { yaw: 0.9 }),
+    place('korb', -25.6, -43.2, { yaw: 1.4 }),
+    place('korb', -22.4, -42.4, { yaw: 0.2, scale: 0.85 }),
     place('mushroom_large', -29, -50, { scale: 1.2 }),
     place('mushroom_large', -19, -54, { scale: 0.9 }),
+    place('pilzring', -31, -44),
+    place('farn', -30, -54, { scale: 1.3 }),
+    place('farn', -17, -47, { scale: 1.1 }),
+    place('blume_blau', -26, -53),
+    place('blume_weiss', -20, -42),
 
-    // Hirte.
+    /*
+     * Hirte — Gehege, Futter, Wasser. Der Trog ist der Unterschied zwischen
+     * einem Zaun und einer Weide.
+     */
     ...fenceRect('fence_wood', 30, 16, 10, 7),
     place('hay_bale', 27, 12, { yaw: 0.6 }),
     place('hay_bale', 33, 20, { yaw: 2.2 }),
+    place('wassertrog', 24, 18, { yaw: 1.6 }),
+    place('huehnerstall', 36, 10, { yaw: 3.4 }),
+    place('hocker', 29, 24, { yaw: 0.5 }),
+    place('klee', 31, 14, { scale: 1.3 }),
+    place('klee', 27, 19, { scale: 1.1 }),
 
-    // Fährmann am Ufer.
+    /*
+     * Fährmann am Ufer.
+     *
+     * Zwei Stege ins Wasser, ein Boot daneben, Netz und Fischgestell an Land.
+     * Der Steg zeigt in den Fluss (`drehung`), nicht am Ufer entlang — sonst
+     * ist er ein Holzweg neben dem Wasser.
+     */
+    ...reihe('steg', [-13, 66], [-13, 78], 4, { drehung: Math.PI / 2 }),
+    place('ruderboot', -17, 74, { yaw: 1.4 }),
+    place('fischgestell', -18, 64, { yaw: 0.7 }),
+    place('fischernetz', -9, 66, { yaw: 2.4 }),
     place('barrel', -15, 62, { yaw: 0.4 }),
     place('crate', -9, 62, { yaw: 1.6 }),
     place('lantern_post', -14, 70),
+    place('schilf', -20, 70, { scale: 1.2 }),
+    place('rohrkolben', -8, 72, { scale: 1.1 }),
 
-    // Jäger.
-    place('brazier', 31, 108),
+    /*
+     * Jäger — ein Lager, kein Haus: Zelt, Feuer, Spiess, Schlafrolle.
+     */
+    place('zelt', 33, 110, { yaw: 0.7 }),
+    place('lagerfeuer', 31, 108),
+    place('bratspiess', 31, 108, { yaw: 1.2 }),
+    place('schlafrolle', 35, 106, { yaw: 0.9 }),
+    place('waffenstaender', 29, 112, { yaw: 2.6 }),
     place('tree_dead', 39, 116, { scale: 1.2 }),
     place('crate', 37, 106, { yaw: 2.4 }),
+    place('knochenhaufen', 40, 108, { yaw: 0.4 }),
+    place('fischgestell', 27, 105, { yaw: 1.9 }),
 
-    // Kartograf.
-    place('brazier', -35, 154),
+    /*
+     * Kartograf — er misst und zeichnet, also steht bei ihm ein Tisch, und
+     * neben dem Zelt ein Steinmann als Vermessungszeichen.
+     */
+    place('zelt', -37, 156, { yaw: 2.2 }),
+    place('lagerfeuer', -35, 154),
+    place('markttisch', -33, 158, { yaw: 0.4 }),
+    place('hocker', -31, 160, { yaw: 1.1 }),
+    place('steinmann', -44, 156),
     place('signpost', -42, 160, { yaw: 1.6 }),
     place('crate', -41, 152, { yaw: 0.9 }),
+    place('schlafrolle', -39, 152, { yaw: 2.2 }),
   ];
 
   /*
@@ -882,16 +1053,97 @@ function lichtmoor() {
       keepOut,
     }),
 
-    // --- Unterholz --------------------------------------------------------
+    // --- Landmarken: einzeln und gross ------------------------------------
+    //
+    // Wenige, aber sichtbare. Ein Steinbogen alle zwanzig Meter wäre kein
+    // Wahrzeichen mehr, sondern eine Allee.
     ...scatter(rng, {
-      count: 420,
+      count: 7,
+      size,
+      bereich: { x0: -LM.x + 14, x1: LM.x - 14, z0: -60, z1: LM.zNord - 20 },
+      erlaubt: frei,
+      minGap: 60,
+      scaleRange: [0.9, 1.3],
+      models: [{ key: 'steinbogen' }, { key: 'felsnadel' }, { key: 'hinkelstein' }],
+      keepOut,
+    }),
+
+    // --- Unterholz --------------------------------------------------------
+    //
+    // Dreimal so viele Sorten wie vorher: aus „Busch, Gras, Stumpf" wird ein
+    // Waldboden. Die Mischung entscheidet mehr als die Zahl — vierhundert
+    // gleiche Büschel sind eine Textur, vierhundert gemischte sind Bewuchs.
+    ...scatter(rng, {
+      count: 460,
       size,
       bereich: { x0: -LM.x + 3, x1: LM.x - 3, z0: LM.zSued + 8, z1: LM.zNord - 4 },
       erlaubt: (x, z) => flussAbstand(x, z) > 13 && Math.hypot(x, z - cz) > LM.stadtR + 4,
       minGap: 4,
       scaleRange: [0.7, 1.4],
-      models: [{ key: 'bush' }, { key: 'grass_tuft' }, { key: 'grass_tuft' }, { key: 'stump' }],
+      models: [
+        { key: 'bush' },
+        { key: 'grass_tuft' },
+        { key: 'grass_tuft' },
+        { key: 'hochgras' },
+        { key: 'farn' },
+        { key: 'farn' },
+        { key: 'klee' },
+        { key: 'stump' },
+      ],
       keepOut: keepOut.map((k) => ({ ...k, r: k.r * 0.5 })),
+    }),
+    // Blumen nur auf der warmen Hälfte, und dichter als alles andere: eine
+    // Wiese ohne Blüten ist ein Rasen.
+    ...scatter(rng, {
+      count: 260,
+      size,
+      bereich: { x0: -LM.x + 4, x1: LM.x - 4, z0: LM.zSued + 10, z1: 90 },
+      erlaubt: frei,
+      minGap: 3,
+      scaleRange: [0.7, 1.3],
+      models: [
+        { key: 'blume_weiss' },
+        { key: 'blume_gelb' },
+        { key: 'blume_blau' },
+        { key: 'klee' },
+      ],
+      keepOut: keepOut.map((k) => ({ ...k, r: k.r * 0.4 })),
+    }),
+    // Totholz und Waldboden: umgestürzte Stämme, Wurzelstöcke, Astbruch.
+    // Sie liegen dort, wo auch die Bäume stehen, und geben dem Boden Relief.
+    ...scatter(rng, {
+      count: 120,
+      size,
+      bereich: wiese,
+      erlaubt: frei,
+      minGap: 9,
+      scaleRange: [0.8, 1.3],
+      models: [
+        { key: 'baumstamm_liegend' },
+        { key: 'wurzelstock' },
+        { key: 'hohler_stumpf' },
+        { key: 'astbruch' },
+        { key: 'setzling' },
+      ],
+      keepOut,
+    }),
+    // Kleinkram am Boden — Kiesel, Moossteine, Baumpilze, Beeren.
+    ...scatter(rng, {
+      count: 200,
+      size,
+      bereich: { x0: -LM.x + 4, x1: LM.x - 4, z0: LM.zSued + 10, z1: LM.zNord - 6 },
+      erlaubt: frei,
+      minGap: 5,
+      scaleRange: [0.7, 1.4],
+      models: [
+        { key: 'kiesel' },
+        { key: 'geroell' },
+        { key: 'moosstein' },
+        { key: 'baumpilz' },
+        { key: 'beerenbusch' },
+        { key: 'distel' },
+      ],
+      keepOut: keepOut.map((k) => ({ ...k, r: k.r * 0.6 })),
     }),
     // Pilze im feuchten Süden, Kristalle im kalten Norden. Zwei Sorten
     // Kleinkram, die dem Auge sagen, wo es gerade steht.
@@ -912,8 +1164,43 @@ function lichtmoor() {
       erlaubt: frei,
       minGap: 7,
       scaleRange: [0.8, 1.6],
-      models: [{ key: 'crystal' }],
+      models: [{ key: 'crystal' }, { key: 'kristallgruppe' }],
       keepOut: keepOut.map((k) => ({ ...k, r: k.r * 0.6 })),
+    }),
+    /*
+     * Der karge Norden.
+     *
+     * Ab hier wächst nichts Freundliches mehr: Heidekraut statt Blumen,
+     * Felsblöcke statt Findlinge, Erzadern im Geröll. Das ist dieselbe
+     * Aussage, die auch das Totholz macht — nur am Boden, wo man sie beim
+     * Laufen sieht und nicht erst beim Aufschauen.
+     */
+    ...scatter(rng, {
+      count: 180,
+      size,
+      bereich: { x0: -LM.x + 5, x1: LM.x - 5, z0: 110, z1: LM.zNord - 6 },
+      erlaubt: frei,
+      minGap: 5,
+      scaleRange: [0.8, 1.5],
+      models: [
+        { key: 'heidekraut' },
+        { key: 'heidekraut' },
+        { key: 'dornbusch' },
+        { key: 'geroell' },
+        { key: 'felsblock' },
+        { key: 'steinmann' },
+      ],
+      keepOut: keepOut.map((k) => ({ ...k, r: k.r * 0.6 })),
+    }),
+    ...scatter(rng, {
+      count: 14,
+      size,
+      bereich: { x0: -LM.x + 10, x1: LM.x - 10, z0: 132, z1: LM.zNord - 10 },
+      erlaubt: frei,
+      minGap: 26,
+      scaleRange: [0.9, 1.3],
+      models: [{ key: 'erzader' }],
+      keepOut,
     }),
     // Und ein Saum aus Schilf und Büschen entlang der Ufer: der Fluss soll
     // eine Kante haben und nicht wie ein Schnitt in der Wiese aussehen.
@@ -927,8 +1214,33 @@ function lichtmoor() {
       },
       minGap: 3.5,
       scaleRange: [0.8, 1.5],
-      models: [{ key: 'grass_tuft' }, { key: 'bush' }],
+      models: [
+        { key: 'grass_tuft' },
+        { key: 'bush' },
+        // Schilf und Rohrkolben machen aus einer Uferlinie ein Ufer. Sie
+        // stehen bewusst dichter als der Rest und nur in diesem Streifen —
+        // Schilf mitten auf der Wiese sähe aus wie ein Fehler im Streuer.
+        { key: 'schilf' },
+        { key: 'schilf' },
+        { key: 'rohrkolben' },
+        { key: 'brombeere' },
+      ],
       keepOut: keepOut.map((k) => ({ ...k, r: k.r * 0.5 })),
+    }),
+    // Und im Wasser selbst: Seerosen und Kiesel. Der Streifen liegt **unter**
+    // dem Uferabstand, also im Fluss.
+    ...scatter(rng, {
+      count: 70,
+      size,
+      bereich: { x0: -LM.x + 4, x1: LM.x - 4, z0: LM.zSued + 10, z1: LM.zNord - 6 },
+      erlaubt: (x, z) => {
+        const d = flussAbstand(x, z);
+        return d > 2 && d < 9 && Math.hypot(x, z - cz) > LM.stadtR + 8;
+      },
+      minGap: 5,
+      scaleRange: [0.7, 1.3],
+      models: [{ key: 'seerose' }, { key: 'seerose' }, { key: 'kiesel' }],
+      keepOut: keepOut.map((k) => ({ ...k, r: k.r * 0.4 })),
     }),
   ].map((p, i) => ({ ...p, id: `p_${String(i + 1).padStart(4, '0')}` }));
 
@@ -1073,30 +1385,85 @@ function dornwald() {
     place('banner', -9.5, -180, { yaw: 0 }),
     place('crate', 9, -174, { yaw: 0.4 }),
     place('barrel', 10.4, -175.6, { yaw: 1.3 }),
+    place('torpfosten', -15, -178),
+    place('torpfosten', 15, -178),
+    place('meilenstein', 4, -170, { yaw: 0.2 }),
+    place('waffenstaender', -11, -173, { yaw: 1.6 }),
+    place('spitzbarriere', -18, -176, { yaw: 0.2 }),
+    place('spitzbarriere', 18, -176, { yaw: 2.9 }),
 
-    // Banditenlager. Der Zaun ist ein Stueckwerk, kein Gehege — drei Laeufe,
-    // die nicht schliessen.
+    /*
+     * Banditenlager.
+     *
+     * Der Zaun ist Stueckwerk, kein Gehege — drei Laeufe, die nicht
+     * schliessen. Dazu Palisade auf der Wetterseite, ein Wachturm mit Blick
+     * auf den Weg und ein leerer Kaefig: die drei Dinge, die aus einem
+     * Zeltplatz ein Lager machen, dem man besser nicht zu nah kommt.
+     */
     ...fenceRun('fence_wood', [-50, 52], [-38, 52]),
     ...fenceRun('fence_wood', [-50, 52], [-50, 62]),
     ...fenceRun('fence_wood', [-36, 60], [-36, 68]),
+    ...reihe('palisade', [-52, 46], [-36, 46], 2),
+    place('wachturm', -54, 58, { yaw: 0.4 }),
+    place('kaefig', -33, 55, { yaw: 0.6 }),
+    place('galgen', -30, 46, { yaw: 1.9 }),
+    place('zelt', -46, 64, { yaw: 0.5 }),
+    place('zelt', -40, 70, { yaw: 2.6 }),
+    place('lagerfeuer', -43, 60),
+    place('bratspiess', -43, 60, { yaw: 0.6 }),
+    place('schlafrolle', -47, 58, { yaw: 1.2 }),
+    place('schlafrolle', -40, 62, { yaw: 2.7 }),
+    place('waffenstaender', -37, 63, { yaw: 3.1 }),
     place('lantern_post', -44, 58),
     place('lantern_post', -38, 64),
     place('crate', -46, 56, { yaw: 0.8 }),
-    place('crate', -44.8, 57.2, { yaw: 2.1, scale: 0.9 }),
+    place('kistenstapel', -44.8, 57.2, { yaw: 2.1 }),
     place('barrel', -42.5, 55, { yaw: 0.3 }),
     place('barrel', -41.2, 56.4, { yaw: 1.7 }),
     place('hay_bale', -47, 61, { yaw: 1.1 }),
     place('banner', -42, 60, { yaw: 2.2 }),
+    place('knochenhaufen', -31, 60, { yaw: 0.3 }),
+    place('schaedel', -32.4, 51, { yaw: 1.4 }),
 
-    // Wegkreuzung zwischen den Sauen — zwei Laternen und ein umgeworfenes Fass.
+    // Wegkreuzung zwischen den Sauen — Laternen, ein umgeworfenes Fass und
+    // ein Wrack, das seit Jahren dort liegt.
     place('lantern_post', 2, 8),
     place('lantern_post', 6, 30),
     place('barrel', 4.2, 18.5, { yaw: 0.9 }),
+    place('wrack', 10, 20, { yaw: 0.7 }),
+    place('wagenrad', 13, 17, { yaw: 1.9 }),
+    place('grabkreuz', -6, 24, { yaw: 0.4 }),
+    place('grabkreuz', -7.5, 26, { yaw: 2.2 }),
+
+    /*
+     * Ein aufgegebener Aussenposten mitten im Wald.
+     *
+     * Er ist der einzige Ort auf dieser Karte, an dem Stein steht — und
+     * deshalb der einzige, an dem man merkt, dass hier einmal jemand
+     * herrschte, bevor die Banditen kamen.
+     */
+    place('bogenrest', 62, -40, { yaw: 0.6 }),
+    place('saeule_bruch', 56, -34, { scale: 1.1 }),
+    place('saeule_bruch', 68, -46, { scale: 0.9 }),
+    place('truemmer', 60, -46, { yaw: 0.8 }),
+    place('truemmer', 66, -36, { yaw: 2.4 }),
+    place('steintreppe', 64, -30, { yaw: 3.14 }),
+    place('efeu', 58, -38, { scale: 1.4 }),
+    place('efeu', 65, -43, { scale: 1.2 }),
+    place('runenstein', 70, -38, { yaw: 0.9 }),
 
     // Vor der Gruft. Hier soll das Licht warnen, nicht einladen.
     place('lantern_post', 88, 142),
     place('lantern_post', 100, 140),
     ...fenceRun('fence_stone', [84, 136], [92, 136]),
+    place('grabstein', 86, 152, { yaw: 0.3 }),
+    place('grabstein', 90, 155, { yaw: 2.7 }),
+    place('grabstein', 82, 148, { yaw: 1.4 }),
+    place('grabkreuz', 94, 152, { yaw: 0.8 }),
+    place('urne', 88, 146),
+    place('knochenhaufen', 92, 147, { yaw: 1.1 }),
+    place('schaedel', 84, 143, { yaw: 0.6 }),
+    place('bogenrest', 104, 146, { yaw: 2.2 }),
   ];
 
   const keepOut = [
@@ -1133,13 +1500,64 @@ function dornwald() {
       ],
       keepOut,
     }),
+    /*
+     * Der Dornwald heisst so.
+     *
+     * Dornbusch und Brombeere sind hier keine Streuware unter anderen, sondern
+     * **die Mehrheit** — ein Wald, in dem das namengebende Gewächs nur alle
+     * zwanzig Meter steht, heisst nach etwas, das man nicht sieht.
+     */
     ...scatter(rng, {
-      count: 180,
+      count: 300,
       size,
       minGap: 4.5,
       scaleRange: [0.7, 1.4],
-      models: [{ key: 'bush' }, { key: 'stump' }, { key: 'mushroom_large' }],
+      models: [
+        { key: 'dornbusch' },
+        { key: 'dornbusch' },
+        { key: 'dornbusch' },
+        { key: 'brombeere' },
+        { key: 'brombeere' },
+        { key: 'bush' },
+        { key: 'stump' },
+        { key: 'mushroom_large' },
+        { key: 'farn' },
+      ],
       keepOut: keepOut.map((k) => ({ ...k, r: k.r * 0.5 })),
+    }),
+    // Was auf dem Waldboden liegt: Totholz, Pilze an den Stämmen, Moos.
+    ...scatter(rng, {
+      count: 150,
+      size,
+      minGap: 7,
+      scaleRange: [0.8, 1.4],
+      models: [
+        { key: 'baumstamm_liegend' },
+        { key: 'wurzelstock' },
+        { key: 'astbruch' },
+        { key: 'hohler_stumpf' },
+        { key: 'baumpilz' },
+        { key: 'moosstein' },
+        { key: 'pilzring' },
+      ],
+      keepOut,
+    }),
+    // Und die Spuren derer, die vor einem hier waren — verteilt und selten,
+    // damit jede einzelne noch etwas erzählt.
+    ...scatter(rng, {
+      count: 40,
+      size,
+      minGap: 24,
+      scaleRange: [0.9, 1.2],
+      models: [
+        { key: 'grabkreuz' },
+        { key: 'knochenhaufen' },
+        { key: 'schaedel' },
+        { key: 'truemmer' },
+        { key: 'wrack' },
+        { key: 'felsblock' },
+      ],
+      keepOut,
     }),
   ].map((p, i) => ({ ...p, id: `p_${String(i + 1).padStart(4, '0')}` }));
 
@@ -1216,19 +1634,70 @@ function gruft() {
   // hier am dichtesten: sie zeichnen den Weg vom Eingang bis zum Waerter, und
   // wer zwischen zwei Lichtern steht, sieht immer das naechste.
   const gesetzt = [
+    /*
+     * Der Eingang.
+     *
+     * Ein Tor, das **offen** steht, eine Treppe hinunter und die letzten
+     * Spuren der Lebenden: Kiste, Fass, eine Fackel. Ab hier gehört der Gang
+     * den Toten.
+     */
+    place('eisentor', 0, -90, { yaw: 0 }),
+    place('steintreppe', 0, -82, { yaw: 3.14 }),
     place('lantern_post', -6, -86),
     place('lantern_post', 6, -86),
     place('crate', -8.5, -92, { yaw: 0.6 }),
     place('barrel', 8.2, -91, { yaw: 1.4 }),
+    place('spinnwebe', -9, -84, { yaw: 0.5 }),
+    place('spinnwebe', 9.5, -85, { yaw: 2.6 }),
 
     ...lanternRoad([-4, -70], [-14, 0], { abstand: 26, seite: 5 }),
     ...lanternRoad([12, 0], [4, 70], { abstand: 26, seite: 5 }),
 
-    // Der Vorraum des Waerters: Mauerreste und zwei Laternen als Rahmen.
+    /*
+     * Der Gang: ein gepflasterter Weg zwischen Grabplatten.
+     *
+     * Die Platten liegen **im** Weg und nicht daneben — man läuft über die
+     * Gräber, und genau das ist die Aussage dieses Ortes.
+     */
+    ...reihe('steinplatte', [-4, -70], [-14, 0], 1.8, { drehung: Math.PI / 2 }),
+    ...reihe('steinplatte', [12, 0], [4, 70], 1.8, { drehung: Math.PI / 2 }),
+    place('grabplatte', -8, -44, { yaw: 0.2 }),
+    place('grabplatte', -12, -18, { yaw: 0.1 }),
+    place('grabplatte', 10, 22, { yaw: 3.2 }),
+    place('grabplatte', 7, 48, { yaw: 3.1 }),
+
+    // Zwei Seitenkammern: Beinhaus im Westen, Sarkophage im Osten.
+    place('beinhaus', -26, -30, { yaw: 1.6 }),
+    place('beinhaus', -26, -24, { yaw: 1.6 }),
+    place('opferschale', -21, -27),
+    place('sarkophag', 28, 26, { yaw: 1.5 }),
+    place('sarkophag', 34, 32, { yaw: 1.5 }),
+    place('sarg', 24, 20, { yaw: 0.9 }),
+    place('urne', 31, 20),
+    place('urne', 32.4, 21.2, { scale: 0.85 }),
+    place('kette', 22, 30, { yaw: 0.4 }),
+
+    /*
+     * Der Vorraum des Waerters.
+     *
+     * Mauerreste, zwei Laternen, und dahinter ein Altar — er ist der einzige
+     * Ort auf der Karte, der aussieht, als sei er gemeint: alles andere ist
+     * Gang und Kammer.
+     */
     ...fenceRun('fence_stone', [-12, 80], [-4, 80]),
     ...fenceRun('fence_stone', [4, 80], [12, 80]),
     place('lantern_post', -7, 84),
     place('lantern_post', 7, 84),
+    place('altar', 0, 100, { yaw: 0 }),
+    place('runenstein', -8, 96, { yaw: 0.5 }),
+    place('runenstein', 8, 96, { yaw: 5.8 }),
+    place('opferschale', -4, 92),
+    place('opferschale', 4, 92),
+    place('saeule_bruch', -14, 92, { scale: 1.2 }),
+    place('saeule_bruch', 14, 92, { scale: 1.2 }),
+    place('knochenhaufen', -10, 104, { yaw: 0.7 }),
+    place('knochenhaufen', 11, 103, { yaw: 2.1 }),
+    place('schaedel', 0, 106, { yaw: 0.3 }),
   ];
 
   const keepOut = [
@@ -1251,21 +1720,81 @@ function gruft() {
       ],
       keepOut,
     }),
+    /*
+     * Tropfstein.
+     *
+     * Er ist das, was eine Höhle von einem dunklen Wald unterscheidet — und
+     * er steht **dichter** als alles andere hier: eine Gruft mit zwei
+     * Stalagmiten ist ein Keller.
+     */
     ...scatter(rng, {
-      count: 60,
+      count: 110,
+      size,
+      minGap: 5,
+      scaleRange: [0.6, 1.6],
+      models: [
+        { key: 'stalagmit' },
+        { key: 'stalagmit' },
+        { key: 'tropfsteinsaeule' },
+        { key: 'felsnadel' },
+      ],
+      keepOut,
+    }),
+    /*
+     * Was in der Gruft leuchtet.
+     *
+     * Kristall, Geode und Leuchtpilz sind die einzigen hellen Punkte hier
+     * unten — sie führen das Auge durch den Gang, ohne dass dafür eine
+     * Lichtquelle nötig wäre. Deshalb der eigene Streuer und nicht die
+     * Mischung mit dem Geröll: verteilt zwischen dreissig grauen Steinen
+     * fiele keiner von ihnen auf.
+     */
+    ...scatter(rng, {
+      count: 80,
       size,
       minGap: 5,
       scaleRange: [0.7, 1.5],
-      models: [{ key: 'crystal' }, { key: 'mushroom_large' }, { key: 'rock_small' }],
+      models: [
+        { key: 'crystal' },
+        { key: 'kristallgruppe' },
+        { key: 'leuchtpilz' },
+        { key: 'leuchtpilz' },
+        { key: 'mushroom_large' },
+        { key: 'rock_small' },
+      ],
       keepOut,
       tints: [0x7fd8e8, 0x9a7fe8, 0x6fb4d8],
+    }),
+    ...scatter(rng, {
+      count: 10,
+      size,
+      minGap: 26,
+      scaleRange: [0.9, 1.3],
+      models: [{ key: 'kristall_gross' }, { key: 'geode' }],
+      keepOut,
+    }),
+    // Bruchstücke und Knochen zwischen den Säulen.
+    ...scatter(rng, {
+      count: 70,
+      size,
+      minGap: 6,
+      scaleRange: [0.8, 1.3],
+      models: [
+        { key: 'truemmer' },
+        { key: 'saeule_bruch' },
+        { key: 'knochenhaufen' },
+        { key: 'schaedel' },
+        { key: 'grabstein' },
+        { key: 'urne' },
+      ],
+      keepOut,
     }),
     ...scatter(rng, {
       count: 22,
       size,
       minGap: 14,
       scaleRange: [1, 1],
-      models: [{ key: 'brazier' }],
+      models: [{ key: 'brazier' }, { key: 'feuerschale' }],
       keepOut,
     }),
   ].map((p, i) => ({ ...p, id: `p_${String(i + 1).padStart(4, '0')}` }));

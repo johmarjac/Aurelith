@@ -13,6 +13,10 @@ import { laubKarte, laubNormalen, type LaubKachel } from './laub.ts';
 import { baueFindling } from './findling.ts';
 import { baueSchwebfels } from './schwebfels.ts';
 import { baueFichte, baueLaubbaum, baueTanne } from './baeume.ts';
+import * as flora from './propsFlora.ts';
+import * as fels from './propsFels.ts';
+import * as siedlung from './propsSiedlung.ts';
+import * as ruine from './propsRuine.ts';
 
 export type PropBuilder = () => THREE.BufferGeometry;
 
@@ -343,6 +347,26 @@ const LAUB_MODELLE: ReadonlySet<string> = new Set([
   'tree_pine',
   'tree_fir',
   'tree_broad',
+  // Alles aus `propsFlora.ts`, was Blätter, Halme oder Blüten hat. Was dort
+  // aus Körpern gebaut ist — Stämme, Wurzeln, Pilze —, steht hier **nicht**:
+  // ein Stamm mit Alphatest verliert seine Kanten an die Blattkachel.
+  'farn',
+  'schilf',
+  'rohrkolben',
+  'seerose',
+  'blume_weiss',
+  'blume_gelb',
+  'blume_blau',
+  'klee',
+  'distel',
+  'dornbusch',
+  'brombeere',
+  'beerenbusch',
+  'heidekraut',
+  'hochgras',
+  'getreide',
+  'setzling',
+  'efeu',
 ]);
 
 /**
@@ -357,6 +381,23 @@ const FELS_MODELLE: ReadonlySet<string> = new Set([
   'rock_large',
   'fels_schwebend',
   'fels_schwebend_klein',
+  // Aus `propsFels.ts`. Die beiden Kristalle stehen bewusst **nicht** dabei:
+  // ein Kristall ist glatt, und Gesteinskörnung darauf nimmt ihm genau das,
+  // was ihn von einem Stein unterscheidet.
+  'kiesel',
+  'geroell',
+  'steinplatte',
+  'felsblock',
+  'felsnadel',
+  'steinbogen',
+  'hinkelstein',
+  'steinmann',
+  'erzader',
+  'moosstein',
+  'stalagmit',
+  'stalaktit',
+  'tropfsteinsaeule',
+  'geode',
 ]);
 
 /** Aus welchem Material ein Prop gezeichnet wird. */
@@ -407,6 +448,128 @@ export const PROP_BUILDERS: Record<string, PropBuilder> = {
   crate,
   hay_bale: hayBale,
   banner,
+
+  /*
+   * --- Bewuchs (`propsFlora.ts`) -------------------------------------------
+   *
+   * Die Schlüssel sind ab hier deutsch. Die älteren englischen bleiben, wie
+   * sie sind: sie stehen in drei erzeugten Karten, im Editor und in
+   * `PROP_KOLLISION`, und eine halb umbenannte Palette ist schlimmer als eine
+   * gemischte.
+   */
+  farn: flora.baueFarn,
+  schilf: flora.baueSchilf,
+  rohrkolben: flora.baueRohrkolben,
+  seerose: flora.baueSeerose,
+  blume_weiss: flora.baueBlumeWeiss,
+  blume_gelb: flora.baueBlumeGelb,
+  blume_blau: flora.baueBlumeBlau,
+  klee: flora.baueKlee,
+  distel: flora.baueDistel,
+  dornbusch: flora.baueDornbusch,
+  brombeere: flora.baueBrombeere,
+  beerenbusch: flora.baueBeerenbusch,
+  heidekraut: flora.baueHeidekraut,
+  hochgras: flora.baueHochgras,
+  getreide: flora.baueGetreide,
+  setzling: flora.baueSetzling,
+  efeu: flora.baueEfeu,
+  baumstamm_liegend: flora.baueBaumstammLiegend,
+  wurzelstock: flora.baueWurzelstock,
+  hohler_stumpf: flora.baueHohlerStumpf,
+  astbruch: flora.baueAstbruch,
+  baumpilz: flora.baueBaumpilz,
+  leuchtpilz: flora.baueLeuchtpilz,
+  pilzring: flora.bauePilzring,
+
+  // --- Stein (`propsFels.ts`) ----------------------------------------------
+  kiesel: fels.baueKiesel,
+  geroell: fels.baueGeroell,
+  steinplatte: fels.baueSteinplatte,
+  felsblock: fels.baueFelsblock,
+  felsnadel: fels.baueFelsnadel,
+  steinbogen: fels.baueSteinbogen,
+  hinkelstein: fels.baueHinkelstein,
+  steinmann: fels.baueSteinmann,
+  erzader: fels.baueErzader,
+  moosstein: fels.baueMoosstein,
+  stalagmit: fels.baueStalagmit,
+  stalaktit: fels.baueStalaktit,
+  tropfsteinsaeule: fels.baueTropfsteinsaeule,
+  kristallgruppe: fels.baueKristallgruppe,
+  kristall_gross: fels.baueKristallGross,
+  geode: fels.baueGeode,
+
+  // --- Siedlung und Handwerk (`propsSiedlung.ts`) --------------------------
+  marktstand: siedlung.baueMarktstand,
+  markttisch: siedlung.baueMarkttisch,
+  handkarre: siedlung.baueHandkarre,
+  planwagen: siedlung.bauePlanwagen,
+  wagenrad: siedlung.baueWagenrad,
+  holzstapel: siedlung.baueHolzstapel,
+  hackklotz: siedlung.baueHackklotz,
+  amboss: siedlung.baueAmboss,
+  esse: siedlung.baueEsse,
+  schleifstein: siedlung.baueSchleifstein,
+  wassertrog: siedlung.baueWassertrog,
+  bank: siedlung.baueBank,
+  tisch: siedlung.baueTisch,
+  hocker: siedlung.baueHocker,
+  sackstapel: siedlung.baueSackstapel,
+  korb: siedlung.baueKorb,
+  kistenstapel: siedlung.baueKistenstapel,
+  tonkrug: siedlung.baueTonkrug,
+  fackel: siedlung.baueFackel,
+  feuerschale: siedlung.baueFeuerschale,
+  fahnenmast: siedlung.baueFahnenmast,
+  meilenstein: siedlung.baueMeilenstein,
+  bildstock: siedlung.baueBildstock,
+  statue: siedlung.baueStatue,
+  zierbrunnen: siedlung.baueZierbrunnen,
+  torpfosten: siedlung.baueTorpfosten,
+  blumenkasten: siedlung.baueBlumenkasten,
+  bienenkorb: siedlung.baueBienenkorb,
+  taubenschlag: siedlung.baueTaubenschlag,
+  huehnerstall: siedlung.baueHuehnerstall,
+  waescheleine: siedlung.baueWaescheleine,
+  pflug: siedlung.bauePflug,
+  steg: siedlung.baueSteg,
+  ruderboot: siedlung.baueRuderboot,
+  fischgestell: siedlung.baueFischgestell,
+  fischernetz: siedlung.baueFischernetz,
+
+  // --- Lager, Ruine, Gruft (`propsRuine.ts`) -------------------------------
+  lagerfeuer: ruine.baueLagerfeuer,
+  zelt: ruine.baueZelt,
+  schlafrolle: ruine.baueSchlafrolle,
+  bratspiess: ruine.baueBratspiess,
+  waffenstaender: ruine.baueWaffenstaender,
+  palisade: ruine.bauePalisade,
+  spitzbarriere: ruine.baueSpitzbarriere,
+  wachturm: ruine.baueWachturm,
+  kaefig: ruine.baueKaefig,
+  galgen: ruine.baueGalgen,
+  knochenhaufen: ruine.baueKnochenhaufen,
+  schaedel: ruine.baueSchaedel,
+  grabstein: ruine.baueGrabstein,
+  grabkreuz: ruine.baueGrabkreuz,
+  sarkophag: ruine.baueSarkophag,
+  sarg: ruine.baueSarg,
+  urne: ruine.baueUrne,
+  altar: ruine.baueAltar,
+  runenstein: ruine.baueRunenstein,
+  saeule_bruch: ruine.baueSaeuleBruch,
+  truemmer: ruine.baueTruemmer,
+  bogenrest: ruine.baueBogenrest,
+  kette: ruine.baueKette,
+  eisentor: ruine.baueEisentor,
+  wandfackel: ruine.baueWandfackel,
+  spinnwebe: ruine.baueSpinnwebe,
+  steintreppe: ruine.baueSteintreppe,
+  grabplatte: ruine.baueGrabplatte,
+  beinhaus: ruine.baueBeinhaus,
+  opferschale: ruine.baueOpferschale,
+  wrack: ruine.baueWrack,
 };
 
 /**
