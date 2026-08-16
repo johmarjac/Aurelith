@@ -134,6 +134,14 @@ Der Ursprung eines schwebenden Felsens liegt **in seiner begehbaren Fläche**.
 Damit ist `position[1]` deren Höhe und keine zweite Zahl daneben — wie beim
 Flugbrett, dessen Oberkante bei null liegt.
 
+Womit ein Prop im Weg steht, steht **einmal** in `PROP_KOLLISION`
+(`packages/shared/src/content/kollision.ts`) und nirgends sonst. Generator,
+Editor und Modellschau lesen dieselbe Zeile. Vorher stand die Zahl an jedem
+Aufruf, und dasselbe Modell hatte je nach Karte einen anderen Radius —
+`rock_large` mit 1,9, 2,0 und 2,1, `rock_small` in der Gruft ohne Kreis. Der
+Radius gilt bei `scale: 1`; Server und Client rechnen ihn mit der Skalierung
+des Props mal.
+
 ---
 
 ## Sicherheit

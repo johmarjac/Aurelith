@@ -25,7 +25,12 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseMapDocument, type MapDocument, type ZoneDef } from '@aurelith/shared';
+import {
+  parseMapDocument,
+  standardKollision,
+  type MapDocument,
+  type ZoneDef,
+} from '@aurelith/shared';
 
 const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const doc: MapDocument = parseMapDocument(
@@ -167,6 +172,58 @@ check(
 check(
   plattformen.every((p) => p.collisionRadius > 2),
   'und jeder hat eine Fläche, auf der man steht',
+);
+
+console.log('\nJedes Prop steht so im Weg, wie die Tabelle es sagt');
+
+/*
+ * Vorher stand der Radius an jedem Aufruf im Generator, und das Ergebnis liess
+ * sich in den Karten nachzählen: `rock_large` mit 1,9 in Lichtmoor, 2,0 in der
+ * Gruft und 2,1 im Dornwald, `rock_small` in der Gruft ganz ohne Kreis. Keine
+ * dieser Abweichungen war gewollt.
+ *
+ * Deshalb wird hier über **alle drei** Karten geprüft, und zwar gegen
+ * `PROP_KOLLISION`. Nur Lichtmoor zu prüfen liesse genau den Fall durch, der
+ * es war: dieselbe Sorte, andere Karte, andere Zahl.
+ */
+const karten = ['lichtmoor', 'dornwald', 'gruft_01'].map((name) =>
+  parseMapDocument(
+    JSON.parse(readFileSync(join(repo, 'assets', 'maps', `${name}.json`), 'utf8')),
+    `${name}.json`,
+  ),
+);
+
+const abweichler: string[] = [];
+const formen = new Set<string>();
+let props = 0;
+for (const karte of karten) {
+  for (const prop of karte.props) {
+    props++;
+    const soll = standardKollision(prop.model);
+    formen.add(soll.form);
+    if (prop.collision !== soll.form || Math.abs(prop.collisionRadius - soll.radius) > 1e-6) {
+      abweichler.push(
+        `${karte.name}/${prop.model}: ${prop.collision} ${prop.collisionRadius} statt ${soll.form} ${soll.radius}`,
+      );
+    }
+  }
+}
+check(props > 2000, 'es gibt überhaupt Props zu prüfen', `${props}`);
+check(
+  abweichler.length === 0,
+  'kein Prop weicht von der Tabelle ab',
+  abweichler.slice(0, 3).join(' · ') || 'keines',
+);
+
+/*
+ * Die Gegenprobe. Eine Tabelle, in der alles `none` mit demselben Radius wäre,
+ * bestünde die Prüfung darüber mühelos — und wäre die schlimmste Fassung von
+ * allen: man liefe durch jeden Baum.
+ */
+check(
+  formen.has('circle') && formen.has('none') && formen.has('plattform'),
+  'und es kommen alle drei Formen vor',
+  [...formen].sort().join(', '),
 );
 
 console.log(

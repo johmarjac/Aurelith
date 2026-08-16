@@ -30,6 +30,7 @@ import {
   encodeSculptField,
   sculptFieldIsEmpty,
   paintFieldIsEmpty,
+  standardKollision,
   terrainSetup,
 } from '@aurelith/shared';
 import {
@@ -1419,6 +1420,15 @@ function placeProp(): void {
   if (!point || !doc) return;
 
   const schwebend = selectedModel.startsWith('fels_schwebend');
+  /*
+   * Die Kollision kommt aus derselben Tabelle wie im Kartengenerator.
+   *
+   * Hier stand vorher ein Ausdruck über den Namen des Modells (`/tree|rock|
+   * pillar|well/`) und ein fester Radius von 1,2 — ein Baum aus dem Editor
+   * stand damit anders im Weg als derselbe Baum aus dem Generator, und der
+   * Unterschied fiel erst auf, wenn jemand danebenlief.
+   */
+  const kollision = standardKollision(selectedModel);
 
   doc.props.push({
     id: `p_${String(nextPropId++).padStart(4, '0')}`,
@@ -1435,8 +1445,8 @@ function placeProp(): void {
      * das Gelände — sonst läge das Schwebende im Gras.
      */
     snapToGround: !schwebend,
-    collision: schwebend ? 'plattform' : /tree|rock|pillar|well/.test(selectedModel) ? 'circle' : 'none',
-    collisionRadius: schwebend ? (selectedModel === 'fels_schwebend' ? 9 : 5.5) : 1.2,
+    collision: kollision.form,
+    collisionRadius: kollision.radius,
   });
   // Fuer das naechste eine neue Drehung, damit ein Wald kein Spalier wird.
   rollPropYaw();

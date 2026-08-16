@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 // nachgebaut: die Schrittweite (`SCULPT_UNIT`) ist dieselbe Zahl, die der Kern
 // beim Lesen benutzt, und eine zweite Fassung davon liefe beim ersten Drehen
 // daran auseinander. Deshalb läuft dieses Werkzeug über `tsx`.
-import { encodeSculptField, SCULPT_UNIT } from '@aurelith/shared';
+import { encodeSculptField, SCULPT_UNIT, standardKollision } from '@aurelith/shared';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = join(root, 'assets', 'maps');
@@ -32,6 +32,19 @@ function mulberry32(seed) {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+/**
+ * Die Kollision eines Modells, fertig fürs Kartendokument.
+ *
+ * Die Zahl steht **nicht** an jedem Aufruf, sondern einmal in
+ * `PROP_KOLLISION` — sonst hat derselbe Baum je nach Karte einen anderen
+ * Radius, und genau so war es hier: `rock_large` mit 1,9, 2,0 und 2,1 auf drei
+ * Karten, `rock_small` in der Gruft ganz ohne Kreis.
+ */
+function kollision(modell) {
+  const k = standardKollision(modell);
+  return { collision: k.form, collisionRadius: k.radius };
 }
 
 /**
@@ -84,8 +97,7 @@ function scatter(
       rotation: [0, round(rng() * Math.PI * 2), 0],
       scale: round(scale),
       snapToGround: true,
-      collision: model.collision ?? 'none',
-      collisionRadius: model.collisionRadius ?? 1,
+      ...kollision(model.key),
     };
     if (tints && tints.length > 0) {
       prop.tint = tints[Math.floor(rng() * tints.length)];
@@ -158,7 +170,7 @@ function baueSculpt(size, fn, { schrittweite = 2 } = {}) {
  * `(cos θ, −sin θ)` ab, das Feld liegt entlang +X. Für die Richtung `(dx, dz)`
  * ist also `θ = atan2(−dz, dx)` — das Minus ist kein Tippfehler.
  */
-function fenceRun(model, from, to, { scale = 1, collisionRadius = 0.85 } = {}) {
+function fenceRun(model, from, to, { scale = 1 } = {}) {
   const dx = to[0] - from[0];
   const dz = to[1] - from[1];
   const laenge = Math.hypot(dx, dz);
@@ -175,8 +187,7 @@ function fenceRun(model, from, to, { scale = 1, collisionRadius = 0.85 } = {}) {
       rotation: [0, yaw, 0],
       scale,
       snapToGround: true,
-      collision: 'circle',
-      collisionRadius,
+      ...kollision(model),
     });
   }
   return out;
@@ -193,15 +204,14 @@ function fenceRect(model, cx, cz, halfX, halfZ, opts = {}) {
 }
 
 /** Ein einzelnes gesetztes Prop. */
-function place(model, x, z, { yaw = 0, scale = 1, collision = 'none', collisionRadius = 0.6 } = {}) {
+function place(model, x, z, { yaw = 0, scale = 1 } = {}) {
   return {
     model,
     position: [round(x), 0, round(z)],
     rotation: [0, round(yaw), 0],
     scale,
     snapToGround: true,
-    collision,
-    collisionRadius,
+    ...kollision(model),
   };
 }
 
@@ -229,8 +239,6 @@ function lanternRoad(from, to, { abstand = 30, seite = 6, scale = 1 } = {}) {
     out.push(
       place('lantern_post', from[0] + dx * t + nx * s, from[1] + dz * t + nz * s, {
         scale,
-        collision: 'circle',
-        collisionRadius: 0.4,
       }),
     );
   }
@@ -599,57 +607,57 @@ function lichtmoor() {
     ...fenceRun('fence_stone', [11, cz + mauerHalb], [mauerHalb, cz + mauerHalb]),
 
     // Das Stadttor: zwei Säulen, zwei Banner, zwei Laternen.
-    place('pillar', -11, cz + mauerHalb, { collision: 'circle', collisionRadius: 1.1 }),
-    place('pillar', 11, cz + mauerHalb, { collision: 'circle', collisionRadius: 1.1 }),
+    place('pillar', -11, cz + mauerHalb),
+    place('pillar', 11, cz + mauerHalb),
     place('banner', -13.5, cz + mauerHalb + 2, { yaw: 3.14 }),
     place('banner', 13.5, cz + mauerHalb + 2, { yaw: 3.14 }),
-    place('lantern_post', -14, cz + mauerHalb - 3, { collision: 'circle', collisionRadius: 0.4 }),
-    place('lantern_post', 14, cz + mauerHalb - 3, { collision: 'circle', collisionRadius: 0.4 }),
+    place('lantern_post', -14, cz + mauerHalb - 3),
+    place('lantern_post', 14, cz + mauerHalb - 3),
 
     // Marktplatz.
-    place('well', 0, cz, { collision: 'circle', collisionRadius: 2.2 }),
+    place('well', 0, cz),
     place('signpost', 4, cz + 8, { yaw: 0.5 }),
-    place('brazier', -7, cz - 7, { collision: 'circle', collisionRadius: 0.6 }),
-    place('brazier', 7, cz - 7, { collision: 'circle', collisionRadius: 0.6 }),
+    place('brazier', -7, cz - 7),
+    place('brazier', 7, cz - 7),
     place('banner', -4.5, cz + 3, { yaw: 0.3 }),
     place('banner', 4.5, cz + 3, { yaw: 5.9 }),
-    place('lantern_post', -10, cz + 10, { collision: 'circle', collisionRadius: 0.4 }),
-    place('lantern_post', 10, cz + 10, { collision: 'circle', collisionRadius: 0.4 }),
-    place('lantern_post', -10, cz - 10, { collision: 'circle', collisionRadius: 0.4 }),
-    place('lantern_post', 10, cz - 10, { collision: 'circle', collisionRadius: 0.4 }),
+    place('lantern_post', -10, cz + 10),
+    place('lantern_post', 10, cz + 10),
+    place('lantern_post', -10, cz - 10),
+    place('lantern_post', 10, cz - 10),
 
     // Handwerkerviertel im Osten: die Schmiede.
     ...fenceRun('fence_stone', [13, cz - 12], [26, cz - 12]),
-    place('barrel', 20.6, cz - 8.4, { yaw: 0.7, collision: 'circle', collisionRadius: 0.5 }),
-    place('barrel', 22.4, cz - 6.8, { yaw: 2.4, collision: 'circle', collisionRadius: 0.5 }),
-    place('crate', 19.2, cz - 10.2, { yaw: 0.9, collision: 'circle', collisionRadius: 0.6 }),
+    place('barrel', 20.6, cz - 8.4, { yaw: 0.7 }),
+    place('barrel', 22.4, cz - 6.8, { yaw: 2.4 }),
+    place('crate', 19.2, cz - 10.2, { yaw: 0.9 }),
     place('crate', 24.4, cz - 3.4, { yaw: 2.1, scale: 0.9 }),
-    place('brazier', 26, cz - 8, { collision: 'circle', collisionRadius: 0.6 }),
-    place('lantern_post', 28, cz + 2, { collision: 'circle', collisionRadius: 0.4 }),
+    place('brazier', 26, cz - 8),
+    place('lantern_post', 28, cz + 2),
 
     // Lagerhof im Westen: die Händlerin.
     ...fenceRect('fence_wood', -24, cz - 2, 9, 8),
-    place('crate', -21.5, cz + 2.5, { yaw: 0.5, collision: 'circle', collisionRadius: 0.6 }),
+    place('crate', -21.5, cz + 2.5, { yaw: 0.5 }),
     place('crate', -25.4, cz + 3.6, { yaw: 1.2, scale: 0.85 }),
-    place('barrel', -27.8, cz - 1.2, { yaw: 0.2, collision: 'circle', collisionRadius: 0.5 }),
-    place('barrel', -22.2, cz - 3.6, { yaw: 1.1, collision: 'circle', collisionRadius: 0.5 }),
-    place('hay_bale', -28, cz - 6, { yaw: 0.3, collision: 'circle', collisionRadius: 0.7 }),
-    place('lantern_post', -30, cz + 6, { collision: 'circle', collisionRadius: 0.4 }),
+    place('barrel', -27.8, cz - 1.2, { yaw: 0.2 }),
+    place('barrel', -22.2, cz - 3.6, { yaw: 1.1 }),
+    place('hay_bale', -28, cz - 6, { yaw: 0.3 }),
+    place('lantern_post', -30, cz + 6),
 
     // Der Übungsplatz beim Kampfmeister, im Norden der Stadt. Er selbst steht
     // **neben** dem Zaun und nicht darin: wer ihn ansprechen will, klickt sonst
     // auf ein Zaunfeld, und der Klick geht ins Holz statt zum Meister.
     ...fenceRect('fence_wood', 12, cz + 22, 8, 6),
-    place('hay_bale', 9, cz + 20, { yaw: 1.4, collision: 'circle', collisionRadius: 0.7 }),
-    place('hay_bale', 15, cz + 24, { yaw: 2.8, collision: 'circle', collisionRadius: 0.7 }),
-    place('crate', 17.5, cz + 19, { yaw: 0.4, collision: 'circle', collisionRadius: 0.6 }),
+    place('hay_bale', 9, cz + 20, { yaw: 1.4 }),
+    place('hay_bale', 15, cz + 24, { yaw: 2.8 }),
+    place('crate', 17.5, cz + 19, { yaw: 0.4 }),
 
     // Ein Hain am Südrand, damit die Mauer nicht nackt in der Landschaft steht.
-    place('tree_broad', -34, cz - 34, { scale: 1.3, collision: 'circle', collisionRadius: 1.4 }),
-    place('tree_broad', -26, cz - 40, { scale: 1.1, collision: 'circle', collisionRadius: 1.3 }),
-    place('tree_pine', 30, cz - 36, { scale: 1.2, collision: 'circle', collisionRadius: 1.1 }),
-    place('tree_pine', 38, cz - 30, { scale: 1.35, collision: 'circle', collisionRadius: 1.2 }),
-    place('tree_fir', 34, cz - 42, { scale: 1.1, collision: 'circle', collisionRadius: 1.0 }),
+    place('tree_broad', -34, cz - 34, { scale: 1.3 }),
+    place('tree_broad', -26, cz - 40, { scale: 1.1 }),
+    place('tree_pine', 30, cz - 36, { scale: 1.2 }),
+    place('tree_pine', 38, cz - 30, { scale: 1.35 }),
+    place('tree_fir', 34, cz - 42, { scale: 1.1 }),
     place('bush', -20, cz - 42, { scale: 1.2 }),
     place('bush', 22, cz - 44, { scale: 1.1 }),
   ];
@@ -668,12 +676,12 @@ function lichtmoor() {
   const brueckenbau = bruecken.flatMap((b) => [
     ...fenceRun('fence_stone', [-8, b - 7], [-8, b + 7]),
     ...fenceRun('fence_stone', [8, b - 7], [8, b + 7]),
-    place('pillar', -9, b - 8, { scale: 0.8, collision: 'circle', collisionRadius: 0.9 }),
-    place('pillar', 9, b - 8, { scale: 0.8, collision: 'circle', collisionRadius: 0.9 }),
-    place('pillar', -9, b + 8, { scale: 0.8, collision: 'circle', collisionRadius: 0.9 }),
-    place('pillar', 9, b + 8, { scale: 0.8, collision: 'circle', collisionRadius: 0.9 }),
-    place('lantern_post', -9, b, { collision: 'circle', collisionRadius: 0.4 }),
-    place('lantern_post', 9, b, { collision: 'circle', collisionRadius: 0.4 }),
+    place('pillar', -9, b - 8, { scale: 0.8 }),
+    place('pillar', 9, b - 8, { scale: 0.8 }),
+    place('pillar', -9, b + 8, { scale: 0.8 }),
+    place('pillar', 9, b + 8, { scale: 0.8 }),
+    place('lantern_post', -9, b),
+    place('lantern_post', 9, b),
   ]);
 
   const strasse = [
@@ -695,8 +703,8 @@ function lichtmoor() {
     ...fenceRun('fence_stone', [6, 190], [16, 190]),
     place('banner', -7.5, 191.5, { yaw: 3.14 }),
     place('banner', 7.5, 191.5, { yaw: 3.14 }),
-    place('brazier', -12, 186, { collision: 'circle', collisionRadius: 0.6 }),
-    place('brazier', 12, 186, { collision: 'circle', collisionRadius: 0.6 }),
+    place('brazier', -12, 186),
+    place('brazier', 12, 186),
   ];
 
   /*
@@ -708,30 +716,30 @@ function lichtmoor() {
    */
   const lager = [
     // Kräuterfrau.
-    place('brazier', -21, -49, { collision: 'circle', collisionRadius: 0.6 }),
-    place('crate', -27, -44, { yaw: 0.8, collision: 'circle', collisionRadius: 0.6 }),
+    place('brazier', -21, -49),
+    place('crate', -27, -44, { yaw: 0.8 }),
     place('mushroom_large', -29, -50, { scale: 1.2 }),
     place('mushroom_large', -19, -54, { scale: 0.9 }),
 
     // Hirte.
     ...fenceRect('fence_wood', 30, 16, 10, 7),
-    place('hay_bale', 27, 12, { yaw: 0.6, collision: 'circle', collisionRadius: 0.7 }),
-    place('hay_bale', 33, 20, { yaw: 2.2, collision: 'circle', collisionRadius: 0.7 }),
+    place('hay_bale', 27, 12, { yaw: 0.6 }),
+    place('hay_bale', 33, 20, { yaw: 2.2 }),
 
     // Fährmann am Ufer.
-    place('barrel', -15, 62, { yaw: 0.4, collision: 'circle', collisionRadius: 0.5 }),
-    place('crate', -9, 62, { yaw: 1.6, collision: 'circle', collisionRadius: 0.6 }),
-    place('lantern_post', -14, 70, { collision: 'circle', collisionRadius: 0.4 }),
+    place('barrel', -15, 62, { yaw: 0.4 }),
+    place('crate', -9, 62, { yaw: 1.6 }),
+    place('lantern_post', -14, 70),
 
     // Jäger.
-    place('brazier', 31, 108, { collision: 'circle', collisionRadius: 0.6 }),
-    place('tree_dead', 39, 116, { scale: 1.2, collision: 'circle', collisionRadius: 0.9 }),
-    place('crate', 37, 106, { yaw: 2.4, collision: 'circle', collisionRadius: 0.6 }),
+    place('brazier', 31, 108),
+    place('tree_dead', 39, 116, { scale: 1.2 }),
+    place('crate', 37, 106, { yaw: 2.4 }),
 
     // Kartograf.
-    place('brazier', -35, 154, { collision: 'circle', collisionRadius: 0.6 }),
+    place('brazier', -35, 154),
     place('signpost', -42, 160, { yaw: 1.6 }),
-    place('crate', -41, 152, { yaw: 0.9, collision: 'circle', collisionRadius: 0.6 }),
+    place('crate', -41, 152, { yaw: 0.9 }),
   ];
 
   /*
@@ -752,8 +760,7 @@ function lichtmoor() {
     rotation: [0, round(rng() * Math.PI * 2), 0],
     scale: 1,
     snapToGround: false,
-    collision: 'plattform',
-    collisionRadius: gross ? 9 : 5.5,
+    ...kollision(gross ? 'fels_schwebend' : 'fels_schwebend_klein'),
   });
 
   const schweber = [
@@ -808,12 +815,12 @@ function lichtmoor() {
       minGap: 8,
       scaleRange: [0.8, 1.5],
       models: [
-        { key: 'tree_pine', collision: 'circle', collisionRadius: 1.1 },
-        { key: 'tree_broad', collision: 'circle', collisionRadius: 1.4 },
+        { key: 'tree_pine' },
+        { key: 'tree_broad' },
         // Die Tanne ist höher und schmaler als die Fichte. Ein Wald aus einer
         // Sorte sieht aus wie ein Wald aus Kopien; erst die zweite Nadelform
         // gibt der Ferne eine unruhige Kante.
-        { key: 'tree_fir', collision: 'circle', collisionRadius: 1.0 },
+        { key: 'tree_fir' },
       ],
       keepOut,
       tints: [0x4f8a3e, 0x5f9a4a, 0x437a36, 0x6aa855],
@@ -826,9 +833,9 @@ function lichtmoor() {
       minGap: 9,
       scaleRange: [0.9, 1.6],
       models: [
-        { key: 'tree_broad', collision: 'circle', collisionRadius: 1.4 },
-        { key: 'tree_pine', collision: 'circle', collisionRadius: 1.1 },
-        { key: 'tree_fir', collision: 'circle', collisionRadius: 1.0 },
+        { key: 'tree_broad' },
+        { key: 'tree_pine' },
+        { key: 'tree_fir' },
       ],
       keepOut,
       tints: [0x5f9a4a, 0x6aa855, 0x74b45e],
@@ -842,7 +849,7 @@ function lichtmoor() {
       erlaubt: frei,
       minGap: 7,
       scaleRange: [0.8, 1.4],
-      models: [{ key: 'tree_dead', collision: 'circle', collisionRadius: 0.9 }],
+      models: [{ key: 'tree_dead' }],
       keepOut,
     }),
 
@@ -855,8 +862,8 @@ function lichtmoor() {
       minGap: 6,
       scaleRange: [0.6, 1.7],
       models: [
-        { key: 'rock_small', collision: 'circle', collisionRadius: 0.8 },
-        { key: 'rock_large', collision: 'circle', collisionRadius: 1.9 },
+        { key: 'rock_small' },
+        { key: 'rock_large' },
       ],
       keepOut,
     }),
@@ -869,8 +876,8 @@ function lichtmoor() {
       minGap: 5,
       scaleRange: [0.9, 2.2],
       models: [
-        { key: 'rock_large', collision: 'circle', collisionRadius: 1.9 },
-        { key: 'rock_small', collision: 'circle', collisionRadius: 0.8 },
+        { key: 'rock_large' },
+        { key: 'rock_small' },
       ],
       keepOut,
     }),
@@ -1061,34 +1068,34 @@ function dornwald() {
     // Grenzposten am Rueckportal.
     ...fenceRun('fence_stone', [-13, -182], [-5, -182]),
     ...fenceRun('fence_stone', [5, -182], [13, -182]),
-    place('lantern_post', -7, -176, { collision: 'circle', collisionRadius: 0.4 }),
-    place('lantern_post', 7, -176, { collision: 'circle', collisionRadius: 0.4 }),
+    place('lantern_post', -7, -176),
+    place('lantern_post', 7, -176),
     place('banner', -9.5, -180, { yaw: 0 }),
-    place('crate', 9, -174, { yaw: 0.4, collision: 'circle', collisionRadius: 0.6 }),
-    place('barrel', 10.4, -175.6, { yaw: 1.3, collision: 'circle', collisionRadius: 0.5 }),
+    place('crate', 9, -174, { yaw: 0.4 }),
+    place('barrel', 10.4, -175.6, { yaw: 1.3 }),
 
     // Banditenlager. Der Zaun ist ein Stueckwerk, kein Gehege — drei Laeufe,
     // die nicht schliessen.
     ...fenceRun('fence_wood', [-50, 52], [-38, 52]),
     ...fenceRun('fence_wood', [-50, 52], [-50, 62]),
     ...fenceRun('fence_wood', [-36, 60], [-36, 68]),
-    place('lantern_post', -44, 58, { collision: 'circle', collisionRadius: 0.4 }),
-    place('lantern_post', -38, 64, { collision: 'circle', collisionRadius: 0.4 }),
-    place('crate', -46, 56, { yaw: 0.8, collision: 'circle', collisionRadius: 0.6 }),
+    place('lantern_post', -44, 58),
+    place('lantern_post', -38, 64),
+    place('crate', -46, 56, { yaw: 0.8 }),
     place('crate', -44.8, 57.2, { yaw: 2.1, scale: 0.9 }),
-    place('barrel', -42.5, 55, { yaw: 0.3, collision: 'circle', collisionRadius: 0.5 }),
-    place('barrel', -41.2, 56.4, { yaw: 1.7, collision: 'circle', collisionRadius: 0.5 }),
-    place('hay_bale', -47, 61, { yaw: 1.1, collision: 'circle', collisionRadius: 0.7 }),
+    place('barrel', -42.5, 55, { yaw: 0.3 }),
+    place('barrel', -41.2, 56.4, { yaw: 1.7 }),
+    place('hay_bale', -47, 61, { yaw: 1.1 }),
     place('banner', -42, 60, { yaw: 2.2 }),
 
     // Wegkreuzung zwischen den Sauen — zwei Laternen und ein umgeworfenes Fass.
-    place('lantern_post', 2, 8, { collision: 'circle', collisionRadius: 0.4 }),
-    place('lantern_post', 6, 30, { collision: 'circle', collisionRadius: 0.4 }),
-    place('barrel', 4.2, 18.5, { yaw: 0.9, collision: 'circle', collisionRadius: 0.5 }),
+    place('lantern_post', 2, 8),
+    place('lantern_post', 6, 30),
+    place('barrel', 4.2, 18.5, { yaw: 0.9 }),
 
     // Vor der Gruft. Hier soll das Licht warnen, nicht einladen.
-    place('lantern_post', 88, 142, { collision: 'circle', collisionRadius: 0.4 }),
-    place('lantern_post', 100, 140, { collision: 'circle', collisionRadius: 0.4 }),
+    place('lantern_post', 88, 142),
+    place('lantern_post', 100, 140),
     ...fenceRun('fence_stone', [84, 136], [92, 136]),
   ];
 
@@ -1107,10 +1114,10 @@ function dornwald() {
       minGap: 7,
       scaleRange: [0.9, 1.7],
       models: [
-        { key: 'tree_pine', collision: 'circle', collisionRadius: 1.2 },
-        { key: 'tree_dead', collision: 'circle', collisionRadius: 0.9 },
-        { key: 'tree_broad', collision: 'circle', collisionRadius: 1.5 },
-        { key: 'tree_fir', collision: 'circle', collisionRadius: 1.0 },
+        { key: 'tree_pine' },
+        { key: 'tree_dead' },
+        { key: 'tree_broad' },
+        { key: 'tree_fir' },
       ],
       keepOut,
       tints: [0x3c6b33, 0x2f5a2b, 0x486f3a, 0x59503c],
@@ -1121,8 +1128,8 @@ function dornwald() {
       minGap: 8,
       scaleRange: [0.7, 2.0],
       models: [
-        { key: 'rock_large', collision: 'circle', collisionRadius: 2.1 },
-        { key: 'rock_small', collision: 'circle', collisionRadius: 0.9 },
+        { key: 'rock_large' },
+        { key: 'rock_small' },
       ],
       keepOut,
     }),
@@ -1209,10 +1216,10 @@ function gruft() {
   // hier am dichtesten: sie zeichnen den Weg vom Eingang bis zum Waerter, und
   // wer zwischen zwei Lichtern steht, sieht immer das naechste.
   const gesetzt = [
-    place('lantern_post', -6, -86, { collision: 'circle', collisionRadius: 0.4 }),
-    place('lantern_post', 6, -86, { collision: 'circle', collisionRadius: 0.4 }),
-    place('crate', -8.5, -92, { yaw: 0.6, collision: 'circle', collisionRadius: 0.6 }),
-    place('barrel', 8.2, -91, { yaw: 1.4, collision: 'circle', collisionRadius: 0.5 }),
+    place('lantern_post', -6, -86),
+    place('lantern_post', 6, -86),
+    place('crate', -8.5, -92, { yaw: 0.6 }),
+    place('barrel', 8.2, -91, { yaw: 1.4 }),
 
     ...lanternRoad([-4, -70], [-14, 0], { abstand: 26, seite: 5 }),
     ...lanternRoad([12, 0], [4, 70], { abstand: 26, seite: 5 }),
@@ -1220,8 +1227,8 @@ function gruft() {
     // Der Vorraum des Waerters: Mauerreste und zwei Laternen als Rahmen.
     ...fenceRun('fence_stone', [-12, 80], [-4, 80]),
     ...fenceRun('fence_stone', [4, 80], [12, 80]),
-    place('lantern_post', -7, 84, { collision: 'circle', collisionRadius: 0.4 }),
-    place('lantern_post', 7, 84, { collision: 'circle', collisionRadius: 0.4 }),
+    place('lantern_post', -7, 84),
+    place('lantern_post', 7, 84),
   ];
 
   const keepOut = [
@@ -1239,8 +1246,8 @@ function gruft() {
       minGap: 6,
       scaleRange: [0.9, 2.2],
       models: [
-        { key: 'pillar', collision: 'circle', collisionRadius: 1.3 },
-        { key: 'rock_large', collision: 'circle', collisionRadius: 2.0 },
+        { key: 'pillar' },
+        { key: 'rock_large' },
       ],
       keepOut,
     }),

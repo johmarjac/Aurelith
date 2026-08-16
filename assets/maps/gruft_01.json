@@ -544,7 +544,7 @@
       "scale": 1.8,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0028",
@@ -562,7 +562,7 @@
       "scale": 1.27,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0029",
@@ -598,7 +598,7 @@
       "scale": 1.84,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0031",
@@ -616,7 +616,7 @@
       "scale": 1.38,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0032",
@@ -670,7 +670,7 @@
       "scale": 1.01,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0035",
@@ -706,7 +706,7 @@
       "scale": 2.15,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0037",
@@ -724,7 +724,7 @@
       "scale": 1.44,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0038",
@@ -742,7 +742,7 @@
       "scale": 1.32,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0039",
@@ -760,7 +760,7 @@
       "scale": 1.36,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0040",
@@ -778,7 +778,7 @@
       "scale": 1.17,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0041",
@@ -832,7 +832,7 @@
       "scale": 2.05,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0044",
@@ -850,7 +850,7 @@
       "scale": 2,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0045",
@@ -904,7 +904,7 @@
       "scale": 1.89,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0048",
@@ -922,7 +922,7 @@
       "scale": 1.12,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0049",
@@ -940,7 +940,7 @@
       "scale": 2.16,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0050",
@@ -958,7 +958,7 @@
       "scale": 1.52,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0051",
@@ -976,7 +976,7 @@
       "scale": 1.27,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0052",
@@ -1012,7 +1012,7 @@
       "scale": 1.09,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0054",
@@ -1030,7 +1030,7 @@
       "scale": 1.86,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0055",
@@ -1066,7 +1066,7 @@
       "scale": 1.48,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0057",
@@ -1084,7 +1084,7 @@
       "scale": 1.21,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0058",
@@ -1120,7 +1120,7 @@
       "scale": 1.39,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0060",
@@ -1174,7 +1174,7 @@
       "scale": 1.3,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0063",
@@ -1192,7 +1192,7 @@
       "scale": 2.02,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0064",
@@ -1246,7 +1246,7 @@
       "scale": 1.38,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0067",
@@ -1264,7 +1264,7 @@
       "scale": 1.8,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0068",
@@ -1282,7 +1282,7 @@
       "scale": 1,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0069",
@@ -1354,7 +1354,7 @@
       "scale": 1.78,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0073",
@@ -1390,7 +1390,7 @@
       "scale": 1.8,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0075",
@@ -1426,7 +1426,7 @@
       "scale": 1.29,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0077",
@@ -1498,7 +1498,7 @@
       "scale": 1.28,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0081",
@@ -1516,7 +1516,7 @@
       "scale": 1.22,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0082",
@@ -1570,7 +1570,7 @@
       "scale": 1.89,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0085",
@@ -1588,7 +1588,7 @@
       "scale": 1.95,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0086",
@@ -1606,7 +1606,7 @@
       "scale": 1.54,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0087",
@@ -1660,7 +1660,7 @@
       "scale": 1.14,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0090",
@@ -1678,7 +1678,7 @@
       "scale": 1.65,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0091",
@@ -1714,7 +1714,7 @@
       "scale": 2.17,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0093",
@@ -1768,7 +1768,7 @@
       "scale": 1.97,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0096",
@@ -1786,7 +1786,7 @@
       "scale": 1.16,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0097",
@@ -1858,7 +1858,7 @@
       "scale": 0.91,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0101",
@@ -1876,7 +1876,7 @@
       "scale": 1.6,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0102",
@@ -1894,7 +1894,7 @@
       "scale": 2.12,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0103",
@@ -1912,7 +1912,7 @@
       "scale": 1.5,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0104",
@@ -1930,7 +1930,7 @@
       "scale": 1.85,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0105",
@@ -1948,7 +1948,7 @@
       "scale": 1.49,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0106",
@@ -1984,7 +1984,7 @@
       "scale": 1.73,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0108",
@@ -2038,7 +2038,7 @@
       "scale": 1.38,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0111",
@@ -2056,7 +2056,7 @@
       "scale": 1.31,
       "snapToGround": true,
       "collision": "circle",
-      "collisionRadius": 1.3
+      "collisionRadius": 1.1
     },
     {
       "id": "p_0112",
@@ -2092,7 +2092,7 @@
       "scale": 1.22,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 8378600
     },
     {
@@ -2111,7 +2111,7 @@
       "scale": 0.87,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 7320792
     },
     {
@@ -2130,7 +2130,7 @@
       "scale": 1.27,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 10125288
     },
     {
@@ -2149,7 +2149,7 @@
       "scale": 1.32,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.5,
       "tint": 10125288
     },
     {
@@ -2168,7 +2168,7 @@
       "scale": 1.16,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.5,
       "tint": 8378600
     },
     {
@@ -2187,7 +2187,7 @@
       "scale": 0.93,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 8378600
     },
     {
@@ -2206,7 +2206,7 @@
       "scale": 1.05,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.5,
       "tint": 10125288
     },
     {
@@ -2225,7 +2225,7 @@
       "scale": 1.38,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.5,
       "tint": 10125288
     },
     {
@@ -2244,7 +2244,7 @@
       "scale": 0.95,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 7320792
     },
     {
@@ -2263,7 +2263,7 @@
       "scale": 1.14,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 10125288
     },
     {
@@ -2282,7 +2282,7 @@
       "scale": 1.17,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 10125288
     },
     {
@@ -2301,7 +2301,7 @@
       "scale": 1.38,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.5,
       "tint": 7320792
     },
     {
@@ -2320,7 +2320,7 @@
       "scale": 1.11,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.5,
       "tint": 7320792
     },
     {
@@ -2338,8 +2338,8 @@
       ],
       "scale": 0.89,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1,
+      "collision": "circle",
+      "collisionRadius": 0.85,
       "tint": 8378600
     },
     {
@@ -2358,7 +2358,7 @@
       "scale": 1.13,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 8378600
     },
     {
@@ -2377,7 +2377,7 @@
       "scale": 0.84,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.5,
       "tint": 8378600
     },
     {
@@ -2396,7 +2396,7 @@
       "scale": 1.12,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 7320792
     },
     {
@@ -2415,7 +2415,7 @@
       "scale": 0.95,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 8378600
     },
     {
@@ -2434,7 +2434,7 @@
       "scale": 1.32,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 8378600
     },
     {
@@ -2453,7 +2453,7 @@
       "scale": 1.33,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 8378600
     },
     {
@@ -2471,8 +2471,8 @@
       ],
       "scale": 1.44,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1,
+      "collision": "circle",
+      "collisionRadius": 0.85,
       "tint": 10125288
     },
     {
@@ -2491,7 +2491,7 @@
       "scale": 1.17,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 7320792
     },
     {
@@ -2510,7 +2510,7 @@
       "scale": 0.84,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 7320792
     },
     {
@@ -2529,7 +2529,7 @@
       "scale": 1.21,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.5,
       "tint": 10125288
     },
     {
@@ -2547,8 +2547,8 @@
       ],
       "scale": 1.48,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1,
+      "collision": "circle",
+      "collisionRadius": 0.85,
       "tint": 7320792
     },
     {
@@ -2567,7 +2567,7 @@
       "scale": 0.77,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.5,
       "tint": 10125288
     },
     {
@@ -2586,7 +2586,7 @@
       "scale": 1.02,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 7320792
     },
     {
@@ -2604,8 +2604,8 @@
       ],
       "scale": 1.11,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1,
+      "collision": "circle",
+      "collisionRadius": 0.85,
       "tint": 10125288
     },
     {
@@ -2623,8 +2623,8 @@
       ],
       "scale": 1.06,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1,
+      "collision": "circle",
+      "collisionRadius": 0.85,
       "tint": 7320792
     },
     {
@@ -2643,7 +2643,7 @@
       "scale": 0.84,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.5,
       "tint": 8378600
     },
     {
@@ -2662,7 +2662,7 @@
       "scale": 1.11,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.5,
       "tint": 10125288
     },
     {
@@ -2680,8 +2680,8 @@
       ],
       "scale": 0.79,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1,
+      "collision": "circle",
+      "collisionRadius": 0.85,
       "tint": 8378600
     },
     {
@@ -2700,7 +2700,7 @@
       "scale": 0.79,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 10125288
     },
     {
@@ -2719,7 +2719,7 @@
       "scale": 1.29,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.5,
       "tint": 8378600
     },
     {
@@ -2738,7 +2738,7 @@
       "scale": 1.32,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 8378600
     },
     {
@@ -2756,8 +2756,8 @@
       ],
       "scale": 1.46,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1,
+      "collision": "circle",
+      "collisionRadius": 0.85,
       "tint": 7320792
     },
     {
@@ -2776,7 +2776,7 @@
       "scale": 0.7,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 8378600
     },
     {
@@ -2795,7 +2795,7 @@
       "scale": 1,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.5,
       "tint": 10125288
     },
     {
@@ -2814,7 +2814,7 @@
       "scale": 1.42,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.5,
       "tint": 7320792
     },
     {
@@ -2833,7 +2833,7 @@
       "scale": 1.4,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 8378600
     },
     {
@@ -2852,7 +2852,7 @@
       "scale": 1.45,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.5,
       "tint": 8378600
     },
     {
@@ -2871,7 +2871,7 @@
       "scale": 1.32,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.5,
       "tint": 8378600
     },
     {
@@ -2889,8 +2889,8 @@
       ],
       "scale": 1.17,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1,
+      "collision": "circle",
+      "collisionRadius": 0.85,
       "tint": 8378600
     },
     {
@@ -2909,7 +2909,7 @@
       "scale": 1.41,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.5,
       "tint": 8378600
     },
     {
@@ -2928,7 +2928,7 @@
       "scale": 1.13,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.5,
       "tint": 7320792
     },
     {
@@ -2947,7 +2947,7 @@
       "scale": 0.99,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 7320792
     },
     {
@@ -2966,7 +2966,7 @@
       "scale": 1.01,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 7320792
     },
     {
@@ -2985,7 +2985,7 @@
       "scale": 1.08,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 10125288
     },
     {
@@ -3004,7 +3004,7 @@
       "scale": 1.41,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 8378600
     },
     {
@@ -3022,8 +3022,8 @@
       ],
       "scale": 1.17,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1,
+      "collision": "circle",
+      "collisionRadius": 0.85,
       "tint": 7320792
     },
     {
@@ -3041,8 +3041,8 @@
       ],
       "scale": 0.99,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1,
+      "collision": "circle",
+      "collisionRadius": 0.85,
       "tint": 8378600
     },
     {
@@ -3061,7 +3061,7 @@
       "scale": 1.44,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.5,
       "tint": 8378600
     },
     {
@@ -3080,7 +3080,7 @@
       "scale": 1.05,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 10125288
     },
     {
@@ -3099,7 +3099,7 @@
       "scale": 1.32,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.5,
       "tint": 7320792
     },
     {
@@ -3118,7 +3118,7 @@
       "scale": 0.96,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 10125288
     },
     {
@@ -3136,8 +3136,8 @@
       ],
       "scale": 1.38,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1,
+      "collision": "circle",
+      "collisionRadius": 0.85,
       "tint": 8378600
     },
     {
@@ -3156,7 +3156,7 @@
       "scale": 1.33,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.5,
       "tint": 10125288
     },
     {
@@ -3174,8 +3174,8 @@
       ],
       "scale": 1.29,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1,
+      "collision": "circle",
+      "collisionRadius": 0.85,
       "tint": 10125288
     },
     {
@@ -3193,8 +3193,8 @@
       ],
       "scale": 1.04,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1,
+      "collision": "circle",
+      "collisionRadius": 0.85,
       "tint": 7320792
     },
     {
@@ -3213,7 +3213,7 @@
       "scale": 0.81,
       "snapToGround": true,
       "collision": "none",
-      "collisionRadius": 1,
+      "collisionRadius": 0.45,
       "tint": 8378600
     },
     {
@@ -3231,8 +3231,8 @@
       ],
       "scale": 1,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1
+      "collision": "circle",
+      "collisionRadius": 0.6
     },
     {
       "id": "p_0174",
@@ -3249,8 +3249,8 @@
       ],
       "scale": 1,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1
+      "collision": "circle",
+      "collisionRadius": 0.6
     },
     {
       "id": "p_0175",
@@ -3267,8 +3267,8 @@
       ],
       "scale": 1,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1
+      "collision": "circle",
+      "collisionRadius": 0.6
     },
     {
       "id": "p_0176",
@@ -3285,8 +3285,8 @@
       ],
       "scale": 1,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1
+      "collision": "circle",
+      "collisionRadius": 0.6
     },
     {
       "id": "p_0177",
@@ -3303,8 +3303,8 @@
       ],
       "scale": 1,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1
+      "collision": "circle",
+      "collisionRadius": 0.6
     },
     {
       "id": "p_0178",
@@ -3321,8 +3321,8 @@
       ],
       "scale": 1,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1
+      "collision": "circle",
+      "collisionRadius": 0.6
     },
     {
       "id": "p_0179",
@@ -3339,8 +3339,8 @@
       ],
       "scale": 1,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1
+      "collision": "circle",
+      "collisionRadius": 0.6
     },
     {
       "id": "p_0180",
@@ -3357,8 +3357,8 @@
       ],
       "scale": 1,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1
+      "collision": "circle",
+      "collisionRadius": 0.6
     },
     {
       "id": "p_0181",
@@ -3375,8 +3375,8 @@
       ],
       "scale": 1,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1
+      "collision": "circle",
+      "collisionRadius": 0.6
     },
     {
       "id": "p_0182",
@@ -3393,8 +3393,8 @@
       ],
       "scale": 1,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1
+      "collision": "circle",
+      "collisionRadius": 0.6
     },
     {
       "id": "p_0183",
@@ -3411,8 +3411,8 @@
       ],
       "scale": 1,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1
+      "collision": "circle",
+      "collisionRadius": 0.6
     },
     {
       "id": "p_0184",
@@ -3429,8 +3429,8 @@
       ],
       "scale": 1,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1
+      "collision": "circle",
+      "collisionRadius": 0.6
     },
     {
       "id": "p_0185",
@@ -3447,8 +3447,8 @@
       ],
       "scale": 1,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1
+      "collision": "circle",
+      "collisionRadius": 0.6
     },
     {
       "id": "p_0186",
@@ -3465,8 +3465,8 @@
       ],
       "scale": 1,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1
+      "collision": "circle",
+      "collisionRadius": 0.6
     },
     {
       "id": "p_0187",
@@ -3483,8 +3483,8 @@
       ],
       "scale": 1,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1
+      "collision": "circle",
+      "collisionRadius": 0.6
     },
     {
       "id": "p_0188",
@@ -3501,8 +3501,8 @@
       ],
       "scale": 1,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1
+      "collision": "circle",
+      "collisionRadius": 0.6
     },
     {
       "id": "p_0189",
@@ -3519,8 +3519,8 @@
       ],
       "scale": 1,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1
+      "collision": "circle",
+      "collisionRadius": 0.6
     },
     {
       "id": "p_0190",
@@ -3537,8 +3537,8 @@
       ],
       "scale": 1,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1
+      "collision": "circle",
+      "collisionRadius": 0.6
     },
     {
       "id": "p_0191",
@@ -3555,8 +3555,8 @@
       ],
       "scale": 1,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1
+      "collision": "circle",
+      "collisionRadius": 0.6
     },
     {
       "id": "p_0192",
@@ -3573,8 +3573,8 @@
       ],
       "scale": 1,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1
+      "collision": "circle",
+      "collisionRadius": 0.6
     },
     {
       "id": "p_0193",
@@ -3591,8 +3591,8 @@
       ],
       "scale": 1,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1
+      "collision": "circle",
+      "collisionRadius": 0.6
     },
     {
       "id": "p_0194",
@@ -3609,8 +3609,8 @@
       ],
       "scale": 1,
       "snapToGround": true,
-      "collision": "none",
-      "collisionRadius": 1
+      "collision": "circle",
+      "collisionRadius": 0.6
     }
   ],
   "spawners": [
