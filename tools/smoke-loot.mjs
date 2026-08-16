@@ -10,7 +10,7 @@
  *   node tools/smoke-loot.mjs
  *
  * Die Figur startet mitten auf der Irrlichtwiese — `AURELITH_START_POS` spart
- * die siebzig Einheiten Fussweg, die sonst die halbe Laufzeit wären.
+ * den Fussweg aus der Stadt, der sonst die halbe Laufzeit wäre.
  */
 
 import { spawn } from 'node:child_process';
@@ -71,8 +71,8 @@ console.log('Aurelith — Beute am Boden\n');
 
 const server = launch('npx tsx packages/server/src/index.ts', {
   AURELITH_PORT: '8794',
-  // Mitten in den Irrlichtschwarm bei (-8, 78).
-  AURELITH_START_POS: '-8,78',
+  // Mitten in den Irrlichtschwarm bei (−46, −58), südlich der Stadtmauer.
+  AURELITH_START_POS: '-44,-56',
   DATABASE_URL: '',
 });
 launch('cd packages/client && npx vite --port 5198 --strictPort --host 127.0.0.1', {

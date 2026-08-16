@@ -126,6 +126,72 @@
       "radius": 0.55,
       "height": 1.95,
       "greeting": "Wer einen Beruf will, muss ihn sich verdienen. Komm wieder, wenn du Stufe 15 erreicht hast."
+    },
+    {
+      "id": "npc_wache",
+      "name": "Hauptmann Ronno",
+      "title": "Stadtwache",
+      "role": "gatekeeper",
+      "model": "npc_gatekeeper",
+      "scale": 1.1,
+      "radius": 0.6,
+      "height": 2.0,
+      "greeting": "Silberfurt steht seit dreihundert Jahren. Halt dich nördlich der Mauer an die Strasse."
+    },
+    {
+      "id": "npc_kraeuterfrau",
+      "name": "Maren",
+      "title": "Kräuterfrau",
+      "role": "healer",
+      "model": "npc_merchant",
+      "scale": 0.98,
+      "radius": 0.5,
+      "height": 1.78,
+      "greeting": "Die Irrlichter fressen die Blüten leer. Was sie übriglassen, sammle ich."
+    },
+    {
+      "id": "npc_hirte",
+      "name": "Alte Bosk",
+      "title": "Hirte",
+      "role": "guide",
+      "model": "npc_guide",
+      "scale": 1.02,
+      "radius": 0.52,
+      "height": 1.84,
+      "greeting": "Die Welpen kommen aus den Gruben hinter der Koppel. Meine Ziegen wissen das besser als ich."
+    },
+    {
+      "id": "npc_faehrmann",
+      "name": "Tille",
+      "title": "Fährfrau",
+      "role": "merchant",
+      "model": "npc_merchant",
+      "scale": 1.0,
+      "radius": 0.5,
+      "height": 1.8,
+      "greeting": "Über die Silberader kommt man nur an der Brücke. Ich habe es auf die harte Art gelernt."
+    },
+    {
+      "id": "npc_jaeger",
+      "name": "Corr",
+      "title": "Jäger",
+      "role": "guide",
+      "model": "npc_smith",
+      "scale": 1.05,
+      "radius": 0.55,
+      "height": 1.9,
+      "greeting": "Nördlich vom Fluss liegen Banditen im Geröll. Sie zählen, wie viele du bist."
+    },
+    {
+      "id": "npc_kartograf",
+      "name": "Ilva",
+      "title": "Kartografin",
+      "role": "trainer",
+      "model": "npc_master",
+      "scale": 0.96,
+      "radius": 0.5,
+      "height": 1.76,
+      "greeting": "Ich zeichne, was hinter dem Geröll liegt. Wer mir Ruhe verschafft, kommt weiter."
     }
   ]
 }

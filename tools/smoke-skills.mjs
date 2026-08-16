@@ -117,14 +117,14 @@ const waitUntil = async (fn, ms) => {
 
 console.log('Aurelith — Fertigkeitenbaum\n');
 
-// Der Startpunkt liegt neben dem Kampfmeister (er steht auf −5/−9). Ohne das
-// müsste die Prüfung erst quer über die Karte laufen — und ein Laufweg, der
-// scheitert, sähe aus wie ein kaputtes Gespräch.
+// Der Startpunkt liegt neben dem Kampfmeister (er steht in Silberfurt auf
+// −4/−101). Ohne das müsste die Prüfung erst quer über die Karte laufen — und
+// ein Laufweg, der scheitert, sähe aus wie ein kaputtes Gespräch.
 const server = launch('npx tsx packages/server/src/index.ts', {
   AURELITH_PORT: String(PORT),
   DATABASE_URL: '',
   AURELITH_CONTENT_DIR: inhalt,
-  AURELITH_START_POS: '-5,-6',
+  AURELITH_START_POS: '-2,-98',
 });
 launch(`cd packages/client && npx vite --port ${WEB} --strictPort --host 127.0.0.1`, {
   AURELITH_SERVER: `ws://127.0.0.1:${PORT}`,

@@ -54,6 +54,27 @@ constexpr float kJumpSpeed = 7.2f;
  */
 constexpr float kFlugMindesthoehe = 0.5f;
 
+/**
+ * Wie weit über einer Fläche man noch als „darauf" gilt.
+ *
+ * Gebraucht an zwei Stellen, und beide würden ohne die Zahl falsch: eine Figur
+ * steht nach dem Aufsetzen um Bruchteile über der Fläche (der letzte Schritt
+ * der Schwerkraft überschiesst), und sie soll beim Laufen nicht bei jedem
+ * Schritt zwischen „auf dem Felsen" und „darunter" umspringen. Eine Stufe
+ * dieser Höhe steigt man ausserdem hinauf, statt daran hängenzubleiben.
+ */
+constexpr float kStufenHoehe = 0.45f;
+
+/**
+ * Ab welchem Absatz man fällt, statt hinunterzusteigen.
+ *
+ * Ein Meter, und die Zahl ist gegen das Gelände gewählt: bei der steilsten
+ * noch begehbaren Neigung (52°) und dem schnellsten Schritt liegen zwischen
+ * zwei Bildern keine vierzig Zentimeter Höhenunterschied. Ein Hang löst damit
+ * nie ein Fallen aus — die Kante eines schwebenden Felsens immer.
+ */
+constexpr float kAbsatzHoehe = 1.0f;
+
 // Wie schnell sich die Lage ändert, im Bogenmass je Sekunde. Nicken ist
 // träger als Gieren — eine Nase, die so schnell kippt wie sich der Kurs
 // dreht, überschlägt sich beim Antippen.
@@ -273,6 +294,41 @@ struct Collider {
   float x;
   float z;
   float radius;
+};
+
+/**
+ * Eine Sperrfläche — achsenparalleles Rechteck.
+ *
+ * Die beiden Flaggen sind unabhängig: eine Schlucht sperrt den Fussweg, eine
+ * Wolkenschicht den Flug, der Kartenrand beides. Zwei getrennte Listen wären
+ * dieselbe Fläche zweimal gepflegt.
+ */
+struct Zone {
+  float x;
+  float z;
+  float halbX;
+  float halbZ;
+  bool keinLauf;
+  bool keinFlug;
+};
+
+/**
+ * Ein schwebender Felsen — oben begehbar.
+ *
+ * Nur die Oberseite zählt, und die ist eine Scheibe: Mittelpunkt, Radius,
+ * Höhe. Was darunter hängt, ist Bild und geht den Kern nichts an — wer
+ * darunter durchfliegt, fliegt durch nichts hindurch.
+ *
+ * `hoehe` ist die **Weltkoordinate** der Fläche und kein Abstand zum Boden.
+ * Das Gelände unter einem schwebenden Felsen ist beliebig, und eine Angabe
+ * „zwanzig über dem Boden" wäre eine schiefe Ebene, sobald das Gelände sich
+ * neigt.
+ */
+struct Plattform {
+  float x;
+  float z;
+  float radius;
+  float hoehe;
 };
 
 struct Entity {

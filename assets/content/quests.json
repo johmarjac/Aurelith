@@ -164,6 +164,192 @@
       "textOffer": "Krieger wirst du nicht, indem du es sagst. In den Höhlen hinter dem Tor sitzen Kriecher — bring acht davon zur Strecke, dann sehen wir weiter.",
       "textProgress": "Acht. Nicht sieben. Die Höhlen liegen hinter dem Tor.",
       "textDone": "Du hältst durch, und du hältst die Klinge richtig. Von heute an bist du Krieger — der erste Wirbel ist deiner, den Rest lernst du unterwegs."
+    },
+    {
+      "id": "q_blueten",
+      "name": "Was die Irrlichter übriglassen",
+      "levelReq": 2,
+      "giver": "npc_kraeuterfrau",
+      "objectives": [
+        {
+          "kind": "collect",
+          "target": "mote_essence",
+          "count": 3,
+          "text": "Irrlichtessenz sammeln"
+        }
+      ],
+      "reward": {
+        "exp": 180,
+        "gold": 80,
+        "items": [
+          {
+            "item": "potion_hp_small",
+            "count": 3
+          }
+        ]
+      },
+      "summary": "Maren steht am Feuer südlich der Wiese und braucht Essenz aus den Irrlichtern.",
+      "textOffer": "Die Irrlichter tragen ihr Licht mit sich. Bring mir drei Essenzen, dann setze ich einen Sud auf.",
+      "textProgress": "Drei, nicht zwei. Die Wiese ist gleich hinter dir.",
+      "textDone": "Das reicht für eine Woche. Nimm die Tränke — nördlich wird es rauer."
+    },
+    {
+      "id": "q_gruben",
+      "name": "Was in den Gruben scharrt",
+      "levelReq": 4,
+      "giver": "npc_hirte",
+      "objectives": [
+        {
+          "kind": "kill",
+          "target": "burrow_pup",
+          "count": 8,
+          "text": "Grabwelpen zurückschlagen"
+        }
+      ],
+      "reward": {
+        "exp": 420,
+        "gold": 160,
+        "items": [
+          {
+            "item": "leather_boots",
+            "count": 1
+          }
+        ]
+      },
+      "summary": "Bosk hütet nördlich der Koppel und verliert Ziegen an die Grabwelpen.",
+      "textOffer": "Acht Welpen, dann traut sich meine Herde wieder auf die Nordweide. Dafür bekommst du feste Stiefel.",
+      "textProgress": "Acht. Ich zähle mit, und meine Ziegen auch.",
+      "textDone": "Die Herde geht wieder. Die Stiefel gehören dir."
+    },
+    {
+      "id": "q_faehre",
+      "name": "Seit der Brücke steht",
+      "levelReq": 7,
+      "giver": "npc_faehrmann",
+      "objectives": [
+        {
+          "kind": "kill",
+          "target": "thistle_boar",
+          "count": 10,
+          "text": "Distelkeiler vom Ufer treiben"
+        }
+      ],
+      "reward": {
+        "exp": 900,
+        "gold": 380,
+        "items": [
+          {
+            "item": "moor_pendant",
+            "count": 1
+          },
+          {
+            "item": "potion_hp_small",
+            "count": 4
+          }
+        ]
+      },
+      "summary": "Tille wohnt am Ufer der Silberader und kommt wegen der Keiler nicht mehr ans Wasser.",
+      "textOffer": "Seit die Brücke steht, brauche ich keine Fähre mehr — aber die Keiler am Ufer. Zehn davon, und das Ufer gehört wieder mir.",
+      "textProgress": "Zehn Keiler. Sie stehen im hohen Gras, dort, wo der Fluss die Kurve macht.",
+      "textDone": "Ruhe am Wasser. Nimm die Kette, sie hat meiner Mutter gehört."
+    },
+    {
+      "id": "q_banditen",
+      "name": "Sie zählen, wie viele du bist",
+      "levelReq": 10,
+      "giver": "npc_jaeger",
+      "objectives": [
+        {
+          "kind": "kill",
+          "target": "bandit_scout",
+          "count": 12,
+          "text": "Banditenspäher ausheben"
+        }
+      ],
+      "reward": {
+        "exp": 1600,
+        "gold": 700,
+        "items": [
+          {
+            "item": "iron_blade",
+            "count": 1
+          }
+        ]
+      },
+      "summary": "Corr liegt nördlich des Flusses auf der Lauer und kommt gegen die Späher allein nicht an.",
+      "textOffer": "Zwölf Späher, und ihr Lager steht ohne Augen da. Dafür bekommst du eine Klinge, die diesen Namen verdient.",
+      "textProgress": "Zwölf. Sie liegen im Geröll und stehen erst auf, wenn du nah genug bist.",
+      "textDone": "Jetzt sind sie blind. Die Klinge ist deine."
+    },
+    {
+      "id": "q_karte",
+      "name": "Was hinter dem Geröll liegt",
+      "levelReq": 14,
+      "giver": "npc_kartograf",
+      "objectives": [
+        {
+          "kind": "kill",
+          "target": "cave_crawler",
+          "count": 12,
+          "text": "Höhlenkriecher aus dem Geröll räumen"
+        },
+        {
+          "kind": "collect",
+          "target": "crawler_chitin",
+          "count": 4,
+          "text": "Kriecherpanzer mitbringen"
+        }
+      ],
+      "reward": {
+        "exp": 3200,
+        "gold": 1400,
+        "items": [
+          {
+            "item": "reisemantel",
+            "count": 1
+          },
+          {
+            "item": "potion_hp_small",
+            "count": 5
+          }
+        ]
+      },
+      "summary": "Ilva zeichnet die Nordwege und kommt wegen der Kriecher nicht bis zum Tor.",
+      "textOffer": "Ich muss bis zum Tor, um es einzuzeichnen. Räum mir die Kriecher aus dem Weg und bring vier Panzer mit — daran erkenne ich, dass du wirklich dort warst.",
+      "textProgress": "Zwölf Kriecher und vier Panzer. Weniger genügt nicht für eine Karte.",
+      "textDone": "Damit kann ich zeichnen. Nimm den Mantel, es wird kalt da oben."
+    },
+    {
+      "id": "q_torwache",
+      "name": "Bis vor das Tor",
+      "levelReq": 17,
+      "giver": "npc_gatekeeper",
+      "objectives": [
+        {
+          "kind": "kill",
+          "target": "dungeon_warden",
+          "count": 10,
+          "text": "Gruftwärter vom Tor drängen"
+        }
+      ],
+      "reward": {
+        "exp": 5200,
+        "gold": 2200,
+        "items": [
+          {
+            "item": "potion_hp_small",
+            "count": 8
+          },
+          {
+            "item": "copper_ring",
+            "count": 1
+          }
+        ]
+      },
+      "summary": "Halvar hält das Tor nach Dornwald und kommt gegen die Wärter nicht mehr an.",
+      "textOffer": "Zehn Wärter stehen zwischen mir und einer ruhigen Wache. Nimm sie mir ab, dann geht das Tor für dich auf.",
+      "textProgress": "Zehn. Sie stehen dort, wo der Weg endet.",
+      "textDone": "Das Tor steht offen. Was dahinter liegt, ist deine Sache."
     }
   ]
 }

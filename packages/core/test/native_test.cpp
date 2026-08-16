@@ -1115,6 +1115,118 @@ void testCritProfile() {
 
 }  // namespace
 
+/**
+ * Sperrzonen und schwebende Felsen.
+ *
+ * Beides ist Weltgeometrie, die von aussen kommt, und beides entscheidet der
+ * Kern — also rechnen Client und Server dieselbe Grenze. Eine Sperre, die nur
+ * der Server kennt, sähe im Bild wie ein Gummiband aus.
+ */
+void testZonenUndPlattformen() {
+  std::printf("Sperrzonen und schwebende Felsen\n");
+  aur::MobRegistry mobs;
+
+  // --- Eine Zone, die nur den Fussweg sperrt ------------------------------
+  {
+    aur::World welt(31u, flatTerrain(), &mobs);
+    welt.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+    aur::Entity* p = welt.find(1);
+    // Ein Streifen quer vor der Figur, ab z = 10.
+    welt.addZone(0.0f, 40.0f, 200.0f, 30.0f, true, false);
+
+    for (int i = 0; i < 120; ++i) {
+      welt.applyInput(1, 0.0f, 1.0f, 0.0f, 0u, aur::kTickSeconds);
+      welt.step(aur::kTickSeconds);
+    }
+    check(p->z < 10.0f + 1e-2f, "zu Fuss endet der Weg an der Sperre");
+
+    // Gegenprobe: dieselbe Zone, dieselbe Strecke — ohne Sperre läuft sie
+    // durch. Ohne diese Zeile ginge auch ein Kern durch, in dem sich niemand
+    // mehr bewegt.
+    aur::World frei(32u, flatTerrain(), &mobs);
+    frei.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+    for (int i = 0; i < 120; ++i) {
+      frei.applyInput(1, 0.0f, 1.0f, 0.0f, 0u, aur::kTickSeconds);
+      frei.step(aur::kTickSeconds);
+    }
+    check(frei.find(1)->z > 20.0f, "ohne Sperre läuft sie einfach weiter");
+  }
+
+  // --- Und eine, die nur den Flug sperrt ----------------------------------
+  {
+    aur::World welt(33u, flatTerrain(), &mobs);
+    welt.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+    aur::Entity* p = welt.find(1);
+    welt.addZone(0.0f, 40.0f, 200.0f, 30.0f, false, true);
+
+    // Zu Fuss geht es hindurch — die Flagge gilt nur für die Luft.
+    for (int i = 0; i < 120; ++i) {
+      welt.applyInput(1, 0.0f, 1.0f, 0.0f, 0u, aur::kTickSeconds);
+      welt.step(aur::kTickSeconds);
+    }
+    check(p->z > 20.0f, "eine reine Flugsperre hält niemanden zu Fuss auf");
+
+    welt.teleport(1, 0.0f, -20.0f, 0.0f);
+    welt.setFlying(1, true, 12.0f, 6.0f, 40.0f);
+    for (int i = 0; i < 200; ++i) {
+      welt.applyInput(1, 0.0f, 0.0f, 0.0f, aur::kButtonSchub, aur::kTickSeconds);
+      welt.step(aur::kTickSeconds);
+    }
+    check(p->z < 10.0f + 1e-2f, "in der Luft endet der Kurs an derselben Sperre");
+  }
+
+  // --- Der schwebende Felsen ----------------------------------------------
+  //
+  // Drei Fragen, und alle drei hängen an `bodenHoehe`: fällt man darauf,
+  // trägt er einen, und kommt man unter ihm hindurch?
+  {
+    aur::World welt(34u, flatTerrain(), &mobs);
+    welt.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+    aur::Entity* p = welt.find(1);
+    const float grund = p->y;
+    welt.addPlattform(0.0f, 0.0f, 12.0f, grund + 20.0f);
+
+    // Von oben fallen: die Figur kommt auf dem Felsen an und nicht am Boden.
+    p->y = grund + 30.0f;
+    p->airborne = true;
+    p->vy = 0.0f;
+    for (int i = 0; i < 100; ++i) welt.step(aur::kTickSeconds);
+    check(!p->airborne && std::fabs(p->y - (grund + 20.0f)) < 1e-2f,
+          "wer darauf fällt, landet oben");
+
+    // Und läuft dort herum, ohne herunterzurutschen.
+    for (int i = 0; i < 20; ++i) {
+      welt.applyInput(1, 0.0f, 1.0f, 0.0f, 0u, aur::kTickSeconds);
+      welt.step(aur::kTickSeconds);
+    }
+    check(std::fabs(p->y - (grund + 20.0f)) < 1e-2f, "und geht oben darüber");
+
+    /*
+     * Über die Kante hinaus: **fallen**, nicht hinunterspringen.
+     *
+     * Der Unterschied ist der ganze Sinn der Sache. Ohne ihn stünde man einen
+     * Schritt nach dem Rand zwanzig Meter tiefer im Gras, als hätte jemand
+     * einen hingestellt — dieselbe Sorte Fehler wie beim Absteigen vom
+     * Fluggerät.
+     */
+    int schritte = 0;
+    while (std::sqrt(p->x * p->x + p->z * p->z) < 13.0f && schritte < 400) {
+      welt.applyInput(1, 0.0f, 1.0f, 0.0f, 0u, aur::kTickSeconds);
+      welt.step(aur::kTickSeconds);
+      schritte++;
+    }
+    check(p->airborne && p->y > grund + 15.0f, "über die Kante hinaus fällt sie");
+    for (int i = 0; i < 200; ++i) welt.step(aur::kTickSeconds);
+    check(!p->airborne && std::fabs(p->y - grund) < 1e-2f, "und kommt unten an");
+
+    // Die Gegenprobe zum Bezug auf `vonY`: wer unter dem Felsen steht, wird
+    // nicht zu ihm hochgezogen. Ohne diese Bedingung wäre der Raum darunter
+    // unbetretbar — und man käme nie wieder herunter.
+    welt.teleport(1, 0.0f, 0.0f, 0.0f);
+    check(std::fabs(p->y - grund) < 1e-2f, "darunter steht sie auf dem Gelände");
+  }
+}
+
 void testWandering() {
   std::printf("Umherwandern\n");
   aur::MobRegistry mobs;
@@ -1264,6 +1376,7 @@ int main() {
   testAreaAttack();
   testCritProfile();
   testWandering();
+  testZonenUndPlattformen();
 
   std::printf("\n%d Prüfungen, %d fehlgeschlagen\n", g_checks, g_failures);
   return g_failures == 0 ? EXIT_SUCCESS : EXIT_FAILURE;

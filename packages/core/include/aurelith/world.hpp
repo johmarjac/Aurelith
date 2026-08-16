@@ -72,6 +72,32 @@ class World {
   void addCollider(float x, float z, float radius);
   void clearColliders();
 
+  /** Eine Sperrfläche. `keinLauf`/`keinFlug` sind unabhängig voneinander. */
+  void addZone(float x, float z, float halbX, float halbZ, bool keinLauf, bool keinFlug);
+  void clearZones();
+
+  /** Ein schwebender Felsen: oben eine begehbare Scheibe. */
+  void addPlattform(float x, float z, float radius, float hoehe);
+  void clearPlattformen();
+
+  /**
+   * Sperrt eine Zone diese Stelle?
+   *
+   * `fliegt` entscheidet, welche der beiden Flaggen gilt — dieselbe Fläche
+   * kann für Läufer offen und für Fliegende zu sein.
+   */
+  bool zoneSperrt(float x, float z, bool fliegt) const;
+
+  /**
+   * Die Fläche, auf der ein Wesen an dieser Stelle stünde.
+   *
+   * Normalerweise das Gelände. Steht ein schwebender Felsen darüber und ist
+   * das Wesen **nicht darunter**, ist es dessen Oberseite: entscheidend ist
+   * `vonY`, die Höhe, aus der gefragt wird. Ohne diesen Bezug zöge ein Felsen
+   * jeden zu sich hoch, der zufällig unter ihm durchläuft.
+   */
+  float bodenHoehe(float x, float z, float vonY, bool* aufPlattform = nullptr) const;
+
   /**
    * Legt das Feld der von Hand geformten Höhen an.
    *
@@ -297,6 +323,8 @@ class World {
   std::vector<Entity> entities_;
   std::unordered_map<uint32_t, size_t> index_;
   std::vector<Collider> colliders_;
+  std::vector<Zone> zonen_;
+  std::vector<Plattform> plattformen_;
   /** Von Hand geformte Höhen. `terrain_.sculpt` zeigt hierauf. */
   std::vector<int16_t> sculpt_;
   std::vector<Spawner> spawners_;

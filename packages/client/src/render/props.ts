@@ -291,6 +291,55 @@ function archway(stoneColor: number, accent: number): THREE.BufferGeometry {
   ]);
 }
 
+/**
+ * Ein schwebender Felsen — oben eine Wiese, unten ein Zapfen.
+ *
+ * **Der Ursprung liegt in der begehbaren Fläche**, also bei y = 0, und alles
+ * andere hängt darunter. Das ist dieselbe Regel wie beim Flugbrett und kein
+ * Geschmack: der Kern liest die Höhe der Fläche als `position[1]` des Props
+ * (siehe `PropCollisionShape` = `plattform`). Läge der Ursprung in der Mitte,
+ * stünde die Zahl im Dokument zweimal — einmal fürs Bild, einmal fürs Laufen —
+ * und die beiden liefen beim ersten Skalieren auseinander.
+ */
+function schwebfels(radius: number, seed: number): THREE.BufferGeometry {
+  const parts: Part[] = [
+    // Die Grasnarbe. Oberkante bei null.
+    {
+      geometry: cylinder(radius, radius * 0.97, 0.8, 14),
+      color: 0x5f9a4a,
+      position: [0, -0.4, 0],
+    },
+    // Erdschicht, etwas eingezogen — sonst sieht die Kante aus wie ein Deckel.
+    {
+      geometry: cylinder(radius * 0.97, radius * 0.82, 1.6, 14),
+      color: 0x6b5540,
+      position: [0, -1.6, 0],
+    },
+    // Und der Fels, nach unten spitz. Gedreht, damit die Spitze hängt.
+    {
+      geometry: roughen(cone(radius * 0.82, radius * 2.4, 12), 0.22, seed),
+      color: STONE,
+      position: [0, -2.4 - radius * 1.2, 0],
+      rotation: [Math.PI, 0, 0],
+    },
+  ];
+
+  // Ein paar Brocken auf der Wiese. Ohne sie ist die Oberseite eine
+  // Scheibe, und eine Scheibe sieht aus wie ein Fehler und nicht wie ein Ort.
+  const brocken = Math.max(2, Math.round(radius * 0.5));
+  for (let i = 0; i < brocken; i++) {
+    const winkel = (i / brocken) * Math.PI * 2 + seed * 0.0001;
+    const abstand = radius * (0.35 + 0.4 * ((i * 7) % 5) * 0.25);
+    parts.push({
+      geometry: roughen(sphere(radius * 0.09, 1), 0.4, seed + i),
+      color: DARK_STONE,
+      position: [Math.cos(winkel) * abstand, -0.1, Math.sin(winkel) * abstand],
+      scale: [1, 0.6, 1],
+    });
+  }
+  return assemble(parts);
+}
+
 /** Der Katalog. Schlüssel entsprechen dem `model`-Feld im Map-Dokument. */
 export const PROP_BUILDERS: Record<string, PropBuilder> = {
   tree_pine: pine,
@@ -298,6 +347,10 @@ export const PROP_BUILDERS: Record<string, PropBuilder> = {
   tree_dead: deadTree,
   rock_small: () => rock(0.7, 0xaa11),
   rock_large: () => rock(1.8, 0xbb22),
+  // Schwebende Felsen. Der Radius ist zugleich der der begehbaren Scheibe —
+  // was im Map-Dokument als `collisionRadius` steht, muss dazu passen.
+  fels_schwebend: () => schwebfels(9, 0xf10a),
+  fels_schwebend_klein: () => schwebfels(5.5, 0xf20b),
   bush,
   grass_tuft: grassTuft,
   stump,

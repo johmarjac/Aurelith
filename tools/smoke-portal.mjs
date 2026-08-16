@@ -72,7 +72,7 @@ console.log('Aurelith — Tore\n');
 
 const server = launch('npx tsx packages/server/src/index.ts', {
   // Dornwald: Tor nach Lichtmoor bei (0, -186), Radius 4. Von dort geht es nach
-  // Lichtmoor auf (0, 196), wo das Gegentor bei (0, 204) steht — beide ohne
+  // Lichtmoor auf (0, 184), wo das Gegentor bei (0, 196) steht — beide ohne
   // Stufensperre, also derselbe Weg hin und zurueck.
   //
   // Bewusst nicht ueber die Schattengruft: die verlangt Stufe zehn, und eine
@@ -266,12 +266,12 @@ if (arrived) {
 
   const after = await state();
   check(
-    Math.hypot(after.x - 0, after.z - 196) < 3,
+    Math.hypot(after.x - 0, after.z - 184) < 3,
     `Ankunft am vorgesehenen Punkt (${after.x.toFixed(1)}, ${after.z.toFixed(1)})`,
   );
   check(after.prompt === '', `nach der Ankunft kein Hinweis ("${after.prompt}")`);
 
-  // Gegentor bei (0, 204), also acht Einheiten in Richtung +Z. Der Weg bleibt:
+  // Gegentor bei (0, 196), also zwölf Einheiten in Richtung +Z. Der Weg bleibt:
   // hier geht es gerade darum, dass die Figur sich nach einem Wechsel noch
   // bewegen laesst und der Server das mitbekommt.
   await walk('KeyW', 27);

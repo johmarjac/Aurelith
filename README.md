@@ -46,8 +46,16 @@ bewussten Abweichung, die weiter unten begründet ist.
 - **Eine Hinweiszeile** unten in der Mitte, in der **jede** Absage steht: warum
   eine Aktion nicht ging, klein und für ein paar Sekunden. Alles, was der Server
   als Systemnachricht schickt, landet dort von selbst.
+- **Sperrzonen und schwebende Felsen**: Rechtecke, in die man zu Fuss, in der
+  Luft oder gar nicht hineinkommt, und Felsen, die in der Luft stehen und oben
+  begehbar sind — wer ein Fluggerät hat, landet darauf. Beides entscheidet der
+  Kern, beides setzt der Editor.
 - **Drei Karten** mit Gates und einem Dungeon, dazu ein **Map-Editor**, der
   dasselbe Dateiformat liest und schreibt.
+- **Lichtmoor** ist die Heimatkarte: ein rechteckiger Streifen, rundum von
+  Gebirge verdeckt und gesperrt. Unten die Hauptstadt Silberfurt mit den
+  Hauptquests, nach Norden Stufengebiete von 1 bis 20, dazwischen Nebenquests,
+  ein Fluss mit Brücken und schwebende Felsen über der Wiese.
 
 ---
 
@@ -220,6 +228,7 @@ npm run test:npcflow     # ansprechen, annehmen, erlegen, aufheben, abgeben
 npm run test:npc         # NPC-Fenster und Inventar im Browser
 npm run test:identitaet  # ein Mensch, zwei Anbieter, ein Konto
 npm run test:karten      # Eintrittskarten: Frist, Lebenszeichen, Wiedereinstieg
+npm run test:karte       # Lichtmoor: Rechteck, dichter Rand, Stufen nach Norden
 npm run test:vorgang     # Aufsteigen dauert, und eine Absage kostet keine Abklingzeit
 npm run test:haustier    # Begleiter: Sorten, Leine, Werte
 npm run test:loot-ui     # Beute im Bild: Schild, Antippen, Aufheben

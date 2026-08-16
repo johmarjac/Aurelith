@@ -142,6 +142,17 @@ export interface CoreEvent {
 
 interface RawWorld {
   addCollider(x: number, z: number, radius: number): void;
+  addZone(
+    x: number,
+    z: number,
+    halbX: number,
+    halbZ: number,
+    keinLauf: boolean,
+    keinFlug: boolean,
+  ): void;
+  clearZones(): void;
+  addPlattform(x: number, z: number, radius: number, hoehe: number): void;
+  clearPlattformen(): void;
   resizeSculpt(resolution: number): void;
   sculptPointer(): number;
   sculptResolution(): number;
@@ -277,6 +288,41 @@ export class CoreWorld {
       this.view = new DataView(this.module.HEAPU8.buffer);
     }
     return this.view;
+  }
+
+  /**
+   * Eine Sperrfläche — achsenparalleles Rechteck um `x`/`z`.
+   *
+   * Die beiden Flaggen sind unabhängig. Der Kartenrand setzt beide, eine
+   * Schlucht nur `keinLauf`, eine Wolkenschicht nur `keinFlug`.
+   */
+  addZone(
+    x: number,
+    z: number,
+    halbX: number,
+    halbZ: number,
+    keinLauf: boolean,
+    keinFlug: boolean,
+  ): void {
+    this.raw.addZone(x, z, halbX, halbZ, keinLauf, keinFlug);
+  }
+
+  clearZones(): void {
+    this.raw.clearZones();
+  }
+
+  /**
+   * Ein schwebender Felsen: oben eine begehbare Scheibe.
+   *
+   * `hoehe` ist die Weltkoordinate der Fläche. Was darunter hängt, ist Bild —
+   * der Kern kennt nur die Scheibe.
+   */
+  addPlattform(x: number, z: number, radius: number, hoehe: number): void {
+    this.raw.addPlattform(x, z, radius, hoehe);
+  }
+
+  clearPlattformen(): void {
+    this.raw.clearPlattformen();
   }
 
   addCollider(x: number, z: number, radius: number): void {

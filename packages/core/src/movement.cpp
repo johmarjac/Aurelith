@@ -17,7 +17,20 @@ bool World::tryStep(Entity& e, float dx, float dz) {
   float nx = clampToMap(e.x + dx, terrain_);
   float nz = clampToMap(e.z + dz, terrain_);
 
-  if (terrainSlopeDeg(nx, nz, terrain_) > kMaxWalkableSlopeDeg) return false;
+  // Sperrzonen zuerst: vier Vergleiche, und sie ersparen im Zweifel alles
+  // Teurere darunter.
+  if (zoneSperrt(nx, nz, false)) return false;
+
+  /*
+   * Die Neigung gilt dem **Gelände**.
+   *
+   * Wer auf einem schwebenden Felsen steht, geht über eine ebene Scheibe. Was
+   * zwanzig Meter darunter für ein Hang ist, hat damit nichts zu tun — ohne
+   * diese Unterscheidung wäre ein Felsen über einer Klippe oben unbegehbar.
+   */
+  bool aufPlattform = false;
+  bodenHoehe(nx, nz, e.y, &aufPlattform);
+  if (!aufPlattform && terrainSlopeDeg(nx, nz, terrain_) > kMaxWalkableSlopeDeg) return false;
 
   // Props auflösen: aus jedem überlappenden Kreis herausschieben.
   for (const Collider& c : colliders_) {
@@ -42,7 +55,10 @@ bool World::tryStep(Entity& e, float dx, float dz) {
   nz = clampToMap(nz, terrain_);
 
   // Nach dem Herausschieben nochmals prüfen — sonst landet man in der Klippe.
-  if (terrainSlopeDeg(nx, nz, terrain_) > kMaxWalkableSlopeDeg) return false;
+  // Und in der Sperrzone: ein Prop dicht an ihrer Kante schöbe sonst hinein.
+  if (zoneSperrt(nx, nz, false)) return false;
+  bodenHoehe(nx, nz, e.y, &aufPlattform);
+  if (!aufPlattform && terrainSlopeDeg(nx, nz, terrain_) > kMaxWalkableSlopeDeg) return false;
 
   e.x = nx;
   e.z = nz;
@@ -60,10 +76,26 @@ void World::moveWithCollision(Entity& e, float dx, float dz, float* outDx, float
     if (!slidX && dz != 0.0f) tryStep(e, 0.0f, dz);
   }
 
-  // Wer springt, hängt nicht am Boden. Ohne diese Bedingung zöge die
-  // waagerechte Bewegung die Figur im selben Schritt wieder herunter, und der
-  // Sprung wäre ein Zucken.
-  if (!e.airborne) e.y = terrainHeight(e.x, e.z, terrain_);
+  /*
+   * Wer springt, hängt nicht am Boden. Ohne diese Bedingung zöge die
+   * waagerechte Bewegung die Figur im selben Schritt wieder herunter, und der
+   * Sprung wäre ein Zucken.
+   *
+   * Und wer über eine Kante läuft, **fällt**, statt hinunterzuspringen: das
+   * ist der Unterschied zwischen einem schwebenden Felsen, den man verlassen
+   * kann, und einem, der einen unten wieder ausspuckt. Ein Meter Schwelle,
+   * damit gewöhnliches Gelände nicht darunter fällt — bei der steilsten noch
+   * begehbaren Neigung sind es keine vierzig Zentimeter je Schritt.
+   */
+  if (!e.airborne) {
+    const float boden = bodenHoehe(e.x, e.z, e.y);
+    if (boden < e.y - kAbsatzHoehe) {
+      e.airborne = true;
+      e.vy = 0.0f;
+    } else {
+      e.y = boden;
+    }
+  }
   if (outDx != nullptr) *outDx = e.x - startX;
   if (outDz != nullptr) *outDz = e.z - startZ;
 }
@@ -153,7 +185,7 @@ void World::applyInput(uint32_t id, float moveX, float moveZ, float yaw, uint32_
     e.vx = 0.0f;
     e.vz = 0.0f;
     if (e.state == kStateMove) e.state = kStateIdle;
-    if (!e.airborne) e.y = terrainHeight(e.x, e.z, terrain_);
+    if (!e.airborne) e.y = bodenHoehe(e.x, e.z, e.y);
     return;
   }
 
@@ -227,8 +259,31 @@ void World::updateFlight(Entity& e, float moveX, float moveZ, uint32_t buttons, 
   else if (e.tempo > ziel) e.tempo = std::max(ziel, e.tempo - schritt);
 
   const float cosP = std::cos(e.pitch);
-  e.x = clampToMap(e.x + std::sin(e.yaw) * cosP * e.tempo * dt, terrain_);
-  e.z = clampToMap(e.z + std::cos(e.yaw) * cosP * e.tempo * dt, terrain_);
+  const float vorX = e.x;
+  const float vorZ = e.z;
+  float nx = clampToMap(e.x + std::sin(e.yaw) * cosP * e.tempo * dt, terrain_);
+  float nz = clampToMap(e.z + std::cos(e.yaw) * cosP * e.tempo * dt, terrain_);
+
+  /*
+   * Sperrzonen gelten auch in der Luft — und zwar mit ihrer eigenen Flagge.
+   *
+   * Achsenweise nachversucht wie am Boden (`moveWithCollision`): wer schräg
+   * gegen eine Sperre fliegt, gleitet an ihr entlang, statt davorzukleben. Ohne
+   * das stünde man an der Kartengrenze fest und müsste rückwärts wieder
+   * herausdrehen, was auf einem Fluggerät eine halbe Minute dauert.
+   */
+  if (zoneSperrt(nx, nz, true)) {
+    if (!zoneSperrt(nx, e.z, true)) {
+      nz = e.z;
+    } else if (!zoneSperrt(e.x, nz, true)) {
+      nx = e.x;
+    } else {
+      nx = e.x;
+      nz = e.z;
+    }
+  }
+  e.x = nx;
+  e.z = nz;
 
   /*
    * Steigen ist gedeckelt — daher kommt der Unterschied zwischen den Geräten.
@@ -248,8 +303,11 @@ void World::updateFlight(Entity& e, float moveX, float moveZ, uint32_t buttons, 
   // Der Tick begrenzt gleich noch auf Boden und Decke; hier steht nur die
   // Bewegung. `vy` ist dabei reine Auskunft für den Client — die Höhe rechnet
   // diese Zeile, nicht die Schwerkraft.
-  e.vx = std::sin(e.yaw) * cosP * e.tempo;
-  e.vz = std::cos(e.yaw) * cosP * e.tempo;
+  // Aus dem **tatsächlichen** Weg und nicht aus der Absicht: an einer Sperre
+  // entlang ist die eine Achse null, und ein Client, der die Absicht gemeldet
+  // bekäme, zeichnete eine Figur, die gegen die Wand rennt.
+  e.vx = dt > 0.0f ? (e.x - vorX) / dt : 0.0f;
+  e.vz = dt > 0.0f ? (e.z - vorZ) / dt : 0.0f;
   // Dieselbe Zahl, mit der eben die Höhe gerechnet wurde — nicht die
   // ungedeckelte: sonst meldete der Kern ein Steigen, das nicht stattfindet.
   e.vy = steigen;

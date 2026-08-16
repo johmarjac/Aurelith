@@ -195,6 +195,10 @@ EMSCRIPTEN_BINDINGS(aurelith_core) {
       // Aufbau
       .function("addCollider", &aur::World::addCollider)
       .function("clearColliders", &aur::World::clearColliders)
+      .function("addZone", &aur::World::addZone)
+      .function("clearZones", &aur::World::clearZones)
+      .function("addPlattform", &aur::World::addPlattform)
+      .function("clearPlattformen", &aur::World::clearPlattformen)
       .function("resizeSculpt", &aur::World::resizeSculpt)
       .function("sculptPointer", &sculptPointer)
       .function("sculptResolution", &aur::World::sculptResolution)

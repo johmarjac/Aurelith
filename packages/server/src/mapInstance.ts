@@ -80,8 +80,36 @@ export class MapInstance {
     this.world.setSculpt(setup.sculpt, setup.sculptResolution);
 
     for (const prop of doc.props) {
-      if (prop.collision !== 'circle') continue;
-      this.world.addCollider(prop.position[0], prop.position[2], prop.collisionRadius * prop.scale);
+      if (prop.collision === 'circle') {
+        this.world.addCollider(
+          prop.position[0],
+          prop.position[2],
+          prop.collisionRadius * prop.scale,
+        );
+      } else if (prop.collision === 'plattform') {
+        // Der Ursprung des Modells liegt in seiner Oberfläche — deshalb ist
+        // `position[1]` die begehbare Höhe und keine zweite Zahl daneben.
+        this.world.addPlattform(
+          prop.position[0],
+          prop.position[2],
+          prop.collisionRadius * prop.scale,
+          prop.position[1],
+        );
+      }
+    }
+
+    // Sperrflächen. Der Kern kennt sie, also rechnen Client und Server
+    // dieselbe Grenze — eine Sperre, die nur hier stünde, sähe im Bild wie ein
+    // Gummiband aus.
+    for (const zone of doc.zonen) {
+      this.world.addZone(
+        zone.position[0],
+        zone.position[1],
+        zone.extent[0],
+        zone.extent[1],
+        zone.keinLauf,
+        zone.keinFlug,
+      );
     }
 
     for (const npc of doc.npcs) {

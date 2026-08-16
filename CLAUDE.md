@@ -118,6 +118,24 @@ zusammenpassen:
 
 ---
 
+## Karten
+
+Karten sind **Daten**. `assets/maps/*.json` ist erzeugt, die Quelle steht in
+`tools/gen-maps.mjs` — wer nur die Datei ändert, verliert die Änderung beim
+nächsten `npm run maps`.
+
+Was der Kern von einer Karte kennt, muss der Kern auch bekommen: Kollider,
+**Sperrzonen** (`zonen`) und **Plattformen** (Props mit
+`collision: 'plattform'`) werden im Server *und* im Client in die Welt
+getragen, sonst läuft die Vorhersage gegen eine Grenze, die es für sie nicht
+gibt.
+
+Der Ursprung eines schwebenden Felsens liegt **in seiner begehbaren Fläche**.
+Damit ist `position[1]` deren Höhe und keine zweite Zahl daneben — wie beim
+Flugbrett, dessen Oberkante bei null liegt.
+
+---
+
 ## Sicherheit
 
 - Alles unter `/intern/` ist nur mit `AURELITH_INTERNAL_SECRET` erreichbar

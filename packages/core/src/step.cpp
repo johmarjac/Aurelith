@@ -55,7 +55,10 @@ void World::advanceJump(Entity& e, float dt) {
     // Die Höhe rechnet `updateFlight` aus Lage und Schub; hier wird nur noch
     // begrenzt. Zwei Stellen, die dieselbe Höhe fortschreiben, wären genau die
     // doppelte Buchführung, die in diesem Kern nirgends steht.
-    const float boden = terrainHeight(e.x, e.z, terrain_);
+    // Über `bodenHoehe` und nicht über das Gelände: ein schwebender Felsen ist
+    // Boden, sobald man über ihm ist. Damit fliegt niemand durch ihn hindurch,
+    // und wer darüber absteigt, landet oben statt zwanzig Meter tiefer.
+    const float boden = bodenHoehe(e.x, e.z, e.y);
     const float unten = boden + kFlugMindesthoehe;
     const float oben = boden + e.ceiling;
     if (e.y < unten) {
@@ -74,14 +77,25 @@ void World::advanceJump(Entity& e, float dt) {
     // eine Sekunde lang durch die Landschaft segelt.
     e.airborne = false;
     e.vy = 0.0f;
-    e.y = terrainHeight(e.x, e.z, terrain_);
+    e.y = bodenHoehe(e.x, e.z, e.y);
     return;
   }
 
+  /*
+   * Gefragt wird von der Höhe **vor** dem Schritt aus.
+   *
+   * Ein Fallender überschiesst die Fläche innerhalb eines Schritts: aus dreissig
+   * Metern ist er dort schon über zwanzig Meter je Sekunde schnell, also gut
+   * einen Meter je Tick. Fragt man von der Höhe **nach** dem Schritt, liegt die
+   * Fläche plötzlich über einem, `bodenHoehe` lässt sie deshalb weg — und die
+   * Figur fällt durch den schwebenden Felsen hindurch bis auf das Gelände.
+   * Genau das war zu sehen.
+   */
+  const float vorY = e.y;
   e.y += e.vy * dt;
   e.vy -= kGravity * dt;
 
-  const float boden = terrainHeight(e.x, e.z, terrain_);
+  const float boden = bodenHoehe(e.x, e.z, vorY);
   if (e.y <= boden) {
     e.y = boden;
     e.vy = 0.0f;
@@ -117,8 +131,8 @@ void World::resolveOverlaps() {
       b.x = clampToMap(b.x + ux * push, terrain_);
       b.z = clampToMap(b.z + uz * push, terrain_);
       // Wer springt, behält seine Höhe: die Trennung schiebt waagerecht.
-      if (!a.airborne) a.y = terrainHeight(a.x, a.z, terrain_);
-      if (!b.airborne) b.y = terrainHeight(b.x, b.z, terrain_);
+      if (!a.airborne) a.y = bodenHoehe(a.x, a.z, a.y);
+      if (!b.airborne) b.y = bodenHoehe(b.x, b.z, b.y);
     }
   }
 }

@@ -65,7 +65,7 @@ const panel = document.getElementById('panel') as HTMLElement;
 const hint = document.getElementById('hint') as HTMLElement;
 
 hint.textContent =
-  'Links: Werkzeug anwenden · Rechtsklick auf Prop oder Tor: löschen\n' +
+  'Links: Werkzeug anwenden · Rechtsklick auf Prop, Tor oder Zone: löschen\n' +
   'Rechts ziehen: drehen · Mitte ziehen oder Umschalt: schieben · WASD: schieben\n' +
   'Rad: zoomen · Strg + Rad: Pinselgröße · beim Prop-Werkzeug dreht das Rad, Strg + Rad zoomt';
 
@@ -194,7 +194,7 @@ let selectedModel = Object.keys(PROP_BUILDERS)[0]!;
 let nextPropId = 1;
 
 /** Was die linke Maustaste gerade tut. */
-type Tool = 'props' | 'gates' | 'raise' | 'lower' | 'smooth' | 'paint';
+type Tool = 'props' | 'gates' | 'zonen' | 'raise' | 'lower' | 'smooth' | 'paint';
 
 /**
  * Ob ein Werkzeug beim Ziehen wirkt.
@@ -228,6 +228,19 @@ let strokeTouched = 0;
 /** Das Tor, das gerade bearbeitet wird. */
 let selectedGateId: string | undefined;
 let nextGateId = 1;
+
+/**
+ * Sperrzonen.
+ *
+ * Gezogen wird ein Rechteck: aufsetzen, ziehen, loslassen. Ein Klick ohne Weg
+ * ergibt keine Zone — eine Fläche von null Metern wäre eine Sperre, die man
+ * weder sieht noch je wieder findet.
+ */
+type ZonenArt = 'beides' | 'lauf' | 'flug';
+let zonenArt: ZonenArt = 'beides';
+let zonenZiehStart: { x: number; z: number } | undefined;
+let zonenMeshes: THREE.Mesh[] = [];
+let nextZoneId = 1;
 /** Zuletzt getroffener Geländepunkt. Nur für die Auskunft nach aussen. */
 let lastGroundPoint: THREE.Vector3 | undefined;
 
@@ -292,9 +305,16 @@ async function loadMap(id: string): Promise<void> {
     }, 0) + 1;
   selectedGateId = doc.portals[0]?.id;
 
+  nextZoneId =
+    doc.zonen.reduce((max, z) => {
+      const n = Number(/z_(\d+)/.exec(z.id)?.[1] ?? 0);
+      return n > max ? n : max;
+    }, 0) + 1;
+
   camTarget.set(doc.spawn.x, world.heightAt(doc.spawn.x, doc.spawn.z), doc.spawn.z);
   rebuildProps();
   rebuildGates();
+  rebuildZonen();
   renderPanel();
 }
 
@@ -317,6 +337,9 @@ function settleAfterStroke(): void {
   if (!doc || !world) return;
   rebuildProps();
   rebuildGates();
+  // Auch die Zonen: sie sitzen auf dem Gelände auf, und wer einen Berg unter
+  // einer Sperre aufschüttet, soll die Sperre danach nicht im Berg suchen.
+  rebuildZonen();
 }
 
 /** Traegt die Bodentexturen nach, sobald sie da sind. */
@@ -380,6 +403,55 @@ function rebuildGates(): void {
 
   root.add(mesh);
   gateMesh = mesh;
+}
+
+/**
+ * Zeichnet die Sperrzonen als durchscheinende Quader.
+ *
+ * Ein Quader und keine Fläche am Boden: eine Flugsperre gilt in der Luft, und
+ * eine Markierung im Gras sagte darüber nichts. Die Höhe ist grosszügig —
+ * gezeigt wird, dass hier etwas gesperrt ist, nicht wie hoch.
+ *
+ * Die Farbe sagt, für wen: rot hält Läufer auf, blau Fliegende, violett beide.
+ */
+function rebuildZonen(): void {
+  for (const mesh of zonenMeshes) {
+    root.remove(mesh);
+    mesh.geometry.dispose();
+    (mesh.material as THREE.Material).dispose();
+  }
+  zonenMeshes = [];
+  if (!doc || !world) return;
+
+  for (const zone of doc.zonen) {
+    const [x, z] = zone.position;
+    const [hx, hz] = zone.extent;
+    const farbe =
+      zone.keinLauf && zone.keinFlug ? 0xb07be8 : zone.keinLauf ? 0xe8697b : 0x6fa8e8;
+    const geo = new THREE.BoxGeometry(hx * 2, ZONEN_HOEHE, hz * 2);
+    const mat = new THREE.MeshBasicMaterial({
+      color: farbe,
+      transparent: true,
+      opacity: 0.16,
+      depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, world.heightAt(x, z) + ZONEN_HOEHE * 0.5 - 4, z);
+    mesh.userData.zoneId = zone.id;
+    root.add(mesh);
+    zonenMeshes.push(mesh);
+  }
+}
+
+/** Wie hoch ein Zonenquader im Editor gezeichnet wird. Nur Anzeige. */
+const ZONEN_HOEHE = 70;
+
+/** Die Zone unter dem Zeiger, falls eine getroffen wird. */
+function zoneUnterZeiger(): string | undefined {
+  if (zonenMeshes.length === 0) return undefined;
+  raycaster.setFromCamera(pointer, camera);
+  const hit = raycaster.intersectObjects(zonenMeshes, false)[0];
+  return hit?.object.userData.zoneId as string | undefined;
 }
 
 /** Das Tor unter dem Zeiger, falls eines getroffen wird. */
@@ -759,6 +831,7 @@ function renderPanel(): void {
   const TOOLS: [Tool, string][] = [
     ['props', 'Props'],
     ['gates', 'Tore'],
+    ['zonen', 'Zonen'],
     ['raise', 'Anheben'],
     ['lower', 'Absenken'],
     ['smooth', 'Glätten'],
@@ -841,6 +914,36 @@ function renderPanel(): void {
     panel.append(gateLabel, renderGatePanel());
   }
 
+  // --- Zonen ---------------------------------------------------------------
+
+  if (tool === 'zonen') {
+    const zonenLabel = document.createElement('h2');
+    zonenLabel.textContent = 'Sperrzone';
+    const arten = document.createElement('div');
+    arten.className = 'palette';
+    const ARTEN: [ZonenArt, string][] = [
+      ['beides', 'Kein Lauf + kein Flug'],
+      ['lauf', 'Nur kein Lauf'],
+      ['flug', 'Nur kein Flug'],
+    ];
+    for (const [key, caption] of ARTEN) {
+      const button = document.createElement('button');
+      button.textContent = caption;
+      button.setAttribute('aria-pressed', String(key === zonenArt));
+      button.addEventListener('click', () => {
+        zonenArt = key;
+        renderPanel();
+      });
+      arten.appendChild(button);
+    }
+    const hinweis = document.createElement('div');
+    hinweis.className = 'stats';
+    hinweis.textContent =
+      'Linke Maustaste aufsetzen, ziehen, loslassen — das Rechteck ist die Zone. ' +
+      'Rechtsklick auf eine Zone löscht sie.';
+    panel.append(zonenLabel, arten, hinweis);
+  }
+
   // --- Props ---------------------------------------------------------------
 
   if (tool === 'props') {
@@ -872,6 +975,7 @@ function renderPanel(): void {
       ['Spawner', String(doc.spawners.length)],
       ['NPCs', String(doc.npcs.length)],
       ['Portale', String(doc.portals.length)],
+      ['Zonen', String(doc.zonen.length)],
       ['Größe', `${doc.terrain.size} × ${doc.terrain.size}`],
     ]) {
       const line = document.createElement('div');
@@ -981,6 +1085,13 @@ canvas.addEventListener('pointerdown', (e) => {
     strokeTouched = 0;
     applyBrush(0.05);
   }
+
+  // Eine Zone entsteht aus zwei Ecken. Hier die erste; die zweite steht beim
+  // Loslassen fest.
+  if (gesture === 'tool' && tool === 'zonen') {
+    const punkt = groundPoint();
+    zonenZiehStart = punkt ? { x: punkt.x, z: punkt.z } : undefined;
+  }
 });
 
 canvas.addEventListener('pointerenter', () => {
@@ -1025,7 +1136,40 @@ window.addEventListener('pointerup', (e) => {
   }
 
   // Hat die Geste nicht im Bild begonnen, geht sie das Bild auch nichts an.
-  if (!fromCanvas) return;
+  if (!fromCanvas) {
+    zonenZiehStart = undefined;
+    return;
+  }
+
+  /*
+   * Die Zone ist die Ausnahme von der Regel darunter: bei ihr **ist** das
+   * Ziehen die Geste, und ein Klick ohne Weg ergibt nichts. Deshalb steht sie
+   * vor der Abfrage auf `dragDistance` — sonst käme genau der Fall nie an, für
+   * den das Werkzeug gebaut ist.
+   */
+  if (wasGesture === 'tool' && e.button === 0 && tool === 'zonen') {
+    const start = zonenZiehStart;
+    zonenZiehStart = undefined;
+    const ende = groundPoint();
+    if (start && ende && doc) {
+      const hx = Math.abs(ende.x - start.x) * 0.5;
+      const hz = Math.abs(ende.z - start.z) * 0.5;
+      // Unter zwei Metern Halbkante war es ein Klick und kein Rechteck. Eine
+      // Sperre dieser Grösse sieht man nicht und findet man nie wieder.
+      if (hx >= 2 && hz >= 2) {
+        doc.zonen.push({
+          id: `z_${String(nextZoneId++).padStart(4, '0')}`,
+          position: [round((start.x + ende.x) * 0.5), round((start.z + ende.z) * 0.5)],
+          extent: [round(hx), round(hz)],
+          keinLauf: zonenArt !== 'flug',
+          keinFlug: zonenArt !== 'lauf',
+        });
+        rebuildZonen();
+        renderPanel();
+      }
+    }
+    return;
+  }
 
   // Ein Klick, der sich kaum bewegt hat, ist ein Klick — kein Ziehen.
   if (dragDistance > 6) return;
@@ -1035,11 +1179,27 @@ window.addEventListener('pointerup', (e) => {
     else if (tool === 'gates') placeOrSelectGate();
   }
   if (wasGesture === 'orbit' && e.button === 2) {
-    // Erst Tore, dann Props: der Bogen ist gross, und wer ihn anvisiert, meint
-    // ihn — nicht den Baum dahinter.
+    // Erst Zonen, dann Tore, dann Props — von gross nach klein: wer einen
+    // durchscheinenden Quader anvisiert, meint ihn und nicht den Baum darin.
+    // Und nur im Zonenwerkzeug, sonst käme man an nichts mehr heran, was unter
+    // einer Sperre steht.
+    if (tool === 'zonen') {
+      if (entferneZoneUnterZeiger()) return;
+    }
     if (!removeGateUnderPointer()) removePropUnderPointer();
   }
 });
+
+/** Löscht die Zone unter dem Zeiger. Gibt zurück, ob eine getroffen wurde. */
+function entferneZoneUnterZeiger(): boolean {
+  if (!doc) return false;
+  const id = zoneUnterZeiger();
+  if (!id) return false;
+  doc.zonen = doc.zonen.filter((z) => z.id !== id);
+  rebuildZonen();
+  renderPanel();
+  return true;
+}
 
 /** Um wie viel das Rad ein Prop dreht. Mit Umschalt feiner. */
 const PROP_ROTATE_STEP = Math.PI / 12;
@@ -1242,17 +1402,25 @@ function placeProp(): void {
   const point = groundPoint();
   if (!point || !doc) return;
 
+  const schwebend = selectedModel.startsWith('fels_schwebend');
+
   doc.props.push({
     id: `p_${String(nextPropId++).padStart(4, '0')}`,
     model: selectedModel,
-    position: [round(point.x), 0, round(point.z)],
+    // Schwebende Felsen bekommen gleich Höhe: am Boden wären sie keine.
+    position: [round(point.x), schwebend ? round(point.y + 22) : 0, round(point.z)],
     // Genau die Drehung, die in der Vorschau stand.
     rotation: [0, pendingPropYaw, 0],
     scale: 1,
-    snapToGround: true,
-    // Bäume und Felsen blockieren, Gras und Pilze nicht.
-    collision: /tree|rock|pillar|well/.test(selectedModel) ? 'circle' : 'none',
-    collisionRadius: 1.2,
+    /*
+     * Ein schwebender Felsen ist keine Säule, um die man herumläuft, sondern
+     * eine Fläche, auf der man steht: seine Oberkante liegt in `position[1]`,
+     * und der Kern liest genau die. Deshalb setzt er sich auch **nicht** auf
+     * das Gelände — sonst läge das Schwebende im Gras.
+     */
+    snapToGround: !schwebend,
+    collision: schwebend ? 'plattform' : /tree|rock|pillar|well/.test(selectedModel) ? 'circle' : 'none',
+    collisionRadius: schwebend ? (selectedModel === 'fels_schwebend' ? 9 : 5.5) : 1.2,
   });
   // Fuer das naechste eine neue Drehung, damit ein Wald kein Spalier wird.
   rollPropYaw();

@@ -35,6 +35,51 @@ void World::addCollider(float x, float z, float radius) {
   colliders_.push_back({x, z, radius});
 }
 
+void World::addZone(float x, float z, float halbX, float halbZ, bool keinLauf, bool keinFlug) {
+  zonen_.push_back({x, z, std::fabs(halbX), std::fabs(halbZ), keinLauf, keinFlug});
+}
+
+void World::clearZones() {
+  zonen_.clear();
+}
+
+void World::addPlattform(float x, float z, float radius, float hoehe) {
+  plattformen_.push_back({x, z, radius, hoehe});
+}
+
+void World::clearPlattformen() {
+  plattformen_.clear();
+}
+
+bool World::zoneSperrt(float x, float z, bool fliegt) const {
+  for (const Zone& z0 : zonen_) {
+    if (fliegt ? !z0.keinFlug : !z0.keinLauf) continue;
+    if (std::fabs(x - z0.x) > z0.halbX) continue;
+    if (std::fabs(z - z0.z) > z0.halbZ) continue;
+    return true;
+  }
+  return false;
+}
+
+float World::bodenHoehe(float x, float z, float vonY, bool* aufPlattform) const {
+  float best = terrainHeight(x, z, terrain_);
+  bool oben = false;
+  for (const Plattform& p : plattformen_) {
+    const float dx = x - p.x;
+    const float dz = z - p.z;
+    if (dx * dx + dz * dz > p.radius * p.radius) continue;
+    // Nur Flächen, die nicht über einem liegen. Sonst zöge ein Felsen jeden zu
+    // sich hoch, der unter ihm durchläuft — und man käme nie mehr darunter
+    // hindurch.
+    if (p.hoehe > vonY + kStufenHoehe) continue;
+    if (p.hoehe <= best) continue;
+    best = p.hoehe;
+    oben = true;
+  }
+  if (aufPlattform != nullptr) *aufPlattform = oben;
+  return best;
+}
+
 void World::clearColliders() {
   colliders_.clear();
 }
@@ -326,10 +371,14 @@ const Entity* World::find(uint32_t id) const {
  * es dort über einen halben Meter nicht auf.
  */
 void World::versetze(Entity& e, float x, float z) {
-  const float ueberBoden = e.y - terrainHeight(e.x, e.z, terrain_);
+  // Über `bodenHoehe` gemessen: wer auf einem schwebenden Felsen steht, steht
+  // dort mit Abstand null und nicht zwanzig Meter über dem Gelände. Mit dem
+  // Gelände als Bezug flöge er nach jedem Versatz in der Luft.
+  const float ueberBoden = e.y - bodenHoehe(e.x, e.z, e.y);
+  const float vorY = e.y;
   e.x = clampToMap(x, terrain_);
   e.z = clampToMap(z, terrain_);
-  const float boden = terrainHeight(e.x, e.z, terrain_);
+  const float boden = bodenHoehe(e.x, e.z, vorY);
 
   // `|| e.flying` als Gürtel zum Hosenträger: wer fliegt, hängt nicht am
   // Boden, und diese Zeile hält das auch dann fest, wenn irgendwo doch einmal

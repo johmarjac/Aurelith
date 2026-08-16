@@ -1047,8 +1047,30 @@ export class Game {
     // Dieselben Kollider wie auf dem Server: sonst sagt die Vorhersage, man
     // stehe im Baum, und die Autorität schiebt einen jedes Mal heraus.
     for (const prop of doc.props) {
-      if (prop.collision !== 'circle') continue;
-      world.addCollider(prop.position[0], prop.position[2], prop.collisionRadius * prop.scale);
+      if (prop.collision === 'circle') {
+        world.addCollider(prop.position[0], prop.position[2], prop.collisionRadius * prop.scale);
+      } else if (prop.collision === 'plattform') {
+        // Oberkante = `position[1]`. Siehe `mapFormat`: der Ursprung eines
+        // schwebenden Felsens liegt in der Fläche, auf der man steht.
+        world.addPlattform(
+          prop.position[0],
+          prop.position[2],
+          prop.collisionRadius * prop.scale,
+          prop.position[1],
+        );
+      }
+    }
+    // Und dieselben Sperrflächen. Ohne sie liefe die Vorhersage über die
+    // Grenze hinaus und würde von jedem Schnappschuss zurückgerissen.
+    for (const zone of doc.zonen) {
+      world.addZone(
+        zone.position[0],
+        zone.position[1],
+        zone.extent[0],
+        zone.extent[1],
+        zone.keinLauf,
+        zone.keinFlug,
+      );
     }
     this.prediction = world;
 

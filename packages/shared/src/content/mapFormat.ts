@@ -137,7 +137,19 @@ export interface TerrainDef {
   paint?: TerrainField;
 }
 
-export type PropCollisionShape = 'none' | 'circle';
+/**
+ * Wie ein Prop die Bewegung beeinflusst.
+ *
+ * - `none`: gar nicht. Gras, Blumen, alles Flache.
+ * - `circle`: ein Kreis, um den man herumläuft. Bäume, Fässer, Felsen.
+ * - `plattform`: eine begehbare **Scheibe** in der Luft. Der schwebende
+ *   Felsen: sein Ursprung liegt in der Oberfläche, auf der man steht — wie
+ *   beim Flugbrett, dessen Oberkante bei null liegt. Damit ist die begehbare
+ *   Höhe `position[1]` und keine zweite Zahl daneben, die auseinanderlaufen
+ *   könnte. `collisionRadius` ist der Radius der Scheibe, `scale` skaliert
+ *   ihn mit.
+ */
+export type PropCollisionShape = 'none' | 'circle' | 'plattform';
 
 export interface PropInstance {
   /** Stabil über Editor-Sitzungen hinweg. */
@@ -207,6 +219,38 @@ export interface PortalDef {
   minLevel: number;
 }
 
+/**
+ * Ein Stück Karte, das man nicht betreten darf — zu Fuss, in der Luft oder
+ * beides.
+ *
+ * **Ein Rechteck und kein Vieleck.** Ein Rechteck prüft sich in vier
+ * Vergleichen, und der Kern prüft es für jede Figur und jeden Schritt. Was
+ * runde Formen braucht, legt mehrere Rechtecke nebeneinander; was aussen
+ * herum sperrt, sind ohnehin vier Streifen.
+ *
+ * **Zwei Flaggen und nicht zwei Sorten.** „Kein Lauf" und „kein Flug" sind
+ * unabhängig: eine Schlucht sperrt nur den Fussweg, eine Wolkenschicht nur den
+ * Flug, und der Kartenrand sperrt beides. Zwei getrennte Listen wären dieselbe
+ * Fläche zweimal gepflegt.
+ *
+ * Die Zonen liest der **Kern** — dieselbe Rechnung im Client wie auf dem
+ * Server. Eine Sperre, die nur der Server kennt, sähe im Bild wie ein
+ * Gummiband aus.
+ */
+export interface ZoneDef {
+  id: string;
+  /** Mittelpunkt. */
+  position: Vec2Tuple;
+  /** Halbe Kantenlängen in X und Z. Die Zone ist achsenparallel. */
+  extent: Vec2Tuple;
+  /** Wer zu Fuss unterwegs ist, kommt nicht hinein. */
+  keinLauf: boolean;
+  /** Wer auf einem Fluggerät sitzt, kommt nicht hinein. */
+  keinFlug: boolean;
+  /** Beschriftung für den Editor. Im Spiel unsichtbar. */
+  label?: string;
+}
+
 export interface MapDocument {
   format: typeof MAP_FORMAT;
   version: number;
@@ -219,6 +263,8 @@ export interface MapDocument {
   spawners: SpawnerDef[];
   npcs: NpcInstance[];
   portals: PortalDef[];
+  /** Sperrflächen. Fehlt das Feld, ist die ganze Karte frei. */
+  zonen: ZoneDef[];
 }
 
 export class MapFormatError extends Error {
@@ -392,7 +438,9 @@ export function parseMapDocument(raw: unknown, source = 'map'): MapDocument {
       rotation: o.rotation ? vec3(o.rotation, `${path}.rotation`) : [0, 0, 0],
       scale: optNum(o, 'scale', 1, path),
       snapToGround: optBool(o, 'snapToGround', true),
-      collision: (o.collision === 'circle' ? 'circle' : 'none') as PropCollisionShape,
+      collision: (o.collision === 'circle' || o.collision === 'plattform'
+        ? o.collision
+        : 'none') as PropCollisionShape,
       collisionRadius: optNum(o, 'collisionRadius', 1, path),
       ...(typeof o.tint === 'number' ? { tint: o.tint } : {}),
     };
@@ -445,6 +493,24 @@ export function parseMapDocument(raw: unknown, source = 'map'): MapDocument {
     };
   });
 
+  // Ohne Feld keine Sperren: ältere Karten sind damit weiter gültig, und eine
+  // Karte ohne Zonen ist genau das, was sie vorher war.
+  const zonen: ZoneDef[] = arr(root.zonen ?? [], `${source}.zonen`).map((z, i) => {
+    const path = `${source}.zonen[${i}]`;
+    const o = z as Record<string, unknown>;
+    const extent = vec2(req(o, 'extent', path), `${path}.extent`);
+    return {
+      id: str(req(o, 'id', path), `${path}.id`),
+      position: vec2(req(o, 'position', path), `${path}.position`),
+      // Beträge: eine negative Halbkante wäre ein Rechteck, das sich selbst
+      // umstülpt, und jede Prüfung darin schlüge fehl statt zu sperren.
+      extent: [Math.abs(extent[0]), Math.abs(extent[1])],
+      keinLauf: optBool(o, 'keinLauf', true),
+      keinFlug: optBool(o, 'keinFlug', true),
+      ...(typeof o.label === 'string' ? { label: o.label } : {}),
+    };
+  });
+
   return {
     format: MAP_FORMAT,
     version,
@@ -457,6 +523,7 @@ export function parseMapDocument(raw: unknown, source = 'map'): MapDocument {
     spawners,
     npcs,
     portals,
+    zonen,
   };
 }
 
@@ -503,5 +570,6 @@ export function createEmptyMap(id: string, name: string): MapDocument {
     spawners: [],
     npcs: [],
     portals: [],
+    zonen: [],
   };
 }
