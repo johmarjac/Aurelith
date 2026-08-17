@@ -274,6 +274,24 @@ class World {
   float slopeAt(float x, float z) const { return terrainSlopeDeg(x, z, terrain_); }
 
   /**
+   * Worauf jemand an dieser Stelle **steht** — Gelände oder Plattform.
+   *
+   * `heightAt` kennt nur das Gelände, und das ist für den Zeichner zu wenig:
+   * wer auf einem schwebenden Felsen läuft, ist sechsundzwanzig Meter über dem
+   * Gelände und trotzdem am Boden. Der Client hat daraus „in der Luft"
+   * geschlossen und die Figur in die Sprunghaltung gelegt — man lief über den
+   * Felsen, und die Beine standen still.
+   *
+   * `vonY` ist die Höhe, aus der gefragt wird. Sie entscheidet mit: eine
+   * Fläche über dem Kopf zählt nicht, sonst zöge jeder Felsen den zu sich
+   * hoch, der unter ihm durchgeht.
+   *
+   * Ein eigener Name, weil `bodenHoehe` einen voreingestellten Parameter hat
+   * und sich damit nicht an die Brücke binden lässt.
+   */
+  float bodenUnter(float x, float z, float vonY) const { return bodenHoehe(x, z, vonY); }
+
+  /**
    * Trägt das Gelände hier eine Figur, die einfach hingestellt wird?
    *
    * Genau die Schwelle, mit der `tryStep` einen Schritt annimmt — und deshalb

@@ -3473,7 +3473,17 @@ export class Game {
       d.player.neigung = self.neigung;
       d.player.rollen = self.rollen;
     }
-    d.player.boden = this.prediction?.heightAt(this.poseCurr.x, this.poseCurr.z) ?? 0;
+    /*
+     * Der Boden, auf dem die Figur **steht** — Gelände oder Plattform.
+     *
+     * Vorher `heightAt`, und das kennt nur das Gelände: auf einem schwebenden
+     * Felsen meldete diese Zahl zwanzig Meter unter den Füssen, und jede
+     * Prüfung, die daraus „ist sie am Boden?" ableitet, bekam die falsche
+     * Antwort. Dieselbe Verwechslung liess die Figur dort oben in der
+     * Sprunghaltung stehen, statt zu gehen.
+     */
+    d.player.boden =
+      this.prediction?.bodenUnter(this.poseCurr.x, this.poseCurr.z, this.poseCurr.y) ?? 0;
 
     d.playerSim.x = this.poseCurr.x;
     d.playerSim.y = this.poseCurr.y;

@@ -947,7 +947,19 @@ export class WorldView {
       let luft = 0;
       let steigt = false;
       if (e.type === EntityType.Player && this.welt) {
-        const ueberBoden = e.y - this.welt.heightAt(e.x, e.z);
+        /*
+         * Gegen den Boden, auf dem man **steht** — nicht gegen das Gelände.
+         *
+         * Hier stand `heightAt`, und das kennt nur das Gelände. Wer über einen
+         * schwebenden Felsen lief, war damit sechsundzwanzig Meter „in der
+         * Luft": die Figur zog die Beine an und glitt über den Stein, statt zu
+         * gehen. Man konnte darauf laufen, es sah nur nicht so aus.
+         *
+         * `bodenUnter` nimmt die Plattform, sobald sie nicht über einem liegt
+         * — dieselbe Frage, die auch die Bewegung im Kern stellt, und damit
+         * dieselbe Antwort.
+         */
+        const ueberBoden = e.y - this.welt.bodenUnter(e.x, e.z, e.y);
         // Erst ab einer Handbreit, und ab einem Drittelmeter voll: darunter
         // liegt das Rauschen aus Interpolation und Geländeauflösung, und eine
         // Figur, die beim Gehen über eine Wurzel kurz die Beine anzieht, sieht

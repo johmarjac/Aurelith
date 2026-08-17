@@ -242,6 +242,7 @@ interface RawWorld {
   heightAt(x: number, z: number): number;
   slopeAt(x: number, z: number): number;
   begehbar(x: number, z: number): boolean;
+  bodenUnter(x: number, z: number, vonY: number): number;
   sampleHeightGrid(
     originX: number,
     originZ: number,
@@ -573,6 +574,16 @@ export class CoreWorld {
    */
   begehbar(x: number, z: number): boolean {
     return this.raw.begehbar(x, z);
+  }
+
+  /**
+   * Worauf jemand an dieser Stelle steht — Gelände **oder** Plattform.
+   *
+   * `heightAt` kennt nur das Gelände. Wer auf einem schwebenden Felsen läuft,
+   * ist weit darüber und trotzdem am Boden; nur diese Frage unterscheidet das.
+   */
+  bodenUnter(x: number, z: number, vonY: number): number {
+    return this.raw.bodenUnter(x, z, vonY);
   }
 
   /**

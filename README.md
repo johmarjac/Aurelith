@@ -239,6 +239,7 @@ npm run test:fels        # Findlinge: Grösse passt zum Kollisionskreis, Körnun
 npm run test:sterben     # jedes Wesen fällt um, und die Weltansicht stellt es nicht wieder auf
 npm run test:props       # Prop-Katalog: Tabelle deckt sich, alles steht am Boden, Kreise passen
 npm run test:kompass     # Kompass: acht Richtungen, Wechsel bei 22,5°, Osten ist rechts von Norden
+npm run test:schwebfels  # Schwebende Felsen: wer oben steht, gilt dem Zeichner als am Boden
 npm run test:tag         # Tag- und Nachtwechsel: Licht, Farben, Uhr
 npm run test:quests      # das Auftragsbuch — ohne Server
 npm run test:content     # die Inhaltsdateien: Format und Verweise

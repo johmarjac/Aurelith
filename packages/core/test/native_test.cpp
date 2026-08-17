@@ -1295,6 +1295,25 @@ void testZonenUndPlattformen() {
     // unbetretbar — und man käme nie wieder herunter.
     welt.teleport(1, 0.0f, 0.0f, 0.0f);
     check(std::fabs(p->y - grund) < 1e-2f, "darunter steht sie auf dem Gelände");
+
+    /*
+     * Und dieselbe Frage über die Brücke: `bodenUnter`.
+     *
+     * Der Zeichner braucht sie, um „am Boden" von „in der Luft" zu
+     * unterscheiden, und er hatte dafür `heightAt` benutzt — das kennt nur das
+     * Gelände. Auf dem Felsen war die Figur damit zwanzig Meter über dem Boden
+     * und zog die Beine an: man lief darüber, und es sah aus wie Schweben.
+     *
+     * Drei Antworten, und die zweite und dritte sind die Gegenproben zur
+     * ersten. Ohne sie wäre auch eine Fassung grün, die immer die Plattform
+     * nimmt — und die machte den Raum darunter unbegehbar.
+     */
+    check(std::fabs(welt.bodenUnter(0.0f, 0.0f, grund + 20.0f) - (grund + 20.0f)) < 1e-2f,
+          "von oben gefragt ist der Felsen der Boden");
+    check(std::fabs(welt.bodenUnter(0.0f, 0.0f, grund) - grund) < 1e-2f,
+          "von unten gefragt das Gelände");
+    check(std::fabs(welt.bodenUnter(30.0f, 0.0f, grund + 20.0f) - grund) < 1e-2f,
+          "und neben dem Felsen ebenfalls das Gelände");
   }
 }
 
