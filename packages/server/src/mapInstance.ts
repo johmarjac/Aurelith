@@ -85,6 +85,9 @@ export class MapInstance {
           prop.position[0],
           prop.position[2],
           prop.collisionRadius * prop.scale,
+          // Die Höhe skaliert mit: ein doppelt so grosser Zaun ist auch
+          // doppelt so hoch, und über den kommt man dann eben nicht mehr.
+          prop.collisionHeight * prop.scale,
         );
       } else if (prop.collision === 'plattform') {
         // Der Ursprung des Modells liegt in seiner Oberfläche — deshalb ist
@@ -185,6 +188,28 @@ export class MapInstance {
 
   metaFor(id: number): EntityMeta | undefined {
     return this.meta.get(id);
+  }
+
+  /**
+   * Kann an dieser Stelle jemand stehen, der einfach dort abgesetzt wird?
+   *
+   * Zwei Gründe, warum nicht, und beide entstanden erst mit der Insel:
+   *
+   *   - **Unter Wasser.** Der Kern kennt kein Wasser; der Meeresgrund ist für
+   *     ihn gewöhnlicher Boden. Wer über dem Meer absteigt, fällt bis auf den
+   *     Grund und steht dort.
+   *   - **Zu steil.** Die Klippe hat achtundsiebzig Grad. Wer auf ihr landet,
+   *     bekommt von `tryStep` keinen Schritt mehr zugestanden — in keine
+   *     Richtung, auch nicht zurück nach oben.
+   *
+   * In beiden Fällen käme man ohne Fluggerät nie wieder weg, und das Gerät
+   * liegt nach dem Absteigen im Beutel. Deshalb fragt das Absteigen hier nach.
+   *
+   * Die Neigungsschwelle steht im Kern (`begehbar`) und nicht hier: es ist
+   * dieselbe, mit der ein Schritt angenommen wird.
+   */
+  traegtBoden(x: number, z: number): boolean {
+    return this.world.heightAt(x, z) >= this.doc.terrain.waterLevel && this.world.begehbar(x, z);
   }
 
   removePlayer(id: number): void {

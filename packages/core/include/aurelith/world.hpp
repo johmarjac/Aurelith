@@ -69,7 +69,18 @@ class World {
 
   // --- Aufbau ------------------------------------------------------------
 
-  void addCollider(float x, float z, float radius);
+  /**
+   * Ein Prop, das im Weg steht.
+   *
+   * `hoehe` ist die Höhe **über dem Boden an dieser Stelle** — die Oberkante
+   * rechnet der Kern selbst aus, damit die Karte keine Geländehöhen
+   * mitschleppen muss. Null oder weniger heisst „bis in den Himmel": so
+   * verhalten sich Bäume und Säulen, über die niemand springen soll.
+   *
+   * Das Gelände muss vorher stehen (`setSculpt`), sonst wird die Oberkante
+   * gegen ein flaches Feld gerechnet.
+   */
+  void addCollider(float x, float z, float radius, float hoehe);
   void clearColliders();
 
   /** Eine Sperrfläche. `keinLauf`/`keinFlug` sind unabhängig voneinander. */
@@ -261,6 +272,20 @@ class World {
 
   float heightAt(float x, float z) const { return terrainHeight(x, z, terrain_); }
   float slopeAt(float x, float z) const { return terrainSlopeDeg(x, z, terrain_); }
+
+  /**
+   * Trägt das Gelände hier eine Figur, die einfach hingestellt wird?
+   *
+   * Genau die Schwelle, mit der `tryStep` einen Schritt annimmt — und deshalb
+   * hier und nicht beim Aufrufer. Der Server fragt sie beim Absteigen: wer vom
+   * Fluggerät auf die Klippe fällt, steht auf achtundsiebzig Grad und bekommt
+   * keinen Schritt mehr zugestanden, in keine Richtung. Stünde die Zahl
+   * daneben noch einmal in TypeScript, liefen die beiden auseinander, und die
+   * Absage käme irgendwann an der falschen Stelle.
+   */
+  bool begehbar(float x, float z) const {
+    return terrainSlopeDeg(x, z, terrain_) <= kMaxWalkableSlopeDeg;
+  }
 
   // Füllt ein regelmäßiges Höhengitter in einem Aufruf. Der Renderer baut sein
   // Terrainnetz daraus, ohne je Stützpunkt über die Brücke zu gehen.

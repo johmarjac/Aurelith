@@ -1458,6 +1458,10 @@ function placeProp(): void {
     snapToGround: !schwebend,
     collision: kollision.form,
     collisionRadius: kollision.radius,
+    // Auch die Höhe kommt aus der Tabelle: sonst stünde ein Zaun aus dem
+    // Editor bis in den Himmel, während man über den aus dem Generator
+    // springen kann.
+    collisionHeight: kollision.hoehe,
   });
   // Fuer das naechste eine neue Drehung, damit ein Wald kein Spalier wird.
   rollPropYaw();

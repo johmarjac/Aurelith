@@ -122,7 +122,7 @@ void testCollider() {
   std::printf("Kollision mit Props\n");
   aur::MobRegistry mobs;
   aur::World world(1u, flatTerrain(), &mobs);
-  world.addCollider(0.0f, 5.0f, 2.0f);
+  world.addCollider(0.0f, 5.0f, 2.0f, 0.0f);
   world.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
 
   for (int i = 0; i < aur::kTickRate * 2; ++i) {
@@ -132,6 +132,51 @@ void testCollider() {
   const aur::Entity* p = world.find(1);
   const float d = aur::dist2D(p->x, p->z, 0.0f, 5.0f);
   check(d >= 2.0f + 0.45f - 0.05f, "Spieler steckt nicht im Prop");
+}
+
+/**
+ * Über einen Zaun springt man, über eine Säule nicht.
+ *
+ * Der Kreis eines Props galt bis zu dieser Prüfung über die **ganze Höhe der
+ * Welt**: man konnte springen, so hoch man wollte, und blieb am Zaunfeld
+ * hängen. Beide Hälften stehen hier, und die zweite ist die wichtigere — eine
+ * Fassung, die einen einfach durch alles hindurchspringen lässt, bestünde die
+ * erste Prüfung genauso.
+ */
+void testSpringUeberProp() {
+  std::printf("Über niedrige Props springt man hinweg\n");
+
+  // Ein Zaunfeld: 1,15 m hoch, Kreis 0,85 m — dieselben Zahlen wie in
+  // PROP_KOLLISION.
+  auto laufMitSprung = [](float propHoehe) {
+    aur::MobRegistry mobs;
+    aur::World world(1u, flatTerrain(), &mobs);
+    world.addCollider(0.0f, 5.0f, 0.85f, propHoehe);
+    world.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+
+    for (int i = 0; i < aur::kTickRate * 3; ++i) {
+      // Erst laufen, dann kurz vor dem Prop abspringen. Der Absprung liegt
+      // deutlich davor: wer erst an der Kante drückt, ist beim Scheitel längst
+      // dagegengelaufen.
+      const aur::Entity* p = world.find(1);
+      const bool absprung = p != nullptr && p->z > 2.6f && p->z < 3.4f;
+      world.applyInput(1, 0.0f, 1.0f, 0.0f, absprung ? aur::kButtonJump : 0u,
+                       aur::kTickSeconds);
+      world.step(aur::kTickSeconds);
+    }
+    const aur::Entity* p = world.find(1);
+    return p != nullptr ? p->z : 0.0f;
+  };
+
+  const float ueberZaun = laufMitSprung(1.15f);
+  check(ueberZaun > 6.0f, "über das Zaunfeld hinweg");
+  std::printf("     z = %.2f\n", static_cast<double>(ueberZaun));
+
+  // Die Gegenprobe: eine Säule reicht bis in den Himmel (Höhe 0 heisst genau
+  // das), und an der bleibt derselbe Sprung hängen.
+  const float anDerSaeule = laufMitSprung(0.0f);
+  check(anDerSaeule < 4.5f, "und an der Säule bleibt man stehen");
+  std::printf("     z = %.2f\n", static_cast<double>(anDerSaeule));
 }
 
 void testSwingHitsOnlyTarget() {
@@ -230,10 +275,16 @@ void testJump() {
   }
   check(!zweiterStoss, "eine gehaltene Taste stösst in der Luft nicht nach");
 
-  // Scheitelhöhe: v²/(2g) bei 7,2 und 22 sind 1,18 Meter. Grosszügige Grenzen,
-  // weil die Schrittweite den Scheitel nicht genau trifft — aber eng genug,
-  // dass ein Faktor daneben auffällt.
-  check(hoechste - boden > 0.8f && hoechste - boden < 1.5f,
+  /*
+   * Scheitelhöhe: v²/(2g) bei 8,6 und 22 sind 1,68 Meter. Grosszügige Grenzen,
+   * weil die Schrittweite den Scheitel nicht genau trifft — aber eng genug,
+   * dass ein Faktor daneben auffällt.
+   *
+   * Die untere Grenze ist zugleich eine Aussage über das Spiel und nicht nur
+   * über die Physik: unter 1,25 m käme man über kein Zaunfeld mehr, und genau
+   * dafür ist der Sprung angehoben worden.
+   */
+  check(hoechste - boden > 1.25f && hoechste - boden < 2.1f,
         "die Sprunghöhe liegt im erwarteten Bereich");
 
   // Und am Ende steht sie wieder am Boden, mit stehender Höhe.
@@ -439,6 +490,26 @@ void testSculpt() {
   world.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
   world.applyInput(1, 0.0f, 0.0f, 0.0f, 0u, aur::kTickSeconds);
   checkNear(world.find(1)->y, 10.0f, 0.01f, "die Figur steht auf dem geformten Boden");
+
+  /*
+   * `begehbar` — die Frage, die der Server beim Absteigen stellt.
+   *
+   * Nicht „wie steil ist es hier", sondern „trägt es jemanden, der einfach
+   * hingestellt wird". Die Schwelle ist dieselbe wie in `tryStep`, und genau
+   * deshalb steht sie im Kern: der Server hat keine eigene Zahl dafür.
+   *
+   * Zehn Meter über hundertachtundzwanzig sind viereinhalb Grad und tragen.
+   * Für die Gegenprobe muss derselbe Hang steil werden — sonst prüfte das hier
+   * nur, dass die Funktion irgendetwas zurückgibt.
+   */
+  check(world.begehbar(64.0f, 0.0f), "der sanfte Hang trägt");
+  data[centre] = static_cast<int16_t>(200.0f * aur::kSculptUnit);
+  check(world.slopeAt(64.0f, 0.0f) > aur::kMaxWalkableSlopeDeg, "aufgesteilt ist er unbegehbar");
+  check(!world.begehbar(64.0f, 0.0f), "und dann trägt er nicht mehr");
+  // Und die Ebene daneben trägt weiterhin: die Absage gilt dem Hang, nicht der
+  // ganzen Karte.
+  check(world.begehbar(256.0f, 0.0f), "die Ebene daneben trägt trotzdem");
+  data[centre] = static_cast<int16_t>(10.0f * aur::kSculptUnit);
 
   // Abschalten stellt den alten Zustand her — das braucht der Editor beim
   // Wechsel auf eine Karte ohne Feld.
@@ -1359,6 +1430,7 @@ int main() {
 
   testMovement();
   testCollider();
+  testSpringUeberProp();
   testSwingHitsOnlyTarget();
   testJump();
   testWindupDelaysDamage();

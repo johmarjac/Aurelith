@@ -141,7 +141,7 @@ export interface CoreEvent {
 // --- Rohschnittstelle des Emscripten-Moduls ---------------------------------
 
 interface RawWorld {
-  addCollider(x: number, z: number, radius: number): void;
+  addCollider(x: number, z: number, radius: number, hoehe: number): void;
   addZone(
     x: number,
     z: number,
@@ -241,6 +241,7 @@ interface RawWorld {
   clearEvents(): void;
   heightAt(x: number, z: number): number;
   slopeAt(x: number, z: number): number;
+  begehbar(x: number, z: number): boolean;
   sampleHeightGrid(
     originX: number,
     originZ: number,
@@ -325,8 +326,14 @@ export class CoreWorld {
     this.raw.clearPlattformen();
   }
 
-  addCollider(x: number, z: number, radius: number): void {
-    this.raw.addCollider(x, z, radius);
+  /**
+   * Ein Prop, das im Weg steht.
+   *
+   * `hoehe` ist die Höhe über dem Boden an dieser Stelle; null oder weniger
+   * heisst „bis in den Himmel". Über allem darunter springt man hinweg.
+   */
+  addCollider(x: number, z: number, radius: number, hoehe: number): void {
+    this.raw.addCollider(x, z, radius, hoehe);
   }
 
   clearColliders(): void {
@@ -557,6 +564,15 @@ export class CoreWorld {
 
   slopeAt(x: number, z: number): number {
     return this.raw.slopeAt(x, z);
+  }
+
+  /**
+   * Trägt das Gelände hier eine Figur? Die Schwelle steht im Kern
+   * (`kMaxWalkableSlopeDeg`) und nicht hier — dieselbe Zahl, mit der ein
+   * Schritt angenommen wird.
+   */
+  begehbar(x: number, z: number): boolean {
+    return this.raw.begehbar(x, z);
   }
 
   /**

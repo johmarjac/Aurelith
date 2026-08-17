@@ -34,6 +34,18 @@ bool World::tryStep(Entity& e, float dx, float dz) {
 
   // Props auflösen: aus jedem überlappenden Kreis herausschieben.
   for (const Collider& c : colliders_) {
+    /*
+     * Wer über der Oberkante ist, ist darüber hinweg.
+     *
+     * Vorher galt jeder Kreis über die ganze Höhe der Welt: ein Zaunfeld von
+     * anderthalb Metern hielt auch den auf, der zwei Meter darüber flog. Man
+     * konnte springen, so hoch man wollte, und blieb am Zaun hängen — die
+     * Sorte Fehler, die sich wie ein kaputtes Spiel anfühlt.
+     *
+     * `e.y` ist die Höhe der **Füsse**. Genau das ist gemeint: darüber ist man
+     * hinweg, darunter stösst man an.
+     */
+    if (e.y >= c.obenY) continue;
     const float cdx = nx - c.x;
     const float cdz = nz - c.z;
     const float minDist = c.radius + e.radius;

@@ -1064,6 +1064,28 @@ export class GameServer {
 
       for (let i = 0; i < budget && session.inputQueue.length > 0; i++) {
         const input = session.inputQueue.shift()!;
+
+        /*
+         * Wer losläuft, steigt nicht auf.
+         *
+         * Vier Sekunden stillstehen ist der Preis fürs Fliegen; wer in dieser
+         * Zeit weitergeht, hat es sich anders überlegt. Vorher lief der Balken
+         * beim Laufen durch, und die Figur hob mitten im Schritt ab — ein
+         * Aufsteigen, das niemand mehr gewollt hatte, und auf dem Telefon der
+         * halbe Weg zum versehentlichen Flug.
+         *
+         * Ein Zehntel Ausschlag als Schwelle, nicht null: der Steuerknüppel
+         * gibt analoge Werte ab, und eine ruhende Daumenkuppe darauf schickt
+         * kleine Zahlen statt gar keiner. Bei null bräche jeder Zittrer ab.
+         */
+        if (session.vorgang && Math.hypot(input.moveX, input.moveZ) > 0.1) {
+          // Die Absage nennt den Vorgang beim Namen. Heute gibt es nur einen;
+          // die Zeile bleibt trotzdem richtig, wenn ein zweiter dazukommt.
+          const art = session.vorgang.art;
+          this.brichVorgangAb(session);
+          this.systemMessage(session, `${art === 'aufsteigen' ? 'Aufsteigen' : art} abgebrochen — du bist losgelaufen.`);
+        }
+
         instance.world.applyInput(
           session.entityId,
           input.moveX,
@@ -1615,6 +1637,28 @@ export class GameServer {
     }
 
     if (entry.equipped) {
+      /*
+       * Abgestiegen wird über Boden, der trägt.
+       *
+       * Die Insel endet in einer Klippe, und was dahinter liegt, ist Meer.
+       * Beides trägt niemanden: unten steht man auf dem Meeresgrund, auf der
+       * Klippe auf achtundsiebzig Grad — und in beiden Fällen ist das Gerät,
+       * mit dem man wieder wegkäme, gerade in den Beutel gewandert. Das war
+       * kein hypothetischer Fall: bis an den Rand fliegen zu dürfen ist genau
+       * das, was die Sperrzonen weit draussen erlauben sollen.
+       *
+       * Die Prüfung steht **vor** jeder Änderung, damit die Absage nichts
+       * kostet.
+       */
+      if (def.kind === 'flug') {
+        const instance = this.instances.get(session.mapId);
+        const row = instance?.entity(session.entityId);
+        if (instance && row && !instance.traegtBoden(row.x, row.z)) {
+          this.systemMessage(session, 'Hier unten ist kein Halt — flieg zurück über die Insel.');
+          return;
+        }
+      }
+
       // Abgelegt heisst: zurück in den Beutel. Ist dort keine Kachel frei,
       // bleibt es an. Sonst hätte das Stück nach dem Ablegen keinen Ort — und
       // ein Gegenstand ohne Ort ist ein verlorener Gegenstand.
@@ -1667,6 +1711,27 @@ export class GameServer {
     entry.equipped = true;
     normalizeSlots(session.items);
     session.itemsDirty = true;
+
+    /*
+     * Wer aufsteigt, nimmt seine Begleiter mit.
+     *
+     * Freilassen vom Gerät aus war schon abgesagt (`schalteHaustier`) — der
+     * Fall hier ist der umgekehrte und war die Lücke: erst freilassen, dann
+     * aufsteigen. Danach lief das Tier am Boden hinter einer Figur her, die
+     * vierzig Meter darüber schwebt, kam nie an, und die Heimweg-Regel in
+     * `pets.ts` zog es in Sichtweite der Leine wieder ein und liess es wieder
+     * los. Einsammeln ist die einzige Antwort, die beide Enden zusammenbringt.
+     *
+     * Nach `entry.equipped = true`, damit `holeHaustierZurueck` seine
+     * Meldungen und den Beutel auf dem schon fliegenden Stand schickt.
+     */
+    if (def.kind === 'flug') {
+      for (const art of [...session.pets.keys()]) {
+        const lauf = session.pets.get(art)!;
+        const tier = getItem(lauf.itemId);
+        this.holeHaustierZurueck(session, art, `${tier?.name ?? 'Dein Begleiter'} kommt mit.`);
+      }
+    }
 
     this.applyLoadout(session);
     this.sendInventory(session);

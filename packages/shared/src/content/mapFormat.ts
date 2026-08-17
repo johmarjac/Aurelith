@@ -164,6 +164,15 @@ export interface PropInstance {
   snapToGround: boolean;
   collision: PropCollisionShape;
   collisionRadius: number;
+  /**
+   * Wie hoch das Prop im Weg steht, in Metern über seinem Fuss.
+   *
+   * Null heisst **bis in den Himmel**: so verhalten sich Bäume, Säulen und
+   * alles, worüber niemand springen soll. Alles andere darf man überspringen,
+   * sobald die Füsse über der Oberkante sind — und genau deshalb steht die
+   * Zahl hier und nicht im Modell: der Kern kennt keine Geometrie, nur Kreise.
+   */
+  collisionHeight: number;
   /** Optionale Farbanpassung, 0xRRGGBB. Erlaubt Varianz ohne neue Modelle. */
   tint?: number;
 }
@@ -442,6 +451,11 @@ export function parseMapDocument(raw: unknown, source = 'map'): MapDocument {
         ? o.collision
         : 'none') as PropCollisionShape,
       collisionRadius: optNum(o, 'collisionRadius', 1, path),
+      // Ohne Angabe: bis in den Himmel. Das ist die Vorgabe, die eine ältere
+      // Karte ohne dieses Feld genauso stehen lässt wie bisher — und der
+      // harmlosere der beiden Irrtümer, denn ein Baum, über den man springt,
+      // fällt später auf als ein Zaun, an dem man hängenbleibt.
+      collisionHeight: optNum(o, 'collisionHeight', 0, path),
       ...(typeof o.tint === 'number' ? { tint: o.tint } : {}),
     };
   });

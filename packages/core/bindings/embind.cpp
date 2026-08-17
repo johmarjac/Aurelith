@@ -241,6 +241,7 @@ EMSCRIPTEN_BINDINGS(aurelith_core) {
       .function("clearEvents", &aur::World::clearEvents)
       .function("heightAt", &aur::World::heightAt)
       .function("slopeAt", &aur::World::slopeAt)
+      .function("begehbar", &aur::World::begehbar)
       .function("sampleHeightGrid", &sampleHeightGrid);
 
   // --- Freie Funktionen ----------------------------------------------------

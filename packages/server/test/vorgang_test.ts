@@ -38,6 +38,7 @@ import {
   decodeWelcome,
   encodeEquipItem,
   encodeFrame,
+  encodeInput,
   encodeUseItem,
   nullCipher,
   readPacket,
@@ -63,7 +64,11 @@ for (const datei of readdirSync(quelle).filter((f) => f.endsWith('.json'))) {
   const daten = JSON.parse(readFileSync(join(quelle, datei), 'utf8')) as {
     starter?: Array<Record<string, unknown>>;
   };
-  if (datei === 'items.json') daten.starter?.push({ item: 'flug_besen', count: 1, equipped: false });
+  if (datei === 'items.json') {
+    daten.starter?.push({ item: 'flug_besen', count: 1, equipped: false });
+    // Und eine Ratte: das Aufsteigen soll sie einsammeln.
+    daten.starter?.push({ item: 'pet_ratte', count: 1, equipped: false });
+  }
   writeFileSync(join(inhalt, datei), JSON.stringify(daten));
 }
 
@@ -181,6 +186,107 @@ check(
   vorgaenge.filter((v) => v.dauerMs === 0).length === vorherEnden,
   'und meldet gar keinen Vorgang',
 );
+
+// --- 1b. Wer losläuft, steigt nicht auf ------------------------------------
+
+/*
+ * Vier Sekunden stillstehen ist der Preis fürs Fliegen. Vorher lief der Balken
+ * auch dann durch, wenn man weiterging, und die Figur hob mitten im Schritt
+ * ab — auf dem Telefon der halbe Weg zum versehentlichen Flug.
+ *
+ * Die Gegenprobe steckt gleich darüber: **derselbe** Besen ist eben ohne
+ * Bewegung angelegt worden. Ohne sie prüfte das hier nur, dass Aufsteigen
+ * manchmal nicht klappt.
+ */
+console.log('\nWer losläuft, steigt nicht auf');
+
+let seq = 1;
+const lauf = (moveX: number): void => {
+  send(encodeInput({ seq: seq++, moveX, moveZ: 0, yaw: 0, buttons: 0 }));
+};
+
+meldungen.length = 0;
+const abbruchVorher = vorgaenge.filter((v) => v.dauerMs === 0).length;
+send(encodeEquipItem(besen.slot));
+await sleep(500);
+check(
+  vorgaenge.some((v) => v.art === 'aufsteigen'),
+  'der Balken läuft wieder an',
+);
+
+// Ein voller Ausschlag am Steuerknüppel — mehr braucht es nicht.
+lauf(1);
+await sleep(400);
+check(
+  vorgaenge.filter((v) => v.dauerMs === 0).length > abbruchVorher,
+  'ein Schritt beendet den Balken sofort',
+);
+check(
+  meldungen.some((m) => m.includes('abgebrochen')),
+  'und sagt es in der Hinweiszeile',
+  meldungen.join(' | ') || '(keine Meldung)',
+);
+
+// Und nach der vollen Wartezeit sitzt trotzdem nichts im Flugplatz: der
+// Vorgang wurde abgebrochen und nicht bloss der Balken ausgeblendet.
+await sleep(4200);
+check(
+  beutel.find((e) => e.itemId === 'flug_besen')?.equipped === false,
+  'und nach vier Sekunden fliegt niemand',
+);
+
+// --- 1c. Aufsteigen nimmt die Begleiter mit --------------------------------
+
+/*
+ * Ein Begleiter läuft am Boden und folgt einer Figur, die dort steht. Wer
+ * aufsteigt, lässt ihn vierzig Meter unter sich zurück; die Heimweg-Regel in
+ * `pets.ts` zog ihn dann abwechselnd ein und wieder heraus. Einsammeln ist die
+ * einzige Antwort, die beide Enden zusammenbringt.
+ */
+console.log('\nAufsteigen nimmt die Begleiter mit');
+
+const ratte = beutel.find((e) => e.itemId === 'pet_ratte');
+check(ratte !== undefined, 'die Ratte liegt im Beutel');
+if (!ratte) throw new Error('ohne Ratte keine Prüfung');
+
+send(encodeUseItem(ratte.slot));
+await sleep(600);
+check(
+  beutel.find((e) => e.itemId === 'pet_ratte')?.unterwegs === true,
+  'sie läuft nach dem Freilassen mit',
+);
+
+/*
+ * Gegenprobe **vor** dem Aufsteigen: dieselbe Wartezeit ohne Fluggerät lässt
+ * sie draussen. Sonst prüfte das Folgende nur, dass eine Ratte nach fünf
+ * Sekunden irgendwann verschwindet.
+ */
+await sleep(4500);
+check(
+  beutel.find((e) => e.itemId === 'pet_ratte')?.unterwegs === true,
+  'blosses Warten holt sie nicht zurück',
+);
+
+meldungen.length = 0;
+send(encodeEquipItem(besen.slot));
+await sleep(4800);
+check(
+  beutel.find((e) => e.itemId === 'flug_besen')?.equipped === true,
+  'ohne Schritt sitzt der Besen wieder im Flugplatz',
+);
+check(
+  beutel.find((e) => e.itemId === 'pet_ratte')?.unterwegs === false,
+  'und die Ratte ist eingesammelt',
+);
+check(
+  meldungen.some((m) => m.includes('kommt mit')),
+  'sie sagt auch, dass sie mitkommt',
+  meldungen.join(' | ') || '(keine Meldung)',
+);
+
+// Wieder absteigen, damit der Heiltrank auf dem Boden geprüft wird.
+send(encodeEquipItem(beutel.find((e) => e.itemId === 'flug_besen')!.slot));
+await sleep(600);
 
 // --- 2. Der Heiltrank ------------------------------------------------------
 

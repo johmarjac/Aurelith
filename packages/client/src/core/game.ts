@@ -1070,7 +1070,12 @@ export class Game {
     // stehe im Baum, und die Autorität schiebt einen jedes Mal heraus.
     for (const prop of doc.props) {
       if (prop.collision === 'circle') {
-        world.addCollider(prop.position[0], prop.position[2], prop.collisionRadius * prop.scale);
+        world.addCollider(
+          prop.position[0],
+          prop.position[2],
+          prop.collisionRadius * prop.scale,
+          prop.collisionHeight * prop.scale,
+        );
       } else if (prop.collision === 'plattform') {
         // Oberkante = `position[1]`. Siehe `mapFormat`: der Ursprung eines
         // schwebenden Felsens liegt in der Fläche, auf der man steht.

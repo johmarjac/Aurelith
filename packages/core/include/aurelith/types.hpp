@@ -29,10 +29,17 @@ constexpr float kMaxWalkableSlopeDeg = 52.0f;
 // Beide Zahlen liegen deutlich über der Wirklichkeit, und das ist Absicht: mit
 // 9,81 m/s² schwebt eine Figur, die gut einen Meter hoch springt, fast eine
 // Sekunde lang durch die Luft, und das fühlt sich an wie auf dem Mond. 22 und
-// 7,2 ergeben 1,18 Meter Scheitelhöhe in 0,65 Sekunden — hoch genug, dass man
+// 8,6 ergeben 1,68 Meter Scheitelhöhe in 0,78 Sekunden — hoch genug, dass man
 // den Sprung sieht, kurz genug, dass er die Steuerung nicht anhält.
+//
+// Hier stand 7,2, also 1,18 m. Das war knapp **unter** der Höhe eines
+// Zaunfelds (1,15 m plus die Dicke der Sohle), und damit blieb jeder Sprung
+// über einen Zaun am Zaun hängen — der auffälligste Fall von „ich habe
+// gedrückt und nichts passierte". Die Zahl ist deshalb an den Dingen
+// ausgerichtet, über die man springen können soll: Zaun 1,15 m,
+// Steinmauer 0,82 m, Fass 0,9 m, Kiste 0,7 m.
 constexpr float kGravity = 22.0f;
-constexpr float kJumpSpeed = 7.2f;
+constexpr float kJumpSpeed = 8.6f;
 
 // --- Fliegen ---------------------------------------------------------------
 //
@@ -290,10 +297,24 @@ struct Spawner {
   int32_t levelOverride = -1;
 };
 
+/**
+ * Ein Prop, das im Weg steht — ein Kreis mit einer **Oberkante**.
+ *
+ * `obenY` ist die Welthöhe, ab der man darüber hinweg ist. Der Kreis galt
+ * vorher über die ganze Höhe der Welt, und damit war jeder Zaun eine Wand bis
+ * in den Himmel: man konnte über ein Zaunfeld springen, so hoch man wollte,
+ * und wurde in der Luft davon abgehalten.
+ *
+ * Absolut und nicht relativ zum Gelände, weil die Alternative teuer wäre: der
+ * Vergleich läuft in jedem Schritt für jeden Kreis in Reichweite, und eine
+ * Geländeabfrage je Kreis und Schritt wäre ein Vielfaches davon. Die Höhe wird
+ * einmal beim Einhängen ausgerechnet — dort steht das Gelände ohnehin schon.
+ */
 struct Collider {
   float x;
   float z;
   float radius;
+  float obenY;
 };
 
 /**

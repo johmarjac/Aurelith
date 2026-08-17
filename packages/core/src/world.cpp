@@ -31,8 +31,18 @@ void World::resizeSculpt(int resolution) {
 // Aufbau
 // ---------------------------------------------------------------------------
 
-void World::addCollider(float x, float z, float radius) {
-  colliders_.push_back({x, z, radius});
+void World::addCollider(float x, float z, float radius, float hoehe) {
+  /*
+   * Die Oberkante wird **hier** ausgerechnet und nicht bei jedem Schritt.
+   *
+   * `hoehe` <= 0 heisst „bis in den Himmel" — für Bäume, Säulen und alles,
+   * worüber niemand springen soll. Ein sehr grosser Wert statt einer Flagge:
+   * der Vergleich in `tryStep` bleibt damit eine einzige Zeile ohne
+   * Sonderfall, und ein Sonderfall in der heissesten Schleife der Bewegung
+   * ist teurer als eine grosse Zahl.
+   */
+  const float oben = hoehe > 0.0f ? terrainHeight(x, z, terrain_) + hoehe : 1.0e9f;
+  colliders_.push_back({x, z, radius, oben});
 }
 
 void World::addZone(float x, float z, float halbX, float halbZ, bool keinLauf, bool keinFlug) {
