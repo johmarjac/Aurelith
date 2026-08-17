@@ -139,7 +139,39 @@ function pruefe(
   return failures - vorher;
 }
 
-pruefe((field, id, wer, x, z, now) => field.check(id, wer, x, z, now));
+/*
+ * Die Höhe kommt mit — die Prüfung misst seit dem Felsen im Raum. Hier steht
+ * überall null: der Haufen liegt auf dem Boden und der Prüfling daneben, und
+ * damit ist die senkrechte Lücke null und das Ergebnis dasselbe wie vorher.
+ * Was die Höhe wirklich ausmacht, steht gleich darunter.
+ */
+pruefe((field, id, wer, x, z, now) => field.check(id, wer, x, 0, z, 1.8, now));
+
+// ---------------------------------------------------------------------------
+// Aus der Höhe hebt niemand auf
+// ---------------------------------------------------------------------------
+
+/*
+ * Die Reichweite gilt im Raum und nicht auf der Karte.
+ *
+ * Auf der Karte liegt ein Haufen unter einem schwebenden Felsen genau da, wo
+ * man oben steht — und mit einer flachen Reichweite räumte man von dort die
+ * ganze Wiese ab, ohne hinunterzugehen. Dieselbe Verwechslung, die eine Horde
+ * Keiler sechsundzwanzig Meter nach oben schlagen liess.
+ */
+console.log('\nAus der Höhe hebt niemand auf');
+
+{
+  const { field, id } = feld();
+  // Direkt daneben, auf gleicher Höhe: das muss gehen.
+  const nah = field.check(id, ERLEGER, 0, 0, 0, 1.8, 0);
+  check(nah.ok, 'wer danebensteht, hebt auf', nah.ok ? '' : nah.reason);
+
+  // Und derselbe Haufen von einem Felsen darüber aus: dieselbe Stelle auf der
+  // Karte, sechsundzwanzig Meter höher.
+  const hoch = field.check(id, ERLEGER, 0, 26, 0, 1.8, 0);
+  check(!hoch.ok && hoch.reason === 'zu weit', 'vom Felsen darüber nicht', hoch.ok ? 'erlaubt' : hoch.reason);
+}
 
 // ---------------------------------------------------------------------------
 // Wegnehmen und Verfallen
@@ -152,7 +184,7 @@ console.log('\nWegnehmen und Verfallen');
   check(field.size === 1, 'ein Haufen liegt da');
   // `check` allein nimmt nichts weg: der Inhalt kann in einem vollen Beutel
   // stecken bleiben, und dann muss der Haufen liegen bleiben.
-  field.check(id, ERLEGER, 0, 0, 0);
+  field.check(id, ERLEGER, 0, 0, 0, 1.8, 0);
   check(field.size === 1, 'prüfen allein nimmt nichts weg');
   field.take(id);
   check(field.size === 0, 'wegnehmen schon');

@@ -32,6 +32,38 @@ export function normalizeAngle(a: number): number {
   return r;
 }
 
+/**
+ * Abstand zweier Körper im **Raum** — waagerecht plus die Lücke dazwischen.
+ *
+ * Spiegel von `abstandRaum` in `types.hpp`; wer eine ändert, ändert beide. Der
+ * Kern braucht sie für Wahrnehmung und Schlag, der Server für alles, was eine
+ * Reichweite hat: ansprechen, handeln, aufheben, durch ein Tor gehen.
+ *
+ * Gemessen wird zwischen den Körpern und nicht von Fuss zu Fuss: jeder steht
+ * mit den Füssen auf `y` und reicht bis `y + hoehe`. Überschneiden sich die
+ * beiden Bereiche — auf jeder Wiese, an jedem Hang, auf jeder Treppe —, ist
+ * die senkrechte Lücke null und diese Zahl dieselbe wie `dist2D`. Erst echte
+ * Luft dazwischen zählt. Genau deshalb ändert die Regel am Boden nichts.
+ *
+ * Was keinen Körper hat — ein Beutehaufen, ein Torfeld —, bekommt die Höhe
+ * null und ist damit ein Punkt.
+ */
+export function abstandRaum(
+  ax: number,
+  ay: number,
+  az: number,
+  aHoehe: number,
+  bx: number,
+  by: number,
+  bz: number,
+  bHoehe: number,
+): number {
+  const unten = Math.max(ay, by);
+  const oben = Math.min(ay + aHoehe, by + bHoehe);
+  const lueckeY = Math.max(0, unten - oben);
+  return Math.hypot(bx - ax, bz - az, lueckeY);
+}
+
 export function dist2D(ax: number, az: number, bx: number, bz: number): number {
   const dx = bx - ax;
   const dz = bz - az;

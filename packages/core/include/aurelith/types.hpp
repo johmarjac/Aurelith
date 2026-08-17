@@ -14,6 +14,8 @@
 
 #pragma once
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 
 namespace aur {
@@ -484,6 +486,33 @@ struct Entity {
   float expReward = 0.0f;
   float goldReward = 0.0f;
 };
+
+/**
+ * Wie weit zwei Wesen voneinander entfernt sind — **im Raum**.
+ *
+ * Der Kern hat lange nur `dist2D` gekannt, und in einer Welt mit Fluggeräten
+ * und schwebenden Felsen ist das falsch: eine Horde Keiler stand unter einem
+ * Felsen und griff jemanden an, der sechsundzwanzig Meter darüber stand. Auf
+ * der Karte war er neben ihnen.
+ *
+ * Gemessen wird nicht von Fuss zu Fuss, sondern zwischen den **Körpern**:
+ * jedes Wesen steht mit den Füssen auf `y` und reicht bis `y + height`. Solange
+ * sich die beiden Höhenbereiche überschneiden — also auf jeder Wiese, an jedem
+ * Hang, auf jeder Treppe — ist die senkrechte Lücke null und diese Zahl genau
+ * dieselbe wie früher. Erst wenn wirklich Luft dazwischen ist, wächst sie.
+ *
+ * Das ist der Grund für die Bauart: die Regel soll **nichts** am Boden ändern.
+ * Ein Abstand von Fuss zu Fuss täte das — er verkürzte jede Reichweite am
+ * Hang, und niemand hätte dafür eine Erklärung.
+ */
+inline float abstandRaum(const Entity& a, const Entity& b) {
+  const float unten = std::max(a.y, b.y);
+  const float oben = std::min(a.y + a.height, b.y + b.height);
+  const float lueckeY = std::max(0.0f, unten - oben);
+  const float dx = b.x - a.x;
+  const float dz = b.z - a.z;
+  return std::sqrt(dx * dx + dz * dz + lueckeY * lueckeY);
+}
 
 // ---------------------------------------------------------------------------
 // Gepackte Sichten für JavaScript. Feldreihenfolge = Vertrag.

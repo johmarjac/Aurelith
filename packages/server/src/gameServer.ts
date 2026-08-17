@@ -27,6 +27,7 @@ import {
   EntityType,
   FrameError,
   CHAT_RADIUS,
+  abstandRaum,
   INTEREST_RADIUS,
   KickReason,
   MOBS,
@@ -1441,9 +1442,23 @@ export class GameServer {
     const portal = instance.doc.portals.find((p) => p.id === portalId);
     if (!portal) return;
 
-    const dx = row.x - portal.position[0];
-    const dz = row.z - portal.position[1];
-    if (dx * dx + dz * dz > portal.radius * portal.radius) return;
+    /*
+     * Auch ein Tor hat eine Höhe — genauer: es steht auf dem Boden, und wer
+     * darüber hinwegfliegt, geht nicht hindurch. Vorher tat er das: ein Druck
+     * auf F aus vierzig Metern versetzte auf die andere Karte, weil auf der
+     * Karte betrachtet beides an derselben Stelle liegt.
+     *
+     * Das Tor kennt nur `x` und `z`; seine Höhe ist der Boden darunter, und
+     * seine Torhöhe grosszügig der Radius — ein hohes Tor soll auch von einem
+     * Sprung aus zu treffen sein.
+     */
+    const torX = portal.position[0];
+    const torZ = portal.position[1];
+    const torY = instance.world.heightAt(torX, torZ);
+    if (
+      abstandRaum(row.x, row.y, row.z, row.height, torX, torY, torZ, portal.radius) > portal.radius
+    )
+      return;
 
     this.transfer(session, portalId);
   }
@@ -2002,9 +2017,9 @@ export class GameServer {
       const meta = instance.metaFor(row.id);
       if (!meta || meta.type !== EntityType.Npc) continue;
       if (getNpc(meta.defId)?.role !== 'smith') continue;
-      const dx = row.x - self.x;
-      const dz = row.z - self.z;
-      if (dx * dx + dz * dz <= interactRange() * interactRange()) return true;
+      if (abstandRaum(self.x, self.y, self.z, self.height, row.x, row.y, row.z, row.height) <=
+          interactRange())
+        return true;
     }
     return false;
   }
@@ -2384,9 +2399,15 @@ export class GameServer {
     const meta = instance.metaFor(entityId);
     if (!meta || meta.type !== EntityType.Npc) return;
 
-    const dx = target.x - self.x;
-    const dz = target.z - self.z;
-    if (dx * dx + dz * dz > interactRange() * interactRange()) {
+    /*
+     * Im Raum und nicht auf der Karte — wie überall, wo eine Reichweite gilt.
+     * Vom schwebenden Felsen aus stand man sonst sechsundzwanzig Meter über
+     * dem Händler und trotzdem „vor" ihm.
+     */
+    if (
+      abstandRaum(self.x, self.y, self.z, self.height, target.x, target.y, target.z, target.height) >
+      interactRange()
+    ) {
       this.systemMessage(session, 'Zu weit weg.');
       return;
     }
@@ -2607,9 +2628,9 @@ export class GameServer {
     for (const row of instance.entities) {
       const meta = instance.metaFor(row.id);
       if (!meta || meta.type !== EntityType.Npc || meta.defId !== npcDefId) continue;
-      const dx = row.x - self.x;
-      const dz = row.z - self.z;
-      if (dx * dx + dz * dz <= interactRange() * interactRange()) return row.id;
+      if (abstandRaum(self.x, self.y, self.z, self.height, row.x, row.y, row.z, row.height) <=
+          interactRange())
+        return row.id;
     }
     return undefined;
   }
@@ -2645,9 +2666,9 @@ export class GameServer {
       if (!meta || meta.type !== EntityType.Npc) continue;
       const def = getNpc(meta.defId);
       if (!def?.shop?.length) continue;
-      const dx = row.x - self.x;
-      const dz = row.z - self.z;
-      if (dx * dx + dz * dz <= interactRange() * interactRange()) return def;
+      if (abstandRaum(self.x, self.y, self.z, self.height, row.x, row.y, row.z, row.height) <=
+          interactRange())
+        return def;
     }
     return undefined;
   }
@@ -2715,7 +2736,7 @@ export class GameServer {
     const self = instance?.entity(session.entityId);
     if (!instance || !self) return;
 
-    const ergebnis = instance.loot.check(lootId, session.entityId, self.x, self.z);
+    const ergebnis = instance.loot.check(lootId, session.entityId, self.x, self.y, self.z, self.height);
     if (!ergebnis.ok) {
       // „weg" ist der Normalfall bei einem Doppelklick oder wenn ein anderer
       // schneller war — dazu jedes Mal eine Meldung wäre nur Lärm.

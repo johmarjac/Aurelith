@@ -64,9 +64,15 @@ void World::resolveSwing(Entity& attacker) {
    *
    * Bis zur Hülle, nicht bis zum Mittelpunkt — ein dickes Monster ist eher
    * getroffen als ein dünnes an derselben Stelle.
+   *
+   * Von Fuss zu Fuss stand hier einmal, und das war eine Spur zu streng: an
+   * einem Hang stehen zwei Figuren nebeneinander und trotzdem einen halben
+   * Meter auseinander, und die Reichweite schrumpfte dort, ohne dass jemand
+   * dafür eine Erklärung gehabt hätte. `abstandRaum` misst zwischen den
+   * Körpern — am Hang null, in der Luft die volle Lücke — und ist damit
+   * dieselbe Zahl, mit der auch die Wahrnehmung rechnet.
    */
-  const float dy = target->y - attacker.y;
-  const float dist = std::sqrt(dx * dx + dy * dy + dz * dz) - target->radius;
+  const float dist = abstandRaum(attacker, *target) - target->radius;
   if (dist > attacker.attackRange) return;
 
   // Zum Ziel drehen. Auf dem Server ist das die Wahrheit, die per Snapshot bei
@@ -166,9 +172,10 @@ void World::areaAttack(uint32_t id, float radius, float damageFactor) {
     Entity& target = entities_[i];
     if (!isHostile(*attacker, target) || !isAlive(target)) continue;
 
-    const float dx = target.x - attacker->x;
-    const float dz = target.z - attacker->z;
-    const float dist = std::sqrt(dx * dx + dz * dz) - target.radius;
+    // Im Raum und nicht auf der Karte — dieselbe Regel wie beim einzelnen
+    // Schlag. Ohne sie erntete ein Flächenangriff vom Felsen aus die ganze
+    // Wiese darunter ab, ohne dass unten jemand etwas dagegen tun könnte.
+    const float dist = abstandRaum(*attacker, target) - target.radius;
     if (dist > radius) continue;
 
     applyDamage(*attacker, target, kCombatSkill, damageFactor);

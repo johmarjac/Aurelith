@@ -359,6 +359,56 @@ void testAggroAndLeash() {
   for (int i = 0; i < aur::kTickRate; ++i) world.step(aur::kTickSeconds);
   const float endDist = aur::dist2D(world.find(10)->x, world.find(10)->z, 0.0f, 0.0f);
   check(endDist < startDist, "Monster nähert sich dem Ziel");
+
+  /*
+   * --- Und wer über ihm steht, wird nicht bemerkt ---------------------------
+   *
+   * Der Fall aus dem Spiel: eine Horde Keiler stand unter einem schwebenden
+   * Felsen und griff jemanden an, der sechsundzwanzig Meter darüber auf dem
+   * Felsen stand. Auf der Karte war er neben ihnen, also nahm ihn `dist2D`
+   * wahr — und weil die Verfolgung dieselbe flache Zahl nahm, hielt sich das
+   * Monster auch noch für in Reichweite.
+   *
+   * Geprüft wird auf derselben Stelle, an der es eben noch geklappt hat: nur
+   * die Höhe ändert sich. Damit kann das Ergebnis an nichts anderem liegen.
+   */
+  {
+    aur::World hoch(11u, flatTerrain(), &mobs);
+    hoch.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+    hoch.spawnMob(10, aggressive, 0.0f, 3.0f, -1, aur::kNoSpawner);
+    const float grund = hoch.find(1)->y;
+
+    // Erst die Gegenprobe am Boden: dieselbe Stelle, dieselbe Entfernung.
+    hoch.step(aur::kTickSeconds);
+    check(hoch.find(10)->targetId == 1, "am Boden nimmt es ihn wahr");
+    const float unten = hoch.find(1)->hp;
+    for (int i = 0; i < 60; ++i) hoch.step(aur::kTickSeconds);
+    check(hoch.find(1)->hp < unten, "und schlägt auch zu");
+
+    /*
+     * Und jetzt hinauf. Ein **echter** Felsen und keine gesetzte Höhe: eine
+     * Figur, die einfach nach oben geschrieben wird, fällt im nächsten Tick
+     * wieder herunter, und die Prüfung mässe dann etwas ganz anderes. Genau
+     * daran ist die erste Fassung dieser Zeilen gescheitert.
+     */
+    hoch.addPlattform(0.0f, 0.0f, 6.0f, grund + 26.0f);
+    hoch.find(1)->y = grund + 26.0f;
+    hoch.find(1)->airborne = false;
+    hoch.find(10)->targetId = 0;
+    for (int i = 0; i < 5; ++i) hoch.step(aur::kTickSeconds);
+    check(std::fabs(hoch.find(1)->y - (grund + 26.0f)) < 1e-2f, "die Figur bleibt oben stehen");
+    check(hoch.find(10)->targetId == 0, "sechsundzwanzig Meter höher nimmt es ihn nicht wahr");
+
+    /*
+     * Und es trifft ihn auch nicht. Das war die zweite Hälfte der Meldung:
+     * ohne die Höhe in der Reichweite hielte sich das Monster für am Ziel und
+     * liesse den Vorlauf anlaufen — der Schlag käme an, obwohl niemand da ist.
+     */
+    const float oben = hoch.find(1)->hp;
+    hoch.find(10)->targetId = 1;
+    for (int i = 0; i < 60; ++i) hoch.step(aur::kTickSeconds);
+    check(hoch.find(1)->hp >= oben - 1e-3f, "und trifft ihn auch nicht");
+  }
 }
 
 void testDeathAndRespawn() {

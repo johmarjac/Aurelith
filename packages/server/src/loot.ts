@@ -11,7 +11,7 @@
  * Hier oben kostet er eine Zeile in einer Liste.
  */
 
-import { tuning } from '@aurelith/shared';
+import { abstandRaum, tuning } from '@aurelith/shared';
 
 export interface LootPile {
   id: number;
@@ -115,7 +115,15 @@ export class LootField {
    * Inhalt wirklich im Beutel angekommen ist. Ein voller Beutel darf keine
    * Beute verschlucken.
    */
-  check(id: number, entityId: number, x: number, z: number, now = Date.now()): PickupResult {
+  check(
+    id: number,
+    entityId: number,
+    x: number,
+    y: number,
+    z: number,
+    hoehe: number,
+    now = Date.now(),
+  ): PickupResult {
     const pile = this.piles.get(id);
     if (!pile || pile.expiresAt <= now) return { ok: false, reason: 'weg' };
 
@@ -123,10 +131,18 @@ export class LootField {
       return { ok: false, reason: 'fremd' };
     }
 
+    /*
+     * Im Raum gemessen und nicht auf der Karte.
+     *
+     * `near` darüber darf flach bleiben — was man **sieht**, hängt nicht an
+     * der Höhe, und ein Haufen unter einem schwebenden Felsen soll im Bild
+     * liegen. Aufheben ist etwas anderes: mit einer flachen Reichweite räumte
+     * man vom Felsen aus die Wiese darunter ab, ohne hinunterzugehen.
+     */
     const reichweite = tuning().loot.pickupRange;
-    const dx = pile.x - x;
-    const dz = pile.z - z;
-    if (dx * dx + dz * dz > reichweite * reichweite) return { ok: false, reason: 'zu weit' };
+    if (abstandRaum(x, y, z, hoehe, pile.x, pile.y, pile.z, 0) > reichweite) {
+      return { ok: false, reason: 'zu weit' };
+    }
 
     return { ok: true, pile };
   }

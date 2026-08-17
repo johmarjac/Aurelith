@@ -148,7 +148,19 @@ void World::updateMonsterAi(Entity& e, float dt) {
       // den Schlag entscheidet, entscheidet auch, wen man überhaupt bemerkt.
       // Ein Fluggerät macht unsichtbar, und zwar bevor die Jagd anfängt.
       if (!isAlive(other) || !isHostile(e, other)) continue;
-      const float d = dist2D(e.x, e.z, other.x, other.z);
+      /*
+       * Im Raum gemessen und nicht auf der Karte.
+       *
+       * Hier stand `dist2D`, und das war der Fehler, den man im Spiel sah:
+       * unter einem schwebenden Felsen stand eine Horde Keiler und griff
+       * jemanden an, der sechsundzwanzig Meter darüber auf dem Felsen stand.
+       * Auf der Karte war er neben ihnen — in der Welt ausser Reichweite.
+       *
+       * `abstandRaum` misst zwischen den Körpern und nicht von Fuss zu Fuss:
+       * am Boden und an jedem Hang kommt dieselbe Zahl heraus wie vorher, und
+       * nur echte Luft dazwischen zählt.
+       */
+      const float d = abstandRaum(e, other);
       if (d < bestDist) {
         bestDist = d;
         best = &other;
@@ -165,7 +177,10 @@ void World::updateMonsterAi(Entity& e, float dt) {
     return;
   }
 
-  const float dist = dist2D(e.x, e.z, target->x, target->z);
+  // Ebenfalls im Raum: sonst hielte sich das Monster für in Reichweite,
+  // schlüge zu, und `resolveSwing` liesse den Schlag ins Leere gehen — ein
+  // Wesen, das unter einem Felsen steht und endlos in die Luft haut.
+  const float dist = abstandRaum(e, *target);
   const float reach = e.attackRange + target->radius;
 
   if (dist > reach - kPreferredGap) {
