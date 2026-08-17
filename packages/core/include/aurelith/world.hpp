@@ -182,6 +182,7 @@ class World {
    * Schwerkraft wie nach einem Sprung, kein zweiter Weg nach unten.
    */
   void setzeAn(uint32_t id, float x, float y, float z);
+
   void respawnPlayer(uint32_t id, float x, float z);
   void setTarget(uint32_t id, uint32_t targetId);
 

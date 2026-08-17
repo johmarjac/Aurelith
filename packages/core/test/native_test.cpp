@@ -408,6 +408,42 @@ void testAggroAndLeash() {
     hoch.find(10)->targetId = 1;
     for (int i = 0; i < 60; ++i) hoch.step(aur::kTickSeconds);
     check(hoch.find(1)->hp >= oben - 1e-3f, "und trifft ihn auch nicht");
+
+    /*
+     * Und es **schiebt** ihn auch nicht.
+     *
+     * Die weiche Trennung hielt die beiden für ineinanderstehend — auf der
+     * Karte taten sie das ja — und drückte die Figur oben Schritt für Schritt
+     * über die Fläche, bis sie über die Kante fiel. Im Spiel sah das aus wie
+     * eine Figur, die von selbst wegrutscht.
+     */
+    hoch.find(10)->targetId = 0;
+    // Ein Stück versetzt und nicht auf dieselbe Stelle: die Trennung lässt
+    // genau übereinanderliegende Mittelpunkte aus, weil sie dafür keine
+    // Richtung hätte. Auf der Stelle prüfte dieser Abschnitt gar nichts —
+    // seine Gegenprobe blieb grün, als die Regel wieder entfernt wurde.
+    hoch.find(10)->x = hoch.find(1)->x;
+    hoch.find(10)->z = hoch.find(1)->z + 0.1f;
+    const float vorX = hoch.find(1)->x;
+    const float vorZ = hoch.find(1)->z;
+    for (int i = 0; i < 40; ++i) hoch.step(aur::kTickSeconds);
+    check(aur::dist2D(hoch.find(1)->x, hoch.find(1)->z, vorX, vorZ) < 0.05f,
+          "und schiebt ihn auch nicht vom Felsen");
+
+    /*
+     * Gegenprobe: **auf derselben Höhe** schiebt es sehr wohl. Ohne sie wäre
+     * die Zeile darüber auch mit einer Trennung zufrieden, die gar nicht mehr
+     * stattfindet — und dann stünden alle Wesen ineinander.
+     */
+    hoch.find(1)->y = grund;
+    hoch.find(1)->airborne = false;
+    hoch.find(10)->x = hoch.find(1)->x;
+    hoch.find(10)->z = hoch.find(1)->z + 0.1f;
+    const float engX = hoch.find(1)->x;
+    const float engZ = hoch.find(1)->z;
+    hoch.step(aur::kTickSeconds);
+    check(aur::dist2D(hoch.find(1)->x, hoch.find(1)->z, engX, engZ) > 0.05f,
+          "auf gleicher Höhe dagegen schon");
   }
 }
 

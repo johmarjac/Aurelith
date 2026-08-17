@@ -61,6 +61,11 @@ export interface CommandHost {
    */
   setzeAn(session: Session, x: number, y: number, z: number): boolean;
   /**
+   * Wo der **Server** diese Figur führt. `undefined` heisst: sie steht gerade
+   * in keiner Welt.
+   */
+  lage(session: Session): { x: number; y: number; z: number } | undefined;
+  /**
    * Setzt ein Monster dieser Kennung vor die Figur. Gibt seinen Namen zurück;
    * `undefined` heisst, dass es nicht gesetzt werden konnte — vor der Figur
    * liegt kein Boden, der etwas trägt.
@@ -251,6 +256,52 @@ export const COMMANDS: readonly CommandDef[] = [
           `Eine Karte „${karte}" gibt es hier nicht. Es gibt: ${host.kartenListe().join(', ')}.`,
         );
       }
+    },
+  },
+  {
+    name: 'position',
+    minLevel: AccessLevel.Gamemaster,
+    hilfe: '/position — wo Server und Client die Figur führen (ab Spielleiter)',
+    run(host, session, args) {
+      const server = host.lage(session);
+      if (!server) {
+        host.systemMessage(session, 'Deine Figur steht gerade in keiner Welt.');
+        return;
+      }
+
+      const z2 = (v: number): string => v.toFixed(2);
+      const serverText = `${z2(server.x)} / ${z2(server.y)} / ${z2(server.z)}`;
+
+      /*
+       * Der Client schickt seine eigene Lage als drei Zahlen mit.
+       *
+       * Anders geht es nicht: der Server weiss nicht, wo der Client die Figur
+       * gerade **zeichnet** — er kennt nur, was er selbst rechnet, und genau
+       * die beiden sollen verglichen werden. Damit steht die Antwort in einer
+       * Zeile statt in zweien, zwischen denen eine Netzlaufzeit liegt.
+       *
+       * Dass der Client dabei lügen könnte, ist bedeutungslos: aus diesen
+       * Zahlen folgt nichts als ein Text. Wer sich selbst falsche
+       * Diagnosewerte schickt, hat nur sich selbst belogen.
+       */
+      if (args.length !== 3) {
+        host.systemMessage(session, `Lage — Server ${serverText}`);
+        return;
+      }
+
+      const zahlen = args.map((w) => Number(w));
+      if (zahlen.some((n) => !Number.isFinite(n))) {
+        host.systemMessage(session, `Lage — Server ${serverText} (der Client nannte keine Zahlen)`);
+        return;
+      }
+
+      const [cx, cy, cz] = zahlen as [number, number, number];
+      const abweichung = Math.hypot(cx - server.x, cy - server.y, cz - server.z);
+      host.systemMessage(
+        session,
+        `Lage — Server ${serverText} · Client ${z2(cx)} / ${z2(cy)} / ${z2(cz)} · ` +
+          `Abweichung ${z2(abweichung)}`,
+      );
     },
   },
   {

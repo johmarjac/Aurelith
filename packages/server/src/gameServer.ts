@@ -3273,6 +3273,18 @@ export class GameServer {
     return true;
   }
 
+  /**
+   * Wo der Server diese Figur führt — für `/position`.
+   *
+   * Aus der Welt und nicht aus der Sitzung: die Sitzung merkt sich nur, was
+   * beim Abmelden gespeichert wird, und das ist Minuten alt. Gefragt ist die
+   * Zahl, mit der der Server **gerade** rechnet.
+   */
+  lage(session: Session): { x: number; y: number; z: number } | undefined {
+    const row = this.instances.get(session.mapId)?.entity(session.entityId);
+    return row ? { x: row.x, y: row.y, z: row.z } : undefined;
+  }
+
   /** Die Kennungen aller Karten, die dieser Kanal führt — für `/tp` ohne Treffer. */
   kartenListe(): string[] {
     return [...this.instances.keys()].sort();

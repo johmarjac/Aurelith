@@ -366,6 +366,12 @@ schlicht nichts mehr offen.
 Figur, die gerade im selben Kanal spielt — beides ab `gamemaster`. Die
 Erfahrung fällt dabei auf null: „Stufe 30" heisst der Anfang von Stufe 30.
 
+`/position` stellt gegenüber, wo Server und Client die Figur führen — beide
+Zahlen und ihr Abstand in **einer** Zeile. Der Client schickt seine eigene
+Lage mit; anders wüsste der Server nicht, was drüben gezeichnet wird. Bei
+gesunder Verbindung steht dort ein Abstand von unter einem halben Meter,
+solange man läuft, und null, wenn man steht.
+
 `/spawn <monster>` setzt eines vier Meter vor die Figur — ohne Spawner
 dahinter, es kommt also nicht wieder, wenn es gefallen ist. Genannt wird es
 mit seiner Kennung (`cave_crawler`) **oder** mit seinem deutschen Namen

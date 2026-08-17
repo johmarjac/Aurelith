@@ -115,6 +115,21 @@ void World::resolveOverlaps() {
       Entity& b = entities_[j];
       if (!isCombatant(b) || !isAlive(b)) continue;
 
+      /*
+       * Nur wer sich auch in der **Höhe** überschneidet, steht im Weg.
+       *
+       * Diese Zeile fehlte, und die Folge war grotesk: ein Keiler unter einem
+       * schwebenden Felsen schob die Figur, die sechsundzwanzig Meter darüber
+       * stand, über die Fläche — Schritt für Schritt, bis sie über die Kante
+       * fiel. Auf der Karte standen die beiden ja ineinander.
+       *
+       * Dieselbe Rechnung wie in `abstandRaum`: jeder reicht von `y` bis
+       * `y + height`, und überschneiden sich die Bereiche nicht, geht der eine
+       * über oder unter dem anderen hindurch. Wer jemandem auf dem Kopf steht,
+       * schiebt ihn damit auch nicht mehr zur Seite.
+       */
+      if (std::max(a.y, b.y) >= std::min(a.y + a.height, b.y + b.height)) continue;
+
       const float dx = b.x - a.x;
       const float dz = b.z - a.z;
       const float minDist = a.radius + b.radius;

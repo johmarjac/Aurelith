@@ -206,6 +206,15 @@ interface PendingInput {
   yaw: number;
   buttons: number;
   x: number;
+  /**
+   * Die Höhe zu diesem Schritt.
+   *
+   * Sie stand hier nicht, und damit war der Abgleich blind für alles
+   * Senkrechte: wer auf einem schwebenden Felsen stand und dort vom Server
+   * heruntergeschoben wurde, blieb im Bild oben stehen — dreissig Meter
+   * Abweichung, und keine Zeile im Client, die sie je bemerkt hätte.
+   */
+  y: number;
   z: number;
 }
 
@@ -1796,6 +1805,9 @@ export class Game {
       case 'version':
         this.commandVersion();
         break;
+      case 'position':
+        this.commandPosition();
+        break;
       case 'help':
         this.systemLine(
           '/connect <adresse> — mit einem Server verbinden, z. B. /connect ws://localhost:8787/ws',
@@ -1803,6 +1815,7 @@ export class Game {
         this.systemLine('/disconnect — gespeicherte Adresse loeschen und trennen');
         this.systemLine('/server — aktuelle Adresse anzeigen');
         this.systemLine('/version — Fassung von Server und Client anzeigen');
+        this.systemLine('/position — Lage von Server und Client vergleichen');
         // Und was der Server noch kann, sagt der Server: seine Liste hängt an
         // der Zugriffsstufe des Kontos.
         this.connection?.sendChat('/help');
@@ -1815,6 +1828,36 @@ export class Game {
         this.connection?.sendChat(text);
         break;
     }
+  }
+
+  /**
+   * `/position` — führen Server und Client dieselbe Lage?
+   *
+   * Der Client schickt seine eigene mit, und die Antwort kommt als **eine**
+   * Zeile mit beiden Zahlen und ihrem Abstand zurück. Zwei Zeilen — hier eine,
+   * dort eine — läsen sich wie zwei Ereignisse, und zwischen ihnen läge eine
+   * Netzlaufzeit, in der die Figur weitergelaufen ist. Verglichen werden soll
+   * derselbe Augenblick.
+   *
+   * Geschickt wird die **Vorhersage** und nicht die gezeichnete Lage: die
+   * Vorhersage ist es, die mit dem Server übereinstimmen soll. Die gezeichnete
+   * hinkt ihr um Bruchteile hinterher, weil sie geglättet wird — sie wäre
+   * immer ein bisschen anders, und der Befehl meldete ewig eine Abweichung,
+   * die keine ist.
+   */
+  private commandPosition(): void {
+    if (!this.connection) {
+      this.systemLine('Nicht verbunden — ohne Server gibt es nichts zu vergleichen.');
+      return;
+    }
+    const eigene = this.localRow();
+    if (!eigene) {
+      this.connection.sendChat('/position');
+      return;
+    }
+    this.connection.sendChat(
+      `/position ${eigene.x.toFixed(2)} ${eigene.y.toFixed(2)} ${eigene.z.toFixed(2)}`,
+    );
   }
 
   /**
@@ -2293,6 +2336,27 @@ export class Game {
 
     if (!anchor) return;
 
+    /*
+     * Waagerecht gemessen — und das ist eine **bekannte Lücke**.
+     *
+     * Eine Abweichung, die allein senkrecht ist, sieht diese Zeile nicht, und
+     * der Rückweg über `teleport` könnte sie auch nicht beheben: der behält
+     * den Abstand zum Boden bei. `/position` hat den Fall gezeigt — Server auf
+     * 4,56, Client auf 34,00, dreissig Meter auseinander und eingefroren, weil
+     * auf der Karte betrachtet alles stimmte.
+     *
+     * Die Ursache dieses einen Falls ist beseitigt (die weiche Trennung schob
+     * die Figur vom Felsen, ohne dass der Client davon wusste). Die Lücke im
+     * Abgleich bleibt.
+     *
+     * Der naheliegende Weg — Höhe in die Messung, `setzeHoehe` für die
+     * Korrektur — ist einmal gegangen und wieder zurückgenommen worden: er
+     * bricht das Absteigen vom Fluggerät (`smoke-flug`: die Figur steht sofort
+     * unten, statt zu fallen). Die Korrektur setzt dabei eine Höhe, ohne dass
+     * „in der Luft" dazu passt, und beides zusammen ergibt einen Zustand, den
+     * der nächste Tick wieder einreisst. Wer das aufgreift, fängt hier an und
+     * braucht dafür den Fallzustand im Schnappschuss — er steht dort nicht.
+     */
     const error = Math.hypot(serverX - anchor.x, serverZ - anchor.z);
     if (error > this.diagnostics.maxReconcileError) this.diagnostics.maxReconcileError = error;
     if (error <= RECONCILE_THRESHOLD) return;
@@ -2309,6 +2373,7 @@ export class Game {
       const row = this.localRow();
       if (row) {
         p.x = row.x;
+        p.y = row.y;
         p.z = row.z;
       }
     }
@@ -3281,6 +3346,7 @@ export class Game {
       yaw: snapshot.yaw,
       buttons,
       x: row?.x ?? 0,
+      y: row?.y ?? 0,
       z: row?.z ?? 0,
     });
     if (this.pending.length > MAX_PENDING_INPUTS) this.pending.shift();

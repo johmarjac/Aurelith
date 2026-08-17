@@ -207,6 +207,7 @@ const wirt: CommandHost = {
     return mapId !== 'gibtsnicht';
   },
   kartenListe: () => ['dornwald', 'gruft_01', 'lichtmoor'],
+  lage: () => ({ x: 12.345, y: 4.5, z: -7.891 }),
   setzeAn: (_s, x, y, z) => {
     stellen.push({ x, y, z });
     // Ob die Figur gerade in einer Welt steht, weiss der Server. Hier geht es
@@ -258,6 +259,61 @@ for (const eingabe of ['/gg', '/gg null', '/gg -5', '/gg 1.5', '/gg 99999999']) 
   runCommand(wirt, sitzung(AccessLevel.Admin), eingabe);
   check(gutgeschrieben === 0, `„${eingabe}" schreibt nichts gut`);
 }
+
+/*
+ * `/position` — dieselbe Lage auf beiden Seiten?
+ *
+ * Die Antwort steht in **einer** Zeile, weil nur so derselbe Augenblick
+ * verglichen wird. Geprüft wird, dass beide Zahlenpaare darin vorkommen und
+ * dass der Abstand dazwischen wirklich gerechnet und nicht abgeschrieben ist.
+ */
+gesagt.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Player), '/position');
+check(
+  gesagt.some((t) => t.includes('gamemaster')),
+  'ein Spieler fragt die Lage nicht ab',
+  gesagt.join(' | '),
+);
+
+gesagt.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Gamemaster), '/position');
+check(
+  gesagt.some((t) => t.includes('12.35') && t.includes('4.50') && t.includes('-7.89')),
+  'ohne Zahlen des Clients steht die des Servers da',
+  gesagt.join(' | '),
+);
+// Gegenprobe: ohne Angabe des Clients wird auch keine Abweichung behauptet.
+check(!gesagt.some((t) => t.includes('Abweichung')), 'und keine Abweichung dazu erfunden');
+
+gesagt.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Gamemaster), '/position 12.345 4.5 -7.891');
+check(
+  gesagt.some((t) => t.includes('Abweichung 0.00')),
+  'bei gleicher Lage ist die Abweichung null',
+  gesagt.join(' | '),
+);
+
+/*
+ * Und die Gegenprobe, die den Befehl erst brauchbar macht: eine echte
+ * Abweichung muss auch als solche dastehen. Drei Meter daneben — auf der
+ * Karte zwei, in der Höhe zwei, macht nach Pythagoras 2,83.
+ */
+gesagt.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Gamemaster), '/position 14.345 6.5 -7.891');
+check(
+  gesagt.some((t) => t.includes('Abweichung 2.83')),
+  'und eine echte Abweichung steht als Zahl da',
+  gesagt.join(' | '),
+);
+
+// Was keine Zahlen sind, wird benannt statt als null durchgereicht.
+gesagt.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Gamemaster), '/position hier drüben irgendwo');
+check(
+  gesagt.some((t) => t.includes('keine Zahlen')),
+  'und Unsinn vom Client wird benannt',
+  gesagt.join(' | '),
+);
 
 /*
  * `/tp` kann zweierlei, und die Anzahl der Wörter entscheidet.
