@@ -8,10 +8,11 @@
  *
  * Deshalb steht hier, was die Karte behauptet, als Zahl:
  *
- *   1. Sie ist rechteckig — der begehbare Streifen ist deutlich länger als
- *      breit, und alles ausserhalb ist gesperrt.
- *   2. Der Rand ist dicht, zu Fuss **und** in der Luft. Vier Streifen, die
- *      zusammen jeden Punkt ausserhalb decken.
+ *   1. Sie ist eine **Insel** und breit — vorher war sie ein Streifen von
+ *      zweihundert Metern Breite, und das las sich beim Laufen als eng.
+ *   2. Der äussere Rand ist dicht, zu Fuss **und** in der Luft — aber erst
+ *      weit draussen über dem Wasser: an Land hält die Klippe, und bis an
+ *      deren Kante soll man kommen.
  *   3. Was man erreichen soll, liegt in der Freiheit: Startpunkt, Tor, jeder
  *      NPC, jeder Spawner.
  *   4. Die Stufen steigen nach Norden. Das ist der ganze Aufbau der Karte,
@@ -58,7 +59,7 @@ function gesperrt(x: number, z: number, art: 'lauf' | 'flug'): ZoneDef | undefin
 
 console.log('Aurelith — Lichtmoor\n');
 
-console.log('Rechteckig, nicht quadratisch');
+console.log('Eine breite Insel, kein Streifen');
 
 // Der begehbare Streifen: die grösste Ausdehnung, die keine Zone berührt.
 const halb = doc.terrain.size * 0.5;
@@ -69,10 +70,16 @@ for (let x = -halb; x <= halb; x += 1) if (frei(x, 0)) breite++;
 let laenge = 0;
 for (let z = -halb; z <= halb; z += 1) if (frei(0, z)) laenge++;
 
-check(breite > 100 && laenge > 300, 'der begehbare Streifen ist gross genug', `${breite} × ${laenge}`);
+check(breite > 420 && laenge > 440, 'die Insel ist gross genug', `${breite} × ${laenge}`);
+/*
+ * Und **breit**, nicht schmal. Vorher stand hier die umgekehrte Behauptung —
+ * „deutlich länger als breit" —, und genau die war die Beschwerde: ein
+ * Korridor von zweihundert Metern Breite, an dessen Rand man ständig stand.
+ * Ein Verhältnis nahe eins heisst offene Landschaft statt Schlauch.
+ */
 check(
-  laenge > breite * 1.6,
-  'und deutlich länger als breit',
+  laenge < breite * 1.5 && breite < laenge * 1.5,
+  'und keine Schlucht in eine Richtung',
   `${laenge} zu ${breite} = ${(laenge / breite).toFixed(2)}`,
 );
 
@@ -91,7 +98,12 @@ for (let x = -halb; x <= halb; x += 5) {
   for (let z = -halb; z <= halb; z += 5) {
     // Nur der Bereich ausserhalb des Streifens. Was innen liegt, soll ja frei
     // sein — das prüft der Abschnitt darunter.
-    const draussen = Math.abs(x) > 104 || z > 208 || z < -174;
+    /*
+     * Nur der Bereich, der **gesperrt sein soll** — also weit draussen über
+     * dem Wasser. Zwischen Küste und Sperre liegen dreissig Meter offenes
+     * Meer, und die sind Absicht: dorthin soll ein Fliegender kommen.
+     */
+    const draussen = Math.abs(x) > 280 || z > 300 || z < -280;
     if (!draussen) continue;
     randpunkte++;
     if (!gesperrt(x, z, 'lauf')) loecherLauf++;
@@ -177,69 +189,137 @@ check(
 );
 
 /*
- * --- Das Randgebirge ist eine Kette und keine Mauer -------------------------
+ * --- Die Insel und ihre Klippe ---------------------------------------------
  *
- * Es stand einmal bei hundertachtzehn Metern auf zweiundsechzig Metern Rampe.
- * Nachgerechnet waren das siebzig Grad, und vom Boden aus sah man keine Berge,
- * sondern eine dunkle Wand über der halben Bildbreite — eine so steile Fläche
- * bekommt kaum Sonnenlicht ab und wird grau, egal welche Farbe darauf liegt.
+ * Der Rand war zweimal falsch, und beide Male war es dieselbe Idee in einer
+ * anderen Höhe: erst eine Wand von hundertachtzehn Metern, dann eine Kette von
+ * zweiundvierzig. In beiden Fällen hörte die Welt an einem Berg auf.
  *
- * Beides steht hier als Zahl, weil beides beim Drehen an der Landschaft
- * unbemerkt zurückkommen kann: **wie hoch** und **wie steil**. Und beides
- * braucht seine Gegenprobe — ein Gebirge, das man wegoptimiert hat, ist kein
- * Fortschritt, sondern ein Blick über den Rand der Welt.
+ * Jetzt hört sie am **Meer** auf. Was dafür stimmen muss, steht hier als Zahl,
+ * und die drei Aussagen hängen zusammen:
+ *
+ *   - Es gibt Land **und** Wasser. Eine Insel, die ganz über dem Spiegel
+ *     liegt, ist ein Tisch; eine, die ganz darunter liegt, ist ein Meer.
+ *   - Die Klippe ist steiler als das, was der Kern begehbar nennt. Sonst
+ *     läuft man hinunter und steht im Wasser statt an der Kante.
+ *   - Das Plateau selbst ist flach genug zum Laufen. Eine Insel aus lauter
+ *     Klippen wäre formal richtig und praktisch unbespielbar.
  */
-console.log('\nDas Randgebirge ist eine Kette und keine Mauer');
+console.log('\nDie Insel und ihre Klippe');
 
-/*
- * Ohne geformtes Feld gäbe es kein Gebirge zu prüfen — dann ist der Test
- * nicht grün, sondern hinfällig, und das soll er sagen.
- */
 const feld = doc.terrain.sculpt ? decodeSculptField(doc.terrain.sculpt) : undefined;
 check(feld !== undefined, 'die Karte bringt ein geformtes Höhenfeld mit');
 const werte = feld ?? new Int16Array(0);
 const aufloesung = Math.round(Math.sqrt(werte.length));
-const halbeKarte = doc.terrain.size / 2;
 const gitter = doc.terrain.size / (aufloesung - 1);
 const hoeheBei = (ix: number, iz: number): number => werte[iz * aufloesung + ix]! / SCULPT_UNIT;
 
-let hoechster = 0;
-let amRand = 0;
-const neigungen: number[] = [];
+let ueberWasser = 0;
+let unterWasser = 0;
+let hoechster = -1e9;
+let tiefster = 1e9;
+const plateauNeigungen: number[] = [];
+let steilsteKlippe = 0;
 for (let iz = 1; iz < aufloesung - 1; iz++) {
   for (let ix = 1; ix < aufloesung - 1; ix++) {
-    const x = -halbeKarte + ix * gitter;
-    const z = -halbeKarte + iz * gitter;
-    hoechster = Math.max(hoechster, hoeheBei(ix, iz));
-    // Nur ausserhalb des begehbaren Streifens: drinnen liegt der Fluss, und
-    // dessen Böschung **soll** über sechzig Grad steil sein.
-    if (Math.abs(x) < 95 && z > -165 && z < 199) continue;
-    amRand = Math.max(amRand, hoeheBei(ix, iz));
-    neigungen.push(
-      Math.hypot(
-        (hoeheBei(ix + 1, iz) - hoeheBei(ix - 1, iz)) / (2 * gitter),
-        (hoeheBei(ix, iz + 1) - hoeheBei(ix, iz - 1)) / (2 * gitter),
-      ),
+    const x = -halb + ix * gitter;
+    const z = -halb + iz * gitter;
+    const h = hoeheBei(ix, iz);
+    hoechster = Math.max(hoechster, h);
+    tiefster = Math.min(tiefster, h);
+    if (h > doc.terrain.waterLevel) ueberWasser++;
+    else unterWasser++;
+    const neigung = Math.hypot(
+      (hoeheBei(ix + 1, iz) - hoeheBei(ix - 1, iz)) / (2 * gitter),
+      (hoeheBei(ix, iz + 1) - hoeheBei(ix, iz - 1)) / (2 * gitter),
     );
+    // Innen das Plateau, aussen die Klippe. Der Fluss liegt innen und ist
+    // absichtlich steil — deshalb bleibt sein Graben hier aussen vor.
+    const amFluss = Math.abs(x) < 100 && Math.abs(z) < 240;
+    if (Math.abs(x) < 180 && z > -180 && z < 200 && !amFluss) plateauNeigungen.push(neigung);
+    if (Math.abs(x) > 210 || z > 230 || z < -210) steilsteKlippe = Math.max(steilsteKlippe, neigung);
   }
 }
-neigungen.sort((a, b) => a - b);
 const grad = (g: number): number => (Math.atan(g) * 180) / Math.PI;
-const mittlere = grad(neigungen.reduce((a, b) => a + b, 0) / neigungen.length);
-const neunzig = grad(neigungen[Math.floor(neigungen.length * 0.9)]!);
+const anteilLand = ueberWasser / (ueberWasser + unterWasser);
 
-check(hoechster < 75, 'kein Gipfel über fünfundsiebzig Metern', `${hoechster.toFixed(0)} m`);
-check(mittlere < 26, 'die Flanken sind im Mittel begehbar flach', `${mittlere.toFixed(0)}°`);
-check(neunzig < 45, 'und auch die steilen Zehntel bleiben unter fünfundvierzig Grad', `${neunzig.toFixed(0)}°`);
+check(anteilLand > 0.4 && anteilLand < 0.85, 'die Insel liegt im Meer', `${(anteilLand * 100).toFixed(0)} % Land`);
+check(tiefster < doc.terrain.waterLevel - 8, 'und das Meer hat einen Grund', `${tiefster.toFixed(0)} m`);
 /*
- * Die Gegenprobe, und sie ist die wichtigere Hälfte: das Gebirge muss den
- * Blick über den Rand der Welt trotzdem verstellen. Fünfundzwanzig Meter über
- * dem Streifen sind aus hundert Metern Abstand vierzehn Grad — genug, um den
- * Horizont zu decken. Eine Landschaft, die diese Prüfung durch Abtragen
- * besteht, hat das Problem nur getauscht.
+ * Die Klippe muss steiler sein als `kMaxWalkableSlopeDeg` (52°) — das ist die
+ * Zahl, mit der der Kern entscheidet, ob ein Schritt gilt. Darunter liefe man
+ * die Klippe hinunter, und die Insel hätte keinen Rand mehr.
  */
-check(amRand > 25, 'aber es steht überhaupt eines da', `höchster Randpunkt ${amRand.toFixed(0)} m`);
-check(neunzig > 12, 'und es ist kein Hügel', `${neunzig.toFixed(0)}° im obersten Zehntel`);
+check(grad(steilsteKlippe) > 60, 'die Klippe ist unbegehbar steil', `${grad(steilsteKlippe).toFixed(0)}°`);
+// Und die Gegenprobe: das Land dazwischen ist flach genug zum Laufen.
+plateauNeigungen.sort((a, b) => a - b);
+const neunzig = grad(plateauNeigungen[Math.floor(plateauNeigungen.length * 0.9)]!);
+check(neunzig < 30, 'das Plateau selbst läuft sich flach', `${neunzig.toFixed(0)}° im obersten Zehntel`);
+check(hoechster < 60, 'und kein Gipfel ragt heraus', `${hoechster.toFixed(0)} m`);
+
+/*
+ * --- Draussen trägt der Boden niemanden ------------------------------------
+ *
+ * Bis an den Rand fliegen zu dürfen heisst, dort auch absteigen zu **wollen**
+ * — und das darf nicht gehen. Der Kern kennt kein Wasser: der Meeresgrund ist
+ * für ihn gewöhnlicher Boden, und die Klippe ist eine Wand, die von unten
+ * niemand hinaufkommt. Wer draussen absteigt, stünde für immer dort, denn das
+ * Gerät liegt danach im Beutel. Deshalb sagt der Server es ab
+ * (`MapInstance.traegtBoden`).
+ *
+ * Die Absage ist nur so gut wie die Annahme dahinter: draussen trägt **nichts**
+ * — weder über noch unter der Klippenkante. Bliebe dort eine trockene, flache
+ * Kuppe stehen, liesse die Absage genau dort durch, wo sie gebraucht wird.
+ * Also wird alles abgetastet, was jenseits der Küste liegt, mit demselben
+ * Doppelmass wie im Server: über dem Spiegel **und** flach genug zum Stehen.
+ */
+const beiX = (x: number): number => Math.round((x + halb) / gitter);
+const hoeheAn = (x: number, z: number): number => hoeheBei(beiX(x), beiX(z));
+const neigungAn = (x: number, z: number): number => {
+  const ix = beiX(x);
+  const iz = beiX(z);
+  return Math.hypot(
+    (hoeheBei(ix + 1, iz) - hoeheBei(ix - 1, iz)) / (2 * gitter),
+    (hoeheBei(ix, iz + 1) - hoeheBei(ix, iz - 1)) / (2 * gitter),
+  );
+};
+// Dieselbe Rechnung wie `MapInstance.traegtBoden` — die Schwelle ist
+// `kMaxWalkableSlopeDeg` aus dem Kern.
+const traegt = (x: number, z: number): boolean =>
+  hoeheAn(x, z) >= doc.terrain.waterLevel && grad(neigungAn(x, z)) <= 52;
+
+/*
+ * Wo „draussen" anfängt: die Küste schwankt um ±25 m um ihre Linie, und die
+ * Klippe braucht rund zwölf Meter, bis sie ihre volle Tiefe hat. Erst dahinter
+ * ist die Aussage eindeutig — davor liegt der Strand, und der soll tragen.
+ */
+let traegtDraussen = 0;
+let hoechsteKuppe = -1e9;
+for (let z = -316; z <= 316; z += 4) {
+  for (let x = -316; x <= 316; x += 4) {
+    const draussen = Math.abs(x) >= 258 || z >= 276 || z <= -256;
+    if (!draussen) continue;
+    hoechsteKuppe = Math.max(hoechsteKuppe, hoeheAn(x, z));
+    if (traegt(x, z)) traegtDraussen++;
+  }
+}
+check(
+  traegtDraussen === 0,
+  'jenseits der Küste trägt kein Fleck mehr',
+  `höchster Punkt draussen ${hoechsteKuppe.toFixed(0)} m, Spiegel ${doc.terrain.waterLevel} m`,
+);
+/*
+ * Gegenprobe, und sie ist hier keine Formsache: dieselbe Funktion muss auf der
+ * Insel `true` sagen. Wäre `traegt` einfach überall falsch — ein Vorzeichen,
+ * eine verrutschte Gitterkoordinate —, wäre die Prüfung oben grün und
+ * bedeutungslos, und der Server sagte in Wahrheit jedes Absteigen ab.
+ */
+const startHoehe = hoeheAn(doc.spawn.x, doc.spawn.z);
+check(
+  traegt(doc.spawn.x, doc.spawn.z),
+  'und der Startpunkt trägt',
+  `${startHoehe.toFixed(1)} m, ${grad(neigungAn(doc.spawn.x, doc.spawn.z)).toFixed(0)}°`,
+);
 
 console.log('\nJedes Prop steht so im Weg, wie die Tabelle es sagt');
 
@@ -268,14 +348,47 @@ for (const karte of karten) {
     props++;
     const soll = standardKollision(prop.model);
     formen.add(soll.form);
-    if (prop.collision !== soll.form || Math.abs(prop.collisionRadius - soll.radius) > 1e-6) {
+    if (
+      prop.collision !== soll.form ||
+      Math.abs(prop.collisionRadius - soll.radius) > 1e-6 ||
+      Math.abs(prop.collisionHeight - soll.hoehe) > 1e-6
+    ) {
       abweichler.push(
-        `${karte.name}/${prop.model}: ${prop.collision} ${prop.collisionRadius} statt ${soll.form} ${soll.radius}`,
+        `${karte.name}/${prop.model}: ${prop.collision} ${prop.collisionRadius}/${prop.collisionHeight} ` +
+          `statt ${soll.form} ${soll.radius}/${soll.hoehe}`,
       );
     }
   }
 }
 check(props > 2000, 'es gibt überhaupt Props zu prüfen', `${props}`);
+/*
+ * Und über wie viele davon kommt man mit einem Sprung?
+ *
+ * Die Zahl selbst ist nicht die Aussage — die Aussage ist, dass es überhaupt
+ * welche gibt **und** dass nicht alles überspringbar ist. Eine Karte, auf der
+ * man über jeden Baum springt, wäre genauso falsch wie eine, auf der jeder
+ * Zaun bis in die Wolken reicht.
+ */
+const mitKreis = karten.flatMap((k) => k.props).filter((p) => p.collision === 'circle');
+const ueberspringbar = mitKreis.filter((p) => p.collisionHeight > 0 && p.collisionHeight < 1.6);
+const bisZumHimmel = mitKreis.filter((p) => p.collisionHeight === 0);
+check(
+  ueberspringbar.length > 200,
+  'über einen guten Teil der Hindernisse springt man hinweg',
+  `${ueberspringbar.length} von ${mitKreis.length}`,
+);
+check(
+  bisZumHimmel.length > 200,
+  'und über den Rest nicht',
+  `${bisZumHimmel.length} von ${mitKreis.length}`,
+);
+// Zäune und Mauern sind der Fall, um den es geht — sie müssen dabei sein.
+const zaeune = mitKreis.filter((p) => p.model === 'fence_wood' || p.model === 'fence_stone');
+check(
+  zaeune.length > 0 && zaeune.every((p) => p.collisionHeight > 0 && p.collisionHeight < 1.3),
+  'Zäune und Mauern kann man überspringen',
+  `${zaeune.length} Felder, höchstes ${Math.max(...zaeune.map((p) => p.collisionHeight)).toFixed(2)} m`,
+);
 check(
   abweichler.length === 0,
   'kein Prop weicht von der Tabelle ab',

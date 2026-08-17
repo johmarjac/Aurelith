@@ -44,7 +44,9 @@ function mulberry32(seed) {
  */
 function kollision(modell) {
   const k = standardKollision(modell);
-  return { collision: k.form, collisionRadius: k.radius };
+  // `collisionHeight` 0 heisst „bis in den Himmel" — siehe `PropKollision`.
+  // Über alles darunter springt man hinweg.
+  return { collision: k.form, collisionRadius: k.radius, collisionHeight: k.hoehe };
 }
 
 /**
@@ -356,14 +358,44 @@ function groundLayers(waterLevel, { grassTint = 0xffffff, dirtTint = 0xffffff, s
 
 /** Der begehbare Streifen. Alles ausserhalb ist Gebirge und gesperrt. */
 const LM = {
-  size: 512,
-  x: 100,
-  zSued: -170,
-  zNord: 204,
+  /**
+   * Halbe Breite und Enden des begehbaren Plateaus.
+   *
+   * Vorher war Lichtmoor ein Streifen von zweihundert Metern Breite und
+   * dreihundertvierundsiebzig Länge — eng, und beim Laufen merkte man das:
+   * man war ständig am Rand. Jetzt vierhundertvierzig auf vierhundertsechzig,
+   * also zweieinhalbmal so viel Fläche und vor allem **breit**.
+   *
+   * Und keine vier Wände mehr, sondern eine **Insel**: rundherum fällt das
+   * Land über eine Klippe ins Meer. Die Klippe ist steiler als die
+   * zweiundfünfzig Grad, die der Kern begehbar nennt — man kommt bis an die
+   * Kante und keinen Schritt weiter, auch nicht im Sprung.
+   */
+  size: 640,
+  x: 220,
+  zSued: -220,
+  zNord: 240,
   /** Mitte der Hauptstadt. */
   stadtZ: -122,
   stadtR: 48,
 };
+
+/**
+ * Wo die Küste liegt — sie folgt **nicht** dem Rechteck.
+ *
+ * Zwei Wellen je Achse verschieben die Kante um bis zu fünfundzwanzig Meter
+ * hin und her. Ohne sie wäre die Insel ein Rechteck mit abgeschnittenen
+ * Rändern, und nichts verrät einen Generator schneller als eine Küstenlinie,
+ * die schnurgerade verläuft.
+ */
+const kuesteX = (z) => LM.x + Math.sin(z * 0.013) * 16 + Math.sin(z * 0.031) * 9;
+const kuesteNord = (x) => LM.zNord + Math.sin(x * 0.011) * 15 + Math.sin(x * 0.027) * 8;
+const kuesteSued = (x) => LM.zSued - Math.sin(x * 0.017) * 14 - Math.sin(x * 0.009) * 9;
+
+/** Wie weit ein Punkt jenseits der Küste liegt. Negativ heisst: an Land. */
+function ausserhalb(x, z) {
+  return Math.max(Math.abs(x) - kuesteX(z), z - kuesteNord(x), kuesteSued(x) - z);
+}
 
 /**
  * Der Lauf der Silberader, als Stützpunkte (z, x).
@@ -458,73 +490,63 @@ function lichtmoorHoehe(x, z) {
   h += 4;
 
   /*
-   * --- 1. Gebirge ----------------------------------------------------------
+   * --- 1. Die Klippe -------------------------------------------------------
    *
-   * Hier stand einmal ein **Wall**: 118 m hoch auf 62 m Rampe. Nachgerechnet
-   * waren das im Steilsten siebzig Grad, und schon achtundzwanzig Meter neben
-   * dem begehbaren Streifen war die Neigung über den zweiundfünfzig Grad, bis
-   * zu denen der Kern einen gehen lässt — bei einer Höhe von erst neun Metern.
-   * Vom Boden aus sah man deshalb keine Berge, sondern eine dunkle Wand, die
-   * das halbe Bild füllte: eine Fläche, die so steil steht, bekommt kein
-   * Sonnenlicht ab und wird grau, egal welche Farbe darauf liegt.
+   * Hier stand ein Gebirge: erst hundertachtzehn Meter hoch (eine Wand), dann
+   * zweiundvierzig (eine Kette). Beides war dasselbe Missverständnis — der
+   * Rand der Welt war ein Berg, den man ansieht, statt eines Ortes, an den
+   * man geht.
    *
-   * Jetzt drei Dinge anders:
+   * Jetzt ist Lichtmoor eine **Insel**. Das Land hört an einer Klippe auf,
+   * darunter liegt das Meer, und darüber sieht man bis an den Horizont. Die
+   * Klippe fällt sechsundzwanzig Meter auf zwölf — das sind fünfundsechzig
+   * Grad, deutlich über den zweiundfünfzig, bis zu denen der Kern einen gehen
+   * lässt. Man kommt also bis an die Kante und keinen Schritt weiter, **auch
+   * nicht im Sprung**: die Neigungsprüfung greift unabhängig davon, ob die
+   * Füsse gerade den Boden berühren.
    *
-   *   1. **Flacher und niedriger.** Zweiundvierzig Meter statt hundertachtzehn,
-   *      und die Rampe ist doppelt so lang. Das Steilste liegt damit bei rund
-   *      dreissig Grad — eine Bergflanke, die das Licht noch annimmt.
-   *   2. **Die Rampe je Richtung verschieden.** Nach Westen und Osten sind
-   *      hundertsechsundfünfzig Meter Platz bis zum Kartenrand, nach Norden nur
-   *      zweiundfünfzig. Eine gemeinsame Breite hiesse: entweder im Norden ein
-   *      abgeschnittener Hang oder im Westen wieder ein Wall.
-   *   3. **Der Fuss wandert.** Zwei Wellen verschieben den Beginn des Anstiegs
-   *      um bis zu einundzwanzig Meter hin und her. Ohne sie läuft der
-   *      Gebirgsfuss schnurgerade parallel zum Kartenrand — und nichts verrät
-   *      ein Rechteck schneller als eine Bergkette, die eines nachzeichnet.
+   * Die Sperrzonen liegen erst dreissig Meter jenseits der Küste. Wer fliegt,
+   * kommt damit über die Kante hinaus und sieht die Insel von aussen — was
+   * der ganze Sinn eines Fluggeräts ist.
    */
-  const fussX = Math.sin(z * 0.021) * 13 + Math.sin(z * 0.009) * 8;
-  const fussZ = Math.sin(x * 0.019) * 11 + Math.sin(x * 0.011) * 7;
-  const ausX = (Math.abs(x) - (LM.x - 10) + fussX) / 122;
-  const ausNord = (z - (LM.zNord - 6) + fussZ) / 70;
-  const ausSued = (LM.zSued + 6 - z + fussZ) / 76;
-  const aussen = Math.max(ausX, ausNord, ausSued);
-  if (aussen > 0) {
-    // Drei überlagerte Wellen: ein Gebirge aus einer einzigen Rampe sähe aus
-    // wie ein Wall. Die Zahlen sind teilerfremd, damit sich das Muster nicht
-    // sichtbar wiederholt.
-    const grat =
-      Math.sin(x * 0.031) * 3.5 + Math.sin(z * 0.023) * 4.5 + Math.sin((x + z) * 0.017) * 3;
-    /*
-     * Zwei Stufen statt einer Rampe: der erste Term ist doppelt so schnell
-     * fertig und macht die Vorberge, der zweite zieht den Hauptkamm nach.
-     * Eine einzelne Glättungskurve ist eine Böschung — zwei versetzte sind
-     * eine Kette mit Vorgelände.
-     */
-    h += (0.42 * glatt(aussen * 1.6) + 0.58 * glatt(aussen)) * (42 + grat);
-    /*
-     * Und dahinter steigt es weiter, langsam.
-     *
-     * Das ist der Preis für die niedrigere Kette und keine Zierde. Ein
-     * Sturmbrett fliegt sechzig Meter über dem Boden, über dem Streifen also
-     * bis vierundsechzig — mit einem Kamm von zweiundvierzig sieht man von
-     * dort **über** ihn hinweg, und dahinter lag bisher eine ebene Hochfläche
-     * bis zur Kante der Welt. Hinaus kommt man deswegen nicht, dafür sorgen
-     * die Sperrzonen; hinaussehen aber schon.
-     *
-     * Mit dem Nachstieg staffeln sich stattdessen zwei Kämme hintereinander,
-     * und der hintere steht über der Flughöhe.
-     */
-    h += Math.max(0, aussen - 1) * 22;
+  const drauss = ausserhalb(x, z);
+  if (drauss > 0) {
+    // Ein bisschen Unruhe in der Kantenhöhe: eine Klippe, die überall gleich
+    // tief fällt, sieht aus wie eine Tischkante.
+    const kerbe = Math.sin(x * 0.043) * 1.6 + Math.sin(z * 0.037) * 1.4;
+    h -= glatt(drauss / 12) * (26 + kerbe);
   }
 
   // --- 2. Hügel innen -----------------------------------------------------
+  /*
+   * Sanfte Kuppen über die ganze Insel.
+   *
+   * Mehr als früher und **flacher**: auf einer Fläche von zweieinhalb
+   * Hektaren sind sechs Hügel nichts, und steile Kuppen machen aus einer
+   * offenen Landschaft ein Labyrinth. Der höchste misst zwanzig Meter auf
+   * fünfundvierzig Radius — das sind knapp fünfundzwanzig Grad, man läuft
+   * hinauf, ohne es zu merken.
+   */
   const kuppen = [
-    { x: -62, z: -30, r: 34, h: 13 },
-    { x: 58, z: 22, r: 30, h: 11 },
-    { x: -40, z: 96, r: 38, h: 16 },
-    { x: 66, z: 142, r: 32, h: 14 },
-    { x: -70, z: 176, r: 30, h: 18 },
-    { x: 20, z: 190, r: 26, h: 12 },
+    { x: -62, z: -30, r: 40, h: 12 },
+    { x: 58, z: 22, r: 36, h: 10 },
+    { x: -40, z: 96, r: 44, h: 14 },
+    { x: 66, z: 142, r: 38, h: 13 },
+    { x: -70, z: 176, r: 36, h: 15 },
+    { x: 20, z: 190, r: 32, h: 11 },
+    // Der Westen und der Osten, die es vorher gar nicht gab.
+    { x: -160, z: -80, r: 52, h: 16 },
+    { x: -175, z: 60, r: 46, h: 13 },
+    { x: -140, z: 160, r: 42, h: 11 },
+    { x: 155, z: -120, r: 48, h: 14 },
+    { x: 172, z: 10, r: 50, h: 18 },
+    { x: 145, z: 118, r: 44, h: 12 },
+    { x: 168, z: 205, r: 38, h: 10 },
+    { x: -150, z: -180, r: 44, h: 12 },
+    { x: 96, z: -196, r: 40, h: 9 },
+    { x: -30, z: -206, r: 46, h: 11 },
+    { x: 40, z: 226, r: 42, h: 13 },
+    { x: -108, z: 226, r: 38, h: 9 },
   ];
   for (const k of kuppen) {
     const d = Math.hypot(x - k.x, z - k.z) / k.r;
@@ -651,6 +673,36 @@ function lichtmoor() {
     { id: 's_warden_a', mob: 'dungeon_warden', position: [-72, 190], radius: 22, count: 4, respawnMs: 95000, level: 17 },
     { id: 's_warden_b', mob: 'dungeon_warden', position: [40, 194], radius: 22, count: 4, respawnMs: 95000, level: 18 },
     { id: 's_warden_c', mob: 'dungeon_warden', position: [-34, 200], radius: 20, count: 3, respawnMs: 95000, level: 20 },
+
+    /*
+     * --- Die Flügel im Westen und Osten -------------------------------------
+     *
+     * Die Insel ist mehr als doppelt so breit wie der alte Streifen, und die
+     * Felder oben liegen alle in der Mitte: ohne diese hier wären zwei Drittel
+     * der Fläche leeres Gras.
+     *
+     * Die Stufe folgt weiter dem Norden und **nicht** dem Abstand zur Mitte:
+     * wer nach Westen ausweicht, soll nicht plötzlich schwereren Gegnern
+     * begegnen, sondern denselben wie auf gleicher Höhe. Der Aufbau der Karte
+     * ist eine Strecke von Süd nach Nord, und daran ändert die Breite nichts.
+     */
+    { id: 's_mote_w', mob: 'mote', position: [-152, -74], radius: 30, count: 8, respawnMs: 60000, level: 2 },
+    { id: 's_mote_o', mob: 'mote', position: [148, -66], radius: 30, count: 8, respawnMs: 60000, level: 2 },
+    { id: 's_mote_sw', mob: 'mote', position: [-96, -160], radius: 30, count: 7, respawnMs: 60000, level: 1 },
+    { id: 's_mote_so', mob: 'mote', position: [88, -172], radius: 30, count: 7, respawnMs: 60000, level: 1 },
+    { id: 's_pup_w', mob: 'burrow_pup', position: [-166, -10], radius: 30, count: 7, respawnMs: 70000, level: 4 },
+    { id: 's_pup_o', mob: 'burrow_pup', position: [162, -18], radius: 30, count: 7, respawnMs: 70000, level: 4 },
+    { id: 's_pup_o2', mob: 'burrow_pup', position: [124, 24], radius: 28, count: 6, respawnMs: 70000, level: 5 },
+    { id: 's_boar_w', mob: 'thistle_boar', position: [-140, 44], radius: 30, count: 6, respawnMs: 75000, level: 7 },
+    { id: 's_boar_o', mob: 'thistle_boar', position: [156, 58], radius: 30, count: 6, respawnMs: 75000, level: 7 },
+    { id: 's_boar_w2', mob: 'thistle_boar', position: [-176, 96], radius: 28, count: 5, respawnMs: 75000, level: 8 },
+    { id: 's_bandit_w', mob: 'bandit_scout', position: [-130, 128], radius: 30, count: 6, respawnMs: 80000, level: 10 },
+    { id: 's_bandit_o', mob: 'bandit_scout', position: [138, 120], radius: 30, count: 6, respawnMs: 80000, level: 10 },
+    { id: 's_bandit_o2', mob: 'bandit_scout', position: [174, 162], radius: 28, count: 5, respawnMs: 80000, level: 12 },
+    { id: 's_crawl_w', mob: 'cave_crawler', position: [-158, 178], radius: 28, count: 5, respawnMs: 85000, level: 14 },
+    { id: 's_crawl_o', mob: 'cave_crawler', position: [128, 196], radius: 28, count: 5, respawnMs: 85000, level: 15 },
+    { id: 's_warden_w', mob: 'dungeon_warden', position: [-120, 224], radius: 24, count: 4, respawnMs: 95000, level: 18 },
+    { id: 's_warden_o', mob: 'dungeon_warden', position: [96, 226], radius: 24, count: 4, respawnMs: 95000, level: 19 },
   ];
 
   /*
@@ -1009,16 +1061,24 @@ function lichtmoor() {
     ...Array.from({ length: 40 }, (_, i) => ({ x: 0, z: -70 + i * 7, r: 7 })),
   ];
 
-  /** Innerhalb des Streifens, nicht im Fluss und nicht in der Stadt. */
+  /**
+   * Auf der Insel, nicht im Fluss und nicht in der Stadt.
+   *
+   * `ausserhalb(x, z) < -14` statt eines Rechtecks: die Küste wandert um bis
+   * zu fünfundzwanzig Meter, und ein festes Rechteck setzte in jeder Bucht
+   * Bäume auf die Klippe oder ins Wasser. Vierzehn Meter Abstand halten sie
+   * von der Kante fern — dort ist der Hang schon zu steil, um darauf zu
+   * stehen.
+   */
   const frei = (x, z) =>
-    Math.abs(x) < LM.x - 4 &&
-    z > LM.zSued + 6 &&
-    z < LM.zNord - 4 &&
+    ausserhalb(x, z) < -14 &&
     flussAbstand(x, z) > 15 &&
     Math.hypot(x, z - cz) > LM.stadtR + 10;
 
-  const wiese = { x0: -LM.x + 4, x1: LM.x - 4, z0: -74, z1: LM.zNord - 6 };
-  const sueden = { x0: -LM.x + 4, x1: LM.x - 4, z0: LM.zSued + 8, z1: -70 };
+  const wiese = { x0: -LM.x, x1: LM.x, z0: -74, z1: LM.zNord };
+  const sueden = { x0: -LM.x, x1: LM.x, z0: LM.zSued, z1: -70 };
+  /** Die ganze Insel — für alles, was überall vorkommt. */
+  const insel = { x0: -LM.x, x1: LM.x, z0: LM.zSued, z1: LM.zNord };
 
   const props = [
     ...gesetzt,
@@ -1026,7 +1086,7 @@ function lichtmoor() {
 
     // --- Wald: dicht im Süden, licht und tot im Norden --------------------
     ...scatter(rng, {
-      count: 240,
+      count: 576,
       size,
       bereich: wiese,
       erlaubt: frei,
@@ -1044,7 +1104,7 @@ function lichtmoor() {
       tints: [0x4f8a3e, 0x5f9a4a, 0x437a36, 0x6aa855],
     }),
     ...scatter(rng, {
-      count: 120,
+      count: 288,
       size,
       bereich: sueden,
       erlaubt: frei,
@@ -1061,9 +1121,9 @@ function lichtmoor() {
     // Totholz nur im Norden: ab hier wird es unwirtlich, und das soll man
     // sehen, bevor man das erste Monster trifft.
     ...scatter(rng, {
-      count: 90,
+      count: 216,
       size,
-      bereich: { x0: -LM.x + 6, x1: LM.x - 6, z0: 118, z1: LM.zNord - 6 },
+      bereich: { x0: -LM.x, x1: LM.x, z0: 118, z1: LM.zNord },
       erlaubt: frei,
       minGap: 7,
       scaleRange: [0.8, 1.4],
@@ -1073,7 +1133,7 @@ function lichtmoor() {
 
     // --- Fels und Geröll --------------------------------------------------
     ...scatter(rng, {
-      count: 130,
+      count: 312,
       size,
       bereich: wiese,
       erlaubt: frei,
@@ -1087,9 +1147,9 @@ function lichtmoor() {
     }),
     // Geröllfeld im Norden — dichter, grösser.
     ...scatter(rng, {
-      count: 90,
+      count: 216,
       size,
-      bereich: { x0: -LM.x + 6, x1: LM.x - 6, z0: 130, z1: LM.zNord - 6 },
+      bereich: { x0: -LM.x, x1: LM.x, z0: 130, z1: LM.zNord },
       erlaubt: frei,
       minGap: 5,
       scaleRange: [0.9, 2.2],
@@ -1105,9 +1165,9 @@ function lichtmoor() {
     // Wenige, aber sichtbare. Ein Steinbogen alle zwanzig Meter wäre kein
     // Wahrzeichen mehr, sondern eine Allee.
     ...scatter(rng, {
-      count: 7,
+      count: 17,
       size,
-      bereich: { x0: -LM.x + 14, x1: LM.x - 14, z0: -60, z1: LM.zNord - 20 },
+      bereich: { x0: -LM.x, x1: LM.x, z0: -60, z1: LM.zNord },
       erlaubt: frei,
       minGap: 60,
       scaleRange: [0.9, 1.3],
@@ -1121,9 +1181,9 @@ function lichtmoor() {
     // Waldboden. Die Mischung entscheidet mehr als die Zahl — vierhundert
     // gleiche Büschel sind eine Textur, vierhundert gemischte sind Bewuchs.
     ...scatter(rng, {
-      count: 460,
+      count: 1104,
       size,
-      bereich: { x0: -LM.x + 3, x1: LM.x - 3, z0: LM.zSued + 8, z1: LM.zNord - 4 },
+      bereich: { x0: -LM.x, x1: LM.x, z0: LM.zSued, z1: LM.zNord },
       erlaubt: (x, z) => flussAbstand(x, z) > 13 && Math.hypot(x, z - cz) > LM.stadtR + 4,
       minGap: 4,
       scaleRange: [0.7, 1.4],
@@ -1142,9 +1202,9 @@ function lichtmoor() {
     // Blumen nur auf der warmen Hälfte, und dichter als alles andere: eine
     // Wiese ohne Blüten ist ein Rasen.
     ...scatter(rng, {
-      count: 260,
+      count: 624,
       size,
-      bereich: { x0: -LM.x + 4, x1: LM.x - 4, z0: LM.zSued + 10, z1: 90 },
+      bereich: { x0: -LM.x, x1: LM.x, z0: LM.zSued, z1: 90 },
       erlaubt: frei,
       minGap: 3,
       scaleRange: [0.7, 1.3],
@@ -1159,7 +1219,7 @@ function lichtmoor() {
     // Totholz und Waldboden: umgestürzte Stämme, Wurzelstöcke, Astbruch.
     // Sie liegen dort, wo auch die Bäume stehen, und geben dem Boden Relief.
     ...scatter(rng, {
-      count: 120,
+      count: 288,
       size,
       bereich: wiese,
       erlaubt: frei,
@@ -1176,9 +1236,9 @@ function lichtmoor() {
     }),
     // Kleinkram am Boden — Kiesel, Moossteine, Baumpilze, Beeren.
     ...scatter(rng, {
-      count: 200,
+      count: 480,
       size,
-      bereich: { x0: -LM.x + 4, x1: LM.x - 4, z0: LM.zSued + 10, z1: LM.zNord - 6 },
+      bereich: { x0: -LM.x, x1: LM.x, z0: LM.zSued, z1: LM.zNord },
       erlaubt: frei,
       minGap: 5,
       scaleRange: [0.7, 1.4],
@@ -1195,9 +1255,9 @@ function lichtmoor() {
     // Pilze im feuchten Süden, Kristalle im kalten Norden. Zwei Sorten
     // Kleinkram, die dem Auge sagen, wo es gerade steht.
     ...scatter(rng, {
-      count: 70,
+      count: 168,
       size,
-      bereich: { x0: -LM.x + 6, x1: LM.x - 6, z0: LM.zSued + 10, z1: 40 },
+      bereich: { x0: -LM.x, x1: LM.x, z0: LM.zSued, z1: 40 },
       erlaubt: frei,
       minGap: 5,
       scaleRange: [0.7, 1.5],
@@ -1205,9 +1265,9 @@ function lichtmoor() {
       keepOut: keepOut.map((k) => ({ ...k, r: k.r * 0.6 })),
     }),
     ...scatter(rng, {
-      count: 45,
+      count: 108,
       size,
-      bereich: { x0: -LM.x + 6, x1: LM.x - 6, z0: 140, z1: LM.zNord - 6 },
+      bereich: { x0: -LM.x, x1: LM.x, z0: 140, z1: LM.zNord },
       erlaubt: frei,
       minGap: 7,
       scaleRange: [0.8, 1.6],
@@ -1223,9 +1283,9 @@ function lichtmoor() {
      * Laufen sieht und nicht erst beim Aufschauen.
      */
     ...scatter(rng, {
-      count: 180,
+      count: 432,
       size,
-      bereich: { x0: -LM.x + 5, x1: LM.x - 5, z0: 110, z1: LM.zNord - 6 },
+      bereich: { x0: -LM.x, x1: LM.x, z0: 110, z1: LM.zNord },
       erlaubt: frei,
       minGap: 5,
       scaleRange: [0.8, 1.5],
@@ -1240,9 +1300,9 @@ function lichtmoor() {
       keepOut: keepOut.map((k) => ({ ...k, r: k.r * 0.6 })),
     }),
     ...scatter(rng, {
-      count: 14,
+      count: 34,
       size,
-      bereich: { x0: -LM.x + 10, x1: LM.x - 10, z0: 132, z1: LM.zNord - 10 },
+      bereich: { x0: -LM.x, x1: LM.x, z0: 132, z1: LM.zNord },
       erlaubt: frei,
       minGap: 26,
       scaleRange: [0.9, 1.3],
@@ -1252,9 +1312,9 @@ function lichtmoor() {
     // Und ein Saum aus Schilf und Büschen entlang der Ufer: der Fluss soll
     // eine Kante haben und nicht wie ein Schnitt in der Wiese aussehen.
     ...scatter(rng, {
-      count: 160,
+      count: 384,
       size,
-      bereich: { x0: -LM.x + 4, x1: LM.x - 4, z0: LM.zSued + 10, z1: LM.zNord - 6 },
+      bereich: { x0: -LM.x, x1: LM.x, z0: LM.zSued, z1: LM.zNord },
       erlaubt: (x, z) => {
         const d = flussAbstand(x, z);
         return d > 12.5 && d < 19 && Math.hypot(x, z - cz) > LM.stadtR + 8;
@@ -1277,9 +1337,9 @@ function lichtmoor() {
     // Und im Wasser selbst: Seerosen und Kiesel. Der Streifen liegt **unter**
     // dem Uferabstand, also im Fluss.
     ...scatter(rng, {
-      count: 70,
+      count: 168,
       size,
-      bereich: { x0: -LM.x + 4, x1: LM.x - 4, z0: LM.zSued + 10, z1: LM.zNord - 6 },
+      bereich: { x0: -LM.x, x1: LM.x, z0: LM.zSued, z1: LM.zNord },
       erlaubt: (x, z) => {
         const d = flussAbstand(x, z);
         return d > 2 && d < 9 && Math.hypot(x, z - cz) > LM.stadtR + 8;
@@ -1292,44 +1352,52 @@ function lichtmoor() {
   ].map((p, i) => ({ ...p, id: `p_${String(i + 1).padStart(4, '0')}` }));
 
   /*
-   * --- Die Sperren am Rand -------------------------------------------------
+   * --- Die Sperren, erst weit draussen -------------------------------------
    *
-   * Vier Streifen, die alles ausserhalb des begehbaren Rechtecks dichtmachen —
-   * zu Fuss **und** in der Luft. Die Berge davor sind das Bild, die Zonen sind
-   * die Regel: ein Gebirge allein hielte niemanden auf, der ein Fluggerät hat,
-   * und dahinter liegt nichts als der Rand der Welt.
+   * Vorher lagen sie **direkt** an der Kante des begehbaren Streifens: was
+   * jenseits des Bergfusses lag, war zu, und man stand vor einer unsichtbaren
+   * Wand mit einem Berg dahinter.
+   *
+   * Jetzt beginnen sie dreissig Meter jenseits der äussersten Küste. Zu Fuss
+   * merkt das niemand — dort ist Meer, und an Land hält die Klippe. Wer aber
+   * fliegt, kommt über die Kante hinaus, sieht die Insel von aussen und
+   * dreht erst weit draussen über dem Wasser um. Genau das ist der
+   * Unterschied zwischen einem Rand und einem Käfig.
    */
   const halb = size * 0.5;
+  const sperre = LM.x + 55;
+  const sperreNord = LM.zNord + 55;
+  const sperreSued = LM.zSued - 55;
   const zonen = [
     {
       id: 'z_0001',
-      label: 'Westgrat',
-      position: [-(halb + LM.x) * 0.5, 0],
-      extent: [(halb - LM.x) * 0.5, halb],
+      label: 'Westsee',
+      position: [-(halb + sperre) * 0.5, 0],
+      extent: [(halb - sperre) * 0.5, halb],
       keinLauf: true,
       keinFlug: true,
     },
     {
       id: 'z_0002',
-      label: 'Ostgrat',
-      position: [(halb + LM.x) * 0.5, 0],
-      extent: [(halb - LM.x) * 0.5, halb],
+      label: 'Ostsee',
+      position: [(halb + sperre) * 0.5, 0],
+      extent: [(halb - sperre) * 0.5, halb],
       keinLauf: true,
       keinFlug: true,
     },
     {
       id: 'z_0003',
-      label: 'Südwall',
-      position: [0, -(halb + -LM.zSued) * 0.5 - 0],
-      extent: [halb, (halb + LM.zSued) * 0.5],
+      label: 'Südsee',
+      position: [0, (-halb + sperreSued) * 0.5],
+      extent: [halb, (halb + sperreSued) * 0.5],
       keinLauf: true,
       keinFlug: true,
     },
     {
       id: 'z_0004',
-      label: 'Nordwall',
-      position: [0, (halb + LM.zNord) * 0.5],
-      extent: [halb, (halb - LM.zNord) * 0.5],
+      label: 'Nordsee',
+      position: [0, (halb + sperreNord) * 0.5],
+      extent: [halb, (halb - sperreNord) * 0.5],
       keinLauf: true,
       keinFlug: true,
     },
