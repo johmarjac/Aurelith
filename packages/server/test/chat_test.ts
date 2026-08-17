@@ -26,6 +26,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocket } from 'ws';
 import { anmeldenUndBetreten, beobachteLobby, gruss } from './lib/anmelden.ts';
 import {
+  CHAT_RADIUS,
   ChatChannel,
   CipherSuite,
   FrameSequencer,
@@ -92,6 +93,15 @@ interface Spieler {
   gehoert: ChatMsg[];
   entityId: () => number;
   lauf: (dx: number, dz: number, ms: number) => Promise<void>;
+  /**
+   * Wo die eigene Figur gerade steht — aus dem Schnappschuss.
+   *
+   * Der Test unten läuft ausser Hörweite, und „ausser Hörweite" ist eine
+   * Entfernung. Ohne diese Zahl liesse sich nicht unterscheiden, ob die
+   * Umgebung wirklich nicht so weit trägt oder ob die Figur gar nicht erst
+   * losgekommen ist — und der zweite Fall sähe genauso grün aus.
+   */
+  wo: () => { x: number; z: number };
 }
 
 async function verbinde(name: string): Promise<Spieler> {
@@ -103,6 +113,7 @@ async function verbinde(name: string): Promise<Spieler> {
   const gehoert: ChatMsg[] = [];
   let localId = 0;
   let seq = 1;
+  const ort = { x: 0, z: 0 };
 
   const send = (...packets: Uint8Array[]): void => {
     socket.send(encodeFrame(packets, txSeq.next(), nullCipher));
@@ -114,7 +125,14 @@ async function verbinde(name: string): Promise<Spieler> {
       const { opcode, reader } = readPacket(raw);
       if (opcode === ServerOp.Welcome) localId = decodeWelcome(reader).entityId;
       else if (opcode === ServerOp.Chat) gehoert.push(decodeServerChat(reader));
-      else if (opcode === ServerOp.Snapshot) decodeSnapshot(reader);
+      else if (opcode === ServerOp.Snapshot) {
+        const snap = decodeSnapshot(reader);
+        for (const zeile of [...snap.spawns, ...snap.updates]) {
+          if (zeile.id !== localId) continue;
+          ort.x = zeile.x;
+          ort.z = zeile.z;
+        }
+      }
     }
   });
 
@@ -136,6 +154,7 @@ async function verbinde(name: string): Promise<Spieler> {
     send,
     gehoert,
     entityId: () => localId,
+    wo: () => ({ ...ort }),
     async lauf(dx, dz, ms) {
       const ende = Date.now() + ms;
       while (Date.now() < ende) {
@@ -173,10 +192,33 @@ check(
 
 console.log('\nWeit weg');
 
-// Fünf Sekunden in eine Richtung: das sind gut dreissig Einheiten und damit
-// weit ausserhalb jeder Hörweite.
-await gast.lauf(1, 0, 5000);
-await sleep(300);
+/*
+ * Weg vom Chef, bis die Hörweite überschritten ist.
+ *
+ * Nach Süden und nicht nach Osten: seit Lichtmoor eine weite Insel ist, steht
+ * östlich der Mitte genug herum, dass fünf Sekunden Laufzeit an einem Zaun
+ * endeten — der Gast kam auf gut zwanzig Einheiten und hörte damit zu Recht
+ * noch mit. Der Fehler sah aus wie einer an der Hörweite und war einer am
+ * Weg.
+ *
+ * Dagegen hilft nicht „noch ein paar Sekunden", sondern die Zahl selbst: erst
+ * wird nachgesehen, wie weit der Gast gekommen ist, und dann erst gilt seine
+ * Stille als Aussage.
+ */
+const chefOrt = chef.wo();
+for (let versuch = 0; versuch < 4 && abstandZumChef() < CHAT_RADIUS + 8; versuch++) {
+  await gast.lauf(0, -1, 4000);
+  await sleep(300);
+}
+function abstandZumChef(): number {
+  const g = gast.wo();
+  return Math.hypot(g.x - chefOrt.x, g.z - chefOrt.z);
+}
+check(
+  abstandZumChef() > CHAT_RADIUS + 8,
+  'der Gast kommt weit genug weg',
+  `${abstandZumChef().toFixed(1)} von ${CHAT_RADIUS} Hörweite`,
+);
 
 stille();
 chef.send(encodeClientChat(ChatChannel.Say, 'nur hier'));
