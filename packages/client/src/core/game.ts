@@ -407,6 +407,17 @@ export interface Diagnostics {
    */
   haustiere: { defId: string; abstand: number }[];
   /**
+   * Die Wesen, so wie sie gerade **gezeichnet** werden.
+   *
+   * Nicht der Snapshot, sondern das Rig: Kennung, Lage seines Wurzelknotens,
+   * ob es sichtbar ist und wie viele Dreiecke unter ihm hängen. Genau diese
+   * vier Angaben trennen die Fälle, die von aussen gleich aussehen — „das
+   * Monster ist nicht da", „es ist da und unsichtbar", „es ist da, sichtbar
+   * und leer" und „es steht im Boden". Ohne sie bleibt nur das Bild, und ein
+   * Wesen, das man nicht sieht, sieht in jedem dieser Fälle gleich aus.
+   */
+  wesen: { defId: string; x: number; y: number; z: number; sichtbar: boolean; dreiecke: number }[];
+  /**
    * Der Stand des Tageszyklus, gerundet.
    *
    * Helligkeit lässt sich rechnen, aber nicht ansehen — und umgekehrt sieht
@@ -574,6 +585,7 @@ export class Game {
     mapId: '',
     localId: 0,
     entityCount: 0,
+    wesen: [],
     lootCount: 0,
     lootNearest: Infinity,
     haustiere: [],
@@ -3498,6 +3510,27 @@ export class Game {
         defId: e.defId,
         abstand: Math.hypot(e.x - this.poseCurr.x, e.z - this.poseCurr.z),
       }));
+    d.wesen = [...this.view.entities.values()]
+      .filter((e) => e.type === EntityType.Monster)
+      .map((e) => {
+        let dreiecke = 0;
+        let sichtbar = e.rig.root.visible;
+        e.rig.root.traverse((o) => {
+          if (!o.visible) sichtbar = false;
+          const netz = o as { isMesh?: boolean; geometry?: THREE.BufferGeometry };
+          if (netz.isMesh !== true || !netz.geometry) return;
+          const pos = netz.geometry.getAttribute('position');
+          dreiecke += (netz.geometry.index?.count ?? pos?.count ?? 0) / 3;
+        });
+        return {
+          defId: e.defId,
+          x: Math.round(e.rig.root.position.x * 100) / 100,
+          y: Math.round(e.rig.root.position.y * 100) / 100,
+          z: Math.round(e.rig.root.position.z * 100) / 100,
+          sichtbar,
+          dreiecke,
+        };
+      });
     d.doll = this.ui.dollState;
 
     const himmel = this.dayCycle.state;

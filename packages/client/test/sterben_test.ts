@@ -17,6 +17,7 @@
  *   npx tsx packages/client/test/sterben_test.ts
  */
 
+import * as THREE from 'three';
 import { ModelRegistry } from '../src/render/modelRegistry.ts';
 import { rigLage } from '../src/render/worldView.ts';
 import type { RigState } from '../src/render/rigs.ts';
@@ -84,6 +85,70 @@ check(schlimmstesLebend < 0.35, 'und lebendig steht jedes aufrecht', `${schlimms
  */
 const irrlicht = kippung('mob_mote', true);
 check(irrlicht < 0.35, 'das Irrlicht fällt nicht um, es sackt zusammen', `${irrlicht.toFixed(2)} rad`);
+
+/*
+ * --- Und keines verschiebt seine Wurzel ------------------------------------
+ *
+ * `root.position` gehört der **Weltansicht**: sie schreibt dort in jedem Bild
+ * die Stelle hinein, an der das Wesen in der Welt steht. Ein Rig, das dieselbe
+ * Zahl anfasst, überschreibt sie — und das ist keine Theorie: der
+ * Höhlenkriecher tat es (`root.position.y = 0` im Leben, `0.42 * s` im Tod)
+ * und war damit im Spiel **unsichtbar**. Auf einer Wiese vier Meter über null
+ * steckte er vier Meter tief im Boden; Namensschild und Schadenszahlen kamen
+ * an, zu sehen war nichts.
+ *
+ * Geprüft wird deshalb für jedes Rig und in beiden Zuständen. Wer eine Haltung
+ * braucht, die das Wesen hebt oder senkt, verschiebt `body` — das ist der
+ * Knoten, der dafür da ist.
+ */
+console.log('\nKein Rig verschiebt seine Wurzel');
+
+let groessterVersatz = 0;
+let schuldiger = '';
+for (const schluessel of [...WESEN, 'mob_mote']) {
+  for (const tot of [false, true]) {
+    const rig = registry.createRig(schluessel);
+    rig.update(RUHE);
+    rig.update({ ...RUHE, dead: tot });
+    const versatz = rig.root.position.length();
+    if (versatz > groessterVersatz) {
+      groessterVersatz = versatz;
+      schuldiger = `${schluessel}${tot ? ' (tot)' : ''}`;
+    }
+    rig.dispose();
+  }
+}
+check(
+  groessterVersatz === 0,
+  'die Wurzel bleibt, wo die Weltansicht sie hingesetzt hat',
+  schuldiger === '' ? 'keines' : `${schuldiger} um ${groessterVersatz.toFixed(2)}`,
+);
+
+/*
+ * Die Gegenprobe: der Kadaver muss trotzdem **über** dem Boden liegen. Ohne
+ * sie wäre die Prüfung oben mit einem Rig zufrieden, das gar nichts tut und
+ * das tote Tier im Boden versenkt — genau der Anblick, den es zu vermeiden
+ * gilt, nur mit einer anderen Ursache.
+ */
+let tiefsterKadaver = 0;
+let tiefstes = '';
+for (const schluessel of WESEN) {
+  const rig = registry.createRig(schluessel);
+  rig.update(RUHE);
+  rig.update({ ...RUHE, dead: true });
+  rig.root.updateMatrixWorld(true);
+  const unten = new THREE.Box3().setFromObject(rig.root).min.y;
+  if (unten < tiefsterKadaver) {
+    tiefsterKadaver = unten;
+    tiefstes = schluessel;
+  }
+  rig.dispose();
+}
+check(
+  tiefsterKadaver > -0.6,
+  'und jeder Kadaver liegt auf dem Boden statt darin',
+  tiefstes === '' ? 'keiner sackt ab' : `${tiefstes} bei ${tiefsterKadaver.toFixed(2)}`,
+);
 
 console.log('\nDie Weltansicht fasst einen Kadaver nicht an');
 

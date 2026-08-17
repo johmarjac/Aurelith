@@ -1668,12 +1668,31 @@ function makeCrawler(cfg: CreatureConfig, material: THREE.Material): CharacterRi
     root,
     update(state) {
       if (state.dead) {
+        /*
+         * Auf dem Rücken, mit den Beinen nach oben — und zwar über `body`.
+         *
+         * `root.position` gehört der **Weltansicht**: dort steht, wo das Wesen
+         * in der Welt ist. Hier stand einmal `root.position.y = 0.42 * s` im
+         * Tod und `= 0` im Leben, und das war kein Feinschliff, sondern der
+         * Grund, warum der Höhlenkriecher im Spiel unsichtbar war: die Zeile
+         * überschrieb in jedem Bild die Höhe, die die Weltansicht gerade
+         * gesetzt hatte. Auf einer Wiese vier Meter über null steckte das Tier
+         * damit vier Meter im Boden — Namensschild und Schadenszahlen kamen an,
+         * zu sehen war nichts. Kein anderes Rig fasst `root.position` an.
+         *
+         * Der Dreh geht um den Ursprung von `body`, und der liegt am Boden:
+         * der Rumpf sitzt bei 0,62 darüber und käme nach dem Umklappen ebenso
+         * weit darunter zu liegen. Die doppelte Höhe hebt ihn wieder heraus.
+         */
         root.rotation.z = Math.PI;
-        root.position.y = 0.42 * s;
+        // Der Dreh geht um den Ursprung, und der liegt am Boden: der Rumpf
+        // sitzt 0,62 darüber und käme ebenso weit darunter zu liegen. Der
+        // Versatz im **Rumpf** holt ihn heraus — negativ, weil die Drehung um
+        // Pi jedes lokale Oben zu einem Unten macht.
+        body.position.set(0, -1.05 * s, 0);
         return;
       }
       root.rotation.z = 0;
-      root.position.y = 0;
 
       const gait = Math.min(1, state.speed / 4.5);
       gaitPhase += state.dt * 13 * Math.max(0.3, gait);
