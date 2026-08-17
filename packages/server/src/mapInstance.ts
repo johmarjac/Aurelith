@@ -191,25 +191,45 @@ export class MapInstance {
   }
 
   /**
-   * Kann an dieser Stelle jemand stehen, der einfach dort abgesetzt wird?
+   * Kann an dieser Stelle jemand stehen, der einfach dort abgesetzt wird —
+   * und **wieder wegkommen**?
    *
    * Zwei Gründe, warum nicht, und beide entstanden erst mit der Insel:
    *
    *   - **Unter Wasser.** Der Kern kennt kein Wasser; der Meeresgrund ist für
    *     ihn gewöhnlicher Boden. Wer über dem Meer absteigt, fällt bis auf den
    *     Grund und steht dort.
-   *   - **Zu steil.** Die Klippe hat achtundsiebzig Grad. Wer auf ihr landet,
-   *     bekommt von `tryStep` keinen Schritt mehr zugestanden — in keine
-   *     Richtung, auch nicht zurück nach oben.
+   *   - **Rundherum zu steil.** Die Klippe hat achtundsiebzig Grad über zwölf
+   *     Meter Lauflänge. Wer auf ihr landet, bekommt von `tryStep` in keine
+   *     Richtung einen Schritt zugestanden.
    *
    * In beiden Fällen käme man ohne Fluggerät nie wieder weg, und das Gerät
-   * liegt nach dem Absteigen im Beutel. Deshalb fragt das Absteigen hier nach.
+   * liegt nach dem Absteigen im Beutel.
    *
-   * Die Neigungsschwelle steht im Kern (`begehbar`) und nicht hier: es ist
-   * dieselbe, mit der ein Schritt angenommen wird.
+   * **Die Nachbarschaft entscheidet, nicht der Fleck selbst.** Hier stand
+   * einmal nur `begehbar(x, z)`, und das war zu streng: an einem Flussufer
+   * oder einer Geländekante ist ein einzelner Punkt schnell steiler als
+   * zweiundfünfzig Grad, und zwei Meter weiter läuft es sich wieder. Der
+   * Flugtest fiel daran durch — er stieg über ganz gewöhnlicher Wiese ab und
+   * bekam eine Absage. Eine Klippe unterscheidet sich von einer Kante genau
+   * dadurch, dass sie **weiträumig** steil ist.
    */
   traegtBoden(x: number, z: number): boolean {
-    return this.world.heightAt(x, z) >= this.doc.terrain.waterLevel && this.world.begehbar(x, z);
+    if (this.world.heightAt(x, z) < this.doc.terrain.waterLevel) return false;
+    if (this.world.begehbar(x, z)) return true;
+
+    // Zwei Ringe: einer für die Kante, einer für den Hang dahinter. Auf der
+    // Klippe liegt auch der äussere Ring noch in der Wand.
+    for (const weite of [1.5, 3.5]) {
+      for (let i = 0; i < 8; i++) {
+        const winkel = (i * Math.PI) / 4;
+        const nx = x + Math.cos(winkel) * weite;
+        const nz = z + Math.sin(winkel) * weite;
+        if (this.world.heightAt(nx, nz) < this.doc.terrain.waterLevel) continue;
+        if (this.world.begehbar(nx, nz)) return true;
+      }
+    }
+    return false;
   }
 
   /**

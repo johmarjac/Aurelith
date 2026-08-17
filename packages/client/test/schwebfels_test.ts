@@ -43,22 +43,35 @@ const welt = core.createWorld(doc.terrain.seed, setup.shape);
 welt.setSculpt(setup.sculpt, setup.sculptResolution);
 
 /*
- * Nur die Plattformen — genau wie in `game.ts`. Kollider und Sperrzonen haben
- * mit der Frage nichts zu tun, und was hier nicht eingetragen wird, kann auch
- * nicht versehentlich mitantworten.
+ * Flächen **und** Hindernisse — genau wie in `game.ts`. Die Sperrzonen bleiben
+ * draussen: sie haben mit der Frage nichts zu tun, und was hier nicht
+ * eingetragen wird, kann auch nicht versehentlich mitantworten.
  */
 let flaechen = 0;
+let kreise = 0;
 for (const prop of doc.props) {
-  if (prop.collision !== 'plattform') continue;
-  welt.addPlattform(
-    prop.position[0],
-    prop.position[2],
-    prop.collisionRadius * prop.scale,
-    prop.position[1],
-  );
-  flaechen++;
+  if (prop.collision === 'plattform') {
+    welt.addPlattform(
+      prop.position[0],
+      prop.position[2],
+      prop.collisionRadius * prop.scale,
+      prop.position[1],
+    );
+    flaechen++;
+  } else if (prop.collision === 'circle') {
+    // Die Hindernisse gehören dazu — der zweite Teil dieser Prüfung handelt
+    // von ihnen.
+    welt.addCollider(
+      prop.position[0],
+      prop.position[2],
+      prop.collisionRadius * prop.scale,
+      prop.collisionHeight * prop.scale,
+    );
+    kreise++;
+  }
 }
 check(flaechen > 0, 'die Karte bringt begehbare Flächen mit', `${flaechen}`);
+check(kreise > 0, 'und Hindernisse dazu', `${kreise}`);
 
 const fels = doc.props.find((p) => p.collision === 'plattform');
 if (!fels) throw new Error('ohne Fels keine Prüfung');
@@ -121,6 +134,69 @@ check(
   'und neben dem Felsen ebenfalls',
   `${daneben.toFixed(2)} m in ${weg.toFixed(0)} m Abstand`,
 );
+
+// ---------------------------------------------------------------------------
+console.log('\nUnd was unten steht, steht oben nicht im Weg');
+// ---------------------------------------------------------------------------
+
+/*
+ * Unter einem schwebenden Felsen steht auch etwas: eine Kiefer, ein Findling,
+ * ein Zaun. Deren Kollisionskreis reichte einmal **bis in den Himmel** — das
+ * war die Bedeutung von `hoehe: 0` —, und damit versperrte ein Baum am Boden
+ * den Weg, der sechsundzwanzig Meter über ihm über eine ebene Fläche führte.
+ * Man lief oben, sah nichts, und stiess an.
+ *
+ * Gesucht wird ein echtes Paar aus der Karte: ein Hindernis unter einer
+ * Fläche. Gibt es keines, sagt das diese Prüfung — dann ist sie nicht grün,
+ * sondern gegenstandslos.
+ */
+const flaechenProps = doc.props.filter((p) => p.collision === 'plattform');
+let paar: { flaeche: (typeof doc.props)[number]; unten: (typeof doc.props)[number] } | undefined;
+for (const flaeche of flaechenProps) {
+  const unten = doc.props.find(
+    (p) =>
+      p.collision === 'circle' &&
+      Math.hypot(p.position[0] - flaeche.position[0], p.position[2] - flaeche.position[2]) <
+        flaeche.collisionRadius * flaeche.scale * 0.9,
+  );
+  if (unten) {
+    paar = { flaeche, unten };
+    break;
+  }
+}
+check(paar !== undefined, 'es steht wirklich etwas unter einem Felsen');
+
+if (paar) {
+  const oberkante = paar.unten.collisionHeight * paar.unten.scale;
+  const gelaende = welt.heightAt(paar.unten.position[0], paar.unten.position[2]);
+  const flaeche = paar.flaeche.position[1];
+  check(
+    oberkante > 0,
+    `„${paar.unten.model}" unter „${paar.flaeche.model}" nennt eine Höhe`,
+    `${oberkante.toFixed(2)} m`,
+  );
+  /*
+   * Die eine Zahl, um die es geht: die Oberkante des Hindernisses liegt unter
+   * der Fläche. Der Kern lässt jeden vorbei, dessen Füsse darüber sind
+   * (`e.y >= c.obenY` in `tryStep`) — mit der alten Null lag diese Oberkante
+   * bei einer Milliarde.
+   */
+  check(
+    gelaende + oberkante < flaeche,
+    'und ihre Oberkante liegt unter der Fläche darüber',
+    `${(gelaende + oberkante).toFixed(1)} m gegen ${flaeche.toFixed(1)} m`,
+  );
+  /*
+   * Gegenprobe: **am Boden** steht dasselbe Hindernis sehr wohl im Weg. Ohne
+   * sie wäre die Zeile darüber auch mit einem Kreis von null Höhe zufrieden —
+   * und dann liefe man durch jeden Baum hindurch.
+   */
+  check(
+    gelaende + oberkante > gelaende + 0.5,
+    'am Boden steht es trotzdem im Weg',
+    `${oberkante.toFixed(2)} m hoch`,
+  );
+}
 
 welt.dispose();
 

@@ -368,19 +368,40 @@ check(props > 2000, 'es gibt überhaupt Props zu prüfen', `${props}`);
  * welche gibt **und** dass nicht alles überspringbar ist. Eine Karte, auf der
  * man über jeden Baum springt, wäre genauso falsch wie eine, auf der jeder
  * Zaun bis in die Wolken reicht.
+ *
+ * Hier stand für die zweite Hälfte einmal `collisionHeight === 0`, also
+ * „reicht bis in den Himmel". Diese Null gibt es nicht mehr: sie versperrte
+ * auch den Weg, der sechsundzwanzig Meter über dem Prop über einen
+ * schwebenden Felsen führte. Jedes Hindernis trägt jetzt die Höhe seines
+ * Modells, und „darüber kommt man nicht" heisst schlicht: höher als der
+ * Sprung.
  */
+const SPRUNGHOEHE = 1.68;
 const mitKreis = karten.flatMap((k) => k.props).filter((p) => p.collision === 'circle');
-const ueberspringbar = mitKreis.filter((p) => p.collisionHeight > 0 && p.collisionHeight < 1.6);
-const bisZumHimmel = mitKreis.filter((p) => p.collisionHeight === 0);
+const ueberspringbar = mitKreis.filter(
+  (p) => p.collisionHeight > 0 && p.collisionHeight * p.scale < SPRUNGHOEHE,
+);
+const zuHoch = mitKreis.filter((p) => p.collisionHeight * p.scale >= SPRUNGHOEHE);
 check(
   ueberspringbar.length > 200,
   'über einen guten Teil der Hindernisse springt man hinweg',
   `${ueberspringbar.length} von ${mitKreis.length}`,
 );
 check(
-  bisZumHimmel.length > 200,
+  zuHoch.length > 200,
   'und über den Rest nicht',
-  `${bisZumHimmel.length} von ${mitKreis.length}`,
+  `${zuHoch.length} von ${mitKreis.length}`,
+);
+/*
+ * Und keines reicht mehr in den Himmel. Das ist die eigentliche neue Zeile:
+ * ohne sie käme die Null über den Generator jederzeit zurück, und der Fehler
+ * — anstossen an etwas, das weit unter einem liegt — sähe wieder wie ein
+ * kaputtes Spiel aus.
+ */
+check(
+  mitKreis.every((p) => p.collisionHeight > 0),
+  'und keines reicht bis in den Himmel',
+  `${mitKreis.filter((p) => p.collisionHeight <= 0).length} ohne Höhe`,
 );
 // Zäune und Mauern sind der Fall, um den es geht — sie müssen dabei sein.
 const zaeune = mitKreis.filter((p) => p.model === 'fence_wood' || p.model === 'fence_stone');

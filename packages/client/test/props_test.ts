@@ -192,6 +192,59 @@ check(zuWeit.length === 0, 'kein Kreis reicht weiter als das Modell', zuWeit.sli
  */
 check(engster.anteil < 0.5, 'und mancher ist bewusst viel enger', `${engster.key} bei ${(engster.anteil * 100).toFixed(0)} %`);
 
+console.log('\nUnd seine Höhe ist die des Modells');
+
+/*
+ * Kein Kreis reicht mehr in den Himmel.
+ *
+ * Die Höhe war einmal null für alles, worüber man nicht springen soll —
+ * Bäume, Säulen, Felsen — und null hiess im Kern „bis in die Wolken". Für den
+ * Sprung stimmte das und im Raum nicht: ein Fels am Boden versperrte den Weg,
+ * der sechsundzwanzig Meter darüber über einen schwebenden Felsen führte. Man
+ * lief oben über eine ebene Fläche und stiess an etwas an, das weit unter
+ * einem lag.
+ *
+ * Geprüft wird gegen das Modell und nicht gegen eine Liste erlaubter Zahlen:
+ * eine Liste wäre eine zweite Tabelle neben der ersten, und die veraltet.
+ */
+const ohneHoehe: string[] = [];
+const falscheHoehe: string[] = [];
+for (const [k, geo] of gebaut) {
+  const kol = PROP_KOLLISION[k]!;
+  if (kol.form !== 'circle') continue;
+  if (kol.hoehe <= 0) {
+    ohneHoehe.push(k);
+    continue;
+  }
+  geo.computeBoundingBox();
+  const modell = geo.boundingBox!.max.y;
+  // Fünf Zentimeter Toleranz: so grob steht die Zahl in der Tabelle.
+  if (Math.abs(kol.hoehe - modell) > 0.06) {
+    falscheHoehe.push(`${k}: ${kol.hoehe} statt ${modell.toFixed(2)}`);
+  }
+}
+check(ohneHoehe.length === 0, 'jeder Kreis nennt seine Höhe', ohneHoehe.slice(0, 5).join(', ') || 'keiner ohne');
+check(
+  falscheHoehe.length === 0,
+  'und sie ist die des Modells',
+  falscheHoehe.slice(0, 4).join(' · ') || 'alle passen',
+);
+
+/*
+ * Gegenprobe: es gibt sowohl Props, über die man springt, als auch solche,
+ * über die man nicht springt. Fehlte eine der beiden Gruppen, wäre die
+ * Sprunghöhe entweder bedeutungslos oder die Karte ein Hindernisparcours —
+ * und die Prüfung darüber wäre mit beidem zufrieden.
+ */
+const SPRUNG = 1.68;
+const kreise = [...gebaut.keys()].filter((k) => PROP_KOLLISION[k]!.form === 'circle');
+const drueber = kreise.filter((k) => PROP_KOLLISION[k]!.hoehe < SPRUNG);
+check(
+  drueber.length > 0 && drueber.length < kreise.length,
+  'über manche springt man und über andere nicht',
+  `${drueber.length} von ${kreise.length} unter der Scheitelhöhe`,
+);
+
 for (const geo of gebaut.values()) geo.dispose();
 
 console.log(

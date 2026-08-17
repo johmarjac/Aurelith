@@ -142,6 +142,13 @@ Aufruf, und dasselbe Modell hatte je nach Karte einen anderen Radius —
 Radius gilt bei `scale: 1`; Server und Client rechnen ihn mit der Skalierung
 des Props mal.
 
+**Kein Hindernis reicht in den Himmel.** Jeder Kreis trägt die echte Höhe
+seines Modells, und `props_test` prüft beides gegeneinander. Die Höhe hiess
+einmal „null gleich unendlich", weil es nur um den Sprung ging — und damit
+versperrte ein Baum am Boden den Weg, der sechsundzwanzig Meter über ihm über
+einen schwebenden Felsen führte. In einer Welt mit Höhen ist eine Zahl, die
+bis in die Wolken reicht, keine Angabe, sondern ein blinder Fleck.
+
 ---
 
 ## Sicherheit
