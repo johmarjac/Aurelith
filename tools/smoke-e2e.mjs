@@ -750,6 +750,22 @@ check(
   'und das Menü schliesst sich dabei',
 );
 
+/*
+ * --- Der Vitalkasten öffnet das Charakterblatt ------------------------------
+ *
+ * Er zeigt Stufe, Leben, Mana und Erfahrung — wer mehr davon will, greift
+ * dorthin, wo die Zahlen stehen. Geprüft wird beides: dass der Griff aufmacht
+ * **und** dass ein zweiter wieder zumacht. Ein Knopf, der nur die eine
+ * Richtung kann, lässt einen die andere woanders suchen.
+ */
+const kompass = await page.evaluate(
+  () => document.querySelector('.vitals-kompass')?.textContent ?? '',
+);
+check(
+  /^(N|NO|O|SO|S|SW|W|NW)$/.test(kompass),
+  `der Kompass steht neben der Uhr (${kompass || 'leer'})`,
+);
+
 await mkdir(shotDir, { recursive: true });
 await page.screenshot({ path: join(shotDir, 'client.png') });
 console.log(`\n→ Bildschirmfoto: artefakte/client.png`);

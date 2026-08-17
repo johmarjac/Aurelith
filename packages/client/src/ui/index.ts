@@ -21,6 +21,7 @@ import {
   getNpc,
   QuestStatus,
   clockText,
+  himmelsrichtung,
   EIGENSCHAFTEN,
   attributeDef,
   eigenschaftsWirkung,
@@ -548,6 +549,15 @@ export class UI {
   private detailFromDoll = false;
   /** Die Uhr oben links. Zeigt die Weltzeit, nicht die des Geräts. */
   private readonly clockLabel: HTMLElement;
+  /**
+   * Der Kompass daneben. Zeigt, wohin die **Kamera** sieht.
+   *
+   * Nicht, wohin die Figur steht: man orientiert sich an dem, was man sieht,
+   * und auf dem Fluggerät fällt beides ohnehin zusammen. Am Boden dreht sich
+   * die Kamera frei um die Figur — ein Kompass, der dabei stehenbliebe, wäre
+   * eine Auskunft über etwas, das gerade niemanden interessiert.
+   */
+  private readonly kompassLabel: HTMLElement;
   /** Zuletzt gesehenes Inventar — der Laden verkauft daraus. */
   private inventory: InventoryEntry[] = [];
   /** Zuletzt gesehener Auftragsstand, samt daraus gerechneten Zeichen. */
@@ -651,7 +661,8 @@ export class UI {
     const head = el('div', 'vitals-head');
     this.nameLabel = el('span', 'vitals-name', '—');
     this.clockLabel = el('span', 'vitals-clock', '');
-    head.append(this.nameLabel, this.clockLabel);
+    this.kompassLabel = el('span', 'vitals-kompass', 'N');
+    head.append(this.nameLabel, this.clockLabel, this.kompassLabel);
     spalte.append(head, this.hpBar.root, this.mpBar.root, this.expBar.root);
 
     vitals.append(medaillon, spalte);
@@ -2160,6 +2171,19 @@ export class UI {
   setWorldTime(t: number, darkness: number): void {
     const text = `${darkness > 0.5 ? '🌙' : '☀'} ${clockText(t)}`;
     if (this.clockLabel.textContent !== text) this.clockLabel.textContent = text;
+  }
+
+  /**
+   * Stellt den Kompass auf den Kurs der Kamera.
+   *
+   * Läuft in jedem Bild, geschrieben wird aber nur beim Wechsel der Richtung:
+   * eine Drehung um die eigene Achse ergäbe sonst sechzig Schreibzugriffe je
+   * Sekunde auf denselben Buchstaben, und jeder davon kostet das Layout einer
+   * Textzeile.
+   */
+  setKompass(yaw: number): void {
+    const richtung = himmelsrichtung(yaw);
+    if (this.kompassLabel.textContent !== richtung) this.kompassLabel.textContent = richtung;
   }
 
   /**

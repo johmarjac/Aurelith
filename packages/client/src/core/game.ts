@@ -3361,6 +3361,9 @@ export class Game {
     // passen, das gleich entsteht.
     this.dayCycle.update(this.worldTimeMs, this.scene, this.view.lanterns, now);
     this.ui.setWorldTime(this.dayCycle.time, this.dayCycle.state?.darkness ?? 0);
+    // Der Kompass steht neben der Uhr und kommt aus derselben Schleife. Der
+    // Kurs ist der der Kamera und nicht der der Figur — siehe `kompassLabel`.
+    this.ui.setKompass(this.scene.yaw);
 
     // Bildrate: zweimal je Sekunde neu, aus dem, was in diesem Fenster
     // tatsächlich gezeichnet wurde.

@@ -328,6 +328,17 @@ body {
   gap: 0.4rem;
   font-size: 0.72rem;
   line-height: 1.1;
+  /*
+   * `min-width: 0`, und zwar hier oben.
+   *
+   * Diese Zeile ist ein Element im Raster von `.vitals-col`, und ein
+   * Rasterelement schrumpft von sich aus nicht unter seinen Inhalt. Solange
+   * nur Name und Uhr darin standen, fiel das nicht auf; mit dem Kompass daneben
+   * wurde die Zeile breiter als der Kasten und das Feld hing rechts über den
+   * Rahmen hinaus. Erst damit greift die Kürzung am Namen darunter — er ist das
+   * Einzige, das sich kürzen lässt, ohne dass etwas fehlt.
+   */
+  min-width: 0;
 }
 
 .vitals-name {
@@ -350,6 +361,7 @@ body {
 }
 
 .vitals-clock,
+.vitals-kompass,
 .vitals-level {
   flex: 0 0 auto;
 }
@@ -3436,6 +3448,33 @@ body.aktion-zuweisen .window[data-window='skills'] {
   font-size: 0.72rem;
   color: var(--ink-dim);
   white-space: nowrap;
+}
+
+/*
+ * Der Kompass sitzt rechts neben der Uhr.
+ *
+ * Feste Breite, und die ist der Punkt: die Richtungen sind ein oder zwei
+ * Zeichen lang, und ohne sie ruckte der Name bei jeder Vierteldrehung um eine
+ * Zeichenbreite hin und her. Zentriert, damit „N" und „NW" beide mittig im
+ * selben Feld stehen.
+ *
+ * Ein Kasten mit Rahmen statt blossem Text: er ist die einzige Angabe hier
+ * oben, die sich beim Drehen ständig ändert, und ein Wort, das im Augenwinkel
+ * flackert, liest sich als Fehler, solange man ihm nicht ansieht, dass es ein
+ * Anzeigefeld ist.
+ */
+.vitals-kompass {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.7rem;
+  line-height: 1;
+  width: 1.8em;
+  text-align: center;
+  padding: 0.1em 0 0.12em;
+  border-radius: 0.25em;
+  background: var(--kachel-hell);
+  color: var(--gold-hell);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 
 /* --- Auftragszeichen über den Köpfen ------------------------------------- */

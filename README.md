@@ -238,6 +238,7 @@ npm run test:laub        # Laubkarten: richtige Atlaskachel, Stand auf dem Boden
 npm run test:fels        # Findlinge: Grösse passt zum Kollisionskreis, Körnung in Metern
 npm run test:sterben     # jedes Wesen fällt um, und die Weltansicht stellt es nicht wieder auf
 npm run test:props       # Prop-Katalog: Tabelle deckt sich, alles steht am Boden, Kreise passen
+npm run test:kompass     # Kompass: acht Richtungen, Wechsel bei 22,5°, N zeigt nach +z
 npm run test:tag         # Tag- und Nachtwechsel: Licht, Farben, Uhr
 npm run test:quests      # das Auftragsbuch — ohne Server
 npm run test:content     # die Inhaltsdateien: Format und Verweise
