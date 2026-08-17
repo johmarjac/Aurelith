@@ -196,6 +196,7 @@ interface RawWorld {
   ): void;
   step(dt: number): void;
   teleport(id: number, x: number, z: number, yaw: number): void;
+  setzeAn(id: number, x: number, y: number, z: number): void;
   respawnPlayer(id: number, x: number, z: number): void;
   setTarget(id: number, targetId: number): void;
   setFlying(
@@ -446,6 +447,15 @@ export class CoreWorld {
 
   teleport(id: number, x: number, z: number, yaw: number): void {
     this.raw.teleport(id, x, z, yaw);
+  }
+
+  /**
+   * Setzt eine Figur an eine Stelle im Raum — mit Höhe. Für `/tp x y z`.
+   *
+   * Unter den Boden geht nicht; darüber fällt sie.
+   */
+  setzeAn(id: number, x: number, y: number, z: number): void {
+    this.raw.setzeAn(id, x, y, z);
   }
 
   respawnPlayer(id: number, x: number, z: number): void {

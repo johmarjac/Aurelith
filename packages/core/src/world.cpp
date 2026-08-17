@@ -429,6 +429,28 @@ void World::teleport(uint32_t id, float x, float z, float yaw) {
   e->homeZ = e->z;
 }
 
+void World::setzeAn(uint32_t id, float x, float y, float z) {
+  Entity* e = find(id);
+  if (e == nullptr) return;
+
+  e->x = clampToMap(x, terrain_);
+  e->z = clampToMap(z, terrain_);
+  // `vonY` ist die **Zielhöhe** und nicht die alte: sonst suchte die Frage die
+  // Fläche unter dem Ort, an dem man gerade steht, und wer von unten auf einen
+  // Felsen will, landete wieder auf der Wiese.
+  const float boden = bodenHoehe(e->x, e->z, y);
+  e->y = y < boden ? boden : y;
+  e->airborne = e->y > boden + kStufenHoehe;
+
+  e->vx = 0.0f;
+  e->vz = 0.0f;
+  e->vy = 0.0f;
+  e->swingTimer = -1.0f;
+  e->targetId = 0;
+  e->homeX = e->x;
+  e->homeZ = e->z;
+}
+
 void World::respawnPlayer(uint32_t id, float x, float z) {
   Entity* e = find(id);
   if (e == nullptr) return;

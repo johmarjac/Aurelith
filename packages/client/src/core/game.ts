@@ -2115,7 +2115,7 @@ export class Game {
 
     for (const row of msg.spawns) {
       this.view.spawn(row);
-      if (row.id === this.localId) this.seedPrediction(row.x, row.z, row.yaw, row.hp, row.maxHp);
+      if (row.id === this.localId) this.seedPrediction(row, row.hp, row.maxHp);
     }
     for (const row of msg.updates) this.view.update(row);
     for (const id of msg.despawns) {
@@ -2177,10 +2177,24 @@ export class Game {
     this.ui.setTarget(target);
   }
 
-  /** Setzt die eigene Figur in die Vorhersagewelt, sobald der Server sie meldet. */
-  private seedPrediction(x: number, z: number, yaw: number, hp: number, maxHp: number): void {
+  /**
+   * Setzt die eigene Figur in die Vorhersagewelt, sobald der Server sie meldet.
+   *
+   * Die **ganze** Zeile und nicht nur `x`/`z`: hier standen einmal zwei
+   * Koordinaten, und damit ging die Höhe verloren. Ein `/tp` auf einen
+   * schwebenden Felsen kam beim Server an und im Bild nicht — die Vorhersage
+   * setzte die Figur mit ihrem alten Bodenabstand auf das Gelände, und sie
+   * stand wieder unten. Beim Kartenwechsel fiel das nie auf, weil dort beide
+   * Enden auf dem Boden liegen.
+   */
+  private seedPrediction(
+    zeile: { x: number; y: number; z: number; yaw: number },
+    hp: number,
+    maxHp: number,
+  ): void {
     const world = this.prediction;
     if (!world || this.localId === 0) return;
+    const { x, y, z, yaw } = zeile;
 
     /*
      * Steht die eigene Figur schon in der Vorhersage, ist das hier kein
@@ -2203,10 +2217,18 @@ export class Game {
     if (schonDa) {
       this.applyProfileToPrediction();
       this.applyFlugToPrediction();
-      // Deutlich mehr als die Schwelle des Abgleichs (1,2): ein Ortswechsel
-      // sind Dutzende Einheiten, ein Nachlauf sind Bruchteile davon.
-      if (Math.hypot(x - schonDa.x, z - schonDa.z) < 4) return;
-      world.teleport(this.localId, x, z, yaw);
+      /*
+       * Deutlich mehr als die Schwelle des Abgleichs (1,2): ein Ortswechsel
+       * sind Dutzende Einheiten, ein Nachlauf sind Bruchteile davon.
+       *
+       * Die Höhe zählt mit. Ein `/tp` senkrecht auf einen Felsen ändert `x`
+       * und `z` um nichts — ohne sie hielte diese Zeile den Sprung für einen
+       * Nachlauf und liesse die Figur unten stehen.
+       */
+      if (Math.hypot(x - schonDa.x, z - schonDa.z, y - schonDa.y) < 4) return;
+      // `setzeAn` und nicht `teleport`: das hier ist ein Sprung im Raum, und
+      // `teleport` behielte den alten Abstand zum Boden bei.
+      world.setzeAn(this.localId, x, y, z);
       this.poseValid = false;
       this.input.setFacing(yaw);
       return;

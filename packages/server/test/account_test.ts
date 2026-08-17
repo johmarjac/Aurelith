@@ -185,6 +185,7 @@ const ansagen: string[] = [];
 const stufenrufe: Array<{ name: string; stufe: AccessLevel }> = [];
 const levelrufe: Array<{ figur: string; level: number }> = [];
 const tprufe: string[] = [];
+const stellen: Array<{ x: number; y: number; z: number }> = [];
 const spawnrufe: string[] = [];
 let gutgeschrieben = 0;
 const wirt: CommandHost = {
@@ -206,6 +207,12 @@ const wirt: CommandHost = {
     return mapId !== 'gibtsnicht';
   },
   kartenListe: () => ['dornwald', 'gruft_01', 'lichtmoor'],
+  setzeAn: (_s, x, y, z) => {
+    stellen.push({ x, y, z });
+    // Ob die Figur gerade in einer Welt steht, weiss der Server. Hier geht es
+    // um das, was **vor** ihm passiert: drei Zahlen oder ein Kartenname.
+    return true;
+  },
   setzeLevel: (_s, figur, level) => {
     levelrufe.push({ figur, level });
     // „Es gibt sie" — die Suche nach der Figur prüft der Server, nicht die
@@ -250,6 +257,41 @@ for (const eingabe of ['/gg', '/gg null', '/gg -5', '/gg 1.5', '/gg 99999999']) 
   gutgeschrieben = 0;
   runCommand(wirt, sitzung(AccessLevel.Admin), eingabe);
   check(gutgeschrieben === 0, `„${eingabe}" schreibt nichts gut`);
+}
+
+/*
+ * `/tp` kann zweierlei, und die Anzahl der Wörter entscheidet.
+ *
+ * Ein Wort ist eine Karte, drei Zahlen sind eine Stelle auf dieser. Die
+ * Verwechslung wäre teuer: `/tp 12 4 -7` als Kartenname gelesen ergäbe eine
+ * Absage mit Kartenliste, und `/tp lichtmoor` als Zahlen gelesen eine Figur
+ * bei NaN.
+ */
+gesagt.length = 0;
+stellen.length = 0;
+tprufe.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Gamemaster), '/tp 12 4 -7');
+check(
+  stellen.length === 1 && stellen[0]!.x === 12 && stellen[0]!.y === 4 && stellen[0]!.z === -7,
+  'drei Zahlen setzen an eine Stelle',
+  JSON.stringify(stellen[0] ?? null),
+);
+check(tprufe.length === 0, 'und suchen keine Karte dazu');
+
+// Die Gegenprobe: ein Wort bleibt eine Karte und keine Stelle.
+stellen.length = 0;
+tprufe.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Gamemaster), '/tp lichtmoor');
+check(tprufe[0] === 'lichtmoor' && stellen.length === 0, 'ein Wort bleibt eine Karte');
+
+// Und was weder das eine noch das andere ist, wird abgesagt statt geraten.
+for (const eingabe of ['/tp 12 vier -7', '/tp 1 2', '/tp 1 2 3 4']) {
+  stellen.length = 0;
+  tprufe.length = 0;
+  gesagt.length = 0;
+  runCommand(wirt, sitzung(AccessLevel.Gamemaster), eingabe);
+  check(stellen.length === 0, `„${eingabe}" setzt niemanden`);
+  check(gesagt.length > 0, `und „${eingabe}" sagt, was es erwartet`, gesagt.join(' | '));
 }
 
 // --- Ansagen ---------------------------------------------------------------

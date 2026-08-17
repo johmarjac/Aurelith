@@ -219,6 +219,7 @@ EMSCRIPTEN_BINDINGS(aurelith_core) {
 
       // Eingriffe
       .function("teleport", &aur::World::teleport)
+      .function("setzeAn", &aur::World::setzeAn)
       .function("respawnPlayer", &aur::World::respawnPlayer)
       .function("setTarget", &aur::World::setTarget)
       .function("setFlying", &aur::World::setFlying)

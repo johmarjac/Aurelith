@@ -373,6 +373,11 @@ mit seiner Kennung (`cave_crawler`) **oder** mit seinem deutschen Namen
 mit der Liste beantwortet. Über Wasser oder auf der Klippe kommt eine Absage —
 dort stünde das Wesen im Meer.
 
+`/tp <x> <y> <z>` setzt an eine Stelle **dieser** Karte — mit Höhe. Damit
+kommt man auch dorthin, wo kein Weg hinführt: auf einen schwebenden Felsen zum
+Beispiel, und ohne so eine Stelle lässt sich nicht prüfen, was in der Höhe
+gilt. Unter den Boden setzt der Befehl niemanden; darüber fällt man.
+
 `/tp <karte>` setzt an den **Startpunkt** der Karte ab — dorthin, wo eine neue
 Figur erscheint. Der steht in der Kartendatei, ist im Editor zu verschieben und
 per Konstruktion begehbar; die eigene Lage wäre das nicht, sie kann auf einer

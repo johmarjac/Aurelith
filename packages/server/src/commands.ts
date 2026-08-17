@@ -56,6 +56,11 @@ export interface CommandHost {
   /** Welche Karten es gibt — für die Absage, wenn eine nicht dabei ist. */
   kartenListe(): string[];
   /**
+   * Setzt die Figur an eine Stelle dieser Karte. `false` heisst: die Figur
+   * steht gerade in keiner Welt.
+   */
+  setzeAn(session: Session, x: number, y: number, z: number): boolean;
+  /**
    * Setzt ein Monster dieser Kennung vor die Figur. Gibt seinen Namen zurück;
    * `undefined` heisst, dass es nicht gesetzt werden konnte — vor der Figur
    * liegt kein Boden, der etwas trägt.
@@ -203,11 +208,38 @@ export const COMMANDS: readonly CommandDef[] = [
   {
     name: 'tp',
     minLevel: AccessLevel.Gamemaster,
-    hilfe: '/tp <karte> — an den Startpunkt einer Karte (ab Spielleiter)',
+    hilfe: '/tp <karte> | /tp <x> <y> <z> — an eine Karte oder an eine Stelle (ab Spielleiter)',
     run(host, session, args) {
+      /*
+       * Ein Wort ist eine Karte, drei Zahlen sind eine Stelle.
+       *
+       * Ein Befehl und nicht zwei: beides heisst „bring mich dorthin", und wer
+       * `/tp` tippt, sucht nicht erst, ob es dafür einen zweiten Namen gibt.
+       * Unterschieden wird an der **Anzahl** — eine Karte heisst nie „12 4 -7".
+       */
+      if (args.length === 3) {
+        const zahlen = args.map((w) => Number(w));
+        if (zahlen.some((n) => !Number.isFinite(n))) {
+          host.systemMessage(session, 'Erwartet: /tp <x> <y> <z> — drei Zahlen.');
+          return;
+        }
+        const [x, y, z] = zahlen as [number, number, number];
+        if (!host.setzeAn(session, x, y, z)) {
+          host.systemMessage(session, 'Gerade geht das nicht.');
+          return;
+        }
+        // Mit den Zahlen zurück: `y` wird auf den Boden angehoben, wenn es
+        // darunter lag, und ohne die Antwort wüsste man nicht, wo man steht.
+        host.systemMessage(session, `Versetzt auf ${x}, ${y}, ${z}.`);
+        return;
+      }
+
       const karte = (args[0] ?? '').trim();
       if (args.length !== 1 || karte.length === 0) {
-        host.systemMessage(session, `Erwartet: /tp <karte>. Es gibt: ${host.kartenListe().join(', ')}.`);
+        host.systemMessage(
+          session,
+          `Erwartet: /tp <karte> oder /tp <x> <y> <z>. Es gibt: ${host.kartenListe().join(', ')}.`,
+        );
         return;
       }
       if (!host.teleportiere(session, karte)) {

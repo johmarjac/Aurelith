@@ -166,6 +166,22 @@ class World {
   // --- Eingriffe von außen ----------------------------------------------
 
   void teleport(uint32_t id, float x, float z, float yaw);
+
+  /**
+   * Setzt eine Figur an eine Stelle **im Raum** — mit Höhe.
+   *
+   * `teleport` nimmt nur `x` und `z` und behält den Abstand zum Boden bei; das
+   * ist richtig für ein Tor und reicht nicht, um jemanden auf einen
+   * schwebenden Felsen zu stellen. Genau dafür ist das hier da: `/tp x y z`
+   * bringt einen Spielleiter an jede Stelle, auch dorthin, wo kein Weg
+   * hinführt — und ohne so eine Stelle lässt sich nicht prüfen, was in der
+   * Höhe gilt.
+   *
+   * Unter den Boden setzt sie niemanden: `y` wird auf die Fläche angehoben,
+   * die dort trägt. Darüber gilt sie als in der Luft und fällt — dieselbe
+   * Schwerkraft wie nach einem Sprung, kein zweiter Weg nach unten.
+   */
+  void setzeAn(uint32_t id, float x, float y, float z);
   void respawnPlayer(uint32_t id, float x, float z);
   void setTarget(uint32_t id, uint32_t targetId);
 

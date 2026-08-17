@@ -3225,6 +3225,33 @@ export class GameServer {
     return true;
   }
 
+  /**
+   * Setzt die Figur an eine Stelle **dieser** Karte — für `/tp x y z`.
+   *
+   * Der Weg über `versetze` (Kartenwechsel) wäre hier falsch: der legt die
+   * Figur neu an, und die Höhe geht dabei durch `spawnPlayer` verloren. Hier
+   * bleibt dieselbe Figur stehen, sie wird nur woandershin gesetzt.
+   *
+   * Gedacht zum Prüfen: ohne einen Weg auf einen schwebenden Felsen lässt sich
+   * nicht nachstellen, was dort oben gilt — und genau dort war die
+   * Wahrnehmung der Monster falsch.
+   */
+  setzeAn(session: Session, x: number, y: number, z: number): boolean {
+    const instance = this.instances.get(session.mapId);
+    if (!instance || !instance.entity(session.entityId)) return false;
+    instance.world.setzeAn(session.entityId, x, y, z);
+    /*
+     * Der Client muss von dem Sprung erfahren, sonst zieht seine Vorhersage
+     * die Figur zurück: sie rechnet vom letzten bestätigten Stand weiter und
+     * kennt keinen Grund für einen Satz über die halbe Karte. Dieselbe
+     * Bekanntmachung wie beim Kartenwechsel — eine volle Zeile statt einer
+     * Aktualisierung.
+     */
+    for (const other of this.sessions) other.known.delete(session.entityId);
+    instance.refresh();
+    return true;
+  }
+
   /** Die Kennungen aller Karten, die dieser Kanal führt — für `/tp` ohne Treffer. */
   kartenListe(): string[] {
     return [...this.instances.keys()].sort();
