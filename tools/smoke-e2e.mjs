@@ -766,6 +766,45 @@ check(
   `der Kompass steht neben der Uhr (${kompass || 'leer'})`,
 );
 
+const charOffen = () =>
+  page.evaluate(
+    () => document.querySelector('.window[data-window="character"]')?.dataset.open === 'true',
+  );
+
+/*
+ * Zustandsbasiert und nicht „warte auf offen".
+ *
+ * Vor dieser Stelle läuft ein halber Test durch — Menü, Fenster, Tasten —, und
+ * ob das Charakterblatt dabei schon einmal aufging, ist nicht die Sache dieser
+ * Prüfung. Gemessen wird der **Wechsel**: einmal hin, einmal zurück. Die
+ * Pause dazwischen ist nötig, damit zwei Klicks nicht als Doppelklick
+ * durchgehen.
+ */
+const vorher = await charOffen();
+await page.click('.vitals');
+await page.waitForTimeout(400);
+const nachEins = await charOffen();
+check(nachEins !== vorher, 'ein Griff auf den Vitalkasten schaltet das Charakterblatt um', `${vorher} → ${nachEins}`);
+
+await page.click('.vitals');
+await page.waitForTimeout(400);
+check(
+  (await charOffen()) === vorher,
+  'und der nächste schaltet es zurück',
+  `${nachEins} → ${await charOffen()}`,
+);
+
+// Und es geht dabei wirklich auf — ein Kasten, der nur zumacht, was schon zu
+// war, erfüllte die beiden Zeilen darüber ebenfalls.
+check(nachEins === true || vorher === true, 'und mindestens einmal stand es dabei offen');
+
+// Zu lassen, was hier stand: das Bildschirmfoto gleich darunter soll nicht von
+// einem Fenster verdeckt sein, das dieser Abschnitt aufgemacht hat.
+if (await charOffen()) {
+  await page.click('.vitals');
+  await page.waitForTimeout(300);
+}
+
 await mkdir(shotDir, { recursive: true });
 await page.screenshot({ path: join(shotDir, 'client.png') });
 console.log(`\n→ Bildschirmfoto: artefakte/client.png`);

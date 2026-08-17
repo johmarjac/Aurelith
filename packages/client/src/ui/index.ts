@@ -666,6 +666,20 @@ export class UI {
     spalte.append(head, this.hpBar.root, this.mpBar.root, this.expBar.root);
 
     vitals.append(medaillon, spalte);
+    /*
+     * Der Kasten selbst ist der Knopf fürs Charakterblatt.
+     *
+     * Er zeigt Stufe, Leben, Mana und Erfahrung — wer mehr davon wissen will,
+     * greift dorthin, wo die Zahlen stehen, und nicht ins Menü. Bei Flyff ist
+     * es dieselbe Bewegung. Auf dem Telefon ersetzt das drei Tipper durch
+     * einen; die Taste `C` und der Menüeintrag bleiben, wo sie sind.
+     *
+     * `toggle` und nicht `open`: derselbe Griff schliesst es wieder. Ein Knopf,
+     * der nur aufmacht, lässt einen die zweite Bewegung woanders suchen.
+     */
+    vitals.dataset.knopf = 'charakter';
+    vitals.title = 'Charakterblatt (C)';
+    vitals.addEventListener('click', () => this.characterWindow.toggle());
     host.appendChild(vitals);
 
     // --- Ziel -------------------------------------------------------------

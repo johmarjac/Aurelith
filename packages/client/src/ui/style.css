@@ -321,6 +321,25 @@ body {
   gap: 0.16rem;
 }
 
+/*
+ * Der Kasten ist anfassbar — ein Griff darauf öffnet das Charakterblatt.
+ *
+ * Nur der Zeiger und ein Hauch Aufhellung: ein Knopfrahmen um die Lebensbalken
+ * herum machte aus der wichtigsten Anzeige des Spiels ein Bedienelement, und
+ * man läse sie danach anders. `user-select: none` verhindert, dass ein etwas
+ * zu langer Griff den Namen markiert, statt das Fenster zu öffnen.
+ */
+.vitals[data-knopf='charakter'] {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: filter 120ms ease;
+}
+
+.vitals[data-knopf='charakter']:hover {
+  filter: brightness(1.08);
+}
+
 .vitals-head {
   display: flex;
   align-items: baseline;
