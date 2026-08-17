@@ -57,11 +57,26 @@ export type Himmelsrichtung = (typeof HIMMELSRICHTUNGEN)[number];
  * Norden. Ein Achtel des Vollkreises je Richtung, und gerundet wird zur
  * nächsten: der Wechsel von N auf NO liegt damit bei 22,5 Grad und nicht bei
  * 45, sonst hiesse geradeaus nach Nordosten immer noch „N".
+ *
+ * **Das Minus ist der Kern der Sache.** Hier stand einmal ein Plus, und die
+ * Anzeige war damit an Ost und West spiegelverkehrt: wer nach Norden sah und
+ * die Kamera nach rechts drehte, las „W". Der Grund sind zwei Drehsinne, die
+ * gegeneinander laufen.
+ *
+ *   - **Die Peilung läuft im Uhrzeigersinn**: N, NO, O, SO — nach rechts.
+ *   - **`yaw` läuft andersherum.** Osten ist die Richtung, die rechts liegt,
+ *     wenn man nach Norden sieht, und rechts auf dem Bildschirm ist
+ *     `kreuz(vorwärts, oben)`. Bei Blick nach Norden ist das
+ *     `kreuz((0,0,1), (0,1,0)) = (-1,0,0)` — also **−x**. Der Kurs mit
+ *     Blickrichtung −x ist `yaw = -PI/2` und nicht `+PI/2`.
+ *
+ * Anders gesagt: Norden ist +z, Osten ist −x, Süden ist −z, Westen ist +x.
+ * Ein Plus an dieser Stelle vertauscht die beiden mittleren.
  */
 export function himmelsrichtung(yaw: number): Himmelsrichtung {
-  const achtel = Math.round(yaw / (Math.PI / 4));
+  const achtel = Math.round(-yaw / (Math.PI / 4));
   // Erst das Modulo, dann der Ausgleich: `%` behält in JavaScript das
-  // Vorzeichen des Zählers, und ein Blick nach Westen (yaw = -PI/2) gäbe
+  // Vorzeichen des Zählers, und ein Blick nach Westen (yaw = +PI/2) gäbe
   // sonst den Index -2 und damit `undefined`.
   return HIMMELSRICHTUNGEN[((achtel % 8) + 8) % 8]!;
 }
