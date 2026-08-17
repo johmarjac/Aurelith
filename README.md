@@ -303,8 +303,9 @@ nicht anmelden, nur weil es alt ist.
 Jedes Konto hat eine Zugriffsstufe: `player`, `gamemaster`, `developer`,
 `admin`. Sie sind aufsteigend — wer eine hat, darf alles, was die Stufen
 darunter dürfen — und entscheiden über die Chatbefehle, die der **Server**
-ausführt: `/gg <menge>` und `/sys <text>` ab `gamemaster`, `/accesslevel` ab
-`admin`. `/help` im Spiel zeigt jedem genau die Befehle, die ihm zustehen.
+ausführt: `/gg <menge>`, `/sys <text>` und `/spawn <monster>` ab `gamemaster`,
+`/accesslevel` ab `admin`. `/help` im Spiel zeigt jedem genau die Befehle, die
+ihm zustehen.
 
 Vergeben wird auf zwei Wegen, und sie haben eine klare Rangfolge.
 
@@ -362,6 +363,13 @@ schlicht nichts mehr offen.
 `/level <stufe>` setzt die eigene Stufe, `/level <figur> <stufe>` die einer
 Figur, die gerade im selben Kanal spielt — beides ab `gamemaster`. Die
 Erfahrung fällt dabei auf null: „Stufe 30" heisst der Anfang von Stufe 30.
+
+`/spawn <monster>` setzt eines vier Meter vor die Figur — ohne Spawner
+dahinter, es kommt also nicht wieder, wenn es gefallen ist. Genannt wird es
+mit seiner Kennung (`cave_crawler`) **oder** mit seinem deutschen Namen
+(`Höhlenkriecher`), Gross- und Kleinschreibung egal; was es nicht gibt, wird
+mit der Liste beantwortet. Über Wasser oder auf der Klippe kommt eine Absage —
+dort stünde das Wesen im Meer.
 
 `/tp <karte>` setzt an den **Startpunkt** der Karte ab — dorthin, wo eine neue
 Figur erscheint. Der steht in der Kartendatei, ist im Editor zu verschieben und

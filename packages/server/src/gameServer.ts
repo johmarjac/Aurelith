@@ -3231,6 +3231,34 @@ export class GameServer {
   }
 
   /**
+   * Setzt ein Monster vor die Figur — für `/spawn`.
+   *
+   * **Vor** und nicht **auf**: vier Meter in Blickrichtung. Auf der eigenen
+   * Stelle stünde es im Bild hinter der Kamera, und genau darum geht es bei
+   * diesem Befehl nicht — er ist zum Ansehen da.
+   *
+   * Gibt den Namen des Wesens zurück. `undefined` heisst: diese Sorte gibt es
+   * nicht, oder vor der Figur ist kein Boden, der es trägt. Welcher von beiden
+   * Fällen es war, entscheidet der Befehl an der Liste — hier eine zweite
+   * Rückgabeart einzuführen, verteilte die Absage auf zwei Stellen.
+   */
+  spawneMonster(session: Session, sorte: string): string | undefined {
+    const instance = this.instances.get(session.mapId);
+    const self = instance?.entity(session.entityId);
+    if (!instance || !self) return undefined;
+
+    // Vorwärts ist (sin yaw, cos yaw) — dieselbe Richtung, in die der Kern die
+    // Figur laufen lässt. Vier Meter: weiter als jeder Kollisionskreis eines
+    // Wesens und nah genug, um im Bild zu sein.
+    const x = self.x + Math.sin(self.yaw) * 4;
+    const z = self.z + Math.cos(self.yaw) * 4;
+    if (!instance.traegtBoden(x, z)) return undefined;
+
+    return instance.spawneMonster(sorte, x, z);
+  }
+
+
+  /**
    * Setzt die Stufe einer Figur — für `/level`.
    *
    * Erfahrung wird dabei auf null gesetzt und nicht umgerechnet: „Stufe 30"

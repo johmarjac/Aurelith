@@ -32,6 +32,7 @@ import {
   encodeFrame,
   encodeLogin,
   encodeCreateAccount,
+  getMob,
   isValidName,
   nullCipher,
   readPacket,
@@ -184,6 +185,7 @@ const ansagen: string[] = [];
 const stufenrufe: Array<{ name: string; stufe: AccessLevel }> = [];
 const levelrufe: Array<{ figur: string; level: number }> = [];
 const tprufe: string[] = [];
+const spawnrufe: string[] = [];
 let gutgeschrieben = 0;
 const wirt: CommandHost = {
   systemMessage: (_s, text) => gesagt.push(text),
@@ -209,6 +211,13 @@ const wirt: CommandHost = {
     // „Es gibt sie" — die Suche nach der Figur prüft der Server, nicht die
     // Befehlstabelle. Hier geht es um das, was **vor** ihr passiert.
     return true;
+  },
+  spawneMonster: (_s, sorte) => {
+    spawnrufe.push(sorte);
+    // Ob vor der Figur Boden ist, weiss der Server. Hier geht es um das, was
+    // **vor** ihm passiert — die Übersetzung vom getippten Wort zur Kennung.
+    // „gruftwärter" spielt den einen Fall nach, in dem er nichts setzen kann.
+    return sorte === 'dungeon_warden' ? undefined : (getMob(sorte)?.name ?? sorte);
   },
 };
 
@@ -282,6 +291,65 @@ check(!runCommand(wirt, sitzung(AccessLevel.Admin), 'Hallo zusammen'), 'gewöhnl
  * Schwelle davor — und die ist die eigentliche Gefahrenstelle: ein Spielleiter,
  * der Stufen vergeben darf, ernennt sich irgendwann jemanden, der ihn ernennt.
  */
+/*
+ * `/spawn` — das Werkzeug, mit dem man sich ein Wesen ansieht.
+ *
+ * Geprüft wird hier die Übersetzung vom getippten Wort zur Kennung, denn die
+ * steht in dieser Datei. Ob vor der Figur Boden ist, entscheidet der Server.
+ */
+gesagt.length = 0;
+spawnrufe.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Player), '/spawn Höhlenkriecher');
+check(spawnrufe.length === 0, 'ein Spieler setzt keine Monster');
+
+// Der deutsche Name — so, wie er im Spiel über dem Wesen steht.
+spawnrufe.length = 0;
+gesagt.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Gamemaster), '/spawn Höhlenkriecher');
+check(spawnrufe[0] === 'cave_crawler', 'der deutsche Name findet die Kennung', spawnrufe[0] ?? '(nichts)');
+check(
+  gesagt.some((t) => t.includes('Höhlenkriecher steht vor dir')),
+  'und der Absender erfährt, dass es steht',
+  gesagt.join(' | '),
+);
+
+// Die Kennung selbst genauso, und beides ohne Rücksicht auf Grossschreibung.
+for (const eingabe of ['/spawn cave_crawler', '/spawn HÖHLENKRIECHER', '/spawn  höhlenkriecher ']) {
+  spawnrufe.length = 0;
+  runCommand(wirt, sitzung(AccessLevel.Gamemaster), eingabe);
+  check(spawnrufe[0] === 'cave_crawler', `„${eingabe}" findet dasselbe Wesen`, spawnrufe[0] ?? '(nichts)');
+}
+
+/*
+ * Die Gegenprobe, und sie ist hier die wichtigere: was es nicht gibt, wird
+ * nicht gesetzt. Ohne sie prüfte das obige nur, dass irgendein Wort
+ * durchgereicht wird — und ein Befehl, der auf `/spawn drache` stillschweigend
+ * einen Höhlenkriecher setzte, wäre schlimmer als einer, der gar nichts tut.
+ */
+for (const eingabe of ['/spawn', '/spawn drache', '/spawn cave crawler', '/spawn kriecher']) {
+  spawnrufe.length = 0;
+  gesagt.length = 0;
+  runCommand(wirt, sitzung(AccessLevel.Gamemaster), eingabe);
+  check(spawnrufe.length === 0, `„${eingabe}" setzt nichts`);
+  check(
+    gesagt.some((t) => t.includes('Es gibt:') && t.includes('Höhlenkriecher')),
+    `und „${eingabe}" nennt, was es gäbe`,
+    gesagt.join(' | '),
+  );
+}
+
+// Und wenn der Server nichts setzen kann, sagt der Befehl das — und behauptet
+// nicht, es stünde etwas da.
+spawnrufe.length = 0;
+gesagt.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Gamemaster), '/spawn Gruftwärter');
+check(spawnrufe[0] === 'dungeon_warden', 'der Gruftwärter wird versucht');
+check(
+  gesagt.some((t) => t.includes('kein Boden')) && !gesagt.some((t) => t.includes('steht vor dir')),
+  'und eine abgelehnte Stelle meldet sich als solche',
+  gesagt.join(' | '),
+);
+
 gesagt.length = 0;
 stufenrufe.length = 0;
 runCommand(wirt, sitzung(AccessLevel.Gamemaster), '/accesslevel helfer gamemaster');

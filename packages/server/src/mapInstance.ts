@@ -71,7 +71,7 @@ export class MapInstance {
   constructor(
     readonly doc: MapDocument,
     private readonly bundle: CoreBundle,
-    allocId: () => number,
+    private readonly allocId: () => number,
   ) {
     // Über `terrainSetup`, nicht von Hand: Server, Client und Editor müssen
     // denselben Boden bekommen, und drei Abschriften driften.
@@ -210,6 +210,30 @@ export class MapInstance {
    */
   traegtBoden(x: number, z: number): boolean {
     return this.world.heightAt(x, z) >= this.doc.terrain.waterLevel && this.world.begehbar(x, z);
+  }
+
+  /**
+   * Setzt ein einzelnes Monster an eine Stelle — ohne Spawner dahinter.
+   *
+   * Für `/spawn`. Ohne Spawner heisst: es kommt nicht wieder, wenn es
+   * gefallen ist. Genau richtig für ein Werkzeug, mit dem man sich etwas
+   * ansieht — ein Befehl, der nebenbei einen dauerhaften Nistplatz anlegt,
+   * verändert die Karte, und das will niemand, der nur nachsehen wollte, wie
+   * ein Modell aussieht.
+   *
+   * Gibt den Namen des Wesens zurück; `undefined` heisst, dass der Kern es
+   * nicht setzen konnte.
+   */
+  spawneMonster(sorte: string, x: number, z: number): string | undefined {
+    const mobIndex = this.bundle.mobIndexById.get(sorte);
+    if (mobIndex === undefined) return undefined;
+
+    const id = this.allocId();
+    if (!this.world.spawnMob(id, mobIndex, x, z)) return undefined;
+
+    const name = getMob(sorte)?.name ?? '';
+    this.meta.set(id, { defId: sorte, name, type: EntityType.Monster });
+    return name;
   }
 
   removePlayer(id: number): void {

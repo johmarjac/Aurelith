@@ -11,7 +11,7 @@
  * in einem.
  */
 
-import { ACCESS_NAMES, AccessLevel, accessName, maxLevel } from '@aurelith/shared';
+import { ACCESS_NAMES, AccessLevel, MOBS, accessName, maxLevel } from '@aurelith/shared';
 import type { Session } from './session.ts';
 
 /**
@@ -55,6 +55,15 @@ export interface CommandHost {
   teleportiere(session: Session, mapId: string): boolean;
   /** Welche Karten es gibt — für die Absage, wenn eine nicht dabei ist. */
   kartenListe(): string[];
+  /**
+   * Setzt ein Monster dieser Kennung vor die Figur. Gibt seinen Namen zurück;
+   * `undefined` heisst, dass es nicht gesetzt werden konnte — vor der Figur
+   * liegt kein Boden, der etwas trägt.
+   *
+   * Die Kennung ist hier schon geprüft: welche es gibt, steht in `MOBS` und
+   * damit im Befehl. Der Wirt baut nur noch.
+   */
+  spawneMonster(session: Session, sorte: string): string | undefined;
 }
 
 export interface CommandDef {
@@ -69,6 +78,31 @@ export interface CommandDef {
 
 /** Obergrenze für `/gg`. Kein Schutz vor Missbrauch, sondern vor Vertippern. */
 const MAX_GOLD = 1_000_000;
+
+/**
+ * Sucht die Kennung zu einem getippten Wort — Kennung **oder** deutscher Name.
+ *
+ * Getippt wird im Spiel, und im Spiel heisst das Wesen „Höhlenkriecher" und
+ * nicht `cave_crawler`. Beides geht deshalb, und beides ohne Rücksicht auf
+ * Gross- und Kleinschreibung: wer diesen Befehl braucht, tippt ihn nebenbei.
+ *
+ * Hier und nicht beim Wirt: die Namen stehen in der Inhaltstabelle, und die
+ * kennt diese Datei ohnehin. Ein Wirt, der das übersetzte, wäre eine zweite
+ * Stelle, an der die Schreibweise entschieden wird.
+ */
+function monsterKennung(wort: string): string | undefined {
+  const gesucht = wort.trim().toLowerCase();
+  if (MOBS.has(gesucht)) return gesucht;
+  for (const [id, def] of MOBS) {
+    if (def.name.toLowerCase() === gesucht) return id;
+  }
+  return undefined;
+}
+
+/** Was es zu setzen gibt — für die Absage, wenn ein Name nicht dabei ist. */
+function monsterListe(): string[] {
+  return [...MOBS.values()].map((m) => m.name).sort();
+}
 
 export const COMMANDS: readonly CommandDef[] = [
   {
@@ -185,6 +219,47 @@ export const COMMANDS: readonly CommandDef[] = [
           `Eine Karte „${karte}" gibt es hier nicht. Es gibt: ${host.kartenListe().join(', ')}.`,
         );
       }
+    },
+  },
+  {
+    name: 'spawn',
+    minLevel: AccessLevel.Gamemaster,
+    hilfe: '/spawn <monster> — setzt eines vor dich hin (ab Spielleiter)',
+    run(host, session, args) {
+      /*
+       * Der ganze Rest der Zeile ist der Name.
+       *
+       * Ein Wesen darf zwei Wörter heissen, und `args` ist an Leerzeichen
+       * zerlegt. Nur `args[0]` zu nehmen hiesse, sich diese Möglichkeit für
+       * immer zu verbauen — an einer Stelle, an der es nichts kostet, sie
+       * offenzulassen.
+       */
+      const wort = args.join(' ').trim();
+      if (wort.length === 0) {
+        host.systemMessage(session, `Erwartet: /spawn <monster>. Es gibt: ${monsterListe().join(', ')}.`);
+        return;
+      }
+
+      const sorte = monsterKennung(wort);
+      if (sorte === undefined) {
+        // Mit Liste, aus demselben Grund wie bei `/tp`: sich an einem Namen zu
+        // vertippen ist der Normalfall, und eine Absage ohne Liste lässt einen
+        // genauso ratlos zurück wie vorher.
+        host.systemMessage(
+          session,
+          `Ein Monster „${wort}" gibt es nicht. Es gibt: ${monsterListe().join(', ')}.`,
+        );
+        return;
+      }
+
+      const name = host.spawneMonster(session, sorte);
+      if (name === undefined) {
+        // Die Sorte gibt es — also lag es an der Stelle. Der einzige Grund
+        // dafür ist ein Boden, der niemanden trägt: Meer oder Klippe.
+        host.systemMessage(session, 'Vor dir ist kein Boden, der etwas trägt.');
+        return;
+      }
+      host.systemMessage(session, `${name} steht vor dir.`);
     },
   },
 ];
