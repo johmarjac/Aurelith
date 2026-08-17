@@ -1498,6 +1498,30 @@ function makeQuadruped(cfg: CreatureConfig, material: THREE.Material): Character
   };
 }
 
+/**
+ * Der Höhlenkriecher.
+ *
+ * Hier lag eine flachgedrückte Kugel mit sechs Strichen daran, in fast
+ * schwarzem Blaugrau. Auf einem Modellblatt ging das durch; im Spiel war das
+ * Tier **unsichtbar** — nachts sowieso, tagsüber ein dunkler Fleck im Gras, an
+ * dem nur die Namensschrift darüber verriet, dass dort etwas steht. Der
+ * Nutzer hat es als „hat kein 3D-Modell" gemeldet, und das war die richtige
+ * Beschreibung dessen, was man sah.
+ *
+ * Drei Dinge daran waren falsch, und alle drei sind hier behoben:
+ *
+ *   1. **Zu dunkel.** Ein Wesen muss sich vom Untergrund abheben, und der
+ *      Untergrund ist Gras. Der Panzer ist jetzt ein helles Kalkgrau mit
+ *      warmen Platten darauf — dieselbe Familie wie Knochen und Stein, aber
+ *      hell genug, dass die Silhouette auch im Schatten steht.
+ *   2. **Zu flach.** Der Körper lag auf dem Boden, also war die Silhouette
+ *      aus Spielerhöhe eine Linie. Jetzt steht er auf gebogenen Beinen, und
+ *      zwischen Bauch und Boden ist Luft — Licht kommt darunter durch, und
+ *      genau das macht aus einem Fleck ein Tier.
+ *   3. **Keine Teile, die man wiedererkennt.** Ein Kopf mit Kiefern, ein
+ *      gegliederter Hinterleib, Platten auf dem Rücken und ein Stachel. Das
+ *      ist es, woran man aus zwanzig Metern erkennt, was einen da angreift.
+ */
 function makeCrawler(cfg: CreatureConfig, material: THREE.Material): CharacterRig {
   const disposables: THREE.BufferGeometry[] = [];
   // Fortgeschriebene Schrittphase. Siehe RigState.dt: aus der absoluten
@@ -1508,32 +1532,136 @@ function makeCrawler(cfg: CreatureConfig, material: THREE.Material): CharacterRi
   const body = new THREE.Object3D();
   root.add(body);
 
-  const shellGeo = assemble([
-    { geometry: sphere(0.55 * s, 1), color: cfg.primary, position: [0, 0.42 * s, 0], scale: [1, 0.6, 1.35] },
-    { geometry: sphere(0.3 * s, 0), color: cfg.secondary, position: [0, 0.4 * s, 0.62 * s] },
-    { geometry: new THREE.OctahedronGeometry(0.1 * s, 0), color: cfg.accent, position: [-0.13 * s, 0.5 * s, 0.78 * s] },
-    { geometry: new THREE.OctahedronGeometry(0.1 * s, 0), color: cfg.accent, position: [0.13 * s, 0.5 * s, 0.78 * s] },
-  ]);
-  const shell = new THREE.Mesh(shellGeo, material);
-  body.add(shell);
-  disposables.push(shellGeo);
+  const panzer = cfg.primary;
+  const platte = shade(cfg.primary, 0.72);
+  const bauch = shade(cfg.secondary, 1.15);
 
-  const legs: THREE.Object3D[] = [];
-  for (let i = 0; i < 6; i++) {
-    const side = i % 2 === 0 ? -1 : 1;
-    const row = Math.floor(i / 2) - 1;
-    const geo = box(0.07 * s, 0.42 * s, 0.07 * s);
-    const leg = joint(
-      geo,
+  /*
+   * Der Rumpf.
+   *
+   * Drei Glieder statt eines Klumpens: Vorderleib, Rücken, Hinterleib. Sie
+   * werden nach hinten kleiner und sitzen leicht höher — das ist die Linie,
+   * an der man einen Käfer erkennt, bevor man Einzelheiten sieht.
+   */
+  const rumpfTeile: Part[] = [
+    { geometry: sphere(0.34 * s, 1), color: panzer, position: [0, 0.62 * s, 0.34 * s], scale: [1.05, 0.78, 1] },
+    { geometry: sphere(0.42 * s, 1), color: panzer, position: [0, 0.66 * s, -0.06 * s], scale: [1.1, 0.82, 1.15] },
+    { geometry: sphere(0.32 * s, 1), color: shade(panzer, 0.9), position: [0, 0.6 * s, -0.56 * s], scale: [1, 0.8, 1.2] },
+    // Der Bauch, heller: er fängt das Licht von unten und trennt den Körper
+    // sichtbar vom Boden.
+    { geometry: sphere(0.3 * s, 1), color: bauch, position: [0, 0.46 * s, -0.06 * s], scale: [1.15, 0.5, 1.3] },
+  ];
+
+  /*
+   * Die Platten auf dem Rücken.
+   *
+   * Drei flache Keile, nach hinten kleiner. Sie sind der Grund, warum das
+   * Tier von oben — also aus der Spielkamera — nicht wie ein Kiesel aussieht:
+   * sie werfen Kanten, und Kanten liest das Auge als Panzer.
+   */
+  for (let i = 0; i < 3; i++) {
+    rumpfTeile.push({
+      geometry: box(0.5 * s - i * 0.09 * s, 0.07 * s, 0.26 * s),
+      color: platte,
+      position: [0, (0.86 - i * 0.03) * s, (0.12 - i * 0.34) * s],
+      rotation: [0.22 - i * 0.1, 0, 0],
+    });
+  }
+
+  // Der Stachel am Hinterleib: er sagt „das tut weh", bevor es weh tut.
+  rumpfTeile.push({
+    geometry: cone(0.09 * s, 0.42 * s, 5),
+    color: cfg.accent,
+    position: [0, 0.72 * s, -0.84 * s],
+    rotation: [-1.15, 0, 0],
+  });
+
+  const rumpfGeo = assemble(rumpfTeile);
+  const rumpf = new THREE.Mesh(rumpfGeo, material);
+  body.add(rumpf);
+  disposables.push(rumpfGeo);
+
+  /*
+   * Der Kopf sitzt an einem eigenen Halter.
+   *
+   * Damit kann er beim Zuschlagen vorschnellen, während der Rumpf steht —
+   * ein Tier, das beim Angriff mit dem ganzen Körper springt, sieht aus, als
+   * würde es geschoben.
+   */
+  const kopf = new THREE.Object3D();
+  kopf.position.set(0, 0.58 * s, 0.62 * s);
+  body.add(kopf);
+
+  const kopfTeile: Part[] = [
+    { geometry: sphere(0.26 * s, 1), color: shade(panzer, 1.06), position: [0, 0, 0], scale: [1.1, 0.8, 1] },
+    // Die Kiefer: zwei Zangen, nach innen gebogen.
+    { geometry: cone(0.07 * s, 0.34 * s, 4), color: platte, position: [-0.14 * s, -0.06 * s, 0.26 * s], rotation: [1.35, 0, 0.34] },
+    { geometry: cone(0.07 * s, 0.34 * s, 4), color: platte, position: [0.14 * s, -0.06 * s, 0.26 * s], rotation: [1.35, 0, -0.34] },
+    // Zwei Fühler, damit der Kopf eine Richtung hat.
+    { geometry: cylinder(0.02 * s, 0.03 * s, 0.4 * s, 4), color: platte, position: [-0.12 * s, 0.2 * s, 0.16 * s], rotation: [-0.7, 0, 0.5] },
+    { geometry: cylinder(0.02 * s, 0.03 * s, 0.4 * s, 4), color: platte, position: [0.12 * s, 0.2 * s, 0.16 * s], rotation: [-0.7, 0, -0.5] },
+  ];
+  /*
+   * Und die Augen — vier, in zwei Grössen.
+   *
+   * Sie sind das Einzige an diesem Tier, was leuchtet, und sie sind der
+   * Grund, warum man es im Dunkeln überhaupt findet. Ein sehr heller kalter
+   * Wert wirkt bei Lambert wie Glut, weil ringsum alles dunkel ist.
+   */
+  for (const [x, y, r] of [
+    [-0.13, 0.06, 0.055],
+    [0.13, 0.06, 0.055],
+    [-0.2, -0.02, 0.035],
+    [0.2, -0.02, 0.035],
+  ] as Array<[number, number, number]>) {
+    kopfTeile.push({
+      geometry: sphere(r * s, 0),
+      color: cfg.accent,
+      position: [x * s, y * s, 0.2 * s],
+    });
+  }
+  const kopfGeo = assemble(kopfTeile);
+  kopf.add(new THREE.Mesh(kopfGeo, material));
+  disposables.push(kopfGeo);
+
+  /*
+   * Acht Beine in zwei Gliedern.
+   *
+   * Zwei Glieder und nicht eines: ein gerader Strich vom Körper zum Boden ist
+   * ein Stelzenbein, ein geknicktes ist ein Insektenbein. Der Knick steht
+   * **über** dem Körper — genau das ist die Silhouette, an der man eine
+   * Spinne von einem Hund unterscheidet.
+   */
+  const beine: Array<{ huefte: THREE.Object3D; knie: THREE.Object3D }> = [];
+  for (let i = 0; i < 8; i++) {
+    const seite = i % 2 === 0 ? -1 : 1;
+    const reihe = Math.floor(i / 2) - 1.5;
+
+    const oberGeo = box(0.06 * s, 0.34 * s, 0.06 * s);
+    const huefte = joint(
+      oberGeo,
       material,
-      shade(cfg.secondary, 0.9),
-      [side * 0.42 * s, 0.4 * s, row * 0.36 * s],
-      [0, -0.21 * s, 0],
+      platte,
+      [seite * 0.34 * s, 0.6 * s, reihe * 0.3 * s],
+      [0, -0.17 * s, 0],
       disposables,
     );
-    leg.rotation.z = side * 0.6;
-    body.add(leg);
-    legs.push(leg);
+    // Nach aussen **und** nach oben: der Knick liegt über dem Rücken.
+    huefte.rotation.z = seite * 1.15;
+
+    const unterGeo = box(0.05 * s, 0.46 * s, 0.05 * s);
+    const knie = joint(
+      unterGeo,
+      material,
+      shade(platte, 0.85),
+      [0, -0.34 * s, 0],
+      [0, -0.23 * s, 0],
+      disposables,
+    );
+    knie.rotation.z = -seite * 1.85;
+    huefte.add(knie);
+    body.add(huefte);
+    beine.push({ huefte, knie });
   }
 
   return {
@@ -1541,7 +1669,7 @@ function makeCrawler(cfg: CreatureConfig, material: THREE.Material): CharacterRi
     update(state) {
       if (state.dead) {
         root.rotation.z = Math.PI;
-        root.position.y = 0.3 * s;
+        root.position.y = 0.42 * s;
         return;
       }
       root.rotation.z = 0;
@@ -1549,18 +1677,26 @@ function makeCrawler(cfg: CreatureConfig, material: THREE.Material): CharacterRi
 
       const gait = Math.min(1, state.speed / 4.5);
       gaitPhase += state.dt * 13 * Math.max(0.3, gait);
-      for (let i = 0; i < legs.length; i++) {
-        const side = i % 2 === 0 ? -1 : 1;
-        const phase = gaitPhase + i * 1.05;
-        legs[i]!.rotation.x = Math.sin(phase) * 0.5 * gait;
-        legs[i]!.rotation.z = side * (0.6 + Math.cos(phase) * 0.15 * gait);
+      for (let i = 0; i < beine.length; i++) {
+        const seite = i % 2 === 0 ? -1 : 1;
+        const phase = gaitPhase + i * 0.82;
+        beine[i]!.huefte.rotation.x = Math.sin(phase) * 0.42 * gait;
+        beine[i]!.huefte.rotation.z = seite * (1.15 + Math.cos(phase) * 0.18 * gait);
+        // Das Knie zieht gegenläufig an: sonst stakst das Tier, statt zu
+        // laufen.
+        beine[i]!.knie.rotation.x = -Math.sin(phase) * 0.3 * gait;
       }
-      body.position.y = Math.sin(state.time * 6) * 0.03;
+      body.position.y = Math.sin(state.time * 6) * 0.035 * s;
 
       if (state.attackPhase >= 0) {
         const p = 1 - Math.abs(state.attackPhase - 0.5) * 2;
-        body.position.z = p * 0.35 * s;
+        // Der Kopf schnellt vor, der Rumpf folgt nur zum Teil.
+        kopf.position.z = (0.62 + p * 0.4) * s;
+        kopf.rotation.x = p * 0.5;
+        body.position.z = p * 0.18 * s;
       } else {
+        kopf.position.z = 0.62 * s;
+        kopf.rotation.x = 0;
         body.position.z = 0;
       }
     },
@@ -1687,13 +1823,21 @@ export const CHARACTER_CONFIGS: Record<string, CharacterConfig> = {
     accent: 0x8a2f2f,
     weapon: 'sword',
   },
+  /*
+   * Der Höhlenkriecher — hell, nicht dunkel.
+   *
+   * Hier stand ein Panzer in 0x4a4a5c, also ein sehr dunkles Blaugrau. Auf
+   * einer Wiese und erst recht bei Nacht war das Tier damit nicht zu sehen.
+   * Ein Wesen, das man treffen soll, muss sich vom Boden abheben — und der
+   * Boden ist grün und mittelhell. Also Kalkgrau mit einem Stich ins Warme.
+   */
   mob_crawler: {
     kind: 'creature',
     variant: 'crawler',
     size: 1.2,
-    primary: 0x4a4a5c,
-    secondary: 0x35354a,
-    accent: 0x9a7fe8,
+    primary: 0xb9b3a2,
+    secondary: 0xd8d2bd,
+    accent: 0x7fe8d8,
   },
   /*
    * Die beiden Begleiter.
