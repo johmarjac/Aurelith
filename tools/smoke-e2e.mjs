@@ -879,6 +879,56 @@ check(
 // war, erfüllte die beiden Zeilen darüber ebenfalls.
 check(nachEins === true || vorher === true, 'und mindestens einmal stand es dabei offen');
 
+// --- Die rechte Maustaste gehört dem Spiel ---------------------------------
+
+/*
+ * Gemessen wird `defaultPrevented` und nicht „ist ein Menü zu sehen": das Menü
+ * des Browsers ist kein Teil der Seite, Playwright sieht es nicht, und ein
+ * Bildvergleich hinge am Betriebssystem. Abbestellt ist abbestellt — genau das
+ * entscheidet, ob es aufklappt.
+ *
+ * Der Zuhörer sitzt am Fenster und damit **hinter** der Oberfläche: das
+ * Ereignis steigt erst durch sie hindurch, und was sie abbestellt hat, steht
+ * hier schon fest.
+ */
+console.log('\nRechtsklick');
+
+await page.evaluate(() => {
+  window.__rechtsklicks = [];
+  window.addEventListener('contextmenu', (ev) => {
+    window.__rechtsklicks.push(ev.defaultPrevented);
+  });
+});
+
+const letzterRechtsklick = async (auf) => {
+  await page.evaluate(() => {
+    window.__rechtsklicks = [];
+  });
+  await page.click(auf, { button: 'right' });
+  await page.waitForTimeout(200);
+  return page.evaluate(() => window.__rechtsklicks.at(-1));
+};
+
+if (!(await charOffen())) {
+  await page.click('.vitals');
+  await page.waitForTimeout(400);
+}
+check(
+  (await letzterRechtsklick('.window[data-window="character"] .window-title')) === true,
+  'auf einem Fenster klappt kein Browsermenü mehr auf',
+);
+check((await letzterRechtsklick('.vitals')) === true, 'und auf dem Vitalkasten auch nicht');
+
+/*
+ * Gegenprobe: im Textfeld bleibt es. Ohne sie wäre auch eine Fassung grün, die
+ * das Menü überall abbestellt — und dann käme ein Passwort aus dem Verwalter
+ * nicht mehr in die Anmeldemaske.
+ */
+check(
+  (await letzterRechtsklick('.chat-input')) === false,
+  'in der Chatzeile bleibt es dagegen stehen',
+);
+
 // Zu lassen, was hier stand: das Bildschirmfoto gleich darunter soll nicht von
 // einem Fenster verdeckt sein, das dieser Abschnitt aufgemacht hat.
 if (await charOffen()) {

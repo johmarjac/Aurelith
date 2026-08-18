@@ -251,6 +251,30 @@ function bar(kind: 'hp' | 'mp' | 'exp'): { root: HTMLDivElement; fill: HTMLDivEl
   return { root, fill, label };
 }
 
+/**
+ * Welche Eingabefelder Text aufnehmen — und damit ein „Einfügen" brauchen.
+ *
+ * Nach Art und nicht „ist ein `input`": ein Regler und ein Häkchen sind
+ * ebenfalls `input`, und dort ist das Menü des Browsers so überflüssig wie auf
+ * jedem anderen Bedienteil.
+ */
+const TEXTARTEN = new Set(['text', 'password', 'email', 'search', 'url', 'tel', 'number']);
+
+/**
+ * Steht der Zeiger über etwas, in das man schreibt?
+ *
+ * `closest` und nicht das Ziel selbst: wer in einem Textfeld auf die
+ * Auswahlmarkierung trifft, bekommt je nach Browser ein Kind des Feldes als
+ * Ziel gemeldet.
+ */
+function istTextfeld(ziel: EventTarget | null): boolean {
+  if (!(ziel instanceof Element)) return false;
+  const feld = ziel.closest('input, textarea, [contenteditable="true"], [contenteditable=""]');
+  if (!feld) return false;
+  if (feld instanceof HTMLInputElement) return TEXTARTEN.has(feld.type);
+  return true;
+}
+
 export class UI {
   readonly overlay: Overlay;
 
@@ -659,6 +683,29 @@ export class UI {
     // Daumen bedient — eine Breitenabfrage hätte es als Schreibtisch
     // eingestuft und ihm die Schreibtischanordnung gegeben.
     host.dataset.touch = String(touch);
+
+    /*
+     * Die rechte Maustaste gehört dem Spiel, nicht dem Browser.
+     *
+     * Auf einem Platz der Aktionsleiste räumt sie ihn ab — und darüber klappte
+     * trotzdem das Menü des Browsers auf, mit „Bild speichern" und „Seite neu
+     * laden". Auf jedem anderen Fenster kam es kommentarlos, mitten im Kampf,
+     * und nahm den halben Bildschirm.
+     *
+     * **Einmal an der Wurzel und nicht je Fenster.** Eine Liste, in die man
+     * jedes neue Fenster einträgt, hat spätestens beim zweiten neuen eine
+     * Lücke — und die merkt man erst, wenn jemand dort hineinklickt. Die
+     * Weltfläche bestellt das Menü schon selbst ab, siehe `input.ts`.
+     *
+     * Textfelder bleiben ausgenommen. Dort steht „Einfügen" im Menü, und genau
+     * darüber kommt ein Passwort aus dem Verwalter in die Anmeldemaske. Ein
+     * Eingabefeld ohne Einfügen wäre eine Zumutung — für einen Gewinn, den es
+     * dort nicht gibt.
+     */
+    host.addEventListener('contextmenu', (ev) => {
+      if (istTextfeld(ev.target)) return;
+      ev.preventDefault();
+    });
 
     // --- Werte ------------------------------------------------------------
     /*
