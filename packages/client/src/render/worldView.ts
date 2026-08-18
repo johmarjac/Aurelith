@@ -39,6 +39,7 @@ import { Laufmarke } from './laufmarke.ts';
 import { buildTerrain, type TerrainMesh } from './terrain.ts';
 import type { TextureLoader } from './textures.ts';
 import type { CharacterRig } from './rigs.ts';
+import { SICHTWEITEN, type SichtweiteStufe } from '../ui/grafik.ts';
 
 /** Wie lange die Schlaganimation läuft, unabhängig von der Serverabklingzeit. */
 export const ATTACK_ANIM_SECONDS = 0.45;
@@ -225,6 +226,27 @@ export interface EntityVisual {
   height: number;
 }
 
+/**
+ * Ein Prop, fertig gerechnet — Lage, Drehung, Färbung.
+ *
+ * Vorberechnet und nicht bei jeder Nachschau neu: die Matrix eines Props
+ * ändert sich nie, nur ob sie gezeichnet wird. Ein Bäumchen zweimal je Sekunde
+ * neu zusammenzusetzen wäre Arbeit für ein Ergebnis, das schon dasteht.
+ */
+interface PropInstanz {
+  x: number;
+  z: number;
+  matrix: THREE.Matrix4;
+  farbe: THREE.Color;
+}
+
+interface PropGruppe {
+  mesh: THREE.InstancedMesh;
+  instanzen: PropInstanz[];
+  /** Hat überhaupt eines der Props eine Färbung? Sonst spart man den Puffer. */
+  faerbt: boolean;
+}
+
 function modelKeyFor(type: EntityType, defId: string): string {
   if (type === EntityType.Player) return 'player';
   if (type === EntityType.Npc) return getNpc(defId)?.model ?? 'npc_guide';
@@ -281,6 +303,23 @@ export class WorldView {
 
   private terrain?: TerrainMesh;
   private propMeshes: THREE.InstancedMesh[] = [];
+  /**
+   * Die Props je Modell, vollständig — auch die gerade nicht gezeichneten.
+   *
+   * Die `InstancedMesh` bekommt je Nachschau nur so viele Einträge, wie in
+   * Sichtweite stehen; hier liegt, woraus sie sie nimmt. Ohne diese Liste
+   * müsste die Karte für jede Änderung der Sichtweite neu aufgebaut werden.
+   */
+  private propGruppen: PropGruppe[] = [];
+  /** Wie weit Props gezeichnet werden, in Metern. */
+  private sichtweite: number = SICHTWEITEN.hoch;
+  /** Wo die Kamera bei der letzten Nachschau stand — siehe `pruefeSicht`. */
+  private sichtVonX = Number.NaN;
+  private sichtVonZ = Number.NaN;
+  /** Wie viele Prop-Instanzen zuletzt gezeichnet wurden. Für die Debug-Tafel. */
+  gezeichneteProps = 0;
+  /** Und wie viele es insgesamt gäbe. */
+  propsGesamt = 0;
   /** Pfeile in der Luft. Kurzlebig — meist keiner, selten eine Handvoll. */
   private arrows: FlyingArrow[] = [];
   /** Funken. Eine Wolke für alles, mit fester Größe. */
@@ -452,6 +491,7 @@ export class WorldView {
       mesh.receiveShadow = true;
 
       let anyTint = false;
+      const instanzen: PropInstanz[] = [];
       for (let i = 0; i < props.length; i++) {
         const prop = props[i]!;
         // Die Höhe kommt aus dem Kern, nicht aus der Datei: ändert jemand im
@@ -466,7 +506,6 @@ export class WorldView {
         );
         scale.setScalar(prop.scale);
         matrix.compose(position, quaternion, scale);
-        mesh.setMatrixAt(i, matrix);
 
         if (prop.tint !== undefined) {
           anyTint = true;
@@ -474,24 +513,105 @@ export class WorldView {
         } else {
           color.setRGB(1, 1, 1);
         }
-        mesh.setColorAt(i, color);
+
+        instanzen.push({
+          x: prop.position[0],
+          z: prop.position[2],
+          matrix: matrix.clone(),
+          farbe: color.clone(),
+        });
 
         if (model === 'lantern_post') {
-          // 2,65 ist die Höhe des Glaskörpers im Modell; die Skalierung des
-          // Props zieht sie mit.
+          /*
+           * Die Laternen bleiben vollzählig, auch bei kleiner Sichtweite.
+           *
+           * Sie sind Lichter und keine Modelle: das Licht einer Laterne fällt
+           * auf den Boden, und wenn es mit dem Mast verschwände, ginge in
+           * einem Dorf reihum die Beleuchtung aus, während man hindurchläuft.
+           * Wie viele es gleichzeitig gibt, deckelt ohnehin `Lanterns`.
+           */
           lanterns.push({ x: prop.position[0], y: y + 2.65 * prop.scale, z: prop.position[2] });
         }
       }
 
-      mesh.instanceMatrix.needsUpdate = true;
-      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-      if (!anyTint && mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-
       this.root.add(mesh);
       this.propMeshes.push(mesh);
+      this.propGruppen.push({ mesh, instanzen, faerbt: anyTint });
+      this.propsGesamt += instanzen.length;
     }
 
+    // Und gleich einmal füllen: ohne das stünde die Karte bis zum ersten Bild
+    // leer da.
+    this.sichtVonX = Number.NaN;
+    this.pruefeSicht(0, 0, true);
+
     this.lanterns.setPlacements(lanterns);
+  }
+
+  /**
+   * Stellt die Sichtweite ein. Wirkt beim nächsten Bild.
+   */
+  setzeSichtweite(stufe: SichtweiteStufe): void {
+    const meter = SICHTWEITEN[stufe];
+    if (meter === this.sichtweite) return;
+    this.sichtweite = meter;
+    // Erzwingt die Nachschau, auch wenn die Kamera stillsteht.
+    this.sichtVonX = Number.NaN;
+  }
+
+  /**
+   * Füllt die Prop-Netze mit dem, was in Sichtweite steht.
+   *
+   * **Nicht in jedem Bild**, sondern erst, wenn die Kamera ein Stück gelaufen
+   * ist. Die Arbeit ist die Schleife über alle Props einer Karte — bei
+   * Lichtmoor sind das fünftausendsiebenhundert —, und die je Bild zu machen
+   * hiesse, für ein Ergebnis zu zahlen, das sich zwischen zwei Bildern um
+   * nichts ändert. Zwölf Meter Schwelle sind bei Laufgeschwindigkeit gut zwei
+   * Sekunden.
+   *
+   * Der Rand ist grosszügig: gezeichnet wird bis `sichtweite + 12`, damit ein
+   * Baum nicht genau an der Schwelle steht und bei jeder Nachschau ein- und
+   * ausgeblendet wird. Genau das sähe aus wie ein Flackern und wäre keines.
+   */
+  pruefeSicht(kameraX: number, kameraZ: number, erzwingen = false): void {
+    const SCHWELLE = 12;
+    if (
+      !erzwingen &&
+      Number.isFinite(this.sichtVonX) &&
+      Math.hypot(kameraX - this.sichtVonX, kameraZ - this.sichtVonZ) < SCHWELLE
+    ) {
+      return;
+    }
+    this.sichtVonX = kameraX;
+    this.sichtVonZ = kameraZ;
+
+    const weite = this.sichtweite + SCHWELLE;
+    const weiteQ = weite * weite;
+    let gezeichnet = 0;
+
+    for (const gruppe of this.propGruppen) {
+      let n = 0;
+      for (const inst of gruppe.instanzen) {
+        const dx = inst.x - kameraX;
+        const dz = inst.z - kameraZ;
+        if (dx * dx + dz * dz > weiteQ) continue;
+        gruppe.mesh.setMatrixAt(n, inst.matrix);
+        if (gruppe.faerbt) gruppe.mesh.setColorAt(n, inst.farbe);
+        n++;
+      }
+      /*
+       * `count` und nicht `visible`: die Instanzen stehen alle im selben
+       * Puffer, und der Zeichner nimmt davon die ersten `n`. Damit kostet ein
+       * weggelassener Baum gar nichts — kein Draw-Call, kein Eckpunkt.
+       */
+      gruppe.mesh.count = n;
+      gruppe.mesh.instanceMatrix.needsUpdate = true;
+      if (gruppe.faerbt && gruppe.mesh.instanceColor) {
+        gruppe.mesh.instanceColor.needsUpdate = true;
+      }
+      gezeichnet += n;
+    }
+    this.gezeichneteProps = gezeichnet;
   }
 
   /**

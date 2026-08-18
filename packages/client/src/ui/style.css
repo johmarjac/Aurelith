@@ -2713,6 +2713,77 @@ body.aktion-zuweisen .window[data-window='skills'] {
 
 /* --- Einstellungen -------------------------------------------------------- */
 
+/*
+ * Die Reiter.
+ *
+ * Eine Zeile Knöpfe über den Blättern, und der aktive trägt die Messinglinie
+ * unter sich — dasselbe Zeichen wie am Rand der Fenster. Umbrechend, damit auf
+ * einem schmalen Telefon aus drei Reitern zwei Zeilen werden statt einer
+ * Rolle nach rechts, die niemand findet.
+ */
+.settings-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  margin-bottom: 0.7rem;
+  border-bottom: 1px solid var(--kachel-rand);
+}
+
+.settings-tab {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--ink-dim);
+  font: inherit;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  padding: 0.35rem 0.7rem 0.3rem;
+  cursor: pointer;
+  border-radius: var(--radius) var(--radius) 0 0;
+  /* Der Streifen ist immer da, nur meistens durchsichtig: sonst springt die
+     Zeile um zwei Bildpunkte, sobald man den Reiter wechselt. */
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.settings-tab:hover {
+  color: var(--ink);
+  background: var(--kachel);
+}
+
+.settings-tab[data-aktiv='true'] {
+  color: var(--gold-hell);
+  background: var(--kachel-hell);
+  border-bottom-color: var(--gold-hell);
+}
+
+.settings-sheet {
+  display: grid;
+  gap: 0.9rem;
+}
+
+/*
+ * Eine Auswahl mit ihrer Beschriftung nebeneinander — wie ein Regler, nur
+ * ohne Zahl. Das Feld bekommt den Rest der Zeile.
+ */
+.settings-select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.settings-select select {
+  flex: 0 1 9rem;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--ink);
+  background: var(--kachel-hell);
+  border: 1px solid var(--kachel-rand);
+  border-radius: var(--radius);
+  padding: 0.25rem 0.4rem;
+}
+
 .settings-group {
   display: grid;
   gap: 0.55rem;
@@ -3322,6 +3393,34 @@ body.aktion-zuweisen .window[data-window='skills'] {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+}
+
+/*
+ * Die Zahlentafel unter der Verbindungsanzeige.
+ *
+ * Zwei Spalten: links das Wort, rechts die Zahl, rechtsbündig und mit
+ * Tabellenziffern. Ohne die springt „1 240" beim Zählen um eine halbe
+ * Zeichenbreite hin und her, und eine Tafel, die zappelt, liest niemand.
+ */
+.debugtafel {
+  position: absolute;
+  top: calc(var(--safe-t) + var(--gap) + 2rem);
+  right: calc(var(--safe-r) + var(--gap));
+  padding: 0.35rem 0.55rem;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0.1rem 0.7rem;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--ink-dim);
+  pointer-events: none;
+}
+
+.debugtafel-wert {
+  text-align: right;
+  color: var(--gold-hell);
+  font-variant-numeric: tabular-nums;
 }
 
 .status-fps {

@@ -64,6 +64,13 @@ import {
 import { isTypingTarget } from '../input/input.ts';
 import { Overlay } from './overlay.ts';
 import { ladeDebugAnzeige, setzeDebugAnzeige } from './debugAnzeige.ts';
+import {
+  SICHTWEITE_NAMEN,
+  ladeGrafik,
+  setzeGrafik,
+  type GrafikEinstellungen,
+  type SichtweiteStufe,
+} from './grafik.ts';
 import { DollView } from './dollView.ts';
 import {
   ladeUiScale,
@@ -255,6 +262,10 @@ export class UI {
    * ob etwas an ist, laufen auseinander, sobald man eine davon vergisst.
    */
   debugAn = ladeDebugAnzeige();
+  /** Was gerade eingestellt ist. Wer es ändert, ruft `onGrafikChange`. */
+  grafik: GrafikEinstellungen = ladeGrafik();
+  /** Meldet dem Spiel, dass sich an der Grafik etwas geändert hat. */
+  onGrafikChange?: (werte: GrafikEinstellungen) => void;
 
   /**
    * Eine getippte Zeile — mit dem Kanal, in dem sie stehen soll.
@@ -489,6 +500,15 @@ export class UI {
   private chatFade?: ReturnType<typeof setTimeout>;
 
   private readonly statusPanel: HTMLElement;
+  /**
+   * Die Zahlentafel unter der Verbindungsanzeige.
+   *
+   * Nur sichtbar, solange „Debug anzeigen" an ist. Sie beantwortet die eine
+   * Frage, die man beim Einstellen der Sichtweite hat: **wie viel wird
+   * eigentlich gezeichnet?** Eine Bildrate allein sagt das nicht — sie fällt
+   * auch, wenn der Nebel teuer ist oder das Telefon warm wird.
+   */
+  private readonly debugTafel: HTMLElement;
   private readonly statusText: HTMLElement;
   /** Bildrate neben der Verbindung. Eigener Knoten, siehe `setFps`. */
   private readonly fpsText: HTMLElement;
@@ -702,6 +722,12 @@ export class UI {
     this.statusPanel.append(dot, this.statusText, this.fpsText);
     this.statusPanel.dataset.state = 'verbindet';
     host.appendChild(this.statusPanel);
+
+    // Direkt darunter, damit beides zusammen in derselben Ecke steht und
+    // niemand sie an zwei Rändern suchen muss.
+    this.debugTafel = el('div', 'debugtafel panel');
+    this.debugTafel.hidden = true;
+    host.appendChild(this.debugTafel);
 
     // --- Chat -------------------------------------------------------------
     //
@@ -1177,6 +1203,48 @@ export class UI {
   private buildSettings(): void {
     const body = this.settingsWindow.body;
 
+    /*
+     * Reiter statt einer langen Rolle.
+     *
+     * Die Einstellungen waren eine Liste aus Ton, Darstellung und einem
+     * Häkchen dazwischen, und mit jeder neuen Zeile wurde sie länger. Auf dem
+     * Telefon musste man für die Bildgröße an vier Lautstärkereglern
+     * vorbeirollen. Drei Blätter, drei Wörter — was man sucht, steht in einem
+     * davon, und man sieht auf einen Blick, in welchem.
+     */
+    const reiter = el('div', 'settings-tabs');
+    const blaetter = el('div', 'settings-sheets');
+    body.append(reiter, blaetter);
+
+    const blatt = (name: string): HTMLElement => {
+      const knopf = el('button', 'settings-tab', name);
+      knopf.type = 'button';
+      const inhalt = el('div', 'settings-sheet');
+      // Das erste Blatt liegt oben. Ein Fenster, das mit lauter geschlossenen
+      // Reitern aufgeht, sieht kaputt aus.
+      const erstes = reiter.childElementCount === 0;
+      knopf.dataset.aktiv = String(erstes);
+      inhalt.hidden = !erstes;
+      knopf.addEventListener('click', () => {
+        for (const anderer of reiter.children) {
+          (anderer as HTMLElement).dataset.aktiv = String(anderer === knopf);
+        }
+        for (const anderes of blaetter.children) {
+          (anderes as HTMLElement).hidden = anderes !== inhalt;
+        }
+        // Fokus abgeben: sonst schaltete die Leertaste in der Luft den Schub
+        // **und** diesen Reiter.
+        knopf.blur();
+      });
+      reiter.append(knopf);
+      blaetter.append(inhalt);
+      return inhalt;
+    };
+
+    const blattTon = blatt('Ton');
+    const blattGrafik = blatt('Grafik');
+    const blattBild = blatt('Oberfläche');
+
     const ton = el('section', 'settings-group');
     ton.append(el('h3', 'settings-head', 'Ton'));
 
@@ -1226,7 +1294,7 @@ export class UI {
     }
 
     this.muteBox = mute;
-    body.append(ton);
+    blattTon.append(ton);
 
     // --- Zustand und Probe ------------------------------------------------
     //
@@ -1245,7 +1313,7 @@ export class UI {
     });
 
     probe.append(this.audioState, testButton);
-    body.append(probe);
+    blattTon.append(probe);
 
     // --- Darstellung -------------------------------------------------------
     //
@@ -1284,28 +1352,99 @@ export class UI {
      * keine. Wer sie sucht, findet sie dort, wo auch die Größe der Oberfläche
      * steht.
      */
-    const debugRow = el('label', 'settings-toggle');
-    const debug = el('input');
-    debug.type = 'checkbox';
-    debug.checked = this.debugAn;
-    debug.addEventListener('change', () => {
-      this.debugAn = debug.checked;
-      setzeDebugAnzeige(debug.checked);
-      // Fokus wieder abgeben: sonst schaltete die Leertaste in der Luft den
-      // Schub **und** dieses Kästchen.
-      debug.blur();
+    blattBild.append(bild);
+
+    // --- Grafik ------------------------------------------------------------
+    const grafik = el('section', 'settings-group');
+    grafik.append(el('h3', 'settings-head', 'Grafik'));
+
+    /*
+     * Ein kleiner Helfer für die drei Häkchen darunter.
+     *
+     * Jedes tut dasselbe: umschalten, merken, dem Spiel Bescheid geben, Fokus
+     * abgeben. Dreimal hingeschrieben wäre die vierte Zeile die, in der das
+     * `blur()` fehlt — und dann schaltet die Leertaste in der Luft den Schub
+     * **und** das Kästchen.
+     */
+    const haken = (
+      beschriftung: string,
+      wert: boolean,
+      setzen: (an: boolean) => void,
+    ): HTMLElement => {
+      const zeile = el('label', 'settings-toggle');
+      const kasten = el('input');
+      kasten.type = 'checkbox';
+      kasten.checked = wert;
+      kasten.addEventListener('change', () => {
+        setzen(kasten.checked);
+        kasten.blur();
+      });
+      zeile.append(kasten, el('span', undefined, beschriftung));
+      return zeile;
+    };
+
+    /*
+     * Die Sichtweite.
+     *
+     * Eine Auswahl und kein Regler: siehe `SICHTWEITEN`. Sie wirkt sofort —
+     * die Karte wird nicht neu gebaut, es wird nur nachgeschaut, was in
+     * Reichweite steht.
+     */
+    const weiteZeile = el('div', 'settings-select');
+    const weiteFeld = el('select');
+    weiteFeld.setAttribute('aria-label', 'Renderdistanz');
+    for (const [stufe, name] of SICHTWEITE_NAMEN) {
+      const eintrag = el('option', undefined, name);
+      eintrag.value = stufe;
+      weiteFeld.append(eintrag);
+    }
+    weiteFeld.value = this.grafik.sichtweite;
+    weiteFeld.addEventListener('change', () => {
+      this.aendereGrafik({ sichtweite: weiteFeld.value as SichtweiteStufe });
+      weiteFeld.blur();
     });
-    debugRow.append(debug, el('span', undefined, 'Debug anzeigen'));
-    bild.append(debugRow);
-    bild.append(
+    weiteZeile.append(el('label', undefined, 'Renderdistanz'), weiteFeld);
+    grafik.append(weiteZeile);
+    grafik.append(
       el(
         'p',
         'settings-note',
-        'Zeigt beim Fliegen Kurs, Nase und Tempo direkt an der Figur — und ' +
-          'daneben, was der Steuerknüppel gerade meldet.',
+        'Wie weit Bäume, Felsen und Häuser gezeichnet werden. Bei „Hoch" ' +
+          'verschwindet nichts vor dem Nebel; darunter sieht man Dinge ' +
+          'auftauchen — dafür läuft es flüssiger.',
       ),
     );
-    body.append(bild);
+
+    grafik.append(
+      haken('Schatten', this.grafik.schatten, (an) => this.aendereGrafik({ schatten: an })),
+    );
+    grafik.append(
+      haken('Comic-Umriss', this.grafik.umriss, (an) => this.aendereGrafik({ umriss: an })),
+    );
+    grafik.append(
+      el(
+        'p',
+        'settings-note',
+        'Der schwarze Strich um Figuren und Wesen. Er gilt ab der nächsten ' +
+          'Figur, die erscheint — wer sofort etwas sehen will, wechselt die Karte.',
+      ),
+    );
+
+    grafik.append(
+      haken('Debug anzeigen', this.debugAn, (an) => {
+        this.debugAn = an;
+        setzeDebugAnzeige(an);
+      }),
+    );
+    grafik.append(
+      el(
+        'p',
+        'settings-note',
+        'Eine Tafel mit gezeichneten Props, Draw-Calls und Bildrate — und ' +
+          'beim Fliegen Kurs, Nase und Tempo direkt an der Figur.',
+      ),
+    );
+    blattGrafik.append(grafik);
 
     const hinweis = el('p', 'settings-note', '');
     hinweis.append(
@@ -1319,7 +1458,20 @@ export class UI {
         'Auf iPhone und iPad schaltet der Lautlos-Schalter auch Web-Ton stumm.',
       ),
     );
-    body.append(hinweis);
+    blattTon.append(hinweis);
+  }
+
+  /**
+   * Übernimmt eine Änderung an der Grafik.
+   *
+   * Eine Stelle für alle vier Bedienelemente: merken, speichern, weitergeben.
+   * Verteilt auf vier Rückrufe wäre einer davon der, der das Speichern
+   * vergisst — und der Fehler zeigte sich erst beim nächsten Start.
+   */
+  private aendereGrafik(teil: Partial<GrafikEinstellungen>): void {
+    this.grafik = { ...this.grafik, ...teil };
+    setzeGrafik(this.grafik);
+    this.onGrafikChange?.(this.grafik);
   }
 
   /**
@@ -2068,6 +2220,32 @@ export class UI {
    * Gerundet auf ganze Bilder: eine Nachkommastelle wechselt bei jedem
    * Aufruf und zieht das Auge auf eine Zahl, die niemand so genau lesen will.
    */
+  /**
+   * Schreibt die Zahlentafel neu — oder blendet sie aus.
+   *
+   * Wird in jedem Bild gerufen und schreibt trotzdem nur, wenn sich der Text
+   * geändert hat: die Tafel steht in der Ecke und soll dort stehen, nicht
+   * sechzigmal je Sekunde das Layout einer Textzeile auslösen.
+   */
+  setzeDebugZahlen(zeilen: readonly [string, string][]): void {
+    if (!this.debugAn) {
+      if (!this.debugTafel.hidden) this.debugTafel.hidden = true;
+      return;
+    }
+    if (this.debugTafel.hidden) this.debugTafel.hidden = false;
+
+    const text = zeilen.map(([k, v]) => `${k}\t${v}`).join('\n');
+    if (this.debugTafel.dataset.stand === text) return;
+    this.debugTafel.dataset.stand = text;
+
+    this.debugTafel.replaceChildren(
+      ...zeilen.flatMap(([k, v]) => [
+        el('span', 'debugtafel-name', k),
+        el('span', 'debugtafel-wert', v),
+      ]),
+    );
+  }
+
   setFps(fps: number): void {
     const text = `${Math.round(fps)} fps`;
     if (this.fpsText.textContent !== text) this.fpsText.textContent = text;

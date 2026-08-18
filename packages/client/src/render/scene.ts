@@ -267,6 +267,35 @@ export class Scene3D {
     this.skyGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   }
 
+  /**
+   * Schaltet die Schatten — unabhängig von der Geräteklasse.
+   *
+   * Die Geräteklasse (`quality.shadows`) sagt, was die Voreinstellung sein
+   * soll; das hier sagt, was der Spieler will. Nach oben offen: wer auf einem
+   * Telefon Schatten sehen möchte, darf das — er sieht auch gleich, was es
+   * kostet. Die Zahlentafel steht ja daneben.
+   */
+  setzeSchatten(an: boolean): void {
+    this.renderer.shadowMap.enabled = an;
+    this.sun.castShadow = an;
+    /*
+     * Und die Materialien müssen es erfahren.
+     *
+     * three.js backt „empfängt Schatten" in den Shader ein. Wer nur
+     * `shadowMap.enabled` umlegt, bekommt eine Wiese, die weiter so aussieht
+     * wie vorher — bis irgendetwas anderes ihr Material anfasst. Einmal durch
+     * die Szene ist beim Umschalten billig; es passiert, wenn jemand ein
+     * Häkchen setzt, und nicht in einem Bild.
+     */
+    this.scene.traverse((o) => {
+      const netz = o as { material?: THREE.Material | THREE.Material[] };
+      if (!netz.material) return;
+      for (const m of Array.isArray(netz.material) ? netz.material : [netz.material]) {
+        m.needsUpdate = true;
+      }
+    });
+  }
+
   setQuality(quality: QualitySettings): void {
     this.quality = quality;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.maxPixelRatio));

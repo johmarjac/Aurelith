@@ -78,6 +78,7 @@ import { Mixer } from '../audio/mixer.ts';
 import { PRELOAD, SOUNDS, WEAPON_SWING, type SoundDef } from '../audio/sounds.ts';
 import { Connection } from '../net/connection.ts';
 import { UI } from '../ui/index.ts';
+import { SICHTWEITEN, type GrafikEinstellungen } from '../ui/grafik.ts';
 import { LobbyView, type Anbieterkennung } from '../ui/lobby.ts';
 
 /** Ab dieser Abweichung wird die Vorhersage hart korrigiert. */
@@ -817,6 +818,25 @@ export class Game {
       this.mixer.setLevels(levels);
       this.ui.setAudioState(this.mixer.state);
     };
+
+    /*
+     * Die Grafikeinstellungen wirken sofort — bis auf den Umriss.
+     *
+     * Sichtweite und Schatten sind Schalter am Zeichner: der nächste Rahmen
+     * sieht anders aus. Der Umriss hängt an den Netzen der Figuren, und die
+     * mitten in einer Animation umzubauen wäre Aufwand für zwei Sekunden
+     * Ungeduld — er gilt ab der nächsten Figur, und das sagt der Text daneben.
+     */
+    const grafikAnwenden = (werte: GrafikEinstellungen): void => {
+      this.view.setzeSichtweite(werte.sichtweite);
+      this.view.pruefeSicht(this.scene.camera.position.x, this.scene.camera.position.z, true);
+      this.scene.setzeSchatten(werte.schatten);
+      this.registry.setzeUmriss(werte.umriss);
+    };
+    this.ui.onGrafikChange = grafikAnwenden;
+    // Und einmal beim Start: was im Speicher des Browsers steht, gilt ab dem
+    // ersten Bild und nicht erst, wenn jemand die Einstellungen öffnet.
+    grafikAnwenden(this.ui.grafik);
 
     this.ui.onAudioProbe = () => {
       this.mixer.resume();
@@ -3462,9 +3482,32 @@ export class Game {
       this.ui.setFps(this.diagnostics.fps);
       this.fpsFenster = 0;
       this.fpsBilder = 0;
+
+      /*
+       * Die Zahlentafel im selben Takt wie die Bildrate — zweimal je Sekunde.
+       *
+       * Nicht je Bild: die Zahlen darin springen sonst so schnell, dass man
+       * sie nicht lesen kann, und die Tafel ist zum Lesen da. `renderer.info`
+       * zählt den **letzten** gezeichneten Rahmen, ist also ohnehin frisch.
+       */
+      const info = this.scene.renderer.info.render;
+      this.ui.setzeDebugZahlen([
+        ['Props', `${this.view.gezeichneteProps} / ${this.view.propsGesamt}`],
+        ['Wesen', String(this.view.entities.size)],
+        ['Draw-Calls', String(info.calls)],
+        ['Dreiecke', info.triangles.toLocaleString('de-DE')],
+        ['Sichtweite', `${SICHTWEITEN[this.ui.grafik.sichtweite]} m`],
+        ['Bilder', `${Math.round(this.diagnostics.fps)} fps`],
+      ]);
     }
 
     this.view.step(dt, this.localId);
+    /*
+     * Was in Sichtweite steht, wird nachgeschaut — von der **Kamera** aus und
+     * nicht von der Figur. Wer sich umdreht und die Kamera weit nach hinten
+     * zieht, sieht sonst hinter sich ein Loch, wo Bäume stehen sollten.
+     */
+    this.view.pruefeSicht(this.scene.camera.position.x, this.scene.camera.position.z);
     // Die Wolken ziehen je Bild. Die Farben rechnet der Zyklus nur alle paar
     // Zehntel — ein Wolkenzug in Rucken wäre daran sofort zu sehen.
     this.scene.stepSky(dt);

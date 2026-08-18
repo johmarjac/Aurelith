@@ -766,6 +766,87 @@ check(
   `der Kompass steht neben der Uhr (${kompass || 'leer'})`,
 );
 
+/*
+ * --- Reiter, Zahlentafel und Sichtweite ------------------------------------
+ *
+ * Drei Dinge in einem Abschnitt, weil sie zusammenhängen: die Sichtweite steht
+ * im Reiter „Grafik", und ob sie wirkt, sagt die Zahlentafel — die man dort
+ * einschaltet. Geprüft wird die **Wirkung** und nicht das Häkchen: ein
+ * Menüeintrag, der eine Zahl setzt, die niemand liest, wäre ebenfalls grün.
+ */
+const reiterNamen = await page.evaluate(() =>
+  [...document.querySelectorAll('.settings-tab')].map((n) => n.textContent),
+);
+check(
+  reiterNamen.length >= 3 && reiterNamen.includes('Ton') && reiterNamen.includes('Grafik'),
+  `die Einstellungen haben Reiter (${reiterNamen.join(', ')})`,
+);
+
+// Auf „Grafik" wechseln — und nachsehen, dass wirklich das Blatt wechselt.
+const grafikReiter = page.locator('.settings-tab', { hasText: 'Grafik' });
+await grafikReiter.click();
+await page.waitForTimeout(300);
+check(
+  await page.evaluate(
+    () => document.querySelector('.settings-sheet:not([hidden]) select') !== null,
+  ),
+  'und der Reiter „Grafik" zeigt die Renderdistanz',
+);
+
+// Debug einschalten, damit die Zahlentafel etwas sagt.
+await page.evaluate(() => {
+  const kaesten = [
+    ...document.querySelectorAll('.settings-sheet:not([hidden]) input[type=checkbox]'),
+  ];
+  const debug = kaesten[kaesten.length - 1];
+  if (debug && !debug.checked) debug.click();
+});
+
+/**
+ * Wie viele Props die Tafel gerade meldet.
+ *
+ * Gewartet wird auf eine **Änderung** und nicht auf Millisekunden: die Tafel
+ * wird zusammen mit der Bildrate zweimal je Sekunde neu geschrieben, und
+ * headless mit swiftshader dauert eine halbe Sekunde Simulationszeit deutlich
+ * länger als eine halbe Sekunde Wanduhr.
+ */
+const gezeichnet = async (nichtMehr = -1) => {
+  const ende = Date.now() + 30000;
+  while (Date.now() < ende) {
+    const roh = await page.evaluate(
+      () => document.querySelector('.debugtafel-wert')?.textContent ?? '',
+    );
+    const n = Number(roh.split('/')[0]?.trim());
+    if (Number.isFinite(n) && n > 0 && n !== nichtMehr) return n;
+    await page.waitForTimeout(400);
+  }
+  return -1;
+};
+
+const propsHoch = await gezeichnet();
+check(propsHoch > 0, `die Zahlentafel zählt gezeichnete Props (${propsHoch})`);
+
+await page.selectOption('.settings-sheet:not([hidden]) select', 'niedrig');
+const propsNiedrig = await gezeichnet(propsHoch);
+check(
+  propsNiedrig > 0 && propsNiedrig < propsHoch * 0.6,
+  `„Niedrig" zeichnet deutlich weniger (${propsHoch} → ${propsNiedrig})`,
+);
+
+/*
+ * Und zurück — die Gegenprobe. Ohne sie wäre auch eine Fassung grün, die beim
+ * ersten Umschalten alles wegwirft und nie wieder etwas zeichnet.
+ */
+await page.selectOption('.settings-sheet:not([hidden]) select', 'hoch');
+const propsWieder = await gezeichnet(propsNiedrig);
+check(
+  propsWieder > propsNiedrig * 1.5,
+  `und „Hoch" holt sie zurück (${propsNiedrig} → ${propsWieder})`,
+);
+
+await page.keyboard.press('KeyO');
+await page.waitForTimeout(400);
+
 const charOffen = () =>
   page.evaluate(
     () => document.querySelector('.window[data-window="character"]')?.dataset.open === 'true',
