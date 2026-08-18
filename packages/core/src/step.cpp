@@ -116,6 +116,25 @@ void World::resolveOverlaps() {
       if (!isCombatant(b) || !isAlive(b)) continue;
 
       /*
+       * Ein Monster steht einem Spieler nicht im Weg — und umgekehrt.
+       *
+       * Man läuft durch Monster hindurch, so wie in den Vorbildern dieses
+       * Spiels. Der Grund ist kein Geschmack: eine Horde Keiler, die sich um
+       * eine Figur schliesst, schob sie vorher Tick für Tick vor sich her.
+       * Wer angegriffen wurde, verlor die Kontrolle über den eigenen Standort,
+       * konnte nicht mehr zurücksetzen und nicht mehr zielen — die Trennung
+       * war stärker als jede Eingabe, denn sie läuft **nach** der Bewegung.
+       * Auf einer Fläche über dem Abgrund endete das damit, dass man
+       * heruntergedrängt wurde.
+       *
+       * `isCombatant` lässt nur Spieler und Monster durch. Ungleiche Arten
+       * heisst hier also genau: einer von jeder Sorte. Gleiche Arten trennen
+       * sich weiterhin — sonst stünde eine ganze Gruppe Keiler auf einem Punkt
+       * und sähe aus wie ein einziges Wesen.
+       */
+      if (a.type != b.type) continue;
+
+      /*
        * Nur wer sich auch in der **Höhe** überschneidet, steht im Weg.
        *
        * Diese Zeile fehlte, und die Folge war grotesk: ein Keiler unter einem

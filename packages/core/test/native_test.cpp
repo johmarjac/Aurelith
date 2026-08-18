@@ -431,9 +431,16 @@ void testAggroAndLeash() {
           "und schiebt ihn auch nicht vom Felsen");
 
     /*
-     * Gegenprobe: **auf derselben Höhe** schiebt es sehr wohl. Ohne sie wäre
-     * die Zeile darüber auch mit einer Trennung zufrieden, die gar nicht mehr
-     * stattfindet — und dann stünden alle Wesen ineinander.
+     * Und unten, Bauch an Bauch, ebenso wenig: durch Monster läuft man
+     * hindurch.
+     *
+     * Hier stand einmal die Gegenprobe „auf gleicher Höhe schiebt es sehr
+     * wohl". Das war richtig, solange sich alles trennte — und genau daran
+     * lag der zweite gemeldete Fehler: eine Horde, die sich um eine Figur
+     * schliesst, schob sie vor sich her, und wer angegriffen wurde, hatte
+     * seinen eigenen Standort nicht mehr in der Hand. Ein einzelner Schritt
+     * genügt für die Prüfung; die Trennung wirkt sofort und nicht über die
+     * Zeit.
      */
     hoch.find(1)->y = grund;
     hoch.find(1)->airborne = false;
@@ -442,8 +449,52 @@ void testAggroAndLeash() {
     const float engX = hoch.find(1)->x;
     const float engZ = hoch.find(1)->z;
     hoch.step(aur::kTickSeconds);
-    check(aur::dist2D(hoch.find(1)->x, hoch.find(1)->z, engX, engZ) > 0.05f,
-          "auf gleicher Höhe dagegen schon");
+    check(aur::dist2D(hoch.find(1)->x, hoch.find(1)->z, engX, engZ) < 0.05f,
+          "und auf gleicher Höhe genauso wenig");
+  }
+
+  /*
+   * --- Gegenprobe: unter ihresgleichen trennen sie sich sehr wohl -----------
+   *
+   * Ohne diesen Abschnitt wären die beiden Zeilen oben auch dann grün, wenn es
+   * die weiche Trennung gar nicht mehr gäbe — und dann stünde eine ganze
+   * Gruppe Keiler auf einem Punkt und sähe aus wie ein einziges Wesen.
+   *
+   * Ohne Spieler in der Welt: zwei angriffslustige Monster mit einem Ziel
+   * liefen beide darauf zu, und die Bewegung läge über dem, was hier gemessen
+   * werden soll.
+   */
+  {
+    aur::World eng(11u, flatTerrain(), &mobs);
+    eng.spawnMob(20, aggressive, 0.0f, 0.0f, -1, aur::kNoSpawner);
+    eng.spawnMob(21, aggressive, 0.0f, 0.1f, -1, aur::kNoSpawner);
+    const float vorher =
+        aur::dist2D(eng.find(20)->x, eng.find(20)->z, eng.find(21)->x, eng.find(21)->z);
+    eng.step(aur::kTickSeconds);
+    const float nachher =
+        aur::dist2D(eng.find(20)->x, eng.find(20)->z, eng.find(21)->x, eng.find(21)->z);
+    check(nachher > vorher + 0.05f, "Monster untereinander trennen sich weiterhin");
+
+    /*
+     * Und auch unter ihresgleichen zählt die Höhe. Sonst wäre die Regel, die
+     * den Keiler unter dem Felsen betrifft, nach der Änderung von oben gar
+     * nicht mehr geprüft — sie greift jetzt nur noch zwischen Gleichen.
+     */
+    const float grund = eng.find(20)->y;
+    eng.addPlattform(0.0f, 0.0f, 6.0f, grund + 26.0f);
+    eng.find(20)->x = 0.0f;
+    eng.find(20)->z = 0.0f;
+    eng.find(20)->y = grund + 26.0f;
+    eng.find(20)->airborne = false;
+    eng.find(21)->x = 0.0f;
+    eng.find(21)->z = 0.1f;
+    const float weitVorher =
+        aur::dist2D(eng.find(20)->x, eng.find(20)->z, eng.find(21)->x, eng.find(21)->z);
+    eng.step(aur::kTickSeconds);
+    const float weitNachher =
+        aur::dist2D(eng.find(20)->x, eng.find(20)->z, eng.find(21)->x, eng.find(21)->z);
+    check(std::fabs(weitNachher - weitVorher) < 0.05f,
+          "sechsundzwanzig Meter höher dagegen nicht");
   }
 }
 
