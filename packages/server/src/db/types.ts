@@ -22,6 +22,16 @@
 
 import type { AktionsPlatz } from '@aurelith/shared';
 
+/**
+ * Die Höhe einer Figur, die noch nie gespeichert wurde.
+ *
+ * Eine Zahl, die als Höhe nicht vorkommen kann — tiefer als jeder Meeresgrund.
+ * Ein Merker statt `null`, weil die Spalte `NOT NULL` ist und weil eine Zahl
+ * durch jede Schicht dieses Servers unverändert durchgeht; `null` müsste an
+ * fünf Stellen einzeln behandelt werden, und eine davon vergisst man.
+ */
+export const HOEHE_UNBEKANNT = -100000;
+
 export interface CharacterRecord {
   id: number;
   accountId: number;
@@ -35,6 +45,15 @@ export interface CharacterRecord {
   mp: number;
   mapId: string;
   x: number;
+  /**
+   * Die Höhe, in Metern.
+   *
+   * `HOEHE_UNBEKANNT` heisst: diese Zeile stammt aus der Zeit, in der nur
+   * `x` und `z` gespeichert wurden. Dann setzt der Server die Figur wie früher
+   * auf das Gelände. Alles andere ist eine echte Höhe — auch eine negative,
+   * denn der Meeresspiegel der Insel liegt bei minus vier.
+   */
+  y: number;
   z: number;
   yaw: number;
   /*

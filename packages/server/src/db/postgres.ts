@@ -21,6 +21,7 @@ import {
   type AktionsPlatz,
 } from '@aurelith/shared';
 import { starterRows } from '../inventory.ts';
+import { HOEHE_UNBEKANNT } from './types.ts';
 import type {
   AccountRecord,
   CharacterRecord,
@@ -198,7 +199,7 @@ export class PostgresWelt extends PostgresBasis implements WeltStore {
 
   async listCharacters(accountId: number): Promise<CharacterRecord[]> {
     const res = await this.pool.query(
-      `SELECT id, account_id, name, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw,
+      `SELECT id, account_id, name, class, level, exp, gold, hp, mp, map_id, pos_x, pos_y, pos_z, yaw,
               staerke, ausdauer, geschick, weisheit
          FROM characters
         WHERE account_id = $1
@@ -226,11 +227,15 @@ export class PostgresWelt extends PostgresBasis implements WeltStore {
         // Spaltenvorgabe: die steht in einer Migration und lässt sich nicht
         // nachträglich ändern, ohne dass alte und neue Figuren verschieden
         // anfangen.
+        // `pos_y` steht bewusst nicht dabei: wo der Boden am Startpunkt liegt,
+        // weiss die Datenbank nicht. Die Spaltenvorgabe ist der Merker
+        // „unbekannt", und die Welt setzt die frische Figur beim ersten
+        // Anmelden aufs Gelände.
         `INSERT INTO characters (account_id, name, class, map_id, pos_x, pos_z, yaw,
                                  staerke, ausdauer, geschick, weisheit)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          ON CONFLICT DO NOTHING
-         RETURNING id, account_id, name, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw,
+         RETURNING id, account_id, name, class, level, exp, gold, hp, mp, map_id, pos_x, pos_y, pos_z, yaw,
               staerke, ausdauer, geschick, weisheit`,
         [
           accountId,
@@ -286,7 +291,7 @@ export class PostgresWelt extends PostgresBasis implements WeltStore {
     characterId: number,
   ): Promise<LoadedCharacter | undefined> {
     const res = await this.pool.query(
-      `SELECT id, account_id, name, class, level, exp, gold, hp, mp, map_id, pos_x, pos_z, yaw,
+      `SELECT id, account_id, name, class, level, exp, gold, hp, mp, map_id, pos_x, pos_y, pos_z, yaw,
               staerke, ausdauer, geschick, weisheit
          FROM characters
         WHERE id = $1 AND account_id = $2`,
@@ -360,8 +365,8 @@ export class PostgresWelt extends PostgresBasis implements WeltStore {
       // ihn hiesse, dass der frisch gelernte Beruf beim Abmelden verfällt.
       `UPDATE characters
           SET class = $2, level = $3, exp = $4, gold = $5, hp = $6, mp = $7,
-              map_id = $8, pos_x = $9, pos_z = $10, yaw = $11,
-              staerke = $12, ausdauer = $13, geschick = $14, weisheit = $15,
+              map_id = $8, pos_x = $9, pos_y = $10, pos_z = $11, yaw = $12,
+              staerke = $13, ausdauer = $14, geschick = $15, weisheit = $16,
               updated_at = now()
         WHERE id = $1`,
       [
@@ -374,6 +379,7 @@ export class PostgresWelt extends PostgresBasis implements WeltStore {
         c.mp,
         c.mapId,
         c.x,
+        c.y,
         c.z,
         c.yaw,
         c.staerke,
@@ -489,6 +495,11 @@ function toCharacter(row: Record<string, unknown> | undefined): CharacterRecord 
     mp: Number(row.mp),
     mapId: String(row.map_id),
     x: Number(row.pos_x),
+    // `?? HOEHE_UNBEKANNT` und nicht `Number(undefined)`: eine Zeile aus einer
+    // Abfrage ohne die Spalte gäbe sonst `NaN`, und ein `NaN` als Höhe wandert
+    // durch die Welt bis in den Schnappschuss, wo die Figur dann nirgends mehr
+    // ist. Der Merker sagt stattdessen „setz sie aufs Gelände".
+    y: Number(row.pos_y ?? HOEHE_UNBEKANNT),
     z: Number(row.pos_z),
     yaw: Number(row.yaw),
     // Über `leseEigenschaften`, damit eine Zeile aus der Zeit vor der

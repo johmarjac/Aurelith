@@ -153,6 +153,7 @@ import {
   removeSlot,
   zaehleMunition,
 } from './inventory.ts';
+import { HOEHE_UNBEKANNT } from './db/index.ts';
 import type { ItemRecord, KontoStore, WeltStore } from './db/index.ts';
 
 /**
@@ -909,6 +910,30 @@ export class GameServer {
     // Wer sich auf dem Besen abgemeldet hat, sitzt beim Anmelden wieder darauf
     // — in der Welt und nicht nur im Bild. Siehe `setzeFlugzustand`.
     this.setzeFlugzustand(session);
+    /*
+     * Und auf der Höhe, auf der er aufgehört hat.
+     *
+     * `spawnPlayer` kennt nur `x` und `z` und setzt die Figur damit aufs
+     * Gelände — das war richtig, solange es nur Gelände gab. Wer auf einem
+     * schwebenden Felsen ausloggte, stand danach sechsundzwanzig Meter tiefer
+     * im Gras, und wer auf dem Besen in der Luft ausloggte, kam am Boden
+     * wieder an.
+     *
+     * **Nach** `setzeFlugzustand`, nicht davor: `setzeAn` entscheidet anhand
+     * der Höhe über dem Boden, ob die Figur in der Luft ist. Stünde das Gerät
+     * dabei noch nicht, wäre sie einen Tick lang eine fallende Fussgängerin.
+     *
+     * `HOEHE_UNBEKANNT` heisst „diese Zeile ist älter als die Spalte" — dann
+     * bleibt es beim Gelände, so wie es immer war.
+     */
+    if (geladen.character.y !== HOEHE_UNBEKANNT) {
+      instance.world.setzeAn(
+        session.entityId,
+        geladen.character.x,
+        geladen.character.y,
+        geladen.character.z,
+      );
+    }
     instance.meta.set(session.entityId, this.playerMeta(session));
     instance.playerIds.add(session.entityId);
     this.sessionByEntity.set(session.entityId, session);
@@ -1570,6 +1595,10 @@ export class GameServer {
     character.yaw = ziel.yaw;
 
     const spawnY = to.world.heightAt(ziel.x, ziel.z);
+    // Und die Höhe mit. Ohne diese Zeile stünde in der Figur noch die Höhe aus
+    // der Karte davor — auf einer Karte, auf der es sie nicht gibt. Wer hinter
+    // dem Tor sofort ausloggt, käme dort in der Luft oder im Berg wieder.
+    character.y = spawnY;
     session.send(
       encodeWelcome({
         protocolVersion: PROTOCOL_VERSION,
@@ -3982,6 +4011,10 @@ export class GameServer {
     const row = this.instances.get(session.mapId)?.entity(session.entityId);
     if (row) {
       character.x = row.x;
+      // Die Höhe gehört dazu, seit man auf schwebenden Felsen stehen und auf
+      // Fluggeräten in der Luft stehenbleiben kann. Ohne sie war jedes
+      // Anmelden ein Sturz auf das Gelände unter dem Abmeldepunkt.
+      character.y = row.y;
       character.z = row.z;
       character.yaw = row.yaw;
       character.hp = Math.round(this.lebenVon(session));

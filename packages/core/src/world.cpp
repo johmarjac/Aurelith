@@ -440,7 +440,16 @@ void World::setzeAn(uint32_t id, float x, float y, float z) {
   // Felsen will, landete wieder auf der Wiese.
   const float boden = bodenHoehe(e->x, e->z, y);
   e->y = y < boden ? boden : y;
-  e->airborne = e->y > boden + kStufenHoehe;
+  /*
+   * Wer fliegt, hängt nie am Boden.
+   *
+   * Sonst entschiede eine Handbreit über die Sache: das Fluggerät hält seine
+   * Figur bei `kFlugMindesthoehe` (0,5) über dem Boden, die Stufenhöhe liegt
+   * bei 0,45 — wer knapp über dem Gras schwebt, wäre nach dieser Zeile
+   * gelandet, und `advanceJump` liesse ihn stehen, weil es nur Fliegende in
+   * der Luft weiterrechnet. Das Gerät ist die Auskunft, nicht die Höhe.
+   */
+  e->airborne = e->flying || e->y > boden + kStufenHoehe;
 
   e->vx = 0.0f;
   e->vz = 0.0f;

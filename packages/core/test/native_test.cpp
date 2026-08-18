@@ -951,6 +951,58 @@ void testFliegen() {
   check(p->y >= boden + aur::kFlugMindesthoehe - 1e-3f, "und in den Boden sinkt sie nicht");
 
   /*
+   * --- Wer in der Luft aufhört, fängt in der Luft wieder an -----------------
+   *
+   * Der gemeldete Fall: auf dem Besen in vierzig Metern abmelden, und beim
+   * nächsten Anmelden steht man am Boden — mit dem Besen unter den Füssen. Der
+   * Server setzt die Figur seither über `setzeAn` auf die gespeicherte Höhe,
+   * und die muss halten.
+   *
+   * Zwei Fassungen davon, und die zweite ist die eigentliche Prüfung: dicht
+   * über dem Gras. Wer die Frage „in der Luft?" allein an der Höhe entscheidet,
+   * hält eine tief schwebende Figur für gelandet — und `advanceJump` lässt sie
+   * dann stehen, weil es nur Fliegende weiterrechnet. Gemessen wird deshalb
+   * unterhalb der Stufenhöhe (0,45), denn genau dort kippt die Antwort. Solche
+   * Höhen kommen vor: gespeichert wird die Höhe über Null, und der Boden
+   * darunter ist beim nächsten Anmelden ein Stück höher, wenn die Figur am
+   * Hang schwebte.
+   */
+  {
+    aur::World wieder(31u, flatTerrain(), &mobs);
+    wieder.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+    aur::Entity* w = wieder.find(1);
+    const float grund = w->y;
+    wieder.setFlying(1, true, 12.0f, 6.0f, 60.0f);
+    wieder.setzeAn(1, 0.0f, grund + 40.0f, 0.0f);
+    check(std::fabs(w->y - (grund + 40.0f)) < 1e-3f, "gesetzt wird auf die volle Höhe");
+    for (int i = 0; i < 20; ++i) {
+      wieder.applyInput(1, 0.0f, 0.0f, 0.0f, keine, aur::kTickSeconds);
+      wieder.step(aur::kTickSeconds);
+    }
+    check(std::fabs(w->y - (grund + 40.0f)) < 1e-2f, "und dort bleibt die Figur auch stehen");
+
+    wieder.setzeAn(1, 0.0f, grund + 0.2f, 0.0f);
+    check(w->airborne, "auch eine Handbreit über dem Gras hängt sie nicht am Boden");
+    for (int i = 0; i < 20; ++i) {
+      wieder.applyInput(1, 0.0f, 0.0f, 0.0f, keine, aur::kTickSeconds);
+      wieder.step(aur::kTickSeconds);
+    }
+    check(w->flying && w->y >= grund + aur::kFlugMindesthoehe - 1e-3f,
+          "und sie schwebt weiter, statt hinzustehen");
+
+    /*
+     * Gegenprobe: **ohne** Gerät entscheidet weiterhin die Höhe. Sonst wäre
+     * die Zeile darüber auch mit einem Kern zufrieden, der jeden für in der
+     * Luft hält — und dann fiele niemand mehr.
+     */
+    aur::World zuFuss(33u, flatTerrain(), &mobs);
+    zuFuss.spawnPlayer(testPlayer(1, 0.0f, 0.0f));
+    const float fussGrund = zuFuss.find(1)->y;
+    zuFuss.setzeAn(1, 0.0f, fussGrund + 0.2f, 0.0f);
+    check(!zuFuss.find(1)->airborne, "zu Fuss ist dieselbe Handbreit kein Flug");
+  }
+
+  /*
    * --- Vom Gerät aus wird nicht geschlagen ---------------------------------
    *
    * Anvisieren ja, schlagen nein: wer auf einem Besen sitzt, hat keine Hand

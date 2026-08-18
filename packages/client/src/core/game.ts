@@ -2338,6 +2338,20 @@ export class Game {
     // Erscheinen noch nicht feststeht, ob das Inventar schon da ist.
     this.applyProfileToPrediction();
     this.applyFlugToPrediction();
+    /*
+     * Zuletzt auf die Höhe, die der Server meldet.
+     *
+     * `spawnPlayer` kennt nur `x` und `z` und setzt die Figur aufs Gelände.
+     * Wer sich auf einem schwebenden Felsen abgemeldet hat, stünde damit im
+     * ersten Bild nach dem Anmelden unten im Gras, während der Server ihn oben
+     * führt — und der Abgleich holt das nicht nach, denn er misst die
+     * Abweichung nur in `x` und `z`.
+     *
+     * **Nach** dem Fluggerät, so wie im Server: `setzeAn` entscheidet anhand
+     * des Abstands zum Boden, ob die Figur in der Luft ist, und dafür muss das
+     * Gerät schon stehen.
+     */
+    world.setzeAn(this.localId, x, y, z);
   }
 
   /**

@@ -420,6 +420,17 @@ check((await tafel()) === '', 'ohne Schalter steht keine Tafel im Bild');
 
 await page.keyboard.press('KeyO');
 await page.waitForSelector('.window[data-window="settings"][data-open="true"]', { timeout: 10000 });
+/*
+ * Erst das Blatt, dann der Schalter.
+ *
+ * Die Einstellungen sind in Reiter geteilt — Ton, Grafik, Oberfläche —, und
+ * offen liegt der erste. Ohne diesen Klick steht das Häkchen zwar im
+ * Dokument, ist aber verborgen, und Playwright wartet dreissig Sekunden auf
+ * ein Feld, das nie sichtbar wird.
+ */
+await page
+  .locator('.window[data-window="settings"] .settings-tab', { hasText: 'Grafik' })
+  .click();
 const schalter = page.locator('.window[data-window="settings"] .settings-toggle', {
   hasText: 'Debug anzeigen',
 });

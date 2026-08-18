@@ -11,6 +11,7 @@ import {
   type AktionsPlatz,
 } from '@aurelith/shared';
 import { starterRows } from '../inventory.ts';
+import { HOEHE_UNBEKANNT } from './types.ts';
 import type {
   AccountRecord,
   CharacterRecord,
@@ -114,6 +115,9 @@ export class MemoryStore implements GameStore {
       mp: 0,
       mapId: spawn.mapId,
       x: spawn.x,
+      // Eine frische Figur steht auf dem Gelände, und wo das ist, weiss erst
+      // die Welt. Der Merker sagt genau das: „Höhe noch nicht bekannt".
+      y: HOEHE_UNBEKANNT,
       z: spawn.z,
       yaw: spawn.yaw,
       ...startEigenschaften(),
