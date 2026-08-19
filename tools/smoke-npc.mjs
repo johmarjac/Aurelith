@@ -67,8 +67,8 @@ console.log('Aurelith — NPCs, Aufträge, Handel\n');
 
 const server = launch('npx tsx packages/server/src/index.ts', {
   AURELITH_PORT: '8792',
-  // Zwei Einheiten neben Aurel, der in Silberfurt auf (−6, −110) steht.
-  AURELITH_START_POS: '-4,-108',
+  // Zwei Einheiten neben Aurel, der in Silberfurt auf (−6, −476) steht.
+  AURELITH_START_POS: '-4,-474',
   DATABASE_URL: '',
 });
 // `AURELITH_SERVER` sagt Vite, wohin es `/ws` durchreicht — sonst zeigte der

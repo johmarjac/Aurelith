@@ -1573,6 +1573,15 @@ declare global {
       mapId: string;
       props: number;
       portals: number;
+      /**
+       * Gezeichnete Bilder seit dem Start.
+       *
+       * Für Tests, die auf eine Bewegung warten, die je Bild passiert: unter
+       * SwiftShader braucht ein Bild über eine Sekunde, und eine Prüfung, die
+       * eine Taste siebenhundert Millisekunden hält, misst dann nichts —
+       * dazwischen lag kein einziges Bild.
+       */
+      bilder: number;
       /** Höhe des höchsten geformten Punktes, in Metern. */
       sculptPeak: number;
       sculptResolution: number;
@@ -1706,6 +1715,7 @@ function publishDiagnostics(): void {
     mapId: doc?.id ?? '',
     props: doc?.props.length ?? 0,
     portals: doc?.portals.length ?? 0,
+    bilder,
     sculptPeak: sculptPeak(sculpt),
     sculptResolution: sculpt?.resolution ?? 0,
     coreSculptResolution: world?.sculptResolution ?? 0,
@@ -1752,8 +1762,12 @@ resize();
 let lastFrameAt = performance.now();
 let frames = 0;
 
+/** Gezeichnete Bilder — siehe `aurelithEditor.bilder`. */
+let bilder = 0;
+
 function frame(now = performance.now()): void {
   requestAnimationFrame(frame);
+  bilder++;
   const dt = Math.min(0.1, (now - lastFrameAt) / 1000);
   lastFrameAt = now;
 

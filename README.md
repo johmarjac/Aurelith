@@ -74,6 +74,13 @@ bewussten Abweichung, die weiter unten begründet ist.
   die Hauptstadt Silberfurt mit den Hauptquests, nach Norden Stufengebiete von
   1 bis 20, dazwischen Nebenquests, ein Fluss mit Brücken und schwebende Felsen
   über der Wiese.
+- **Karten werden in Minuten gemessen.** Sechshundert auf achtzehnhundert Meter
+  sind fünf Minuten von der Südküste bis zum Tor im Norden und dreieinhalb von
+  der Stadt aus; im Dornwald sind es drei zwischen den beiden Toren. Vorher war
+  Lichtmoor in fünfundsiebzig Sekunden durchquert — man kam an, bevor die
+  Gegend anfing, eine zu sein. `test:karte` rechnet die Zeit aus der Länge der
+  Insel und dem Tempo aus `tuning.json` nach, damit sie nicht beim nächsten
+  Verschieben unbemerkt zerfällt.
 - **Fünf Zonen**, und man sieht sie: Silberfurter Weiden, Die Gruben, Die
   Uferwiesen, Das Geröllfeld, Der Dornsaum. Jede hat ihren eigenen Bewuchs
   (Blüten nur im Süden, Heidekraut nur im Norden), ihre eigene Bodenfarbe und
@@ -268,7 +275,7 @@ npm run test:npcflow     # ansprechen, annehmen, erlegen, aufheben, abgeben
 npm run test:npc         # NPC-Fenster und Inventar im Browser
 npm run test:identitaet  # ein Mensch, zwei Anbieter, ein Konto
 npm run test:karten      # Eintrittskarten: Frist, Lebenszeichen, Wiedereinstieg
-npm run test:karte       # Lichtmoor: Rechteck, dichter Rand, Stufen nach Norden
+npm run test:karte       # Lichtmoor: Laufzeit in Minuten, dichter Rand, Stufen nach Norden
 npm run test:vorgang     # Aufsteigen dauert, und eine Absage kostet keine Abklingzeit
 npm run test:hoehe       # wer oben abmeldet, erscheint oben wieder
 npm run test:freunde     # Freundschaften: anfragen, ablehnen, annehmen, lösen, /pm

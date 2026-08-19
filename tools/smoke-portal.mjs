@@ -8,9 +8,11 @@
  * ob ein Tor gerade scharf ist. Beides ist ersatzlos weg, und genau das prüft
  * dieser Test: dass Stillstehen im Tor folgenlos bleibt.
  *
- * Gespielt wird auf `gruft_01`, weil dort das Ausgangstor acht Einheiten vom
- * Startpunkt entfernt steht — auf Lichtmoor wären es zweihundert, und der Test
- * würde eine Minute lang nur laufen.
+ * Gespielt wird auf `dornwald`, und die Figur startet mit `AURELITH_START_POS`
+ * sieben Einheiten vor dem Tor. Der Startpunkt der Karte liegt zwar auch dort,
+ * aber die Karten sind lang geworden — von Lichtmoors Stadt bis zum Tor sind
+ * es zwölfhundert Meter, und ein Test, der die erst abläuft, misst drei
+ * Minuten lang nichts.
  *
  *   node tools/smoke-portal.mjs
  */
@@ -72,8 +74,8 @@ const seit = () => `${((Date.now() - t0) / 1000).toFixed(1)} s`;
 console.log('Aurelith — Tore\n');
 
 const server = launch('npx tsx packages/server/src/index.ts', {
-  // Dornwald: Tor nach Lichtmoor bei (0, -186), Radius 4. Von dort geht es nach
-  // Lichtmoor auf (0, 184), wo das Gegentor bei (0, 196) steht — beide ohne
+  // Dornwald: Tor nach Lichtmoor bei (0, -600), Radius 4. Von dort geht es nach
+  // Lichtmoor auf (0, 772), wo das Gegentor bei (0, 784) steht — beide ohne
   // Stufensperre, also derselbe Weg hin und zurueck.
   //
   // Bewusst nicht ueber die Schattengruft: die verlangt Stufe zehn, und eine
@@ -91,7 +93,7 @@ const server = launch('npx tsx packages/server/src/index.ts', {
   // Knapp ausserhalb des Tores statt am Startpunkt der Karte: nah genug, dass
   // der Anlauf kurz ist, weit genug, dass die erste Pruefung — „abseits eines
   // Tores kein Hinweis" — noch etwas zu pruefen hat. Der Radius betraegt vier.
-  AURELITH_START_POS: '0,-179',
+  AURELITH_START_POS: '0,-593',
 });
 launch('cd packages/client && npx vite --port 5195 --strictPort --host 127.0.0.1');
 
@@ -333,15 +335,15 @@ if (arrived) {
 
   const after = await state();
   check(
-    Math.hypot(after.x - 0, after.z - 184) < 3,
+    Math.hypot(after.x - 0, after.z - 772) < 3,
     `Ankunft am vorgesehenen Punkt (${after.x.toFixed(1)}, ${after.z.toFixed(1)})`,
   );
   check(after.prompt === '', `nach der Ankunft kein Hinweis ("${after.prompt}")`);
 
   /*
-   * Gegentor bei (0, 196), also zwoelf Einheiten in Richtung +Z. Der Weg
-   * bleibt: hier geht es gerade darum, dass die Figur sich nach einem Wechsel
-   * noch bewegen laesst und der Server das mitbekommt.
+   * Gegentor bei (0, 784), also zwoelf Einheiten in Richtung +Z. Der
+   * Weg bleibt: hier geht es gerade darum, dass die Figur sich nach einem
+   * Wechsel noch bewegen laesst und der Server das mitbekommt.
    *
    * Gelaufen wird **bis zu einer Lage** und nicht eine Zahl von Schritten.
    * `waitTicks` zaehlt Bilder, und wie weit ein Bild traegt, haengt daran, wie
@@ -352,7 +354,7 @@ if (arrived) {
    */
   await page.keyboard.down('KeyW');
   const amGegentor = await waitUntil(
-    async () => (await page.evaluate(() => window.aurelith.playerSim.z)) >= 194.5,
+    async () => (await page.evaluate(() => window.aurelith.playerSim.z)) >= 781,
     40000,
   );
   await page.keyboard.up('KeyW');

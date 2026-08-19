@@ -91,11 +91,11 @@ console.log('Aurelith — Laufmarke auf dem Gelände\n');
  * kommt man von dort in vier Sekunden Laufzeit nirgends mehr hin, wo etwas
  * krumm wäre, und die Gegenprobe fiel durch: „0 von 6".
  *
- * Die Kuppe bei (172, 10) misst achtzehn Meter auf fünfzig Radius; ihr Fuss
+ * Die Kuppe bei (234, 40) misst achtzehn Meter auf fünfzig Radius; ihr Fuss
  * ist die Stelle, an der eine Steigung in die Ebene übergeht, und damit die
  * krummste der Karte.
  */
-const server = launch('AURELITH_START_POS=130,10 npx tsx packages/server/src/index.ts');
+const server = launch('AURELITH_START_POS=190,40 npx tsx packages/server/src/index.ts');
 launch('cd packages/client && npx vite --port 5197 --strictPort --host 127.0.0.1');
 
 if (!(await waitUntil(async () => server.log.join('').includes('bereit'), 40000))) {

@@ -63,6 +63,61 @@ function scatter(
   const feld = bereich ?? { x0: -margin, x1: margin, z0: -margin, z1: margin };
   let attempts = 0;
 
+  /*
+   * Ein Raster über das Gesetzte — sonst wächst die Streuung quadratisch.
+   *
+   * Der Mindestabstand wurde einmal gegen **jedes** schon gesetzte Prop
+   * geprüft. Auf der alten Karte waren das ein paar hundert je Streuung und
+   * niemandem etwas aufgefallen. Auf der langen Karte sind es je Zone
+   * mehrere tausend, und bei sechzig Versuchen je Stück wären das Milliarden
+   * Vergleiche — die Karte hätte sich nicht mehr erzeugen lassen.
+   *
+   * Die Maschenweite ist der Mindestabstand selbst: dann liegt alles, was
+   * näher als `minGap` sein könnte, in der eigenen oder einer der acht
+   * angrenzenden Maschen. Dasselbe für die Sperrkreise, mit deren grösstem
+   * Radius als Maschenweite.
+   */
+  const maschen = new Map();
+  const maschenWeite = Math.max(0.5, minGap);
+  const schluessel = (ix, iz) => `${ix},${iz}`;
+  const zuNah = (x, z) => {
+    const ix = Math.floor(x / maschenWeite);
+    const iz = Math.floor(z / maschenWeite);
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const eimer = maschen.get(schluessel(ix + dx, iz + dz));
+        if (!eimer) continue;
+        for (const p of eimer) {
+          if (Math.hypot(x - p[0], z - p[1]) < minGap) return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  const sperrWeite = Math.max(1, ...keepOut.map((k) => k.r));
+  const sperren = new Map();
+  for (const k of keepOut) {
+    // Ein Kreis liegt in mehreren Maschen. Eingetragen wird er in alle, die er
+    // berührt — sonst fände ihn eine Abfrage am Rand seiner Masche nicht.
+    const von = (v) => Math.floor((v - k.r) / sperrWeite);
+    const bis = (v) => Math.floor((v + k.r) / sperrWeite);
+    for (let iz = von(k.z); iz <= bis(k.z); iz++) {
+      for (let ix = von(k.x); ix <= bis(k.x); ix++) {
+        const s = schluessel(ix, iz);
+        const eimer = sperren.get(s);
+        if (eimer) eimer.push(k);
+        else sperren.set(s, [k]);
+      }
+    }
+  }
+  const gesperrt = (x, z) => {
+    const eimer = sperren.get(schluessel(Math.floor(x / sperrWeite), Math.floor(z / sperrWeite)));
+    if (!eimer) return false;
+    for (const k of eimer) if (Math.hypot(x - k.x, z - k.z) < k.r) return true;
+    return false;
+  };
+
   while (placed.length < count && attempts < count * 60) {
     attempts++;
     const x = feld.x0 + rng() * (feld.x1 - feld.x0);
@@ -72,23 +127,8 @@ function scatter(
     // Fluss und nicht im Berg". Zwei Fragen, weil ein Rechteck das eine kann
     // und das andere nicht.
     if (erlaubt && !erlaubt(x, z)) continue;
-
-    let blocked = false;
-    for (const k of keepOut) {
-      if (Math.hypot(x - k.x, z - k.z) < k.r) {
-        blocked = true;
-        break;
-      }
-    }
-    if (blocked) continue;
-
-    for (const p of placed) {
-      if (Math.hypot(x - p.position[0], z - p.position[2]) < minGap) {
-        blocked = true;
-        break;
-      }
-    }
-    if (blocked) continue;
+    if (gesperrt(x, z)) continue;
+    if (zuNah(x, z)) continue;
 
     const model = models[Math.floor(rng() * models.length)];
     const scale = scaleRange[0] + rng() * (scaleRange[1] - scaleRange[0]);
@@ -105,6 +145,16 @@ function scatter(
       prop.tint = tints[Math.floor(rng() * tints.length)];
     }
     placed.push(prop);
+    // Mit der **gerundeten** Lage ins Raster — verglichen wird gegen
+    // `position`, und auf zwei Stellen gerundet liegt die um bis zu einem
+    // halben Zentimeter daneben. Wer roh einträgt und gerundet vergleicht,
+    // bekommt an der Maschengrenze ein anderes Ergebnis als die alte Schleife.
+    const px = prop.position[0];
+    const pz = prop.position[2];
+    const s = schluessel(Math.floor(px / maschenWeite), Math.floor(pz / maschenWeite));
+    const eimer = maschen.get(s);
+    if (eimer) eimer.push([px, pz]);
+    else maschen.set(s, [[px, pz]]);
   }
 
   return placed;
@@ -361,22 +411,34 @@ const LM = {
   /**
    * Halbe Breite und Enden des begehbaren Plateaus.
    *
-   * Vorher war Lichtmoor ein Streifen von zweihundert Metern Breite und
-   * dreihundertvierundsiebzig Länge — eng, und beim Laufen merkte man das:
-   * man war ständig am Rand. Jetzt vierhundertvierzig auf vierhundertsechzig,
-   * also zweieinhalbmal so viel Fläche und vor allem **breit**.
+   * **Die Karte wird in Minuten gemessen und nicht in Metern.** Eine Figur
+   * läuft 6,2 Einheiten je Sekunde (`assets/content/tuning.json`), und damit
+   * war die alte Insel — vierhundertvierzig auf vierhundertsechzig — in
+   * fünfundsiebzig Sekunden von Süden nach Norden durchquert. Von der Stadt
+   * zum Tor waren es fünfzig. Das ist keine Reise, das ist ein Vorgarten:
+   * man kam an, bevor die Gegend anfing, eine zu sein.
    *
-   * Und keine vier Wände mehr, sondern eine **Insel**: rundherum fällt das
-   * Land über eine Klippe ins Meer. Die Klippe ist steiler als die
-   * zweiundfünfzig Grad, die der Kern begehbar nennt — man kommt bis an die
-   * Kante und keinen Schritt weiter, auch nicht im Sprung.
+   * Jetzt sechshundert auf **eintausendachthundertvierzig**. Das sind knapp
+   * fünf Minuten von der Südküste bis zum Tor im Norden und dreieinhalb von
+   * der Stadt aus — lang genug, dass ein Weg ein Weg ist, und kurz genug,
+   * dass niemand ihn zweimal am Tag verflucht. `karte_test.ts` rechnet beides
+   * nach, damit die Zahl nicht beim nächsten Verschieben unbemerkt zerfällt.
+   *
+   * Gestreckt wurde die **Länge** und nur wenig die Breite: Lichtmoor ist
+   * eine Strecke von Stufe eins bis zwanzig. Eine Insel, die in alle
+   * Richtungen gleich weit reicht, hätte dieselbe Fläche, aber keinen Weg.
+   *
+   * Und keine vier Wände, sondern eine **Insel**: rundherum fällt das Land
+   * über eine Klippe ins Meer. Die Klippe ist steiler als die zweiundfünfzig
+   * Grad, die der Kern begehbar nennt — man kommt bis an die Kante und keinen
+   * Schritt weiter, auch nicht im Sprung.
    */
-  size: 640,
-  x: 220,
-  zSued: -220,
-  zNord: 240,
+  size: 2048,
+  x: 300,
+  zSued: -880,
+  zNord: 960,
   /** Mitte der Hauptstadt. */
-  stadtZ: -122,
+  stadtZ: -488,
   stadtR: 48,
 };
 
@@ -407,13 +469,15 @@ function ausserhalb(x, z) {
  * zurück.
  */
 const FLUSS = [
-  [-200, 84],
-  [-110, 78],
-  [-40, 42],
-  [20, -22],
-  [80, -50],
-  [140, -8],
-  [230, 36],
+  [-800, 114],
+  [-560, 106],
+  [-380, 96],
+  [-160, 57],
+  [80, -30],
+  [320, -68],
+  [560, -11],
+  [760, 44],
+  [960, 62],
 ];
 
 /**
@@ -527,26 +591,54 @@ function lichtmoorHoehe(x, z) {
    * fünfundvierzig Radius — das sind knapp fünfundzwanzig Grad, man läuft
    * hinauf, ohne es zu merken.
    */
+  /*
+   * Die Kuppen bleiben **rund**, sie werden nicht mitgestreckt.
+   *
+   * Verschoben wurden nur ihre Mitten — mit der Länge der Insel. Wer statt
+   * dessen die Radien in `z` mitgestreckt hätte, bekäme Rücken von
+   * hundertsechzig Metern Länge: aus einer Kuppe, über die man läuft, würde
+   * eine Welle, die man nicht mehr als Hügel erkennt.
+   *
+   * Dafür sind es mehr geworden. Achtzehn Kuppen auf achtzehnhundert Metern
+   * wären eine alle hundert Meter — dazwischen läge eine Ebene, und eine
+   * Ebene ist beim Laufen dasselbe wie ein Gang.
+   */
   const kuppen = [
-    { x: -62, z: -30, r: 40, h: 12 },
-    { x: 58, z: 22, r: 36, h: 10 },
-    { x: -40, z: 96, r: 44, h: 14 },
-    { x: 66, z: 142, r: 38, h: 13 },
-    { x: -70, z: 176, r: 36, h: 15 },
-    { x: 20, z: 190, r: 32, h: 11 },
-    // Der Westen und der Osten, die es vorher gar nicht gab.
-    { x: -160, z: -80, r: 52, h: 16 },
-    { x: -175, z: 60, r: 46, h: 13 },
-    { x: -140, z: 160, r: 42, h: 11 },
-    { x: 155, z: -120, r: 48, h: 14 },
-    { x: 172, z: 10, r: 50, h: 18 },
-    { x: 145, z: 118, r: 44, h: 12 },
-    { x: 168, z: 205, r: 38, h: 10 },
-    { x: -150, z: -180, r: 44, h: 12 },
-    { x: 96, z: -196, r: 40, h: 9 },
-    { x: -30, z: -206, r: 46, h: 11 },
-    { x: 40, z: 226, r: 42, h: 13 },
-    { x: -108, z: 226, r: 38, h: 9 },
+    { x: -84, z: -120, r: 40, h: 12 },
+    { x: 79, z: 88, r: 36, h: 10 },
+    { x: -54, z: 384, r: 44, h: 14 },
+    { x: 90, z: 568, r: 38, h: 13 },
+    { x: -95, z: 704, r: 36, h: 15 },
+    { x: 27, z: 760, r: 32, h: 11 },
+    // Der Westen und der Osten.
+    { x: -218, z: -320, r: 52, h: 16 },
+    { x: -238, z: 240, r: 46, h: 13 },
+    { x: -190, z: 640, r: 42, h: 11 },
+    { x: 211, z: -480, r: 48, h: 14 },
+    { x: 234, z: 40, r: 50, h: 18 },
+    { x: 197, z: 472, r: 44, h: 12 },
+    { x: 229, z: 820, r: 38, h: 10 },
+    { x: -204, z: -720, r: 44, h: 12 },
+    { x: 131, z: -784, r: 40, h: 9 },
+    { x: -41, z: -824, r: 46, h: 11 },
+    { x: 54, z: 904, r: 42, h: 13 },
+    { x: -147, z: 904, r: 38, h: 9 },
+    // Und die Kuppen der neuen Länge — je eine Handvoll in jedem Abschnitt,
+    // damit zwischen zwei Wegmarken etwas steht.
+    { x: -120, z: -640, r: 46, h: 13 },
+    { x: 140, z: -600, r: 42, h: 11 },
+    { x: -230, z: -560, r: 50, h: 15 },
+    { x: 96, z: -360, r: 38, h: 10 },
+    { x: -160, z: -200, r: 44, h: 12 },
+    { x: 205, z: -160, r: 46, h: 14 },
+    { x: -75, z: 0, r: 40, h: 11 },
+    { x: 160, z: 200, r: 44, h: 13 },
+    { x: -215, z: 400, r: 48, h: 16 },
+    { x: 45, z: 300, r: 36, h: 9 },
+    { x: 120, z: 660, r: 40, h: 12 },
+    { x: -140, z: 500, r: 38, h: 10 },
+    { x: 240, z: 640, r: 42, h: 14 },
+    { x: -60, z: 860, r: 40, h: 12 },
   ];
   for (const k of kuppen) {
     const d = Math.hypot(x - k.x, z - k.z) / k.r;
@@ -574,10 +666,10 @@ function lichtmoorHoehe(x, z) {
    * man nicht weiterkommt.
    */
   const RELIEF = [
-    { bis: -20, amp: 0.35, len: 30 },
-    { bis: 55, amp: 1.5, len: 20 },
-    { bis: 125, amp: 0.8, len: 26 },
-    { bis: 180, amp: 1.5, len: 19 },
+    { bis: -80, amp: 0.35, len: 30 },
+    { bis: 220, amp: 1.5, len: 20 },
+    { bis: 500, amp: 0.8, len: 26 },
+    { bis: 720, amp: 1.5, len: 19 },
     { bis: 1e9, amp: 1.7, len: 17 },
   ];
   let amp = RELIEF[RELIEF.length - 1].amp;
@@ -666,10 +758,20 @@ function lichtmoorHoehe(x, z) {
  * wird, was Pflanze ist.
  *
  * `dichte` ist die Zahl je tausend Quadratmeter und **keine** Stückzahl. Der
- * Unterschied ist der Punkt: die Weiden sind zweihundert Meter lang, der
- * Dornsaum sechzig, und mit festen Stückzahlen stünde in der einen Zone ein
- * Baum je dreissig Metern und in der anderen ein Wald. Wie dicht es wirkt,
- * soll die Tabelle sagen, nicht die Länge des Abschnitts.
+ * Unterschied ist der Punkt: die Weiden sind achthundert Meter lang, der
+ * Dornsaum zweihundertvierzig, und mit festen Stückzahlen stünde in der einen
+ * Zone ein Baum je dreissig Metern und in der anderen ein Wald. Wie dicht es
+ * wirkt, soll die Tabelle sagen, nicht die Länge des Abschnitts.
+ *
+ * **Die Zahlen sind kleiner geworden, als die Insel länger wurde.** Nicht aus
+ * Geschmack, sondern aus Arithmetik: die begehbare Fläche ist von zweihundert
+ * auf elfhundert Tausend Quadratmeter gewachsen, und mit den alten Dichten
+ * stünden zweiundzwanzigtausend Props auf der Karte. Das wären sechs Megabyte
+ * Kartendatei, achttausend Kollisionskreise, durch die der Server in jedem
+ * Schritt für jedes Monster hindurchrechnet — für einen Boden, der ohnehin
+ * kaum voller aussähe. Am stärksten gekürzt ist der Bodenbewuchs: ein
+ * Grasbüschel mehr sieht man aus drei Metern, ein Baum weniger fehlt am
+ * Horizont.
  *
  * Die Grenzen der Zonen sind Zahlen in `z` und keine Sperren: man läuft
  * hindurch, ohne aufgehalten zu werden. Eine Zone, die man betreten muss,
@@ -679,7 +781,7 @@ const LM_ZONEN = [
   {
     id: 'weiden',
     name: 'Silberfurter Weiden',
-    z1: -20,
+    z1: -80,
     /*
      * Vor der Stadt, wo man anfängt: hell, offen, freundlich.
      *
@@ -689,26 +791,26 @@ const LM_ZONEN = [
      * beim Zurücklaufen, dass man wieder zuhause ist.
      */
     baeume: {
-      dichte: 4.4,
+      dichte: 2.2,
       minGap: 9,
       scale: [0.9, 1.6],
       models: ['tree_broad', 'tree_broad', 'tree_pine'],
       tints: [0x6aa855, 0x74b45e, 0x7fbf66],
     },
     boden: {
-      dichte: 13,
+      dichte: 4.0,
       minGap: 3.4,
       models: ['blume_weiss', 'blume_gelb', 'blume_blau', 'klee', 'klee', 'grass_tuft', 'hochgras'],
       // Warm und hell: Gelbgrün, wie eine Wiese im Juni.
       tints: [0x8fc46a, 0x9ed07a, 0x7fbf66, 0xa8d488],
     },
-    streu: { dichte: 2.5, minGap: 5, models: ['kiesel', 'moosstein', 'baumpilz'] },
-    akzent: { dichte: 0.22, minGap: 24, models: ['bienenkorb', 'setzling', 'beerenbusch'] },
+    streu: { dichte: 1.0, minGap: 5, models: ['kiesel', 'moosstein', 'baumpilz'] },
+    akzent: { dichte: 0.15, minGap: 24, models: ['bienenkorb', 'setzling', 'beerenbusch'] },
   },
   {
     id: 'gruben',
     name: 'Die Gruben',
-    z1: 55,
+    z1: 220,
     /*
      * Wald, und darin liegt Totholz. Dunkler als die Weiden, aber noch grün.
      *
@@ -716,30 +818,30 @@ const LM_ZONEN = [
      * der Abschnitt ist der einzige mit dichtem Bestand.
      */
     baeume: {
-      dichte: 6.5,
+      dichte: 3.2,
       minGap: 8,
       scale: [0.8, 1.5],
       models: ['tree_pine', 'tree_broad', 'tree_fir'],
       tints: [0x5f9a4a, 0x4f8a3e, 0x437a36],
     },
     boden: {
-      dichte: 11,
+      dichte: 3.4,
       minGap: 3.6,
       models: ['farn', 'farn', 'bush', 'grass_tuft', 'hochgras'],
       // Satt und dunkel: Waldboden im Schatten.
       tints: [0x4f8a3e, 0x5f9a4a, 0x437a36],
     },
     streu: {
-      dichte: 4,
+      dichte: 1.6,
       minGap: 4.5,
       models: ['stump', 'mushroom_large', 'mushroom_large', 'baumpilz', 'moosstein'],
     },
-    akzent: { dichte: 0.3, minGap: 26, models: ['wurzelstock', 'hohler_stumpf', 'pilzring'] },
+    akzent: { dichte: 0.2, minGap: 26, models: ['wurzelstock', 'hohler_stumpf', 'pilzring'] },
   },
   {
     id: 'ufer',
     name: 'Die Uferwiesen',
-    z1: 125,
+    z1: 500,
     /*
      * Hier quert die Silberader die Insel. Der Boden ist feucht, das Gras
      * hoch, und die Bäume stehen weiter auseinander.
@@ -749,26 +851,26 @@ const LM_ZONEN = [
      * diese Zone, sondern zum Fluss.
      */
     baeume: {
-      dichte: 4.0,
+      dichte: 2.0,
       minGap: 10,
       scale: [0.8, 1.4],
       models: ['tree_broad', 'tree_fir', 'tree_pine'],
       tints: [0x4d8f57, 0x59a066, 0x3f7d4c],
     },
     boden: {
-      dichte: 12,
+      dichte: 3.6,
       minGap: 3.6,
       models: ['hochgras', 'hochgras', 'schilf', 'grass_tuft', 'klee', 'bush'],
       // Kühl ins Blaugrüne: nass, und das sieht man der Farbe an.
       tints: [0x4d8f6a, 0x59a077, 0x3f7d5c, 0x66a882],
     },
-    streu: { dichte: 3, minGap: 5, models: ['brombeere', 'distel', 'moosstein', 'kiesel'] },
-    akzent: { dichte: 0.3, minGap: 28, models: ['bildstock', 'moosstein', 'baumstamm_liegend'] },
+    streu: { dichte: 1.2, minGap: 5, models: ['brombeere', 'distel', 'moosstein', 'kiesel'] },
+    akzent: { dichte: 0.2, minGap: 28, models: ['bildstock', 'moosstein', 'baumstamm_liegend'] },
   },
   {
     id: 'geroell',
     name: 'Das Geröllfeld',
-    z1: 180,
+    z1: 720,
     /*
      * Der Bruch: ab hier steht nichts Grünes mehr aufrecht.
      *
@@ -777,20 +879,20 @@ const LM_ZONEN = [
      * Baum sähe aus wie ein kranker lebender.
      */
     baeume: {
-      dichte: 5.5,
+      dichte: 2.8,
       minGap: 8,
       scale: [0.8, 1.4],
       models: ['tree_dead', 'tree_dead', 'tree_fir'],
     },
     boden: {
-      dichte: 10,
+      dichte: 3.0,
       minGap: 4,
       models: ['heidekraut', 'heidekraut', 'dornbusch', 'grass_tuft'],
       // Ausgebleicht ins Braungraue. Hier wächst nichts mehr gern.
       tints: [0x8a8466, 0x9a9070, 0x7a7358, 0x6f6b55],
     },
-    streu: { dichte: 6, minGap: 4, models: ['geroell', 'felsblock', 'steinmann', 'kiesel'] },
-    akzent: { dichte: 0.5, minGap: 24, models: ['erzader', 'crystal', 'kristallgruppe'] },
+    streu: { dichte: 2.4, minGap: 4, models: ['geroell', 'felsblock', 'steinmann', 'kiesel'] },
+    akzent: { dichte: 0.35, minGap: 24, models: ['erzader', 'crystal', 'kristallgruppe'] },
   },
   {
     id: 'dornsaum',
@@ -803,23 +905,41 @@ const LM_ZONEN = [
      * sehen, dass der Weg zu Ende ist und dahinter etwas anderes anfängt.
      */
     baeume: {
-      dichte: 5.0,
+      dichte: 2.5,
       minGap: 7,
       scale: [0.7, 1.2],
       models: ['tree_dead', 'tree_pine'],
       tints: [0x2f4a35, 0x38553c],
     },
     boden: {
-      dichte: 8,
+      dichte: 2.4,
       minGap: 4,
       models: ['dornbusch', 'dornbusch', 'heidekraut', 'distel'],
       // Fast ohne Farbe. Der letzte Abschnitt vor dem Tor.
       tints: [0x5c5a4a, 0x4a4a3e, 0x6a6552],
     },
-    streu: { dichte: 5, minGap: 4.5, models: ['geroell', 'schaedel', 'knochenhaufen', 'kiesel'] },
-    akzent: { dichte: 0.5, minGap: 22, models: ['runenstein', 'feuerschale', 'knochenhaufen'] },
+    streu: { dichte: 2.0, minGap: 4.5, models: ['geroell', 'schaedel', 'knochenhaufen', 'kiesel'] },
+    akzent: { dichte: 0.35, minGap: 22, models: ['runenstein', 'feuerschale', 'knochenhaufen'] },
   },
 ];
+
+/**
+ * Die Wegmarken der Strecke, als Zahlen an einer Stelle.
+ *
+ * Das Tor, die fünf Lager der Nebenquestgeber. Alles, was dort steht — NPC,
+ * Feuer, Zelt, Zaun —, hängt an einer dieser Zahlen und nicht an einer
+ * eigenen. Vorher stand jede Lage ausgeschrieben, und beim Strecken der Insel
+ * hätte man jede einzeln nachziehen müssen: fünf Lager mal zehn Props, und
+ * das eine, das man übersieht, steht danach im Nichts.
+ */
+const LM_TOR = 784;
+const LM_LAGER = {
+  kraeuter: -184,
+  hirte: 56,
+  faehrmann: 264,
+  jaeger: 448,
+  kartograf: 632,
+};
 
 function lichtmoor() {
   const rng = mulberry32(0x4c49_4d00);
@@ -840,26 +960,33 @@ function lichtmoor() {
     { id: 'n_wache_sued', def: 'npc_wache', position: [-7, LM.stadtZ + 46], yaw: 3.14 },
     { id: 'n_wache_ost', def: 'npc_wache', position: [7, LM.stadtZ + 46], yaw: 3.14 },
 
-    // Unterwegs, von Süden nach Norden.
-    { id: 'n_kraeuter', def: 'npc_kraeuterfrau', position: [-24, -46], yaw: 1.1 },
-    { id: 'n_hirte', def: 'npc_hirte', position: [26, 14], yaw: 4.2 },
-    { id: 'n_faehrmann', def: 'npc_faehrmann', position: [-12, 66], yaw: 0.4 },
-    { id: 'n_jaeger', def: 'npc_jaeger', position: [34, 112], yaw: 3.8 },
-    { id: 'n_kartograf', def: 'npc_kartograf', position: [-38, 158], yaw: 0.9 },
-    { id: 'n_gate', def: 'npc_gatekeeper', position: [5, 188], yaw: 3.14 },
+    /*
+     * Unterwegs, von Süden nach Norden.
+     *
+     * Die Lager unten stehen bei ihnen, und zwar mit **Abständen zu ihrem
+     * Standpunkt** statt mit eigenen Zahlen: der Weg ist viermal so lang
+     * geworden, und wer ein Lager aus lauter absoluten Lagen streckt,
+     * bekommt ein Feuer, das dreissig Meter neben seinem Zelt brennt.
+     */
+    { id: 'n_kraeuter', def: 'npc_kraeuterfrau', position: [-24, LM_LAGER.kraeuter], yaw: 1.1 },
+    { id: 'n_hirte', def: 'npc_hirte', position: [26, LM_LAGER.hirte], yaw: 4.2 },
+    { id: 'n_faehrmann', def: 'npc_faehrmann', position: [-12, LM_LAGER.faehrmann], yaw: 0.4 },
+    { id: 'n_jaeger', def: 'npc_jaeger', position: [34, LM_LAGER.jaeger], yaw: 3.8 },
+    { id: 'n_kartograf', def: 'npc_kartograf', position: [-38, LM_LAGER.kartograf], yaw: 0.9 },
+    { id: 'n_gate', def: 'npc_gatekeeper', position: [5, LM_TOR - 8], yaw: 3.14 },
   ];
 
   const portals = [
     {
       id: 'g_dornwald',
-      position: [0, 196],
+      position: [0, LM_TOR],
       yaw: 0,
       radius: 4,
       label: 'Dornwald',
       // Acht Einheiten vor dem Rueckportal, nicht darin. Genau das war der
       // Fehler: der Zielpunkt lag exakt auf dem Gegentor bei (0, -186), und
       // nach Ablauf der Zeitsperre reiste man automatisch zurueck.
-      target: { map: 'dornwald', x: 0, z: -178, yaw: 0 },
+      target: { map: 'dornwald', x: 0, z: DW.torSued + 8, yaw: 0 },
       minLevel: 0,
     },
   ];
@@ -877,34 +1004,34 @@ function lichtmoor() {
    */
   const spawners = [
     // Stufe 1–3: die Wiese vor der Stadt.
-    { id: 's_mote_a', mob: 'mote', position: [-46, -58], radius: 26, count: 8, respawnMs: 60000, level: 1 },
-    { id: 's_mote_b', mob: 'mote', position: [40, -50], radius: 24, count: 7, respawnMs: 60000, level: 2 },
-    { id: 's_mote_c', mob: 'mote', position: [-14, -22], radius: 26, count: 7, respawnMs: 60000, level: 3 },
-    { id: 's_pup_a', mob: 'burrow_pup', position: [58, -20], radius: 24, count: 6, respawnMs: 70000, level: 3 },
+    { id: 's_mote_a', mob: 'mote', position: [-46, -232], radius: 26, count: 8, respawnMs: 60000, level: 1 },
+    { id: 's_mote_b', mob: 'mote', position: [40, -200], radius: 24, count: 7, respawnMs: 60000, level: 2 },
+    { id: 's_mote_c', mob: 'mote', position: [-14, -88], radius: 26, count: 7, respawnMs: 60000, level: 3 },
+    { id: 's_pup_a', mob: 'burrow_pup', position: [58, -80], radius: 24, count: 6, respawnMs: 70000, level: 3 },
 
     // Stufe 4–7: die Gruben.
-    { id: 's_pup_b', mob: 'burrow_pup', position: [-58, 6], radius: 26, count: 7, respawnMs: 70000, level: 4 },
-    { id: 's_pup_c', mob: 'burrow_pup', position: [16, 30], radius: 24, count: 6, respawnMs: 70000, level: 5 },
-    { id: 's_boar_a', mob: 'thistle_boar', position: [70, 34], radius: 26, count: 5, respawnMs: 75000, level: 6 },
-    { id: 's_boar_b', mob: 'thistle_boar', position: [-72, 48], radius: 26, count: 5, respawnMs: 75000, level: 7 },
+    { id: 's_pup_b', mob: 'burrow_pup', position: [-58, 24], radius: 26, count: 7, respawnMs: 70000, level: 4 },
+    { id: 's_pup_c', mob: 'burrow_pup', position: [16, 120], radius: 24, count: 6, respawnMs: 70000, level: 5 },
+    { id: 's_boar_a', mob: 'thistle_boar', position: [70, 136], radius: 26, count: 5, respawnMs: 75000, level: 6 },
+    { id: 's_boar_b', mob: 'thistle_boar', position: [-72, 192], radius: 26, count: 5, respawnMs: 75000, level: 7 },
 
     // Stufe 8–11: die Uferwiesen.
-    { id: 's_boar_c', mob: 'thistle_boar', position: [30, 84], radius: 28, count: 6, respawnMs: 75000, level: 8 },
-    { id: 's_bandit_a', mob: 'bandit_scout', position: [-52, 92], radius: 26, count: 5, respawnMs: 80000, level: 9 },
-    { id: 's_bandit_b', mob: 'bandit_scout', position: [72, 104], radius: 24, count: 5, respawnMs: 80000, level: 10 },
-    { id: 's_bandit_c', mob: 'bandit_scout', position: [-20, 118], radius: 26, count: 6, respawnMs: 80000, level: 11 },
+    { id: 's_boar_c', mob: 'thistle_boar', position: [30, 336], radius: 28, count: 6, respawnMs: 75000, level: 8 },
+    { id: 's_bandit_a', mob: 'bandit_scout', position: [-52, 368], radius: 26, count: 5, respawnMs: 80000, level: 9 },
+    { id: 's_bandit_b', mob: 'bandit_scout', position: [72, 416], radius: 24, count: 5, respawnMs: 80000, level: 10 },
+    { id: 's_bandit_c', mob: 'bandit_scout', position: [-20, 472], radius: 26, count: 6, respawnMs: 80000, level: 11 },
 
     // Stufe 12–15: das Geröllfeld.
-    { id: 's_bandit_d', mob: 'bandit_scout', position: [56, 138], radius: 26, count: 5, respawnMs: 80000, level: 12 },
-    { id: 's_crawl_a', mob: 'cave_crawler', position: [-64, 142], radius: 26, count: 5, respawnMs: 85000, level: 13 },
-    { id: 's_crawl_b', mob: 'cave_crawler', position: [10, 156], radius: 26, count: 6, respawnMs: 85000, level: 14 },
-    { id: 's_crawl_c', mob: 'cave_crawler', position: [-30, 172], radius: 24, count: 5, respawnMs: 85000, level: 15 },
+    { id: 's_bandit_d', mob: 'bandit_scout', position: [56, 552], radius: 26, count: 5, respawnMs: 80000, level: 12 },
+    { id: 's_crawl_a', mob: 'cave_crawler', position: [-64, 568], radius: 26, count: 5, respawnMs: 85000, level: 13 },
+    { id: 's_crawl_b', mob: 'cave_crawler', position: [10, 624], radius: 26, count: 6, respawnMs: 85000, level: 14 },
+    { id: 's_crawl_c', mob: 'cave_crawler', position: [-30, 688], radius: 24, count: 5, respawnMs: 85000, level: 15 },
 
     // Stufe 16–20: vor dem Tor.
-    { id: 's_crawl_d', mob: 'cave_crawler', position: [62, 172], radius: 24, count: 5, respawnMs: 85000, level: 16 },
-    { id: 's_warden_a', mob: 'dungeon_warden', position: [-72, 190], radius: 22, count: 4, respawnMs: 95000, level: 17 },
-    { id: 's_warden_b', mob: 'dungeon_warden', position: [40, 194], radius: 22, count: 4, respawnMs: 95000, level: 18 },
-    { id: 's_warden_c', mob: 'dungeon_warden', position: [-34, 200], radius: 20, count: 3, respawnMs: 95000, level: 20 },
+    { id: 's_crawl_d', mob: 'cave_crawler', position: [62, 688], radius: 24, count: 5, respawnMs: 85000, level: 16 },
+    { id: 's_warden_a', mob: 'dungeon_warden', position: [-72, 760], radius: 22, count: 4, respawnMs: 95000, level: 17 },
+    { id: 's_warden_b', mob: 'dungeon_warden', position: [40, 776], radius: 22, count: 4, respawnMs: 95000, level: 18 },
+    { id: 's_warden_c', mob: 'dungeon_warden', position: [-34, 800], radius: 20, count: 3, respawnMs: 95000, level: 20 },
 
     /*
      * --- Die Flügel im Westen und Osten -------------------------------------
@@ -918,23 +1045,49 @@ function lichtmoor() {
      * begegnen, sondern denselben wie auf gleicher Höhe. Der Aufbau der Karte
      * ist eine Strecke von Süd nach Nord, und daran ändert die Breite nichts.
      */
-    { id: 's_mote_w', mob: 'mote', position: [-152, -74], radius: 30, count: 8, respawnMs: 60000, level: 2 },
-    { id: 's_mote_o', mob: 'mote', position: [148, -66], radius: 30, count: 8, respawnMs: 60000, level: 2 },
-    { id: 's_mote_sw', mob: 'mote', position: [-96, -160], radius: 30, count: 7, respawnMs: 60000, level: 1 },
-    { id: 's_mote_so', mob: 'mote', position: [88, -172], radius: 30, count: 7, respawnMs: 60000, level: 1 },
-    { id: 's_pup_w', mob: 'burrow_pup', position: [-166, -10], radius: 30, count: 7, respawnMs: 70000, level: 4 },
-    { id: 's_pup_o', mob: 'burrow_pup', position: [162, -18], radius: 30, count: 7, respawnMs: 70000, level: 4 },
-    { id: 's_pup_o2', mob: 'burrow_pup', position: [124, 24], radius: 28, count: 6, respawnMs: 70000, level: 5 },
-    { id: 's_boar_w', mob: 'thistle_boar', position: [-140, 44], radius: 30, count: 6, respawnMs: 75000, level: 7 },
-    { id: 's_boar_o', mob: 'thistle_boar', position: [156, 58], radius: 30, count: 6, respawnMs: 75000, level: 7 },
-    { id: 's_boar_w2', mob: 'thistle_boar', position: [-176, 96], radius: 28, count: 5, respawnMs: 75000, level: 8 },
-    { id: 's_bandit_w', mob: 'bandit_scout', position: [-130, 128], radius: 30, count: 6, respawnMs: 80000, level: 10 },
-    { id: 's_bandit_o', mob: 'bandit_scout', position: [138, 120], radius: 30, count: 6, respawnMs: 80000, level: 10 },
-    { id: 's_bandit_o2', mob: 'bandit_scout', position: [174, 162], radius: 28, count: 5, respawnMs: 80000, level: 12 },
-    { id: 's_crawl_w', mob: 'cave_crawler', position: [-158, 178], radius: 28, count: 5, respawnMs: 85000, level: 14 },
-    { id: 's_crawl_o', mob: 'cave_crawler', position: [128, 196], radius: 28, count: 5, respawnMs: 85000, level: 15 },
-    { id: 's_warden_w', mob: 'dungeon_warden', position: [-120, 224], radius: 24, count: 4, respawnMs: 95000, level: 18 },
-    { id: 's_warden_o', mob: 'dungeon_warden', position: [96, 226], radius: 24, count: 4, respawnMs: 95000, level: 19 },
+    { id: 's_mote_w', mob: 'mote', position: [-207, -296], radius: 30, count: 8, respawnMs: 60000, level: 2 },
+    { id: 's_mote_o', mob: 'mote', position: [201, -264], radius: 30, count: 8, respawnMs: 60000, level: 2 },
+    { id: 's_mote_sw', mob: 'mote', position: [-96, -640], radius: 30, count: 7, respawnMs: 60000, level: 1 },
+    { id: 's_mote_so', mob: 'mote', position: [88, -688], radius: 30, count: 7, respawnMs: 60000, level: 1 },
+    { id: 's_pup_w', mob: 'burrow_pup', position: [-226, -40], radius: 30, count: 7, respawnMs: 70000, level: 4 },
+    { id: 's_pup_o', mob: 'burrow_pup', position: [220, -72], radius: 30, count: 7, respawnMs: 70000, level: 4 },
+    { id: 's_pup_o2', mob: 'burrow_pup', position: [169, 96], radius: 28, count: 6, respawnMs: 70000, level: 5 },
+    { id: 's_boar_w', mob: 'thistle_boar', position: [-190, 176], radius: 30, count: 6, respawnMs: 75000, level: 7 },
+    { id: 's_boar_o', mob: 'thistle_boar', position: [212, 232], radius: 30, count: 6, respawnMs: 75000, level: 7 },
+    { id: 's_boar_w2', mob: 'thistle_boar', position: [-239, 384], radius: 28, count: 5, respawnMs: 75000, level: 8 },
+    { id: 's_bandit_w', mob: 'bandit_scout', position: [-177, 512], radius: 30, count: 6, respawnMs: 80000, level: 10 },
+    { id: 's_bandit_o', mob: 'bandit_scout', position: [188, 480], radius: 30, count: 6, respawnMs: 80000, level: 10 },
+    { id: 's_bandit_o2', mob: 'bandit_scout', position: [237, 648], radius: 28, count: 5, respawnMs: 80000, level: 12 },
+    { id: 's_crawl_w', mob: 'cave_crawler', position: [-215, 712], radius: 28, count: 5, respawnMs: 85000, level: 14 },
+    { id: 's_crawl_o', mob: 'cave_crawler', position: [174, 784], radius: 28, count: 5, respawnMs: 85000, level: 15 },
+    { id: 's_warden_w', mob: 'dungeon_warden', position: [-163, 896], radius: 24, count: 4, respawnMs: 95000, level: 18 },
+    { id: 's_warden_o', mob: 'dungeon_warden', position: [96, 904], radius: 24, count: 4, respawnMs: 95000, level: 19 },
+
+    /*
+     * --- Die Felder der neuen Länge -----------------------------------------
+     *
+     * Die Strecke ist von vierhundertsechzig auf achtzehnhundertvierzig Meter
+     * gewachsen; die Felder oben sind mitgewandert, aber nicht mehr geworden.
+     * Zwischen zweien lagen damit stellenweise zweihundert Meter, auf denen
+     * nichts stand — und eine leere Strecke ist beim Laufen dasselbe wie ein
+     * Flur.
+     *
+     * Die Stufe folgt weiter dem Norden: dieselbe Höhe heisst dieselbe Stufe,
+     * egal ob man in der Mitte läuft oder am Rand.
+     */
+    { id: 's_mote_d', mob: 'mote', position: [-120, -700], radius: 30, count: 7, respawnMs: 60000, level: 1 },
+    { id: 's_mote_e', mob: 'mote', position: [110, -640], radius: 30, count: 7, respawnMs: 60000, level: 1 },
+    { id: 's_mote_f', mob: 'mote', position: [-90, -380], radius: 28, count: 7, respawnMs: 60000, level: 2 },
+    { id: 's_pup_d', mob: 'burrow_pup', position: [130, -300], radius: 28, count: 6, respawnMs: 70000, level: 3 },
+    { id: 's_pup_e', mob: 'burrow_pup', position: [-150, -40], radius: 28, count: 6, respawnMs: 70000, level: 4 },
+    { id: 's_boar_d', mob: 'thistle_boar', position: [90, 60], radius: 28, count: 5, respawnMs: 75000, level: 6 },
+    { id: 's_boar_e', mob: 'thistle_boar', position: [-110, 270], radius: 28, count: 5, respawnMs: 75000, level: 8 },
+    { id: 's_bandit_e', mob: 'bandit_scout', position: [60, 420], radius: 28, count: 5, respawnMs: 80000, level: 10 },
+    { id: 's_bandit_f', mob: 'bandit_scout', position: [-180, 460], radius: 28, count: 5, respawnMs: 80000, level: 11 },
+    { id: 's_crawl_e', mob: 'cave_crawler', position: [150, 540], radius: 28, count: 5, respawnMs: 85000, level: 13 },
+    { id: 's_crawl_f', mob: 'cave_crawler', position: [-100, 620], radius: 28, count: 5, respawnMs: 85000, level: 15 },
+    { id: 's_warden_d', mob: 'dungeon_warden', position: [170, 740], radius: 24, count: 4, respawnMs: 95000, level: 18 },
+    { id: 's_warden_e', mob: 'dungeon_warden', position: [-190, 860], radius: 24, count: 4, respawnMs: 95000, level: 19 },
   ];
 
   /*
@@ -1118,49 +1271,53 @@ function lichtmoor() {
     place('lantern_post', 9, b),
   ]);
 
+  /*
+   * Die Zeichen am Weg — gerechnet und nicht abgeschrieben.
+   *
+   * Der Weg von der Stadt zum Tor ist zwölfhundert Einheiten lang. Wer da
+   * jedes Zeichen einzeln hinschreibt, schreibt vierzig Zeilen und zieht beim
+   * nächsten Verschieben vierzig Zeilen nach. Gefragt ist ohnehin keine
+   * einzelne Lage, sondern ein **Abstand**: alle achtzig Meter etwas, das
+   * sagt „du kommst voran", und dazwischen nichts.
+   *
+   * Die Seite wechselt, damit die Strasse nicht wie ein Spalier aussieht,
+   * und alles steht mindestens viereinhalb Meter neben der Fahrbahn: ein
+   * Hindernis auf der einzigen Strecke ist die Sorte Fehler, um die jeder
+   * zweimal am Tag herumläuft.
+   */
+  const wegVon = cz + mauerHalb + 20;
+  const wegBis = LM_TOR - 30;
+  const wegZeichen = [];
+  for (let i = 0, z = wegVon; z <= wegBis; z += 80, i++) {
+    const rechts = i % 2 === 0;
+    const seite = rechts ? 1 : -1;
+    const yaw = rechts ? 0.3 : 2.9;
+    // Vier Sorten im Wechsel: Meilenstein, Bank, Bildstock, Wegweiser. Der
+    // Wegweiser ist der seltenste — er markiert, und was ständig markiert,
+    // markiert nichts.
+    const was = ['meilenstein', 'bank', 'bildstock', 'meilenstein', 'signpost', 'bank'][i % 6];
+    wegZeichen.push(place(was, seite * (was === 'signpost' ? 5.5 : 4.8), round(z), { yaw }));
+  }
+
   const strasse = [
-    ...lanternRoad([0, cz + mauerHalb + 6], [0, 186], { abstand: 26, seite: 6.5 }),
+    ...lanternRoad([0, cz + mauerHalb + 6], [0, LM_TOR - 10], { abstand: 26, seite: 6.5 }),
+    ...wegZeichen,
 
-    // Wegweiser an den Abschnittsgrenzen. Sie sagen nichts — sie markieren.
-    place('signpost', 5.5, -60, { yaw: 0.4 }),
-    place('signpost', -5.5, 0, { yaw: 2.9 }),
-    place('signpost', 5.5, 60, { yaw: 0.4 }),
-    place('signpost', -5.5, 120, { yaw: 2.9 }),
-    place('signpost', 5.5, 170, { yaw: 0.4 }),
-
-    /*
-     * Meilensteine, Bänke und ein Bildstock.
-     *
-     * Sie stehen **enger** als die Wegweiser: der Weg von der Stadt zum Tor
-     * ist dreihundert Einheiten lang, und eine Strasse, auf der zwischen zwei
-     * Zeichen nichts steht, fühlt sich doppelt so lang an. Alle drei stehen
-     * nicht im Weg (`collision: 'none'` bzw. weit genug am Rand) — ein
-     * Hindernis auf der einzigen Strecke ist die Sorte Fehler, um die jeder
-     * zweimal am Tag herumläuft.
-     */
-    place('meilenstein', -4.5, -30, { yaw: 3.0 }),
-    place('meilenstein', 4.5, 30, { yaw: 0.2 }),
-    place('meilenstein', -4.5, 90, { yaw: 3.0 }),
-    place('meilenstein', 4.5, 150, { yaw: 0.2 }),
-    place('bank', -6.5, -14, { yaw: 1.6 }),
-    place('bank', 6.5, 96, { yaw: 4.7 }),
-    place('bildstock', -7, 44, { yaw: 1.3 }),
-    place('bildstock', 7.5, 134, { yaw: 4.6 }),
     // Ein liegen gebliebener Karren am Wegrand, halb im Gras.
-    place('handkarre', -8.5, 12, { yaw: 2.2 }),
-    place('planwagen', 9.5, 72, { yaw: 1.4 }),
+    place('handkarre', -8.5, 48, { yaw: 2.2 }),
+    place('planwagen', 9.5, 288, { yaw: 1.4 }),
 
     // Die Brücken über die Silberader. Zwei Geländer und vier Pfeiler je
     // Übergang — mehr braucht es nicht, damit man sieht, wo man hinüberkommt.
     ...brueckenbau,
 
     // Das Tor nach Dornwald: ein Grenzposten und kein Kreis im Gras.
-    ...fenceRun('fence_stone', [-16, 190], [-6, 190]),
-    ...fenceRun('fence_stone', [6, 190], [16, 190]),
-    place('banner', -7.5, 191.5, { yaw: 3.14 }),
-    place('banner', 7.5, 191.5, { yaw: 3.14 }),
-    place('brazier', -12, 186),
-    place('brazier', 12, 186),
+    ...fenceRun('fence_stone', [-16, LM_TOR - 6], [-6, LM_TOR - 6]),
+    ...fenceRun('fence_stone', [6, LM_TOR - 6], [16, LM_TOR - 6]),
+    place('banner', -7.5, LM_TOR - 4.5, { yaw: 3.14 }),
+    place('banner', 7.5, LM_TOR - 4.5, { yaw: 3.14 }),
+    place('brazier', -12, LM_TOR - 10),
+    place('brazier', 12, LM_TOR - 10),
   ];
 
   /*
@@ -1173,32 +1330,37 @@ function lichtmoor() {
   const lager = [
     /*
      * Kräuterfrau — sie sammelt, also liegt bei ihr, was sie sammelt.
+     *
+     * Alle Lager rechnen mit einem **Abstand zu ihrem NPC** (`LM_LAGER`) statt
+     * mit eigenen Zahlen. Vorher stand jede Lage ausgeschrieben; beim Strecken
+     * der Insel wäre aus jedem Lager eine über hundert Meter verteilte
+     * Ansammlung geworden, deren Feuer neben niemandem mehr brennt.
      */
-    place('lagerfeuer', -21, -49),
-    place('crate', -27, -44, { yaw: 0.8 }),
-    place('markttisch', -24, -46, { yaw: 0.9 }),
-    place('korb', -25.6, -43.2, { yaw: 1.4 }),
-    place('korb', -22.4, -42.4, { yaw: 0.2, scale: 0.85 }),
-    place('mushroom_large', -29, -50, { scale: 1.2 }),
-    place('mushroom_large', -19, -54, { scale: 0.9 }),
-    place('pilzring', -31, -44),
-    place('farn', -30, -54, { scale: 1.3 }),
-    place('farn', -17, -47, { scale: 1.1 }),
-    place('blume_blau', -26, -53),
-    place('blume_weiss', -20, -42),
+    place('lagerfeuer', -21, LM_LAGER.kraeuter - 3),
+    place('crate', -27, LM_LAGER.kraeuter + 2, { yaw: 0.8 }),
+    place('markttisch', -24, LM_LAGER.kraeuter, { yaw: 0.9 }),
+    place('korb', -25.6, LM_LAGER.kraeuter + 2.8, { yaw: 1.4 }),
+    place('korb', -22.4, LM_LAGER.kraeuter + 3.6, { yaw: 0.2, scale: 0.85 }),
+    place('mushroom_large', -29, LM_LAGER.kraeuter - 4, { scale: 1.2 }),
+    place('mushroom_large', -19, LM_LAGER.kraeuter - 8, { scale: 0.9 }),
+    place('pilzring', -31, LM_LAGER.kraeuter + 2),
+    place('farn', -30, LM_LAGER.kraeuter - 8, { scale: 1.3 }),
+    place('farn', -17, LM_LAGER.kraeuter - 1, { scale: 1.1 }),
+    place('blume_blau', -26, LM_LAGER.kraeuter - 7),
+    place('blume_weiss', -20, LM_LAGER.kraeuter + 4),
 
     /*
      * Hirte — Gehege, Futter, Wasser. Der Trog ist der Unterschied zwischen
      * einem Zaun und einer Weide.
      */
-    ...fenceRect('fence_wood', 30, 16, 10, 7),
-    place('hay_bale', 27, 12, { yaw: 0.6 }),
-    place('hay_bale', 33, 20, { yaw: 2.2 }),
-    place('wassertrog', 24, 18, { yaw: 1.6 }),
-    place('huehnerstall', 36, 10, { yaw: 3.4 }),
-    place('hocker', 29, 24, { yaw: 0.5 }),
-    place('klee', 31, 14, { scale: 1.3 }),
-    place('klee', 27, 19, { scale: 1.1 }),
+    ...fenceRect('fence_wood', 30, LM_LAGER.hirte + 2, 10, 7),
+    place('hay_bale', 27, LM_LAGER.hirte - 2, { yaw: 0.6 }),
+    place('hay_bale', 33, LM_LAGER.hirte + 6, { yaw: 2.2 }),
+    place('wassertrog', 24, LM_LAGER.hirte + 4, { yaw: 1.6 }),
+    place('huehnerstall', 36, LM_LAGER.hirte - 4, { yaw: 3.4 }),
+    place('hocker', 29, LM_LAGER.hirte + 10, { yaw: 0.5 }),
+    place('klee', 31, LM_LAGER.hirte, { scale: 1.3 }),
+    place('klee', 27, LM_LAGER.hirte + 5, { scale: 1.1 }),
 
     /*
      * Fährmann am Ufer.
@@ -1207,41 +1369,43 @@ function lichtmoor() {
      * Der Steg zeigt in den Fluss (`drehung`), nicht am Ufer entlang — sonst
      * ist er ein Holzweg neben dem Wasser.
      */
-    ...reihe('steg', [-13, 66], [-13, 78], 4, { drehung: Math.PI / 2 }),
-    place('ruderboot', -17, 74, { yaw: 1.4 }),
-    place('fischgestell', -18, 64, { yaw: 0.7 }),
-    place('fischernetz', -9, 66, { yaw: 2.4 }),
-    place('barrel', -15, 62, { yaw: 0.4 }),
-    place('crate', -9, 62, { yaw: 1.6 }),
-    place('lantern_post', -14, 70),
-    place('schilf', -20, 70, { scale: 1.2 }),
-    place('rohrkolben', -8, 72, { scale: 1.1 }),
+    ...reihe('steg', [-13, LM_LAGER.faehrmann], [-13, LM_LAGER.faehrmann + 12], 4, {
+      drehung: Math.PI / 2,
+    }),
+    place('ruderboot', -17, LM_LAGER.faehrmann + 8, { yaw: 1.4 }),
+    place('fischgestell', -18, LM_LAGER.faehrmann - 2, { yaw: 0.7 }),
+    place('fischernetz', -9, LM_LAGER.faehrmann, { yaw: 2.4 }),
+    place('barrel', -15, LM_LAGER.faehrmann - 4, { yaw: 0.4 }),
+    place('crate', -9, LM_LAGER.faehrmann - 4, { yaw: 1.6 }),
+    place('lantern_post', -14, LM_LAGER.faehrmann + 4),
+    place('schilf', -20, LM_LAGER.faehrmann + 4, { scale: 1.2 }),
+    place('rohrkolben', -8, LM_LAGER.faehrmann + 6, { scale: 1.1 }),
 
     /*
      * Jäger — ein Lager, kein Haus: Zelt, Feuer, Spiess, Schlafrolle.
      */
-    place('zelt', 33, 110, { yaw: 0.7 }),
-    place('lagerfeuer', 31, 108),
-    place('bratspiess', 31, 108, { yaw: 1.2 }),
-    place('schlafrolle', 35, 106, { yaw: 0.9 }),
-    place('waffenstaender', 29, 112, { yaw: 2.6 }),
-    place('tree_dead', 39, 116, { scale: 1.2 }),
-    place('crate', 37, 106, { yaw: 2.4 }),
-    place('knochenhaufen', 40, 108, { yaw: 0.4 }),
-    place('fischgestell', 27, 105, { yaw: 1.9 }),
+    place('zelt', 33, LM_LAGER.jaeger - 2, { yaw: 0.7 }),
+    place('lagerfeuer', 31, LM_LAGER.jaeger - 4),
+    place('bratspiess', 31, LM_LAGER.jaeger - 4, { yaw: 1.2 }),
+    place('schlafrolle', 35, LM_LAGER.jaeger - 6, { yaw: 0.9 }),
+    place('waffenstaender', 29, LM_LAGER.jaeger, { yaw: 2.6 }),
+    place('tree_dead', 39, LM_LAGER.jaeger + 4, { scale: 1.2 }),
+    place('crate', 37, LM_LAGER.jaeger - 6, { yaw: 2.4 }),
+    place('knochenhaufen', 40, LM_LAGER.jaeger - 4, { yaw: 0.4 }),
+    place('fischgestell', 27, LM_LAGER.jaeger - 7, { yaw: 1.9 }),
 
     /*
      * Kartograf — er misst und zeichnet, also steht bei ihm ein Tisch, und
      * neben dem Zelt ein Steinmann als Vermessungszeichen.
      */
-    place('zelt', -37, 156, { yaw: 2.2 }),
-    place('lagerfeuer', -35, 154),
-    place('markttisch', -33, 158, { yaw: 0.4 }),
-    place('hocker', -31, 160, { yaw: 1.1 }),
-    place('steinmann', -44, 156),
-    place('signpost', -42, 160, { yaw: 1.6 }),
-    place('crate', -41, 152, { yaw: 0.9 }),
-    place('schlafrolle', -39, 152, { yaw: 2.2 }),
+    place('zelt', -37, LM_LAGER.kartograf - 2, { yaw: 2.2 }),
+    place('lagerfeuer', -35, LM_LAGER.kartograf - 4),
+    place('markttisch', -33, LM_LAGER.kartograf, { yaw: 0.4 }),
+    place('hocker', -31, LM_LAGER.kartograf + 2, { yaw: 1.1 }),
+    place('steinmann', -44, LM_LAGER.kartograf - 2),
+    place('signpost', -42, LM_LAGER.kartograf + 2, { yaw: 1.6 }),
+    place('crate', -41, LM_LAGER.kartograf - 6, { yaw: 0.9 }),
+    place('schlafrolle', -39, LM_LAGER.kartograf - 6, { yaw: 2.2 }),
   ];
 
   /*
@@ -1268,16 +1432,34 @@ function lichtmoor() {
   const schweber = [
     // Eine Treppe aus Steinen über der Wiese: von niedrig nach hoch, damit man
     // sie auch mit dem langsamen Besen erreicht.
-    schwebfels(-46, 26, -8, false),
-    schwebfels(-58, 34, 18),
-    schwebfels(-40, 42, 44, false),
+    schwebfels(-46, 26, -32, false),
+    schwebfels(-58, 34, 72),
+    schwebfels(-40, 42, 176, false),
     // Ein Paar über dem Fluss — von dort sieht man die Silberader entlang.
-    schwebfels(24, 30, 74),
-    schwebfels(44, 38, 96, false),
+    schwebfels(24, 30, 296),
+    schwebfels(44, 38, 384, false),
     // Und drei hohe im Norden, über dem Geröll.
-    schwebfels(-24, 46, 138),
-    schwebfels(52, 52, 158, false),
-    schwebfels(6, 58, 182),
+    schwebfels(-24, 46, 552),
+    schwebfels(52, 52, 632, false),
+    schwebfels(6, 58, 728),
+    /*
+     * Und eine zweite Treppe im Süden.
+     *
+     * Die erste fängt erst hinter der Stadt an; auf der neuen Länge liegen
+     * zwischen Südküste und ihrem ersten Stein sechshundert Meter, in denen
+     * kein einziger Felsen in der Luft steht. Wer dort ein Fluggerät bekommt,
+     * soll nicht erst eine Minute nach Norden fliegen, um etwas zum Landen zu
+     * finden.
+     */
+    schwebfels(-120, 24, -700, false),
+    schwebfels(-96, 32, -620),
+    schwebfels(140, 28, -560, false),
+    schwebfels(118, 40, -300),
+    schwebfels(-150, 36, -240, false),
+    // Und je einer weit draussen an den Flanken, als Ziel für einen Umweg.
+    schwebfels(-230, 44, 240),
+    schwebfels(238, 50, 480, false),
+    schwebfels(-210, 56, 820),
   ];
 
   const gesetzt = [...stadt, ...strasse, ...lager];
@@ -1288,9 +1470,22 @@ function lichtmoor() {
     ...portals.map((p) => ({ x: p.position[0], z: p.position[1], r: 14 })),
     ...spawners.map((s) => ({ x: s.position[0], z: s.position[1], r: s.radius * 0.4 })),
     ...keepOutOf(gesetzt, 4),
-    // Die Strasse bleibt frei. Ein Baum mitten auf dem Weg ist kein Wald,
-    // sondern ein Hindernis, um das jeder zweimal am Tag herumläuft.
-    ...Array.from({ length: 40 }, (_, i) => ({ x: 0, z: -70 + i * 7, r: 7 })),
+    /*
+     * Die Strasse bleibt frei. Ein Baum mitten auf dem Weg ist kein Wald,
+     * sondern ein Hindernis, um das jeder zweimal am Tag herumläuft.
+     *
+     * Der Streifen reicht vom Stadttor bis zum Tor im Norden und rechnet seine
+     * Länge aus beidem, statt sie als Stückzahl danebenzuschreiben. Hier stand
+     * `length: 40` — vierzig Kreise im Abstand von sieben Metern, also
+     * zweihundertachtzig Meter. Das deckte die alte Strasse; auf der neuen
+     * hörte der Schutz nach einem Viertel des Weges auf, und der Rest der
+     * Strecke wäre zugewachsen.
+     */
+    ...Array.from({ length: Math.ceil((LM_TOR - (cz + LM.stadtR)) / 7) + 1 }, (_, i) => ({
+      x: 0,
+      z: cz + LM.stadtR + i * 7,
+      r: 7,
+    })),
   ];
 
   /**
@@ -1395,10 +1590,8 @@ function lichtmoor() {
     return stuecke;
   };
 
-  const wiese = { x0: -LM.x, x1: LM.x, z0: -74, z1: LM.zNord };
-  const sueden = { x0: -LM.x, x1: LM.x, z0: LM.zSued, z1: -70 };
-  /** Die ganze Insel — für alles, was überall vorkommt. */
-  const insel = { x0: -LM.x, x1: LM.x, z0: LM.zSued, z1: LM.zNord };
+  /** Nördlich der Stadt — dort, wo Fels und Totholz liegen. */
+  const wiese = { x0: -LM.x, x1: LM.x, z0: -296, z1: LM.zNord };
 
   const props = [
     ...gesetzt,
@@ -1431,7 +1624,7 @@ function lichtmoor() {
 
     // --- Fels und Geröll --------------------------------------------------
     ...scatter(rng, {
-      count: 312,
+      count: 480,
       size,
       bereich: wiese,
       erlaubt: frei,
@@ -1445,9 +1638,9 @@ function lichtmoor() {
     }),
     // Geröllfeld im Norden — dichter, grösser.
     ...scatter(rng, {
-      count: 216,
+      count: 300,
       size,
-      bereich: { x0: -LM.x, x1: LM.x, z0: 130, z1: LM.zNord },
+      bereich: { x0: -LM.x, x1: LM.x, z0: 520, z1: LM.zNord },
       erlaubt: frei,
       minGap: 5,
       scaleRange: [0.9, 2.2],
@@ -1463,9 +1656,9 @@ function lichtmoor() {
     // Wenige, aber sichtbare. Ein Steinbogen alle zwanzig Meter wäre kein
     // Wahrzeichen mehr, sondern eine Allee.
     ...scatter(rng, {
-      count: 17,
+      count: 40,
       size,
-      bereich: { x0: -LM.x, x1: LM.x, z0: -60, z1: LM.zNord },
+      bereich: { x0: -LM.x, x1: LM.x, z0: -240, z1: LM.zNord },
       erlaubt: frei,
       minGap: 60,
       scaleRange: [0.9, 1.3],
@@ -1476,7 +1669,7 @@ function lichtmoor() {
     // Totholz und Waldboden: umgestürzte Stämme, Wurzelstöcke, Astbruch.
     // Sie liegen dort, wo auch die Bäume stehen, und geben dem Boden Relief.
     ...scatter(rng, {
-      count: 288,
+      count: 380,
       size,
       bereich: wiese,
       erlaubt: frei,
@@ -1493,7 +1686,7 @@ function lichtmoor() {
     }),
     // Kleinkram am Boden — Kiesel, Moossteine, Baumpilze, Beeren.
     ...scatter(rng, {
-      count: 480,
+      count: 650,
       size,
       bereich: { x0: -LM.x, x1: LM.x, z0: LM.zSued, z1: LM.zNord },
       erlaubt: frei,
@@ -1512,7 +1705,7 @@ function lichtmoor() {
     // Und ein Saum aus Schilf und Büschen entlang der Ufer: der Fluss soll
     // eine Kante haben und nicht wie ein Schnitt in der Wiese aussehen.
     ...scatter(rng, {
-      count: 384,
+      count: 900,
       size,
       bereich: { x0: -LM.x, x1: LM.x, z0: LM.zSued, z1: LM.zNord },
       erlaubt: (x, z) => {
@@ -1537,7 +1730,7 @@ function lichtmoor() {
     // Und im Wasser selbst: Seerosen und Kiesel. Der Streifen liegt **unter**
     // dem Uferabstand, also im Fluss.
     ...scatter(rng, {
-      count: 168,
+      count: 400,
       size,
       bereich: { x0: -LM.x, x1: LM.x, z0: LM.zSued, z1: LM.zNord },
       erlaubt: (x, z) => {
@@ -1653,7 +1846,23 @@ function lichtmoor() {
       rockColor: 0x8a8478,
       sandColor: 0xd2c294,
       layers: groundLayers(-4),
-      sculpt: baueSculpt(size, lichtmoorHoehe),
+      /*
+       * Drei Meter Schrittweite und nicht zwei.
+       *
+       * Das Feld ist quadratisch, und die Karte ist auf 2048 Einheiten
+       * gewachsen: bei zwei Metern wären das 1025 mal 1025 Stützpunkte, gut
+       * zwei Megabyte allein für das Gelände — für eine Insel, die nur ein
+       * Drittel davon bedeckt. Der Rest ist Meer.
+       *
+       * Bei drei Metern bleibt die Kante trotzdem eine Kante: die Klippe
+       * fällt sechsundzwanzig Meter auf zwölf, über die Stützpunkte
+       * verschliffen sind es sechsundzwanzig auf fünfzehn — sechzig Grad und
+       * damit weiter über den zweiundfünfzig, bis zu denen der Kern einen
+       * gehen lässt. Dasselbe für die Flussböschung: vierzehn Meter auf
+       * fünf, verschliffen auf acht, sind sechzig Grad. Bei vier Metern wäre
+       * beides eine Rampe, und der Fluss keine Grenze mehr.
+       */
+      sculpt: baueSculpt(size, lichtmoorHoehe, { schrittweite: 3 }),
     },
     spawn: { x: 0, z: cz + 16, yaw: 0 },
     props,
@@ -1668,27 +1877,49 @@ function lichtmoor() {
 // Dornwald — dichter, dunkler, ab Stufe 6.
 // --------------------------------------------------------------------------
 
+/**
+ * Die Wegmarken des Dornwalds.
+ *
+ * Dieselbe Rechnung wie in Lichtmoor: eine Karte wird in Minuten gemessen.
+ * Der Dornwald war fünfhundertzwölf Meter im Quadrat — vom Tor nach Lichtmoor
+ * bis zum Tor der Schattengruft waren es dreihundertfünfzig Meter, also knapp
+ * eine Minute. Man betrat den Wald und stand am nächsten Tor.
+ *
+ * Jetzt zwölfhundertachtzig im Quadrat und elfhundert Meter zwischen den
+ * Toren: drei Minuten, und dazwischen liegt tatsächlich Wald.
+ */
+const DW = {
+  size: 1280,
+  /** Tor nach Lichtmoor, im Süden. */
+  torSued: -600,
+  /** Tor zur Schattengruft, im Nordosten. */
+  torGruft: [240, 500],
+  /** Das Banditenlager, ungefähr auf halbem Weg. */
+  lager: [-150, 40],
+};
+
 function dornwald() {
   const rng = mulberry32(0x444f_524e);
-  const size = 512;
+  const size = DW.size;
 
-  const npcs = [{ id: 'n_gate_back', def: 'npc_gatekeeper', position: [4, -178], yaw: 0 }];
+  const npcs = [{ id: 'n_gate_back', def: 'npc_gatekeeper', position: [4, DW.torSued + 8], yaw: 0 }];
 
   const portals = [
     {
       id: 'g_lichtmoor',
-      position: [0, -186],
+      position: [0, DW.torSued],
       yaw: 3.14159,
       radius: 4,
       label: 'Lichtmoor',
-      // Zehn Einheiten vor dem Tor nach Dornwald, nicht darin — sonst reist man
-      // nach Ablauf der Sperre sofort wieder zurück.
-      target: { map: 'lichtmoor', x: 0, z: 184, yaw: 3.14159 },
+      // Zwölf Einheiten vor dem Tor nach Dornwald, nicht darin — sonst reist
+      // man nach Ablauf der Sperre sofort wieder zurück. Und nicht weiter weg:
+      // wer ein Tor durchschreitet, soll davorstehen und nicht im Feld.
+      target: { map: 'lichtmoor', x: 0, z: LM_TOR - 12, yaw: 3.14159 },
       minLevel: 0,
     },
     {
       id: 'g_gruft',
-      position: [96, 148],
+      position: DW.torGruft,
       yaw: -0.9,
       radius: 4.5,
       label: 'Schattengruft',
@@ -1697,33 +1928,48 @@ function dornwald() {
     },
   ];
 
+  /*
+   * Die Felder zwischen den beiden Toren.
+   *
+   * Sie liegen auf der Strecke und nicht um den Eingang herum: der Weg ist
+   * elfhundert Meter lang, und wer alle Gegner in den ersten zweihundert
+   * aufstellt, hat danach neunhundert Meter leeren Wald.
+   */
   const spawners = [
-    { id: 's_boar_a', mob: 'thistle_boar', position: [-58, -60], radius: 30, count: 7, respawnMs: 75000 },
-    { id: 's_boar_b', mob: 'thistle_boar', position: [64, -20], radius: 30, count: 7, respawnMs: 75000 },
-    { id: 's_bandit_a', mob: 'bandit_scout', position: [-40, 60], radius: 28, count: 6, respawnMs: 75000 },
-    { id: 's_bandit_b', mob: 'bandit_scout', position: [30, 110], radius: 28, count: 6, respawnMs: 75000 },
-    { id: 's_bandit_c', mob: 'bandit_scout', position: [110, 60], radius: 26, count: 5, respawnMs: 75000 },
+    { id: 's_boar_a', mob: 'thistle_boar', position: [-100, -480], radius: 30, count: 7, respawnMs: 75000 },
+    { id: 's_boar_b', mob: 'thistle_boar', position: [110, -420], radius: 30, count: 7, respawnMs: 75000 },
+    { id: 's_boar_c', mob: 'thistle_boar', position: [-40, -280], radius: 30, count: 6, respawnMs: 75000 },
+    { id: 's_boar_d', mob: 'thistle_boar', position: [150, -180], radius: 30, count: 6, respawnMs: 75000 },
+    { id: 's_bandit_a', mob: 'bandit_scout', position: [-120, -60], radius: 28, count: 6, respawnMs: 75000 },
+    { id: 's_bandit_b', mob: 'bandit_scout', position: [40, 60], radius: 28, count: 6, respawnMs: 75000 },
+    { id: 's_bandit_c', mob: 'bandit_scout', position: [-180, 180], radius: 28, count: 6, respawnMs: 75000 },
+    { id: 's_bandit_d', mob: 'bandit_scout', position: [120, 260], radius: 28, count: 6, respawnMs: 75000 },
+    { id: 's_bandit_e', mob: 'bandit_scout', position: [-60, 380], radius: 26, count: 5, respawnMs: 75000 },
+    { id: 's_bandit_f', mob: 'bandit_scout', position: [200, 380], radius: 26, count: 5, respawnMs: 75000 },
   ];
 
   // Dornwald ist nicht bewohnt, sondern durchzogen: ein Grenzposten am Tor,
   // ein Banditenlager mittendrin und Licht nur da, wo jemand welches
   // aufgestellt hat. Deshalb keine Laternenreihe wie in Lichtmoor — die paar
   // Lichter sollen im Dunkeln als Ziel wirken, nicht als Beleuchtung.
+  const sued = DW.torSued;
+  const [lx, lz] = DW.lager;
+  const [gx, gz] = DW.torGruft;
   const gesetzt = [
     // Grenzposten am Rueckportal.
-    ...fenceRun('fence_stone', [-13, -182], [-5, -182]),
-    ...fenceRun('fence_stone', [5, -182], [13, -182]),
-    place('lantern_post', -7, -176),
-    place('lantern_post', 7, -176),
-    place('banner', -9.5, -180, { yaw: 0 }),
-    place('crate', 9, -174, { yaw: 0.4 }),
-    place('barrel', 10.4, -175.6, { yaw: 1.3 }),
-    place('torpfosten', -15, -178),
-    place('torpfosten', 15, -178),
-    place('meilenstein', 4, -170, { yaw: 0.2 }),
-    place('waffenstaender', -11, -173, { yaw: 1.6 }),
-    place('spitzbarriere', -18, -176, { yaw: 0.2 }),
-    place('spitzbarriere', 18, -176, { yaw: 2.9 }),
+    ...fenceRun('fence_stone', [-13, sued + 4], [-5, sued + 4]),
+    ...fenceRun('fence_stone', [5, sued + 4], [13, sued + 4]),
+    place('lantern_post', -7, sued + 10),
+    place('lantern_post', 7, sued + 10),
+    place('banner', -9.5, sued + 6, { yaw: 0 }),
+    place('crate', 9, sued + 12, { yaw: 0.4 }),
+    place('barrel', 10.4, sued + 10.4, { yaw: 1.3 }),
+    place('torpfosten', -15, sued + 8),
+    place('torpfosten', 15, sued + 8),
+    place('meilenstein', 4, sued + 16, { yaw: 0.2 }),
+    place('waffenstaender', -11, sued + 13, { yaw: 1.6 }),
+    place('spitzbarriere', -18, sued + 10, { yaw: 0.2 }),
+    place('spitzbarriere', 18, sued + 10, { yaw: 2.9 }),
 
     /*
      * Banditenlager.
@@ -1733,40 +1979,40 @@ function dornwald() {
      * auf den Weg und ein leerer Kaefig: die drei Dinge, die aus einem
      * Zeltplatz ein Lager machen, dem man besser nicht zu nah kommt.
      */
-    ...fenceRun('fence_wood', [-50, 52], [-38, 52]),
-    ...fenceRun('fence_wood', [-50, 52], [-50, 62]),
-    ...fenceRun('fence_wood', [-36, 60], [-36, 68]),
-    ...reihe('palisade', [-52, 46], [-36, 46], 2),
-    place('wachturm', -54, 58, { yaw: 0.4 }),
-    place('kaefig', -33, 55, { yaw: 0.6 }),
-    place('galgen', -30, 46, { yaw: 1.9 }),
-    place('zelt', -46, 64, { yaw: 0.5 }),
-    place('zelt', -40, 70, { yaw: 2.6 }),
-    place('lagerfeuer', -43, 60),
-    place('bratspiess', -43, 60, { yaw: 0.6 }),
-    place('schlafrolle', -47, 58, { yaw: 1.2 }),
-    place('schlafrolle', -40, 62, { yaw: 2.7 }),
-    place('waffenstaender', -37, 63, { yaw: 3.1 }),
-    place('lantern_post', -44, 58),
-    place('lantern_post', -38, 64),
-    place('crate', -46, 56, { yaw: 0.8 }),
-    place('kistenstapel', -44.8, 57.2, { yaw: 2.1 }),
-    place('barrel', -42.5, 55, { yaw: 0.3 }),
-    place('barrel', -41.2, 56.4, { yaw: 1.7 }),
-    place('hay_bale', -47, 61, { yaw: 1.1 }),
-    place('banner', -42, 60, { yaw: 2.2 }),
-    place('knochenhaufen', -31, 60, { yaw: 0.3 }),
-    place('schaedel', -32.4, 51, { yaw: 1.4 }),
+    ...fenceRun('fence_wood', [lx - 8, lz + 12], [lx + 4, lz + 12]),
+    ...fenceRun('fence_wood', [lx - 8, lz + 12], [lx - 8, lz + 22]),
+    ...fenceRun('fence_wood', [lx + 6, lz + 20], [lx + 6, lz + 28]),
+    ...reihe('palisade', [lx - 10, lz + 6], [lx + 6, lz + 6], 2),
+    place('wachturm', lx - 12, lz + 18, { yaw: 0.4 }),
+    place('kaefig', lx + 9, lz + 15, { yaw: 0.6 }),
+    place('galgen', lx + 12, lz + 6, { yaw: 1.9 }),
+    place('zelt', lx - 4, lz + 24, { yaw: 0.5 }),
+    place('zelt', lx + 2, lz + 30, { yaw: 2.6 }),
+    place('lagerfeuer', lx - 1, lz + 20),
+    place('bratspiess', lx - 1, lz + 20, { yaw: 0.6 }),
+    place('schlafrolle', lx - 5, lz + 18, { yaw: 1.2 }),
+    place('schlafrolle', lx + 2, lz + 22, { yaw: 2.7 }),
+    place('waffenstaender', lx + 5, lz + 23, { yaw: 3.1 }),
+    place('lantern_post', lx - 2, lz + 18),
+    place('lantern_post', lx + 4, lz + 24),
+    place('crate', lx - 4, lz + 16, { yaw: 0.8 }),
+    place('kistenstapel', lx - 2.8, lz + 17.2, { yaw: 2.1 }),
+    place('barrel', lx - 0.5, lz + 15, { yaw: 0.3 }),
+    place('barrel', lx + 0.8, lz + 16.4, { yaw: 1.7 }),
+    place('hay_bale', lx - 5, lz + 21, { yaw: 1.1 }),
+    place('banner', lx, lz + 20, { yaw: 2.2 }),
+    place('knochenhaufen', lx + 11, lz + 20, { yaw: 0.3 }),
+    place('schaedel', lx + 9.6, lz + 11, { yaw: 1.4 }),
 
-    // Wegkreuzung zwischen den Sauen — Laternen, ein umgeworfenes Fass und
-    // ein Wrack, das seit Jahren dort liegt.
-    place('lantern_post', 2, 8),
-    place('lantern_post', 6, 30),
-    place('barrel', 4.2, 18.5, { yaw: 0.9 }),
-    place('wrack', 10, 20, { yaw: 0.7 }),
-    place('wagenrad', 13, 17, { yaw: 1.9 }),
-    place('grabkreuz', -6, 24, { yaw: 0.4 }),
-    place('grabkreuz', -7.5, 26, { yaw: 2.2 }),
+    // Wegkreuzung auf halbem Weg — Laternen, ein umgeworfenes Fass und ein
+    // Wrack, das seit Jahren dort liegt.
+    place('lantern_post', 2, -140),
+    place('lantern_post', 6, -118),
+    place('barrel', 4.2, -130, { yaw: 0.9 }),
+    place('wrack', 10, -128, { yaw: 0.7 }),
+    place('wagenrad', 13, -131, { yaw: 1.9 }),
+    place('grabkreuz', -6, -124, { yaw: 0.4 }),
+    place('grabkreuz', -7.5, -122, { yaw: 2.2 }),
 
     /*
      * Ein aufgegebener Aussenposten mitten im Wald.
@@ -1775,28 +2021,44 @@ function dornwald() {
      * deshalb der einzige, an dem man merkt, dass hier einmal jemand
      * herrschte, bevor die Banditen kamen.
      */
-    place('bogenrest', 62, -40, { yaw: 0.6 }),
-    place('saeule_bruch', 56, -34, { scale: 1.1 }),
-    place('saeule_bruch', 68, -46, { scale: 0.9 }),
-    place('truemmer', 60, -46, { yaw: 0.8 }),
-    place('truemmer', 66, -36, { yaw: 2.4 }),
-    place('steintreppe', 64, -30, { yaw: 3.14 }),
-    place('efeu', 58, -38, { scale: 1.4 }),
-    place('efeu', 65, -43, { scale: 1.2 }),
-    place('runenstein', 70, -38, { yaw: 0.9 }),
+    place('bogenrest', 142, -320, { yaw: 0.6 }),
+    place('saeule_bruch', 136, -314, { scale: 1.1 }),
+    place('saeule_bruch', 148, -326, { scale: 0.9 }),
+    place('truemmer', 140, -326, { yaw: 0.8 }),
+    place('truemmer', 146, -316, { yaw: 2.4 }),
+    place('steintreppe', 144, -310, { yaw: 3.14 }),
+    place('efeu', 138, -318, { scale: 1.4 }),
+    place('efeu', 145, -323, { scale: 1.2 }),
+    place('runenstein', 150, -318, { yaw: 0.9 }),
+
+    /*
+     * Ein zweiter Rastplatz weiter nördlich.
+     *
+     * Auf elfhundert Metern zwischen zwei Toren braucht es mehr als eine
+     * Wegmarke: ohne sie läuft man zwölf Minuten durch immergleiche Dornen,
+     * und nichts sagt einem, wie weit man ist.
+     */
+    place('lagerfeuer', -20, 200),
+    place('schlafrolle', -24, 198, { yaw: 1.1 }),
+    place('lantern_post', -16, 206),
+    place('meilenstein', -12, 212, { yaw: 0.4 }),
+    place('baumstamm_liegend', -28, 206, { yaw: 1.6 }),
+    place('bogenrest', 96, 300, { yaw: 1.2 }),
+    place('truemmer', 104, 306, { yaw: 0.5 }),
+    place('efeu', 100, 310, { scale: 1.3 }),
 
     // Vor der Gruft. Hier soll das Licht warnen, nicht einladen.
-    place('lantern_post', 88, 142),
-    place('lantern_post', 100, 140),
-    ...fenceRun('fence_stone', [84, 136], [92, 136]),
-    place('grabstein', 86, 152, { yaw: 0.3 }),
-    place('grabstein', 90, 155, { yaw: 2.7 }),
-    place('grabstein', 82, 148, { yaw: 1.4 }),
-    place('grabkreuz', 94, 152, { yaw: 0.8 }),
-    place('urne', 88, 146),
-    place('knochenhaufen', 92, 147, { yaw: 1.1 }),
-    place('schaedel', 84, 143, { yaw: 0.6 }),
-    place('bogenrest', 104, 146, { yaw: 2.2 }),
+    place('lantern_post', gx - 8, gz - 6),
+    place('lantern_post', gx + 4, gz - 8),
+    ...fenceRun('fence_stone', [gx - 12, gz - 12], [gx - 4, gz - 12]),
+    place('grabstein', gx - 10, gz + 4, { yaw: 0.3 }),
+    place('grabstein', gx - 6, gz + 7, { yaw: 2.7 }),
+    place('grabstein', gx - 14, gz, { yaw: 1.4 }),
+    place('grabkreuz', gx - 2, gz + 4, { yaw: 0.8 }),
+    place('urne', gx - 8, gz - 2),
+    place('knochenhaufen', gx - 4, gz - 1, { yaw: 1.1 }),
+    place('schaedel', gx - 12, gz - 5, { yaw: 0.6 }),
+    place('bogenrest', gx + 8, gz - 2, { yaw: 2.2 }),
   ];
 
   const keepOut = [
@@ -1809,7 +2071,7 @@ function dornwald() {
   const props = [
     ...gesetzt,
     ...scatter(rng, {
-      count: 340,
+      count: 1700,
       size,
       minGap: 7,
       scaleRange: [0.9, 1.7],
@@ -1823,7 +2085,7 @@ function dornwald() {
       tints: [0x3c6b33, 0x2f5a2b, 0x486f3a, 0x59503c],
     }),
     ...scatter(rng, {
-      count: 80,
+      count: 400,
       size,
       minGap: 8,
       scaleRange: [0.7, 2.0],
@@ -1841,7 +2103,7 @@ function dornwald() {
      * zwanzig Meter steht, heisst nach etwas, das man nicht sieht.
      */
     ...scatter(rng, {
-      count: 300,
+      count: 1500,
       size,
       minGap: 4.5,
       scaleRange: [0.7, 1.4],
@@ -1860,7 +2122,7 @@ function dornwald() {
     }),
     // Was auf dem Waldboden liegt: Totholz, Pilze an den Stämmen, Moos.
     ...scatter(rng, {
-      count: 150,
+      count: 750,
       size,
       minGap: 7,
       scaleRange: [0.8, 1.4],
@@ -1878,7 +2140,7 @@ function dornwald() {
     // Und die Spuren derer, die vor einem hier waren — verteilt und selten,
     // damit jede einzelne noch etwas erzählt.
     ...scatter(rng, {
-      count: 40,
+      count: 200,
       size,
       minGap: 24,
       scaleRange: [0.9, 1.2],
@@ -1928,9 +2190,9 @@ function dornwald() {
       // getoent, statt eines zweiten Satzes fuer denselben Boden.
       layers: groundLayers(-6, { grassTint: 0xa8b8a0, dirtTint: 0xb0a898, sandTint: 0xa89880 }),
     },
-    // Nicht auf dem Rueckportal bei (0, -186): wer dort gespeichert hat,
-    // wuerde beim Anmelden sofort weiterbefoerdert.
-    spawn: { x: 0, z: -178, yaw: 0 },
+    // Nicht auf dem Rueckportal: wer dort gespeichert hat, wuerde beim
+    // Anmelden sofort weiterbefoerdert.
+    spawn: { x: 0, z: DW.torSued + 8, yaw: 0 },
     props,
     spawners,
     npcs,
@@ -1953,7 +2215,7 @@ function gruft() {
       yaw: 3.14159,
       radius: 5,
       label: 'Dornwald',
-      target: { map: 'dornwald', x: 96, z: 140, yaw: 3.14159 },
+      target: { map: 'dornwald', x: DW.torGruft[0], z: DW.torGruft[1] - 8, yaw: 3.14159 },
       minLevel: 0,
     },
   ];

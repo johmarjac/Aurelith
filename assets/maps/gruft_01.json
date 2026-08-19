@@ -9871,8 +9871,8 @@
       "label": "Dornwald",
       "target": {
         "map": "dornwald",
-        "x": 96,
-        "z": 140,
+        "x": 240,
+        "z": 492,
         "yaw": 3.14159
       },
       "minLevel": 0

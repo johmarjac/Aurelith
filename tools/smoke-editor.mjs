@@ -189,10 +189,21 @@ check(
   'Klick ins Bedienfeld waehlt trotzdem aus',
 );
 
-// Kamera ueber die Karte schieben — vorher gab es nur Drehen und Zoomen.
+/*
+ * Kamera ueber die Karte schieben — vorher gab es nur Drehen und Zoomen.
+ *
+ * Gewartet wird auf **Bilder** und nicht auf die Uhr. Das Schieben passiert je
+ * Bild, und der Editor zeichnet unter SwiftShader gut ein Bild je Sekunde;
+ * siebenhundert Millisekunden Tastendruck trafen deshalb regelmaessig gar
+ * keines, und die Pruefung meldete „0.0 Einheiten" fuer eine Kamera, die in
+ * Ordnung war.
+ */
 const camBefore = await page.evaluate(() => window.aurelithEditor?.camTarget);
+const bilderVorher = await page.evaluate(() => window.aurelithEditor?.bilder ?? 0);
 await page.keyboard.down('KeyW');
-await page.waitForTimeout(700);
+await page.waitForFunction((n) => (window.aurelithEditor?.bilder ?? 0) >= n, bilderVorher + 3, {
+  timeout: 30000,
+});
 await page.keyboard.up('KeyW');
 await page.waitForTimeout(200);
 const camAfterKeys = await page.evaluate(() => window.aurelithEditor?.camTarget);
@@ -380,14 +391,14 @@ await page.selectOption('#panel select:not(:first-of-type)', 'dornwald').catch(a
   const selects = await page.$$('#panel select');
   await selects[selects.length - 1].selectOption('dornwald');
 });
-// Warten, bis der Zielpunkt auf Dornwalds Startpunkt (0, -178) umgesprungen ist
+// Warten, bis der Zielpunkt auf Dornwalds Startpunkt (0, -592) umgesprungen ist
 // — daran erkennt man, dass die Zielkarte geholt und das Feld neu gezeichnet
 // wurde. Erst danach ist die Warnung, die dort steht, die zum neuen Ziel.
 await page.waitForFunction(
   () =>
     [...document.querySelectorAll('#panel .field')].find(
       (f) => f.querySelector('span')?.textContent === 'Ziel-Z',
-    )?.querySelector('input')?.value === '-178',
+    )?.querySelector('input')?.value === '-592',
   undefined,
   { timeout: 15000 },
 );
@@ -397,7 +408,7 @@ const portalsNow = await page.evaluate(() => window.aurelithEditor?.portals ?? 0
 check(portalsNow === afterGate.portals, 'Zielwechsel legt kein zweites Tor an');
 check(
   (await fieldValue(page, 'Ziel-X')) === '0',
-  `Zielpunkt springt auf den Startpunkt der Zielkarte (${await fieldValue(page, 'Ziel-X')}, -178)`,
+  `Zielpunkt springt auf den Startpunkt der Zielkarte (${await fieldValue(page, 'Ziel-X')}, -592)`,
 );
 check(retargetWarning === '', `und ist dort unbedenklich ("${retargetWarning}")`);
 
@@ -411,9 +422,9 @@ await page.evaluate(() => {
     el.value = String(value);
     el.dispatchEvent(new Event('change', { bubbles: true }));
   };
-  // Das Rueckportal von Dornwald steht auf (0, -186).
+  // Das Rueckportal von Dornwald steht auf (0, -600).
   setValue('Ziel-X', 0);
-  setValue('Ziel-Z', -186);
+  setValue('Ziel-Z', -600);
 });
 const warned = await gateWarning(page);
 check(

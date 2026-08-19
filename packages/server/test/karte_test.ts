@@ -59,29 +59,105 @@ function gesperrt(x: number, z: number, art: 'lauf' | 'flug'): ZoneDef | undefin
 
 console.log('Aurelith — Lichtmoor\n');
 
-console.log('Eine breite Insel, kein Streifen');
+console.log('Eine Insel, die man in Minuten misst');
 
 // Der begehbare Streifen: die grösste Ausdehnung, die keine Zone berührt.
 const halb = doc.terrain.size * 0.5;
 const frei = (x: number, z: number): boolean => gesperrt(x, z, 'lauf') === undefined;
 
-let breite = 0;
-for (let x = -halb; x <= halb; x += 1) if (frei(x, 0)) breite++;
-let laenge = 0;
-for (let z = -halb; z <= halb; z += 1) if (frei(0, z)) laenge++;
-
-check(breite > 420 && laenge > 440, 'die Insel ist gross genug', `${breite} × ${laenge}`);
 /*
- * Und **breit**, nicht schmal. Vorher stand hier die umgekehrte Behauptung —
- * „deutlich länger als breit" —, und genau die war die Beschwerde: ein
- * Korridor von zweihundert Metern Breite, an dessen Rand man ständig stand.
- * Ein Verhältnis nahe eins heisst offene Landschaft statt Schlauch.
+ * Das geformte Höhenfeld — es sagt, wo Land ist.
+ *
+ * Gebraucht wird es schon hier oben und nicht erst beim Abschnitt über die
+ * Klippe: **die Insel ist nicht die Sperrzone.** Zwischen Küste und Sperre
+ * liegen fünfundfünfzig Meter offenes Meer, und wer die Länge der Wanderung
+ * am freien Bereich misst, misst hundert Meter Wasser mit.
+ */
+const feld = doc.terrain.sculpt ? decodeSculptField(doc.terrain.sculpt) : undefined;
+check(feld !== undefined, 'die Karte bringt ein geformtes Höhenfeld mit');
+const werte = feld ?? new Int16Array(0);
+const aufloesung = Math.round(Math.sqrt(werte.length));
+const gitter = doc.terrain.size / (aufloesung - 1);
+const hoeheBei = (ix: number, iz: number): number => werte[iz * aufloesung + ix]! / SCULPT_UNIT;
+const beiX = (x: number): number =>
+  Math.max(0, Math.min(aufloesung - 1, Math.round((x + halb) / gitter)));
+const hoeheAn = (x: number, z: number): number => hoeheBei(beiX(x), beiX(z));
+/** Trägt der Boden hier — oder steht hier Wasser? */
+const istLand = (x: number, z: number): boolean => hoeheAn(x, z) > doc.terrain.waterLevel;
+
+/** Wo das Land auf einer Achse anfängt und aufhört — abgetastet, nicht geraten. */
+function enden(fest: number, achse: 'x' | 'z'): { von: number; bis: number } {
+  let von = halb;
+  let bis = -halb;
+  for (let v = -halb; v <= halb; v += 1) {
+    const land = achse === 'x' ? istLand(v, fest) : istLand(fest, v);
+    if (!land || !(achse === 'x' ? frei(v, fest) : frei(fest, v))) continue;
+    von = Math.min(von, v);
+    bis = Math.max(bis, v);
+  }
+  return { von, bis };
+}
+
+const querachse = enden(0, 'x');
+const laengsachse = enden(0, 'z');
+const breite = querachse.bis - querachse.von;
+const laenge = laengsachse.bis - laengsachse.von;
+
+/**
+ * Wie schnell eine Figur läuft — aus der Abstimmung und nicht von Hand.
+ *
+ * Die Karte wird in **Minuten** gemessen, und Minuten sind Meter durch Tempo.
+ * Stünde die Zahl hier noch einmal, hätte eine Änderung an der Abstimmung
+ * einen grünen Test und eine Karte, die sich plötzlich anders anfühlt.
+ */
+const tuning = JSON.parse(
+  readFileSync(join(repo, 'assets', 'content', 'tuning.json'), 'utf8'),
+) as { progression: { moveSpeed: number } };
+const tempo = tuning.progression.moveSpeed;
+const minuten = (meter: number): number => meter / tempo / 60;
+
+check(tempo > 0.5 && tempo < 30, 'die Abstimmung nennt ein brauchbares Tempo', `${tempo} Einheiten/s`);
+check(breite > 540, 'die Insel ist breit genug', `${breite.toFixed(0)} m`);
+
+/*
+ * **Die eigentliche Zusage: eine Wanderung dauert.**
+ *
+ * Vorher war Lichtmoor vierhundertsechzig Meter lang — fünfundsiebzig
+ * Sekunden von Küste zu Küste, fünfzig von der Stadt zum Tor. Man kam an,
+ * bevor die Gegend anfing, eine zu sein. Drei bis fünf Minuten sind die
+ * Zusage; darunter ist es ein Vorgarten, darüber ein Fussmarsch, den niemand
+ * zweimal am Tag macht.
+ *
+ * Gemessen wird die **Luftlinie**, und das ist die untere Schranke: der
+ * Fluss, die Hügel und die Monster machen den Weg länger, nie kürzer.
  */
 check(
-  laenge < breite * 1.5 && breite < laenge * 1.5,
-  'und keine Schlucht in eine Richtung',
-  `${laenge} zu ${breite} = ${(laenge / breite).toFixed(2)}`,
+  minuten(laenge) >= 3 && minuten(laenge) <= 6,
+  'von Süden nach Norden läuft man drei bis fünf Minuten',
+  `${laenge.toFixed(0)} m = ${minuten(laenge).toFixed(1)} min`,
 );
+
+const tor = doc.portals[0]!;
+const stadtZumTor = Math.hypot(tor.position[0] - doc.spawn.x, tor.position[1] - doc.spawn.z);
+check(
+  minuten(stadtZumTor) >= 3 && minuten(stadtZumTor) <= 6,
+  'und von der Stadt bis zum Tor ebenfalls',
+  `${stadtZumTor.toFixed(0)} m = ${minuten(stadtZumTor).toFixed(1)} min`,
+);
+
+/*
+ * Gegenprobe, und ohne sie wäre die Zusage oben wertlos: der Weg muss auch
+ * **gehbar** sein. Eine Strecke, die zwar lang ist, aber durch eine Sperrzone
+ * führt, ist keine Wanderung, sondern eine Wand mit Aussicht.
+ */
+let gesperrtAufDemWeg = 0;
+for (let i = 0; i <= 200; i++) {
+  const t = i / 200;
+  const x = doc.spawn.x + (tor.position[0] - doc.spawn.x) * t;
+  const z = doc.spawn.z + (tor.position[1] - doc.spawn.z) * t;
+  if (!frei(x, z)) gesperrtAufDemWeg++;
+}
+check(gesperrtAufDemWeg === 0, 'und die Strecke dorthin liegt frei', `${gesperrtAufDemWeg} von 201 Punkten gesperrt`);
 
 console.log('\nDer Rand ist dicht');
 
@@ -90,21 +166,20 @@ console.log('\nDer Rand ist dicht');
  * Ecke verfehlen, und genau diese Lücke wäre die, durch die jemand hinausläuft.
  * Ein Raster von fünf Einheiten findet jedes Loch, das breiter ist als eine
  * Figur.
+ *
+ * Geprüft wird der **äusserste Saum** der Karte und nicht ein Kasten mit
+ * festen Zahlen. Hier standen einmal die Masse der alten Insel drin, und als
+ * die Insel wuchs, lag der halbe Prüfbereich plötzlich mitten auf der Wiese:
+ * der Test meldete vierzigtausend Löcher im Rand, und keines davon war eines.
  */
 let loecherLauf = 0;
 let loecherFlug = 0;
 let randpunkte = 0;
 for (let x = -halb; x <= halb; x += 5) {
   for (let z = -halb; z <= halb; z += 5) {
-    // Nur der Bereich ausserhalb des Streifens. Was innen liegt, soll ja frei
-    // sein — das prüft der Abschnitt darunter.
-    /*
-     * Nur der Bereich, der **gesperrt sein soll** — also weit draussen über
-     * dem Wasser. Zwischen Küste und Sperre liegen dreissig Meter offenes
-     * Meer, und die sind Absicht: dorthin soll ein Fliegender kommen.
-     */
-    const draussen = Math.abs(x) > 280 || z > 300 || z < -280;
-    if (!draussen) continue;
+    // Die letzten acht Meter vor dem Kartenrand. Dort ist die Welt zu Ende,
+    // und dort muss die Sperre stehen — zu Fuss wie in der Luft.
+    if (Math.abs(x) < halb - 8 && Math.abs(z) < halb - 8) continue;
     randpunkte++;
     if (!gesperrt(x, z, 'lauf')) loecherLauf++;
     if (!gesperrt(x, z, 'flug')) loecherFlug++;
@@ -114,10 +189,25 @@ check(randpunkte > 1000, 'es gibt überhaupt einen Rand zu prüfen', `${randpunk
 check(loecherLauf === 0, 'kein Loch für Läufer', `${loecherLauf} von ${randpunkte}`);
 check(loecherFlug === 0, 'und keines für Fliegende', `${loecherFlug} von ${randpunkte}`);
 
-// Die Gegenprobe: die Mitte ist **nicht** gesperrt. Ohne sie ginge auch eine
-// Karte durch, die überall zu ist — und die wäre formal dicht und praktisch
-// unspielbar.
-check(frei(0, 0) && frei(0, 150) && frei(-60, -100), 'die Mitte bleibt offen');
+/*
+ * Die Gegenprobe: die Mitte ist **nicht** gesperrt. Ohne sie ginge auch eine
+ * Karte durch, die überall zu ist — und die wäre formal dicht und praktisch
+ * unspielbar.
+ */
+check(
+  frei(0, 0) && frei(0, laengsachse.bis - 100) && frei(-60, laengsachse.von + 100),
+  'die Mitte bleibt offen',
+);
+/*
+ * Und das offene Wasser neben der Küste auch: dreissig Meter jenseits der
+ * Kante soll ein Fliegender noch hinkommen und die Insel von aussen sehen.
+ * Ohne diese Zeile wäre auch eine Karte grün, deren Sperre unmittelbar an der
+ * Klippe klebt — ein Rand, der sich wie ein Käfig anfühlt.
+ */
+check(
+  frei(querachse.bis + 30, 0) && frei(0, laengsachse.bis + 30),
+  'und das Wasser vor der Küste bleibt offen',
+);
 
 console.log('\nAlles Erreichbare liegt frei');
 
@@ -145,27 +235,76 @@ console.log('\nNach Norden wird es härter');
 const mitStufe = doc.spawners.filter((s) => s.level !== undefined);
 check(mitStufe.length === doc.spawners.length, 'jeder Spawner nennt seine Stufe', `${mitStufe.length}`);
 
+/**
+ * Der Zusammenhang über die **Ränge** und nicht über die Zahlen selbst.
+ *
+ * Vorher stand hier die gewöhnliche Korrelation, und die verlangt mehr, als
+ * die Karte verspricht: sie misst, ob die Stufe *linear* mit der Höhe steigt.
+ * Das tut sie mit Absicht nicht — die Anfängerzone ist der längste Abschnitt
+ * der Insel, achthundert Meter für die Stufen eins bis drei, und die letzten
+ * vier Stufen teilen sich zweihundertvierzig. Als die Insel gestreckt wurde,
+ * fiel der Wert deshalb von 0,96 auf 0,948, ohne dass ein einziger Spawner
+ * falsch stand.
+ *
+ * Die Zusage lautet „weiter nördlich heisst nicht schwächer", und das ist
+ * eine Aussage über die Reihenfolge. Genau die misst der Rangkoeffizient.
+ */
+function raenge(werteHier: number[]): number[] {
+  const sortiert = werteHier.map((v, i) => [v, i] as const).sort((a, b) => a[0] - b[0]);
+  const rang = new Array<number>(werteHier.length);
+  let i = 0;
+  while (i < sortiert.length) {
+    let j = i;
+    // Gleichstände teilen sich den mittleren Rang — sonst entschiede die
+    // Reihenfolge in der Datei über das Ergebnis.
+    while (j + 1 < sortiert.length && sortiert[j + 1]![0] === sortiert[i]![0]) j++;
+    const mittel = (i + j) / 2 + 1;
+    for (let k = i; k <= j; k++) rang[sortiert[k]![1]] = mittel;
+    i = j + 1;
+  }
+  return rang;
+}
+function korreliert(a: number[], b: number[]): number {
+  const mA = a.reduce((p, q) => p + q, 0) / a.length;
+  const mB = b.reduce((p, q) => p + q, 0) / b.length;
+  let oben = 0;
+  let untenA = 0;
+  let untenB = 0;
+  for (let i = 0; i < a.length; i++) {
+    oben += (a[i]! - mA) * (b[i]! - mB);
+    untenA += (a[i]! - mA) ** 2;
+    untenB += (b[i]! - mB) ** 2;
+  }
+  return oben / Math.sqrt(untenA * untenB);
+}
+
 const stufen = mitStufe.map((s) => s.level!);
 const zetten = mitStufe.map((s) => s.position[1]);
-const mittelS = stufen.reduce((a, b) => a + b, 0) / stufen.length;
-const mittelZ = zetten.reduce((a, b) => a + b, 0) / zetten.length;
-let oben = 0;
-let untenS = 0;
-let untenZ = 0;
-for (let i = 0; i < stufen.length; i++) {
-  oben += (stufen[i]! - mittelS) * (zetten[i]! - mittelZ);
-  untenS += (stufen[i]! - mittelS) ** 2;
-  untenZ += (zetten[i]! - mittelZ) ** 2;
-}
-const korrelation = oben / Math.sqrt(untenS * untenZ);
+const korrelation = korreliert(raenge(stufen), raenge(zetten));
 check(korrelation > 0.95, 'Stufe und Norden hängen zusammen', `r = ${korrelation.toFixed(3)}`);
+/*
+ * Gegenprobe: dieselbe Rechnung auf die **Breite** angewandt muss schwach
+ * ausfallen. Wer nach Westen ausweicht, soll denselben Gegnern begegnen wie
+ * in der Mitte — und ohne diese Zeile wäre auch eine Karte grün, auf der die
+ * Ränge mit allem korrelieren, weil die Rechnung kaputt ist.
+ */
+const quer = korreliert(raenge(stufen), raenge(mitStufe.map((s) => s.position[0])));
+check(Math.abs(quer) < 0.4, 'die Breite dagegen sagt nichts über die Stufe', `r = ${quer.toFixed(3)}`);
 check(Math.min(...stufen) === 1, 'unten fängt es bei eins an', String(Math.min(...stufen)));
 check(Math.max(...stufen) === 20, 'oben endet es bei zwanzig', String(Math.max(...stufen)));
 
-// Und die Stadt bleibt friedlich: kein Spawner innerhalb der Mauer. Wer beim
-// Händler steht, soll nicht angefallen werden.
-const stadtZ = -122;
-const imDorf = doc.spawners.filter((s) => Math.hypot(s.position[0], s.position[1] - stadtZ) < 60);
+/*
+ * Und die Stadt bleibt friedlich: kein Spawner in der Nähe des Startpunkts.
+ * Wer beim Händler steht, soll nicht angefallen werden.
+ *
+ * Der Startpunkt und nicht eine abgeschriebene Lage der Stadt: hier stand
+ * `-122`, und nach dem Strecken der Insel lag die Stadt bei −488. Die Prüfung
+ * suchte danach Monster an einer Stelle, an der keine Stadt mehr war — und
+ * fand prompt eines, das ganz woanders stand.
+ */
+const imDorf = doc.spawners.filter(
+  (s) => Math.hypot(s.position[0] - doc.spawn.x, s.position[1] - doc.spawn.z) < 60,
+);
 check(imDorf.length === 0, 'in Silberfurt steht kein Monster', imDorf.map((s) => s.id).join(', ') || 'keiner');
 
 console.log('\nSchwebende Felsen und Brücken');
@@ -207,15 +346,23 @@ check(
  */
 console.log('\nDie Insel und ihre Klippe');
 
-const feld = doc.terrain.sculpt ? decodeSculptField(doc.terrain.sculpt) : undefined;
-check(feld !== undefined, 'die Karte bringt ein geformtes Höhenfeld mit');
-const werte = feld ?? new Int16Array(0);
-const aufloesung = Math.round(Math.sqrt(werte.length));
-const gitter = doc.terrain.size / (aufloesung - 1);
-const hoeheBei = (ix: number, iz: number): number => werte[iz * aufloesung + ix]! / SCULPT_UNIT;
+/*
+ * Das Inselrechteck, aus den gemessenen Enden — jede Schwelle darunter ist
+ * ein Anteil davon und keine abgeschriebene Zahl. Hier standen einmal feste
+ * Kästen („|x| < 180, z zwischen −180 und 200"), und beim Strecken der Insel
+ * lagen sie auf einem Achtel der Fläche: die Aussagen über Plateau und Klippe
+ * galten danach für eine Stelle, an der weder das eine noch das andere lag.
+ */
+const mitteZ = (laengsachse.von + laengsachse.bis) / 2;
+const halbBreite = breite / 2;
+const halbLaenge = laenge / 2;
+const drinnen = (x: number, z: number): boolean =>
+  Math.abs(x) < halbBreite && Math.abs(z - mitteZ) < halbLaenge;
 
-let ueberWasser = 0;
-let unterWasser = 0;
+let landDrinnen = 0;
+let punkteDrinnen = 0;
+let landDraussen = 0;
+let punkteDraussen = 0;
 let hoechster = -1e9;
 let tiefster = 1e9;
 const plateauNeigungen: number[] = [];
@@ -227,23 +374,45 @@ for (let iz = 1; iz < aufloesung - 1; iz++) {
     const h = hoeheBei(ix, iz);
     hoechster = Math.max(hoechster, h);
     tiefster = Math.min(tiefster, h);
-    if (h > doc.terrain.waterLevel) ueberWasser++;
-    else unterWasser++;
     const neigung = Math.hypot(
       (hoeheBei(ix + 1, iz) - hoeheBei(ix - 1, iz)) / (2 * gitter),
       (hoeheBei(ix, iz + 1) - hoeheBei(ix, iz - 1)) / (2 * gitter),
     );
-    // Innen das Plateau, aussen die Klippe. Der Fluss liegt innen und ist
-    // absichtlich steil — deshalb bleibt sein Graben hier aussen vor.
-    const amFluss = Math.abs(x) < 100 && Math.abs(z) < 240;
-    if (Math.abs(x) < 180 && z > -180 && z < 200 && !amFluss) plateauNeigungen.push(neigung);
-    if (Math.abs(x) > 210 || z > 230 || z < -210) steilsteKlippe = Math.max(steilsteKlippe, neigung);
+    // Vierzig Meter Saum um die Insel bleiben aussen vor: dort steht die
+    // Klippe, und die gehört weder zum Land noch zum Meer.
+    if (drinnen(x, z)) {
+      punkteDrinnen++;
+      if (h > doc.terrain.waterLevel) landDrinnen++;
+    } else if (!drinnen(x * 0.86, mitteZ + (z - mitteZ) * 0.95)) {
+      punkteDraussen++;
+      if (h > doc.terrain.waterLevel) landDraussen++;
+      steilsteKlippe = Math.max(steilsteKlippe, neigung);
+    }
+    // Innen das Plateau. Der Fluss liegt innen und ist absichtlich steil —
+    // deshalb bleibt sein Graben hier aussen vor.
+    const amFluss = Math.abs(x) < 130;
+    if (drinnen(x / 0.75, mitteZ + (z - mitteZ) / 0.9) && !amFluss) plateauNeigungen.push(neigung);
   }
 }
 const grad = (g: number): number => (Math.atan(g) * 180) / Math.PI;
-const anteilLand = ueberWasser / (ueberWasser + unterWasser);
 
-check(anteilLand > 0.4 && anteilLand < 0.85, 'die Insel liegt im Meer', `${(anteilLand * 100).toFixed(0)} % Land`);
+/*
+ * **Land ist innen, Meer ist aussen.** Vorher stand hier ein Anteil über die
+ * ganze Karte („zwischen 40 und 85 Prozent Land"), und der sagt über die Form
+ * nichts: er hängt daran, wie viel Meer um die Insel herum liegt. Nach dem
+ * Strecken waren es sechsundzwanzig Prozent, und die Insel war deshalb keinen
+ * Deut falscher.
+ */
+check(
+  landDrinnen / punkteDrinnen > 0.9,
+  'die Insel selbst liegt trocken',
+  `${((landDrinnen / punkteDrinnen) * 100).toFixed(0)} % Land auf ${breite.toFixed(0)} × ${laenge.toFixed(0)} m`,
+);
+check(
+  landDraussen / punkteDraussen < 0.02,
+  'und um sie herum ist Meer',
+  `${((landDraussen / punkteDraussen) * 100).toFixed(1)} % Land draussen`,
+);
 check(tiefster < doc.terrain.waterLevel - 8, 'und das Meer hat einen Grund', `${tiefster.toFixed(0)} m`);
 /*
  * Die Klippe muss steiler sein als `kMaxWalkableSlopeDeg` (52°) — das ist die
@@ -288,9 +457,13 @@ function neigungenIn(z0: number, z1: number): number[] {
     if (z < z0 || z > z1) continue;
     for (let ix = 1; ix < aufloesung - 1; ix++) {
       const x = -halb + ix * gitter;
-      // Nur die offene Fläche: der Flussgraben ist absichtlich steil, und die
-      // Küste erst recht. Beide würden die Aussage über die Zone erschlagen.
-      if (Math.abs(x) > 150 || Math.abs(x) < 30) continue;
+      /*
+       * Nur die offene Fläche zwischen Fluss und Küste: der Flussgraben ist
+       * absichtlich steil, die Küste erst recht, und beide würden die Aussage
+       * über die Zone erschlagen. Der Streifen ist als Anteil der Breite
+       * angegeben — die Insel ist gewachsen, der Fluss mit ihr.
+       */
+      if (Math.abs(x) > halbBreite * 0.85 || Math.abs(x) < halbBreite * 0.5) continue;
       werteHier.push(
         grad(
           Math.hypot(
@@ -308,8 +481,14 @@ function neigungenIn(z0: number, z1: number): number[] {
 const ERDE_AB = 24;
 const anteilErde = (n: number[]): number => n.filter((g) => g > ERDE_AB).length / n.length;
 
-const weiden = neigungenIn(-180, -40);
-const norden = neigungenIn(130, 220);
+/*
+ * Süden und Norden als **Anteile der Strecke** und nicht als feste Zahlen:
+ * hier stand `(-180, -40)` gegen `(130, 220)`, und nach dem Strecken lagen
+ * beide Fenster in derselben Zone. Der Test verglich die Weiden mit sich
+ * selbst und meldete, es gebe keinen Unterschied.
+ */
+const weiden = neigungenIn(laengsachse.von + laenge * 0.1, laengsachse.von + laenge * 0.3);
+const norden = neigungenIn(laengsachse.von + laenge * 0.78, laengsachse.von + laenge * 0.95);
 check(
   anteilErde(norden) > anteilErde(weiden) * 2,
   'im Norden bricht der Boden auf, im Süden nicht',
@@ -366,36 +545,80 @@ check(
 /*
  * Die Grenzsteine. Eine Reihe ist eine Reihe, wenn sie **quer** über die Insel
  * geht — acht Steine auf einem Haufen wären keine.
+ *
+ * **Gesucht statt abgeschrieben.** Hier stand die Liste der Grenzen als vier
+ * Zahlen, und beim Strecken der Insel zeigten alle vier auf leeres Gras: der
+ * Test meldete vier fehlende Reihen, obwohl jede stand — nur eben viermal
+ * weiter nördlich. Gefragt ist ohnehin nicht „steht bei z = 55 eine Reihe",
+ * sondern „es gibt vier Reihen, sie liegen quer, und dazwischen liegt
+ * Strecke".
  */
-const GRENZEN = [-20, 55, 125, 180];
-for (const z of GRENZEN) {
-  const reihe = doc.props.filter(
-    (p) =>
-      (p.model === 'hinkelstein' ||
-        p.model === 'meilenstein' ||
-        p.model === 'steinmann' ||
-        p.model === 'bildstock' ||
-        p.model === 'runenstein') &&
-      Math.abs(p.position[2] - z) < 6,
-  );
-  const xs = reihe.map((p) => p.position[0]);
-  check(
-    reihe.length >= 8 && Math.max(...xs) - Math.min(...xs) > 250,
-    `die Grenze bei z = ${z} ist als Reihe gesetzt`,
-    `${reihe.length} Steine über ${(Math.max(...xs) - Math.min(...xs)).toFixed(0)} m`,
-  );
-}
+const MARKEN = new Set(['hinkelstein', 'meilenstein', 'steinmann', 'bildstock', 'runenstein']);
+const markenZ = doc.props.filter((p) => MARKEN.has(p.model));
+
 /*
- * Gegenprobe: mitten in einer Zone steht keine solche Reihe. Ohne sie wäre
- * auch ein Generator grün, der die ganze Karte mit Hinkelsteinen zupflastert
- * — und dann wäre jede Stelle eine Grenze und damit keine.
+ * Gesucht wird mit einem **Schiebefenster** und nicht mit festen Fächern.
+ *
+ * Zwei Gründe, und beide sind hier passiert. Erstens versetzt der Generator
+ * jeden Stein um bis zu drei Meter in `z`, damit die Reihe nicht wie mit dem
+ * Lineal gezogen aussieht — an einer Fachgrenze zerfiel eine Reihe dadurch in
+ * zwei halbe. Zweitens steht im Geröllfeld auch gestreut ein Steinmann; auf
+ * zweihundert Metern Zonenlänge kommen so zufällig zehn Stück in ein Fach,
+ * und zehn zufällige Steine sahen aus wie eine fünfte Grenze.
+ *
+ * Eine gesetzte Reihe hat gut dreissig Steine auf einer Linie. Zwanzig als
+ * Schwelle trennt sie sauber vom Zufall.
  */
-const mitten = doc.props.filter(
-  (p) =>
-    (p.model === 'hinkelstein' || p.model === 'meilenstein' || p.model === 'steinmann') &&
-    Math.abs(p.position[2] - 90) < 6,
+const fenster = (z: number): number[] =>
+  markenZ.filter((p) => Math.abs(p.position[2] - z) <= 5).map((p) => p.position[0]);
+const roh: Array<{ z: number; xs: number[] }> = [];
+for (let z = laengsachse.von; z <= laengsachse.bis; z += 2) {
+  const xs = fenster(z);
+  if (xs.length >= 20 && Math.max(...xs) - Math.min(...xs) > breite * 0.7) roh.push({ z, xs });
+}
+// Benachbarte Treffer gehören zur selben Reihe — der beste bleibt.
+const reihen: Array<{ z: number; weite: number; zahl: number }> = [];
+for (const treffer of roh) {
+  const letzte = reihen[reihen.length - 1];
+  if (letzte && treffer.z - letzte.z < 30) {
+    if (treffer.xs.length > letzte.zahl) {
+      letzte.z = treffer.z;
+      letzte.zahl = treffer.xs.length;
+      letzte.weite = Math.max(...treffer.xs) - Math.min(...treffer.xs);
+    }
+    continue;
+  }
+  reihen.push({
+    z: treffer.z,
+    zahl: treffer.xs.length,
+    weite: Math.max(...treffer.xs) - Math.min(...treffer.xs),
+  });
+}
+
+check(
+  reihen.length === 4,
+  'vier Grenzen sind als Reihe quer über die Insel gesetzt',
+  reihen.map((r) => `z=${r.z} (${r.zahl} Steine, ${r.weite.toFixed(0)} m)`).join(', ') || 'keine',
 );
-check(mitten.length < 6, 'mitten in einer Zone steht keine', `${mitten.length} bei z = 90`);
+/*
+ * Und sie liegen **auseinander**. Ohne diese Zeile wären auch vier Reihen im
+ * Abstand von zwölf Metern grün — vier Grenzen an derselben Stelle sind eine
+ * Mauer und keine Einteilung.
+ */
+const abstaende = reihen.slice(1).map((r, i) => r.z - reihen[i]!.z);
+check(
+  abstaende.length === 3 && Math.min(...abstaende) > laenge * 0.1,
+  'und keine zwei liegen beieinander',
+  abstaende.map((a) => `${a.toFixed(0)} m`).join(' / ') || 'keine',
+);
+/*
+ * Gegenprobe: **zwischen** zwei Grenzen steht keine solche Reihe. Ohne sie
+ * wäre auch ein Generator grün, der die ganze Karte mit Hinkelsteinen
+ * zupflastert — dann wäre jede Stelle eine Grenze und damit keine.
+ */
+const mitte = reihen.length >= 2 ? (reihen[0]!.z + reihen[1]!.z) / 2 : 0;
+const mitten = doc.props.filter((p) => MARKEN.has(p.model) && Math.abs(p.position[2] - mitte) < 6);
+check(mitten.length < 6, 'mitten in einer Zone steht keine', `${mitten.length} bei z = ${mitte.toFixed(0)}`);
 
 /*
  * --- Draussen trägt der Boden niemanden ------------------------------------
@@ -413,8 +636,6 @@ check(mitten.length < 6, 'mitten in einer Zone steht keine', `${mitten.length} b
  * Also wird alles abgetastet, was jenseits der Küste liegt, mit demselben
  * Doppelmass wie im Server: über dem Spiegel **und** flach genug zum Stehen.
  */
-const beiX = (x: number): number => Math.round((x + halb) / gitter);
-const hoeheAn = (x: number, z: number): number => hoeheBei(beiX(x), beiX(z));
 const neigungAn = (x: number, z: number): number => {
   const ix = beiX(x);
   const iz = beiX(z);
@@ -429,15 +650,23 @@ const traegt = (x: number, z: number): boolean =>
   hoeheAn(x, z) >= doc.terrain.waterLevel && grad(neigungAn(x, z)) <= 52;
 
 /*
- * Wo „draussen" anfängt: die Küste schwankt um ±25 m um ihre Linie, und die
- * Klippe braucht rund zwölf Meter, bis sie ihre volle Tiefe hat. Erst dahinter
- * ist die Aussage eindeutig — davor liegt der Strand, und der soll tragen.
+ * Wo „draussen" anfängt: die Küste schwankt um bis zu fünfundzwanzig Meter um
+ * ihre Linie, und die Klippe braucht rund zwölf Meter, bis sie ihre volle
+ * Tiefe hat. Fünfundvierzig Meter jenseits der gemessenen Enden ist die
+ * Aussage eindeutig — davor liegt der Strand, und der soll tragen.
+ *
+ * Gemessen und nicht abgeschrieben: hier standen die Kanten der alten Insel
+ * als Zahlen, und nach dem Strecken lag der halbe Prüfbereich auf der Wiese.
+ * Der Test meldete eine zwanzig Meter hohe Kuppe „draussen" — sie stand
+ * mitten auf der Insel.
  */
+const saum = 45;
 let traegtDraussen = 0;
 let hoechsteKuppe = -1e9;
-for (let z = -316; z <= 316; z += 4) {
-  for (let x = -316; x <= 316; x += 4) {
-    const draussen = Math.abs(x) >= 258 || z >= 276 || z <= -256;
+for (let z = -halb; z <= halb; z += 6) {
+  for (let x = -halb; x <= halb; x += 6) {
+    const draussen =
+      Math.abs(x) > halbBreite + saum || Math.abs(z - mitteZ) > halbLaenge + saum;
     if (!draussen) continue;
     hoechsteKuppe = Math.max(hoechsteKuppe, hoeheAn(x, z));
     if (traegt(x, z)) traegtDraussen++;

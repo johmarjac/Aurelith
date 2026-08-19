@@ -86,7 +86,7 @@ const server = launch('npx tsx packages/server/src/index.ts', {
   AURELITH_TIME_OFFSET_MS: String(MITTAG),
   // Mitten auf der Wiese: freie Sicht auf die Figur und ringsherum Gras statt
   // Stadtmauer. Ein Ausschnitt „leere Wiese" muss auch wirklich leer sein.
-  AURELITH_START_POS: '-44,-56',
+  AURELITH_START_POS: '-44,-232',
   DATABASE_URL: '',
 });
 launch(`cd packages/client && npx vite --port ${VITE} --strictPort --host 127.0.0.1`, {

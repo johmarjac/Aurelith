@@ -71,7 +71,7 @@ const PORT = 8810;
 const VITE = 5212;
 const server = launch('npx tsx packages/server/src/index.ts', {
   AURELITH_PORT: String(PORT),
-  AURELITH_START_POS: '-44,-56',
+  AURELITH_START_POS: '-44,-232',
   DATABASE_URL: '',
 });
 launch(`cd packages/client && npx vite --port ${VITE} --strictPort --host 127.0.0.1`, {

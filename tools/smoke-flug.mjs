@@ -195,7 +195,16 @@ check(
   'und sitzt im Flugplatz',
 );
 await page.keyboard.press('KeyI');
-await page.waitForTimeout(300);
+/*
+ * Gewartet wird auf **Ticks** und nicht auf die Uhr.
+ *
+ * Das Aufsteigen passiert in der Simulation, und die läuft unter SwiftShader
+ * auf einem Bruchteil der Wanduhr — auf der grossen Karte kommt der Client auf
+ * gut ein Bild je Sekunde. Dreihundert Millisekunden enthielten regelmässig
+ * keinen einzigen Schritt, und der Test meldete „hebt nicht ab" für eine
+ * Figur, die noch gar nicht angefangen hatte.
+ */
+await warte(20);
 
 const abgehoben = await stelle();
 // Gegen den **Boden** gemessen und nicht gegen null: das Gelände liegt an

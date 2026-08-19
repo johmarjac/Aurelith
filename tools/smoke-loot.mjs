@@ -72,7 +72,7 @@ console.log('Aurelith — Beute am Boden\n');
 const server = launch('npx tsx packages/server/src/index.ts', {
   AURELITH_PORT: '8794',
   // Mitten in den Irrlichtschwarm bei (−46, −58), südlich der Stadtmauer.
-  AURELITH_START_POS: '-44,-56',
+  AURELITH_START_POS: '-44,-232',
   DATABASE_URL: '',
 });
 launch('cd packages/client && npx vite --port 5198 --strictPort --host 127.0.0.1', {
