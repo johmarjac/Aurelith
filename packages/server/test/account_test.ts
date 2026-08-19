@@ -187,6 +187,7 @@ const levelrufe: Array<{ figur: string; level: number }> = [];
 const tprufe: string[] = [];
 const stellen: Array<{ x: number; y: number; z: number }> = [];
 const spawnrufe: string[] = [];
+const fluesterrufe: Array<{ name: string; text: string }> = [];
 let gutgeschrieben = 0;
 const wirt: CommandHost = {
   systemMessage: (_s, text) => gesagt.push(text),
@@ -227,6 +228,13 @@ const wirt: CommandHost = {
     // „gruftwärter" spielt den einen Fall nach, in dem er nichts setzen kann.
     return sorte === 'dungeon_warden' ? undefined : (getMob(sorte)?.name ?? sorte);
   },
+  fluestere: (_s, name, text) => {
+    fluesterrufe.push({ name, text });
+    // Wer gerade spielt, weiss der Server. Hier geht es um das, was **vor** ihm
+    // passiert: die Zerlegung in Name und Nachricht. „Niemand" spielt den
+    // einen Fall nach, in dem die Figur nicht da ist.
+    return name === 'Niemand' ? 'weg' : 'ok';
+  },
 };
 
 const sitzung = (stufe: AccessLevel): Session => {
@@ -235,9 +243,30 @@ const sitzung = (stufe: AccessLevel): Session => {
   return s;
 };
 
+/*
+ * Was einem gewöhnlichen Spieler zusteht, steht **namentlich** hier.
+ *
+ * Vorher hiess die Regel „gar nichts", und das war richtig, solange jeder
+ * Serverbefehl am Spielstand rührte. Die private Nachricht tut das nicht: sie
+ * schiebt Text von einer Figur zur anderen und ändert nichts.
+ *
+ * Eine Liste statt einer aufgeweichten Schwelle, damit die Frage beim Lesen
+ * beantwortet ist: wer `/gg` versehentlich auf `Player` setzt, fällt hier
+ * durch, weil `gg` nicht in der Liste steht.
+ */
+const FUER_SPIELER = new Set(['pm']);
 check(
-  COMMANDS.every((c) => c.minLevel >= AccessLevel.Gamemaster),
-  'kein Serverbefehl steht gewöhnlichen Spielern zu',
+  COMMANDS.every((c) => c.minLevel >= AccessLevel.Gamemaster || FUER_SPIELER.has(c.name)),
+  'kein Serverbefehl ausserhalb der Liste steht gewöhnlichen Spielern zu',
+  COMMANDS.filter((c) => c.minLevel < AccessLevel.Gamemaster)
+    .map((c) => c.name)
+    .join(', '),
+);
+// Gegenprobe zur Liste selbst: ein Name darin, den es nicht mehr gibt, machte
+// sie stillschweigend länger als nötig — und die Regel damit weicher.
+check(
+  [...FUER_SPIELER].every((name) => COMMANDS.some((c) => c.name === name)),
+  'und die Liste nennt nur Befehle, die es gibt',
 );
 
 gesagt.length = 0;
@@ -380,6 +409,45 @@ check(
   'und sagt das auch',
 );
 check(!runCommand(wirt, sitzung(AccessLevel.Admin), 'Hallo zusammen'), 'gewöhnlicher Text ist kein Befehl');
+
+/*
+ * `/pm` — die private Nachricht.
+ *
+ * Geprüft wird die Zerlegung: das erste Wort ist die Figur, **alles Weitere**
+ * ist die Nachricht. Ein Befehl, der nur `args[1]` nimmt, verschluckt alles ab
+ * dem zweiten Leerzeichen — und niemand bemerkt es, solange man „hallo"
+ * schreibt.
+ */
+gesagt.length = 0;
+fluesterrufe.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Player), '/pm Gandalf du kommst hier nicht durch');
+check(fluesterrufe[0]?.name === 'Gandalf', 'das erste Wort ist die Figur', fluesterrufe[0]?.name ?? '(nichts)');
+check(
+  fluesterrufe[0]?.text === 'du kommst hier nicht durch',
+  'und der ganze Rest ist die Nachricht',
+  fluesterrufe[0]?.text ?? '(nichts)',
+);
+check(gesagt.length === 0, 'und bei Erfolg sagt der Befehl selbst nichts');
+
+// Ohne Nachricht geht nichts raus — und der Absender erfährt, warum.
+gesagt.length = 0;
+fluesterrufe.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Player), '/pm Gandalf');
+check(fluesterrufe.length === 0, 'ohne Nachricht geht nichts raus');
+check(
+  gesagt.some((t) => t.includes('/pm <figur> <nachricht>')),
+  'und die Absage nennt die Form',
+  gesagt.join(' | ') || '(stumm)',
+);
+
+// Und wer nicht spielt, bekommt keine — die Absage kommt trotzdem.
+gesagt.length = 0;
+runCommand(wirt, sitzung(AccessLevel.Player), '/pm Niemand hallo');
+check(
+  gesagt.some((t) => t.includes('spielt gerade nicht')),
+  'eine Figur, die nicht spielt, wird gemeldet',
+  gesagt.join(' | ') || '(stumm)',
+);
 
 /*
  * `/accesslevel` — wer ihn darf und was er weiterreicht.

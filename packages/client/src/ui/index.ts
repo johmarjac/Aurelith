@@ -13,6 +13,7 @@
 import * as THREE from 'three';
 import {
   ChatChannel,
+  FreundAktion,
   AKTIONS_PLAETZE,
   AktionsArt,
   type AktionsPlatz,
@@ -53,6 +54,12 @@ import type { EntityVisual } from '../render/worldView.ts';
 import type { ModelRegistry } from '../render/modelRegistry.ts';
 import { GameWindow } from './windows.ts';
 import { Konsole, type LogArt } from './konsole.ts';
+import {
+  FreundAnfrageBox,
+  FreundHinzufuegen,
+  FreundeFenster,
+  type FreundeRueckrufe,
+} from './freunde.ts';
 import {
   DialogWindow,
   NpcMenu,
@@ -365,8 +372,12 @@ export class UI {
    * kein Unterschied zu sehen, und es soll auch keiner zu sehen sein: „geht
    * nicht, und zwar deshalb" steht immer an derselben Stelle. Zusätzlich in
    * den Chat, damit sie nachlesbar bleibt, wenn die Zeile verblasst ist.
+   *
+   * Öffentlich, seit auch das Spiel absagt — „ohne Verbindung geht das nicht"
+   * entsteht dort und nicht hier. Ein zweiter Weg für dieselbe Zeile wäre
+   * genau die Verteilerstelle, die es nicht geben soll.
    */
-  private absage(text: string): void {
+  absage(text: string): void {
     this.zeigeHinweis(text);
     this.addChat(0, '', text);
   }
@@ -572,6 +583,18 @@ export class UI {
    * was den Spieler angeht, hier, was den Entwickler angeht.
    */
   readonly konsole: Konsole;
+  /** Die Freundesliste. Öffentlich, weil das Spiel sie füllt. */
+  readonly freundeFenster: FreundeFenster;
+  private readonly freundNeu: FreundHinzufuegen;
+  /** Die Ja-Nein-Frage einer eingehenden Anfrage. */
+  readonly freundAnfrage: FreundAnfrageBox;
+  /**
+   * Was das Spiel mit einer Freundschaftsaktion tun soll.
+   *
+   * Rückrufe und keine Verbindung: die Oberfläche kennt kein Protokoll, und
+   * eine Prüfung kann hier etwas einhängen, das mitzählt statt zu senden.
+   */
+  onFreundAktion?: (aktion: number, name: string) => void;
 
   private readonly dialogWindow: DialogWindow;
   /** Die Frage vor dem Gespräch: worum geht es hier? */
@@ -1007,6 +1030,35 @@ export class UI {
     this.konsole = new Konsole(host);
     this.konsole.uebernehmeGlobales();
 
+    // --- Freunde ------------------------------------------------------------
+    //
+    // Drei Teile, eine Quelle: das Fenster mit der Liste, das kleine Fenster
+    // fürs Hinzufügen und die Ja-Nein-Frage. Alle drei melden dasselbe nach
+    // aussen — `onFreundAktion` mit einer `FreundAktion`. Was daraus über die
+    // Leitung geht, entscheidet das Spiel und nicht die Oberfläche.
+    const freundeRueckrufe: FreundeRueckrufe = {
+      anfragen: (name) => this.onFreundAktion?.(FreundAktion.Anfragen, name),
+      entfernen: (name) => this.onFreundAktion?.(FreundAktion.Entfernen, name),
+      antworten: (vonName, ja) =>
+        this.onFreundAktion?.(ja ? FreundAktion.Annehmen : FreundAktion.Ablehnen, vonName),
+      privatNachricht: (name) => this.bereitePrivatNachricht(name),
+      /*
+       * Gruppen gibt es noch nicht — und genau das sagt die Zeile.
+       *
+       * Ein Knopf, der nichts tut, ist die schlechteste aller Antworten: er
+       * sieht aus wie ein kaputtes Spiel. Die Absage steht dort, wo jede
+       * Absage steht, und wenn es Gruppen gibt, tritt die Einladung an ihre
+       * Stelle.
+       */
+      gruppeEinladen: (name) =>
+        this.absage(`Gruppen gibt es noch nicht — ${name} muss sich gedulden.`),
+    };
+    this.freundNeu = new FreundHinzufuegen(host, (name) => freundeRueckrufe.anfragen(name));
+    this.freundeFenster = new FreundeFenster(host, freundeRueckrufe, () => this.freundNeu.oeffne());
+    this.freundAnfrage = new FreundAnfrageBox(host, (vonName, ja) =>
+      freundeRueckrufe.antworten(vonName, ja),
+    );
+
     // --- Fertigkeitenleiste -----------------------------------------------
     //
     // Unten in der Mitte, und vorerst leer: hier kommen die Fertigkeiten hin.
@@ -1081,6 +1133,7 @@ export class UI {
       this.menuEntry('💬', 'Chat', '⏎', () => this.setChatOpen(!this.chatOpen)),
       this.menuEntry('⚙', 'Einstellungen', 'O', () => this.settingsWindow.toggle()),
       this.menuEntry('🌀', 'Fertigkeiten', 'K', () => this.skillWindow.toggle()),
+      this.menuEntry('🤝', 'Freunde', 'E', () => this.freundeFenster.fenster.toggle()),
       this.menuEntry('🐞', 'Konsole', '⇧^', () => this.konsole.fenster.toggle()),
       this.menuEntry('🚪', 'Abmelden', '', () => this.onLogout?.()),
     );
@@ -1647,6 +1700,7 @@ export class UI {
        */
       else if (e.code === 'Backquote' && e.shiftKey) this.konsole.fenster.toggle();
       else if (e.code === 'KeyK') this.skillWindow.toggle();
+      else if (e.code === 'KeyE') this.freundeFenster.fenster.toggle();
       else if (e.code === 'Escape') this.setMenuOpen(this.menuPanel.hidden);
       else if (e.code === 'Enter') {
         e.preventDefault();
@@ -2344,7 +2398,13 @@ export class UI {
     line.dataset.channel =
       channel === ChatChannel.System
         ? 'system'
-        : (CHAT_KANAELE.find((k) => k.wert === channel)?.stil ?? 'say');
+        : channel === ChatChannel.Whisper
+          ? // Eigene Farbe, obwohl der Flüsterkanal in keinem Knopf steht: er
+            // ist nicht auswählbar, sondern entsteht aus `/pm`. Ohne eigene
+            // Farbe sähe eine private Nachricht aus wie eine, die die halbe
+            // Wiese mitgelesen hat.
+            'whisper'
+          : (CHAT_KANAELE.find((k) => k.wert === channel)?.stil ?? 'say');
 
     if (from) {
       const who = el('span', 'who', `${from}: `);
@@ -2372,6 +2432,26 @@ export class UI {
    * und `false` bedeutet nur „raus aus dem Eingabefeld“, damit WASD wieder
    * die Figur bewegt statt Buchstaben zu tippen.
    */
+  /**
+   * Legt `/pm <figur> ` in die Chatzeile und setzt den Zeiger dahinter.
+   *
+   * Vorbereiten und nicht schicken: die Nachricht schreibt der Spieler. Alles,
+   * was das Fenster ihm abnehmen kann, ist der Weg dorthin — Chat aufklappen,
+   * Befehl und Namen tippen, Zeiger ans Ende.
+   *
+   * Über denselben Befehl, den man auch selbst tippen kann. Ein zweiter Weg
+   * für private Nachrichten wäre eine zweite Stelle, an der die Regeln dafür
+   * stehen — und die eine davon wäre irgendwann die falsche.
+   */
+  bereitePrivatNachricht(name: string): void {
+    this.setChatOpen(true);
+    this.chatInput.value = `/pm ${name} `;
+    this.chatInput.focus();
+    // Ans Ende und nicht an den Anfang: sonst tippt man mitten in den Namen.
+    const ende = this.chatInput.value.length;
+    this.chatInput.setSelectionRange(ende, ende);
+  }
+
   setChatOpen(open: boolean): void {
     if (!this.touch) {
       if (open) this.chatInput.focus();
@@ -2435,6 +2515,34 @@ export class UI {
    * `x`/`y` ist die Stelle, an der angetippt wurde. Das Menü erscheint dort
    * und nicht in der Bildmitte: man hat gerade dorthin gesehen.
    */
+  /**
+   * Das Menü an einer angeklickten Figur — dieselbe Auswahl wie beim NPC.
+   *
+   * Dasselbe Menü und keine zweite Sorte: es ist dieselbe Bewegung („ich will
+   * etwas von dem da") und soll deshalb gleich aussehen und gleich
+   * verschwinden. `NpcMenu` heisst nur noch so, weil es dort angefangen hat.
+   *
+   * Wer schon in der Liste steht, bekommt „Als Freund hinzufügen" nicht
+   * angeboten. Der Server sagte es sonst ab — aber ein Knopf, der immer
+   * dieselbe Absage bringt, ist kein Angebot.
+   */
+  zeigeSpielerMenu(name: string, x: number, y: number): void {
+    const optionen: NpcOption[] = [];
+    if (!this.freundeFenster.hat(name)) {
+      optionen.push({
+        label: 'Als Freund hinzufügen',
+        hinweis: 'Schickt eine Anfrage',
+        oeffne: () => this.onFreundAktion?.(FreundAktion.Anfragen, name),
+      });
+    }
+    optionen.push({
+      label: 'Private Nachricht',
+      hinweis: `/pm ${name} …`,
+      oeffne: () => this.bereitePrivatNachricht(name),
+    });
+    this.npcMenu.zeige(name, optionen, x, y);
+  }
+
   showDialog(msg: NpcDialogMsg, x = window.innerWidth / 2, y = window.innerHeight / 2): void {
     // Steht das Gespräch schon offen, ist das hier eine **Auffrischung** —
     // der Server schickt es nach jeder Auftragshandlung neu. Wer eben

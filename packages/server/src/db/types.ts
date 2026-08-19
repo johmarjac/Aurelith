@@ -262,6 +262,34 @@ export interface WeltStore extends StoreBasis {
    * Plätzen werden so selten mehr als drei Zeilen.
    */
   saveAktionen(characterId: number, plaetze: AktionsPlatz[]): Promise<void>;
+
+  /**
+   * Sucht eine Figur über ihren Namen — ohne Rücksicht auf Gross und Klein.
+   *
+   * Für die Freundesliste: dort tippt man einen Namen, und daraus muss eine
+   * Kennung werden. `undefined` heisst schlicht „gibt es hier nicht" — auf
+   * **diesem** Server, denn Figuren stehen je Region getrennt.
+   */
+  findCharacterByName(name: string): Promise<FreundRecord | undefined>;
+  /** Die Freunde dieser Figur, mit Namen und Stufe. Nach Namen sortiert. */
+  listFriends(characterId: number): Promise<FreundRecord[]>;
+  /**
+   * Trägt eine Freundschaft ein — **beide** Richtungen.
+   *
+   * Zweimal ausgeführt ändert sich nichts: wer schon befreundet ist, bleibt
+   * es. Das ist keine Bequemlichkeit, sondern die Antwort auf zwei Anfragen,
+   * die sich gekreuzt haben.
+   */
+  addFriend(a: number, b: number): Promise<void>;
+  /** Löst sie wieder — ebenfalls beide Richtungen. */
+  removeFriend(a: number, b: number): Promise<void>;
+}
+
+/** Eine Figur, so viel wie die Freundesliste von ihr zeigt. */
+export interface FreundRecord {
+  id: number;
+  name: string;
+  level: number;
 }
 
 /**

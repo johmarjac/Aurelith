@@ -7,7 +7,7 @@
  * ändert, zählt PROTOCOL_VERSION hoch.
  */
 
-export const PROTOCOL_VERSION = 21;
+export const PROTOCOL_VERSION = 22;
 
 export const ClientOp = {
   Hello: 0x01,
@@ -126,6 +126,19 @@ export const ClientOp = {
    * der alles beliebig macht.
    */
   SetzePunkt: 0x1f,
+  /**
+   * Etwas mit der Freundesliste tun — anfragen, annehmen, ablehnen, entfernen.
+   *
+   * **Ein** Paket mit einer Art statt vier Opcodes: alle vier nennen eine Figur
+   * beim Namen und sonst nichts, und vier Pakete mit demselben Rumpf wären vier
+   * Stellen, an denen dieselbe Prüfung stehen müsste. Die Arten stehen in
+   * `FreundAktion`.
+   *
+   * Der **Name** und keine Kennung: eine Figurenkennung sieht niemand im Spiel,
+   * und ein Client, der sie sich ausdenken dürfte, könnte reihum jede Figur
+   * anfragen. Über den Namen geht nur, was auch jemand tippen kann.
+   */
+  Freund: 0x20,
 } as const;
 export type ClientOp = (typeof ClientOp)[keyof typeof ClientOp];
 
@@ -201,6 +214,23 @@ export const ServerOp = {
    * ist für den Balken dasselbe.
    */
   Vorgang: 0x93,
+  /**
+   * Die vollständige Freundesliste.
+   *
+   * Ein Vollbild wie Beutel und Aufträge, und aus demselben Grund: eine
+   * Handvoll Zeilen kostet nichts, und Vollbilder können nicht auseinander-
+   * laufen. Es kommt beim Betreten, nach jeder Änderung und immer dann, wenn
+   * ein Freund kommt oder geht — der Onlinestand steht mit darin.
+   */
+  Freunde: 0x94,
+  /**
+   * Jemand möchte befreundet sein — die Frage an den Angefragten.
+   *
+   * Getrennt von der Liste, weil es keine Auskunft ist, sondern eine Frage:
+   * sie steht als Ja-Nein vor dem Bild und wartet. Die Liste beschreibt einen
+   * Zustand, dieses Paket verlangt eine Antwort.
+   */
+  FreundAnfrage: 0x95,
 } as const;
 export type ServerOp = (typeof ServerOp)[keyof typeof ServerOp];
 
@@ -243,6 +273,23 @@ export const ChatChannel = {
   Ansage: 6,
 } as const;
 export type ChatChannel = (typeof ChatChannel)[keyof typeof ChatChannel];
+
+/**
+ * Was jemand mit der Freundesliste vorhat.
+ *
+ * `Anfragen` schickt eine Frage an eine Figur, die gerade spielt. `Annehmen`
+ * und `Ablehnen` beantworten eine, die man selbst bekommen hat — der Name ist
+ * dabei der des Fragenden. `Entfernen` löst eine Freundschaft, und zwar auf
+ * **beiden** Seiten: eine halbe Freundschaft, bei der einer den anderen noch in
+ * der Liste hat, wäre ein Zustand, den niemand erklären kann.
+ */
+export const FreundAktion = {
+  Anfragen: 0,
+  Annehmen: 1,
+  Ablehnen: 2,
+  Entfernen: 3,
+} as const;
+export type FreundAktion = (typeof FreundAktion)[keyof typeof FreundAktion];
 
 export const KickReason = {
   ProtocolMismatch: 0,

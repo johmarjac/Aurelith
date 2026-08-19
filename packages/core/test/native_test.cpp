@@ -355,6 +355,21 @@ void testAggroAndLeash() {
   world.step(aur::kTickSeconds);
   check(world.find(10)->targetId == 1, "Monster nimmt Spieler in Reichweite wahr");
 
+  /*
+   * --- „Im Kampf" über die Brücke ------------------------------------------
+   *
+   * Der Server fragt das, bevor er jemandem eine Freundschaftsanfrage über den
+   * Bildschirm legt. Die Regel steht in `inCombat` und soll auch nur dort
+   * stehen — geprüft wird hier der Weg dorthin.
+   */
+  check(world.imKampf(1), "und die Figur gilt damit als im Kampf");
+  world.find(10)->targetId = 0;
+  check(!world.imKampf(1), "ohne Verfolger nicht mehr");
+  check(!world.imKampf(999), "und ein Wesen, das es nicht gibt, erst recht nicht");
+  // Zurück, sonst misst der nächste Abschnitt eine Verfolgung, die gerade erst
+  // wieder anlaufen müsste.
+  world.find(10)->targetId = 1;
+
   const float startDist = aur::dist2D(world.find(10)->x, world.find(10)->z, 0.0f, 0.0f);
   for (int i = 0; i < aur::kTickRate; ++i) world.step(aur::kTickSeconds);
   const float endDist = aur::dist2D(world.find(10)->x, world.find(10)->z, 0.0f, 0.0f);

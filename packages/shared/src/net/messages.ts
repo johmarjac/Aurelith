@@ -1286,3 +1286,72 @@ export function decodeStats(r: ByteReader): StatsMsg {
 
   return { ...kopf, attributes };
 }
+
+// ---------------------------------------------------------------------------
+// Freundesliste
+// ---------------------------------------------------------------------------
+
+/**
+ * Etwas mit der Freundesliste tun. `aktion` ist eine `FreundAktion`.
+ *
+ * Nur Art und Name — alles andere weiss der Server besser. Wer angefragt wird,
+ * ob er online ist, welche Stufe er hat und ob die beiden schon befreundet
+ * sind, steht dort und nicht im Paket.
+ */
+export function encodeFreund(aktion: number, name: string): Uint8Array {
+  return packet(ClientOp.Freund, 64).u8(aktion).str(name).finish();
+}
+
+export function decodeFreund(r: ByteReader): { aktion: number; name: string } {
+  return { aktion: r.u8(), name: r.str() };
+}
+
+/** Eine Zeile in der Freundesliste. */
+export interface FreundZeile {
+  name: string;
+  level: number;
+  /**
+   * Spielt gerade auf diesem Kanal?
+   *
+   * Auf **diesem** Kanal und nicht „irgendwo": ein Kanal weiss nur von seinen
+   * eigenen Sitzungen. Eine Auskunft über alle Kanäle wäre eine Frage an den
+   * Anmeldeserver und damit ein Netzruf je Zeile.
+   */
+  online: boolean;
+}
+
+/**
+ * Die vollständige Freundesliste — Vollbild, kein Abgleich.
+ *
+ * Sortiert schickt sie der Server: Online zuerst, dann nach Namen. Die
+ * Reihenfolge im Fenster ist damit eine Aussage des Servers und keine, die
+ * jeder Client für sich trifft — sonst stünde dieselbe Liste auf zwei Geräten
+ * verschieden da.
+ */
+export function encodeFreunde(zeilen: readonly FreundZeile[]): Uint8Array {
+  const w = packet(ServerOp.Freunde, 64 + zeilen.length * 40);
+  w.u16(zeilen.length);
+  for (const z of zeilen) w.str(z.name).u16(z.level).bool(z.online);
+  return w.finish();
+}
+
+export function decodeFreunde(r: ByteReader): FreundZeile[] {
+  const n = r.u16();
+  const zeilen: FreundZeile[] = new Array(n);
+  for (let i = 0; i < n; i++) zeilen[i] = { name: r.str(), level: r.u16(), online: r.bool() };
+  return zeilen;
+}
+
+/**
+ * „X möchte dich als Freund." — die Frage, die vor dem Bild steht.
+ *
+ * Mit der Frist, damit der Client mitzählen kann. Die Frist selbst durchsetzt
+ * der Server; die Zahl hier ist eine Anzeige und keine Absprache.
+ */
+export function encodeFreundAnfrage(vonName: string, fristMs: number): Uint8Array {
+  return packet(ServerOp.FreundAnfrage, 64).str(vonName).u32(fristMs).finish();
+}
+
+export function decodeFreundAnfrage(r: ByteReader): { vonName: string; fristMs: number } {
+  return { vonName: r.str(), fristMs: r.u32() };
+}

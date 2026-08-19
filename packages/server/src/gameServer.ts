@@ -15,6 +15,7 @@ import {
   type PetArt,
   skillsFor,
   decodeSetActionSlot,
+  decodeFreund,
   decodeSetzePunkt,
   encodeActionBar,
   leereLeiste,
@@ -77,6 +78,7 @@ import {
   encodeNpcDialog,
   encodePong,
   encodeQuestLog,
+  encodeFreunde,
   encodeServerChat,
   encodeSnapshot,
   encodeStats,
@@ -121,6 +123,7 @@ import {
 import { CoreEventType, CoreButton } from '@aurelith/core';
 import { hashPassword, verifyPassword } from './passwords.ts';
 import { runCommand } from './commands.ts';
+import { Freunde } from './freunde.ts';
 import { anmelden } from './accounts.ts';
 import type { LoginClient, StufenAuskunft } from './loginClient.ts';
 import { config } from './config.ts';
@@ -201,6 +204,28 @@ export class GameServer {
   private readonly sessions = new Set<Session>();
   private readonly sessionByEntity = new Map<number, Session>();
 
+  /**
+   * Die Freundschaften — Anfragen, Antworten, Lösungen.
+   *
+   * Eigenes Modul mit schmalem Wirt, wie die Befehle: was der Ablauf vom
+   * Server braucht, steht in `FreundeHost` und sonst nirgends. Der Wirt hier
+   * ist absichtlich die ganze Verbindung zwischen beiden — wer eine fünfte
+   * Fähigkeit braucht, trägt sie dort ein und sieht dabei, was er aufmacht.
+   */
+  /**
+   * Die Freundschaften — Anfragen, Antworten, Lösungen.
+   *
+   * Eigenes Modul mit schmalem Wirt, wie die Befehle: was der Ablauf vom
+   * Server braucht, steht in `FreundeHost` und sonst nirgends. Der Wirt ist
+   * die ganze Verbindung zwischen beiden — wer eine fünfte Fähigkeit braucht,
+   * trägt sie dort ein und sieht dabei, was er aufmacht.
+   *
+   * Im Rumpf des Konstruktors gesetzt und nicht als Feldwert: der Wirt greift
+   * auf `this.welt` zu, und ein Feldwert liefe je nach Übersetzungsziel vor
+   * der Zuweisung der Konstruktorparameter.
+   */
+  private readonly freunde: Freunde;
+
   private nextEntityId = 1;
   private nextSessionId = 1;
   private timer?: NodeJS.Timeout;
@@ -239,7 +264,19 @@ export class GameServer {
      * Masterdatenbank steht in einer anderen Erdhälfte.
      */
     private readonly konten?: KontoStore,
-  ) {}
+  ) {
+    this.freunde = new Freunde({
+      welt: this.welt,
+      systemMessage: (session, text) => this.systemMessage(session, text),
+      sitzungVonFigur: (name) => this.sitzungVonFigur(name),
+      imKampf: (session) => this.imKampf(session),
+      sendeFreunde: (session) => void this.sendeFreunde(session),
+      sende: (session, paket) => {
+        session.send(paket);
+        session.flush();
+      },
+    });
+  }
 
   // -------------------------------------------------------------------------
   // Aufbau
@@ -365,6 +402,11 @@ export class GameServer {
       );
       this.instances.get(session.mapId)?.removePlayer(session.entityId);
       this.sessionByEntity.delete(session.entityId);
+      // Offene Fragen dieser Sitzung fallen weg, und die Freunde sehen, dass
+      // sie gegangen ist. Nach `sessions.delete` weiter oben — sonst meldete
+      // sich diese Figur den anderen noch als anwesend.
+      this.freunde.vergiss(session);
+      void this.meldeFreundenStatus(session).catch(() => undefined);
     }
     // Das Konto ist wieder frei — auf allen Kanälen. Ohne diese Meldung
     // bliebe es beim Anmeldeserver hängen, bis dieser Kanal verfällt.
@@ -528,6 +570,17 @@ export class GameServer {
           if (session.state !== 'playing') break;
           const { eigenschaft, anzahl } = decodeSetzePunkt(reader);
           this.setzePunkt(session, eigenschaft, anzahl);
+          break;
+        }
+        case ClientOp.Freund: {
+          if (session.state !== 'playing') break;
+          const { aktion, name } = decodeFreund(reader);
+          // Ohne `await`: die Datenbank antwortet, wenn sie antwortet, und der
+          // Tick wartet nicht darauf. Was schiefgeht, steht im Protokoll — und
+          // der Spieler bekommt seine Absage aus `Freunde` selbst.
+          void this.freunde
+            .behandle(session, aktion, name)
+            .catch((err) => console.error('[freunde] fehlgeschlagen:', err));
           break;
         }
         case ClientOp.Logout:
@@ -957,6 +1010,16 @@ export class GameServer {
     this.sendInventory(session);
     this.sendQuestLog(session);
     this.sendAktionen(session);
+    /*
+     * Die Freundesliste, und den Freunden Bescheid.
+     *
+     * Zwei Rufe, weil es zwei Richtungen sind: die eine sagt mir, wer meine
+     * Freunde sind und wer davon gerade da ist; die andere sagt denen, die
+     * schon spielen, dass ich dazugekommen bin. Ohne die zweite stünde ich bei
+     * ihnen als „offline", bis sie sich selbst neu anmelden.
+     */
+    void this.sendeFreunde(session);
+    void this.meldeFreundenStatus(session);
     // Wer sich mit einem laufenden Begleiter abgemeldet hat, findet ihn wieder
     // neben sich. Das Merkmal steht am Gegenstand und damit im Spielstand.
     this.stelleHaustiereHer(session);
@@ -1058,6 +1121,9 @@ export class GameServer {
 
   private tick(): void {
     this.dropTimedOutSessions();
+    // Fragen, auf die niemand geantwortet hat. Hier und nicht in hundert
+    // eigenen Zeitgebern — der Tick läuft ohnehin.
+    this.freunde.verfalle(Date.now());
 
     for (const session of this.sessions) {
       if (session.state !== 'playing' || session.inputQueue.length === 0) continue;
@@ -2958,6 +3024,116 @@ export class GameServer {
    * scheiterte, und das Merkmal am Gegenstand wurde abgeräumt — mit einer
    * Ratte, die vorher danebenlief, und danach nicht mehr.
    */
+  // -------------------------------------------------------------------------
+  // Freunde
+  // -------------------------------------------------------------------------
+
+  /**
+   * Eine private Nachricht an eine Figur — der Befehl `/pm`.
+   *
+   * Über die **Figur** und nicht über das Konto: wer angesprochen werden will,
+   * heisst im Spiel so, wie er über dem Kopf steht.
+   *
+   * Der Absender bekommt eine Kopie. Ohne sie wüsste er nicht, ob er sie
+   * abgeschickt hat — eine Nachricht, die man selbst nicht sieht, ist eine, die
+   * man zweimal schreibt.
+   */
+  fluestere(session: Session, name: string, text: string): 'ok' | 'weg' | 'selbst' {
+    const ziel = this.sitzungVonFigur(name);
+    if (!ziel) return 'weg';
+    if (ziel === session) return 'selbst';
+
+    const von = session.character?.name ?? session.accountName;
+    ziel.send(encodeServerChat({ channel: ChatChannel.Whisper, from: von, text, entityId: 0 }));
+    ziel.flush();
+    session.send(
+      encodeServerChat({
+        channel: ChatChannel.Whisper,
+        // „an X" statt „X": dieselbe Zeile in beiden Fenstern wäre nicht zu
+        // unterscheiden — man wüsste nicht mehr, wer wem geschrieben hat.
+        from: `an ${ziel.character?.name ?? name}`,
+        text,
+        entityId: 0,
+      }),
+    );
+    session.flush();
+    return 'ok';
+  }
+
+  /**
+   * Die Sitzung, die gerade mit dieser Figur spielt.
+   *
+   * Lineare Suche über die Sitzungen und keine zweite Ablage nach Namen: ein
+   * Kanal führt Dutzende Sitzungen, keine Zehntausende, und eine Ablage, die
+   * beim Anmelden gefüllt und beim Abmelden geleert werden muss, ist genau die
+   * zweite Wahrheit, die irgendwann von der ersten abweicht.
+   */
+  private sitzungVonFigur(name: string): Session | undefined {
+    const gesucht = name.trim().toLowerCase();
+    for (const s of this.sessions) {
+      if (s.state === 'playing' && s.character?.name.toLowerCase() === gesucht) return s;
+    }
+    return undefined;
+  }
+
+  /**
+   * Steckt diese Figur in einem Kampf?
+   *
+   * Die Frage geht an den Kern und wird dort beantwortet — für eine Figur
+   * heisst sie „jagt mich gerade ein Monster". Sie hier nachzubauen wäre
+   * dieselbe Regel an zwei Stellen; siehe `World::imKampf`.
+   */
+  private imKampf(session: Session): boolean {
+    const instance = this.instances.get(session.mapId);
+    return instance?.world.imKampf(session.entityId) ?? false;
+  }
+
+  /**
+   * Schickt einer Sitzung ihre Freundesliste — mit frischem Onlinestand.
+   *
+   * Der Onlinestand steht nicht in der Datenbank und soll auch nicht dort
+   * stehen: er gilt für diesen Augenblick und für diesen Kanal. Gelesen wird
+   * er aus den Sitzungen, und damit stimmt er immer.
+   */
+  private async sendeFreunde(session: Session): Promise<void> {
+    const eigen = session.character;
+    if (!eigen || session.state !== 'playing') return;
+    const roh = await this.welt.listFriends(eigen.id);
+    const zeilen = roh.map((f) => ({
+      name: f.name,
+      level: f.level,
+      online: this.sitzungVonFigur(f.name) !== undefined,
+    }));
+    /*
+     * Sortiert vom Server: erst die, die da sind, dann nach Namen.
+     *
+     * Hier und nicht im Client, damit dieselbe Liste auf zwei Geräten gleich
+     * aussieht. Und weil die Stufe eines Freundes sich ändert, während man
+     * zusieht — eine Sortierung danach spränge dann im Bild.
+     */
+    zeilen.sort((a, b) =>
+      a.online === b.online ? a.name.localeCompare(b.name, 'de') : a.online ? -1 : 1,
+    );
+    session.send(encodeFreunde(zeilen));
+    session.flush();
+  }
+
+  /**
+   * Sagt den Freunden dieser Figur, dass sich ihr Stand geändert hat.
+   *
+   * Beim Betreten und beim Verlassen der Welt. Ohne das stünde ein Freund
+   * stundenlang als „offline" in der Liste, obwohl er nebenan spielt — und
+   * ein Onlinestand, der nur beim Öffnen des Fensters stimmt, ist keiner.
+   */
+  private async meldeFreundenStatus(session: Session): Promise<void> {
+    const eigen = session.character;
+    if (!eigen) return;
+    for (const f of await this.welt.listFriends(eigen.id)) {
+      const andere = this.sitzungVonFigur(f.name);
+      if (andere) await this.sendeFreunde(andere);
+    }
+  }
+
   private woStehtEr(session: Session): { x: number; z: number; yaw: number } | undefined {
     const row = this.instances.get(session.mapId)?.entity(session.entityId);
     if (row) return { x: row.x, z: row.z, yaw: row.yaw };
@@ -3481,7 +3657,12 @@ export class GameServer {
     // bleibt die Blase weg und es steht nur die Zeile im Fenster.
     const packet = encodeServerChat({
       channel: kanal,
-      from: session.accountName,
+      // Der **Figuren**name und nicht der des Kontos: angesprochen wird man im
+      // Spiel als Figur, die Freundesliste führt Figuren, und `/pm` nimmt
+      // einen Figurennamen. Stünde hier der Kontoname, hiesse dieselbe Person
+      // im Chat anders als überall sonst. Der Rückfall ist der Kontoname —
+      // ohne Figur redet niemand in der Welt.
+      from: session.character?.name ?? session.accountName,
       text: trimmed,
       entityId: session.entityId,
     });

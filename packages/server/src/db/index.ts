@@ -129,5 +129,9 @@ export async function createStore(databaseUrl: string, serverName: string): Prom
     saveInventory: (characterId, items) => welt.saveInventory(characterId, items),
     saveQuests: (characterId, quests) => welt.saveQuests(characterId, quests),
     saveAktionen: (characterId, plaetze) => welt.saveAktionen(characterId, plaetze),
+    findCharacterByName: (name) => welt.findCharacterByName(name),
+    listFriends: (characterId) => welt.listFriends(characterId),
+    addFriend: (a, b) => welt.addFriend(a, b),
+    removeFriend: (a, b) => welt.removeFriend(a, b),
   };
 }

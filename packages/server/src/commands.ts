@@ -74,6 +74,14 @@ export interface CommandHost {
    * damit im Befehl. Der Wirt baut nur noch.
    */
   spawneMonster(session: Session, sorte: string): string | undefined;
+  /**
+   * Eine private Nachricht an eine Figur.
+   *
+   * `weg` heisst: spielt gerade nicht auf diesem Kanal. `selbst` heisst: das
+   * ist die eigene Figur — kein Fehler, aber auch keine Nachricht, und ein
+   * stilles Nichts wäre die schlechtere Antwort darauf.
+   */
+  fluestere(session: Session, name: string, text: string): 'ok' | 'weg' | 'selbst';
 }
 
 export interface CommandDef {
@@ -255,6 +263,31 @@ export const COMMANDS: readonly CommandDef[] = [
           session,
           `Eine Karte „${karte}" gibt es hier nicht. Es gibt: ${host.kartenListe().join(', ')}.`,
         );
+      }
+    },
+  },
+  {
+    name: 'pm',
+    /*
+     * Für alle. Eine private Nachricht ist kein Werkzeug der Spielleitung,
+     * sondern der halbe Grund, warum man eine Freundesliste hat.
+     */
+    minLevel: AccessLevel.Player,
+    hilfe: '/pm <figur> <nachricht> — eine private Nachricht',
+    run(host, session, args) {
+      const name = args[0] ?? '';
+      // `slice(1).join(' ')` und nicht `args[1]`: eine Nachricht besteht aus
+      // Wörtern, und die Zerlegung am Leerzeichen hat sie auseinandergenommen.
+      const text = args.slice(1).join(' ').trim();
+      if (name === '' || text === '') {
+        host.systemMessage(session, 'Erwartet: /pm <figur> <nachricht>.');
+        return;
+      }
+      const ergebnis = host.fluestere(session, name, text);
+      if (ergebnis === 'weg') {
+        host.systemMessage(session, `${name} spielt gerade nicht.`);
+      } else if (ergebnis === 'selbst') {
+        host.systemMessage(session, 'Sich selbst zu schreiben spart den Umweg.');
       }
     },
   },

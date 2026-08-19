@@ -25,6 +25,7 @@ import { HOEHE_UNBEKANNT } from './types.ts';
 import type {
   AccountRecord,
   CharacterRecord,
+  FreundRecord,
   ItemRecord,
   KontoStore,
   LoadedCharacter,
@@ -469,6 +470,63 @@ export class PostgresWelt extends PostgresBasis implements WeltStore {
     } finally {
       client.release();
     }
+  }
+
+  // --- Freundschaften ------------------------------------------------------
+
+  async findCharacterByName(name: string): Promise<FreundRecord | undefined> {
+    // Über `lower(name)`, so wie der eindeutige Index auf der Tabelle: wer
+    // „gandalf" tippt, findet „Gandalf". Zwei Figuren, die sich nur in der
+    // Schreibweise unterscheiden, kann es deshalb gar nicht geben.
+    const res = await this.pool.query(
+      `SELECT id, name, level FROM characters WHERE lower(name) = lower($1)`,
+      [name],
+    );
+    const row = res.rows[0];
+    return row ? { id: Number(row.id), name: String(row.name), level: Number(row.level) } : undefined;
+  }
+
+  async listFriends(characterId: number): Promise<FreundRecord[]> {
+    // Der Verbund mit `characters` holt Namen und Stufe: in der
+    // Freundschaftstabelle steht nur, wer mit wem — alles andere gehört der
+    // Figur und wird dort geführt. Eine Kopie des Namens hier wäre nach der
+    // ersten Umbenennung falsch.
+    const res = await this.pool.query(
+      `SELECT c.id, c.name, c.level
+         FROM character_friends f
+         JOIN characters c ON c.id = f.friend_id
+        WHERE f.character_id = $1
+        ORDER BY c.name`,
+      [characterId],
+    );
+    return res.rows.map((r) => ({
+      id: Number(r.id),
+      name: String(r.name),
+      level: Number(r.level),
+    }));
+  }
+
+  async addFriend(a: number, b: number): Promise<void> {
+    if (a === b) return;
+    // Beide Richtungen in **einem** Aufruf und in einer Anweisung: zwei
+    // getrennte `INSERT` könnten zwischendrin scheitern, und dann stünde eine
+    // halbe Freundschaft in der Tabelle. `DO NOTHING`, weil zwei Anfragen sich
+    // gekreuzt haben können — dann ist das Ergebnis schon da.
+    await this.pool.query(
+      `INSERT INTO character_friends (character_id, friend_id)
+       VALUES ($1, $2), ($2, $1)
+       ON CONFLICT DO NOTHING`,
+      [a, b],
+    );
+  }
+
+  async removeFriend(a: number, b: number): Promise<void> {
+    await this.pool.query(
+      `DELETE FROM character_friends
+        WHERE (character_id = $1 AND friend_id = $2)
+           OR (character_id = $2 AND friend_id = $1)`,
+      [a, b],
+    );
   }
 }
 

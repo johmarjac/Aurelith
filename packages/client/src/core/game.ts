@@ -844,6 +844,22 @@ export class Game {
     // ersten Bild und nicht erst, wenn jemand die Einstellungen öffnet.
     grafikAnwenden(this.ui.grafik);
 
+    /*
+     * Freundschaftsaktionen gehen unverändert an den Server.
+     *
+     * Ohne Prüfung im Client: ob jemand online ist, im Kampf steckt oder schon
+     * in der Liste steht, weiss allein der Server, und eine Vorabprüfung hier
+     * wäre eine zweite Regel, die irgendwann anders entscheidet. Die Absage
+     * kommt als Systemnachricht und steht damit von selbst in der Hinweiszeile.
+     */
+    this.ui.onFreundAktion = (aktion, name) => {
+      if (!this.connection) {
+        this.ui.absage('Ohne Verbindung geht das nicht.');
+        return;
+      }
+      this.connection.sendFreund(aktion, name);
+    };
+
     this.ui.onAudioProbe = () => {
       this.mixer.resume();
       const def = SOUNDS.bogen_schuss;
@@ -1605,6 +1621,12 @@ export class Game {
       onNpcDialog: (msg) => this.ui.showDialog(msg, this.npcKlickX, this.npcKlickY),
 
       onQuestLog: (rows) => this.ui.setQuests(rows),
+
+      // Die Freundesliste kommt vollständig und sortiert — der Client sortiert
+      // nicht nach, sonst stünde dieselbe Liste auf zwei Geräten verschieden.
+      onFreunde: (zeilen) => this.ui.freundeFenster.setze(zeilen),
+
+      onFreundAnfrage: (msg) => this.ui.freundAnfrage.frage(msg.vonName, msg.fristMs),
 
       onChat: (msg) => {
         // Eine Ansage ist keine Chatzeile. Sie steht gross im Bild und nicht
@@ -2589,6 +2611,20 @@ export class Game {
     }
 
     if (best) {
+      /*
+       * Eine fremde Figur wird nicht angegriffen, sondern angesprochen.
+       *
+       * Dieselbe Bewegung wie bei einem NPC und deshalb dasselbe Menü: erst
+       * anvisieren, damit oben steht, um wen es geht, dann die Auswahl neben
+       * dem Zeiger. Ohne das war ein Klick auf jemand anderen eine Auswahl,
+       * auf die nichts folgte — und ein zweiter Klick tat erst recht nichts,
+       * weil `greifeAn` fremde Figuren verwirft.
+       */
+      if (best.type === EntityType.Player) {
+        this.setTarget(best.id);
+        this.ui.zeigeSpielerMenu(best.name, clickX, clickY);
+        return;
+      }
       // Erster Klick visiert an, zweiter greift an. Wer schon anvisiert hat,
       // will beim nächsten Klick nicht dasselbe noch einmal — er will los.
       if (this.targetId === best.id) this.greifeAn(best.id);

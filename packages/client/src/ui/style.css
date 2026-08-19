@@ -2947,6 +2947,184 @@ body.aktion-zuweisen .window[data-window='skills'] {
   color: #8fd3e8;
 }
 
+/*
+ * Die private Nachricht — dieselbe Farbe wie die Freundesliste.
+ *
+ * Nicht in der Kanalreihe oben: sie hat keine Reichweite, sondern genau einen
+ * Empfänger. Violett, weil es die einzige Farbe ist, die im Chat sonst nicht
+ * vorkommt — man sieht auf einen Blick, dass diese Zeile nur einen angeht.
+ */
+.chat-line[data-channel='whisper'] {
+  color: #d2a8f0;
+}
+
+.chat-line[data-channel='whisper'] .who {
+  color: #d2a8f0;
+}
+
+/* --- Freundesliste --------------------------------------------------------
+ *
+ * Die Zeilen sind eine Liste und kein Raster: Name links, Stufe und Stand
+ * rechts. Auf dem Telefon bleibt dieselbe Anordnung — drei Angaben passen
+ * auch dort nebeneinander, und ein Umbruch machte aus einer Liste einen
+ * Block, in dem man die Zeilen nicht mehr auseinanderhält.
+ */
+.freunde-liste {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  /* Breit genug für Name, Stufe und Stand nebeneinander: schmaler schnitt der
+     Stand ab, und dann sah man den Punkt, aber nicht das Wort dazu. */
+  min-width: 15rem;
+  min-height: 6rem;
+  max-height: 18rem;
+  overflow-y: auto;
+}
+
+.freunde-leer {
+  margin: 0.6rem 0.2rem;
+  color: var(--ink-dim);
+  font-size: 0.82rem;
+}
+
+.freunde-zeile {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.freunde-zeile:hover {
+  background: rgb(0 0 0 / 12%);
+}
+
+/* Die Auswahl ist kräftig: an ihr hängen die Knöpfe darunter. */
+.freunde-zeile[data-gewaehlt='true'] {
+  background: rgb(0 0 0 / 22%);
+  outline: 1px solid var(--accent);
+}
+
+/* Der Punkt sagt dasselbe wie das Wort daneben — für alle, die Farben nicht
+   unterscheiden, steht „online" ausgeschrieben da. */
+.freunde-punkt {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: #6a6a6a;
+  flex: 0 0 auto;
+}
+
+.freunde-zeile[data-online='true'] .freunde-punkt {
+  background: #6fd47a;
+}
+
+.freunde-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.freunde-zeile[data-online='false'] .freunde-name {
+  color: var(--ink-dim);
+}
+
+.freunde-stufe,
+.freunde-stand {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  color: var(--ink-dim);
+}
+
+.freunde-leiste {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+.freunde-knopf {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.82rem;
+}
+
+.freunde-knopf:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.freunde-feld {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.freunde-hinweis {
+  margin: 0 0 0.5rem;
+  font-size: 0.78rem;
+  color: var(--ink-dim);
+}
+
+/* Das Kontextmenü an einer Zeile. Am Wirt, nicht im Fenster — sonst schnitte
+   der Rumpf es ab. */
+.freunde-menu {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  min-width: 11rem;
+  padding: 0.3rem;
+}
+
+.freunde-menu-kopf {
+  padding: 0.2rem 0.4rem 0.35rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.freunde-menu-eintrag {
+  padding: 0.35rem 0.4rem;
+  text-align: left;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.freunde-menu-eintrag:hover {
+  background: rgb(0 0 0 / 18%);
+}
+
+/*
+ * Die Ja-Nein-Frage.
+ *
+ * Oben in der Mitte und nicht am Rand: sie verlangt eine Antwort, und was man
+ * beantworten soll, gehört dorthin, wo man hinsieht. Tief genug, dass sie die
+ * Ansage der Spielleitung nicht verdeckt.
+ */
+.freund-anfrage {
+  position: fixed;
+  top: 22%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 45;
+  padding: 0.7rem 0.9rem;
+  text-align: center;
+}
+
+.freund-anfrage-text {
+  margin: 0 0 0.5rem;
+}
+
+.freund-anfrage-uhr {
+  font-size: 0.78rem;
+  color: var(--ink-dim);
+  margin-left: 0.3rem;
+}
+
 /* Die Zeile mit Kanalknopf und Eingabefeld. */
 .chat-zeile {
   display: flex;

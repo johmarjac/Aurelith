@@ -15,6 +15,7 @@ import { HOEHE_UNBEKANNT } from './types.ts';
 import type {
   AccountRecord,
   CharacterRecord,
+  FreundRecord,
   GameStore,
   ItemRecord,
   LoadedCharacter,
@@ -209,5 +210,55 @@ export class MemoryStore implements GameStore {
   async saveAktionen(characterId: number, plaetze: AktionsPlatz[]): Promise<void> {
     const figur = this.figuren.get(characterId);
     if (figur) figur.aktionen = normalisiereLeiste(plaetze);
+  }
+
+  /**
+   * Freundschaften — je Figur die Menge ihrer Freunde.
+   *
+   * Zwei Einträge je Freundschaft wie in der Datenbank, und aus demselben
+   * Grund: gefragt wird immer „wer sind meine Freunde", und die Antwort soll
+   * eine Nachschlagung sein und keine Suche. Gesetzt und gelöst wird beides
+   * nur hier, in einem Zug — halbe Freundschaften kann es damit nicht geben.
+   */
+  private readonly freunde = new Map<number, Set<number>>();
+
+  async findCharacterByName(name: string): Promise<FreundRecord | undefined> {
+    const gesucht = schluessel(name);
+    for (const f of this.figuren.values()) {
+      if (schluessel(f.character.name) === gesucht) {
+        return { id: f.character.id, name: f.character.name, level: f.character.level };
+      }
+    }
+    return undefined;
+  }
+
+  async listFriends(characterId: number): Promise<FreundRecord[]> {
+    const ids = this.freunde.get(characterId);
+    if (!ids) return [];
+    const zeilen: FreundRecord[] = [];
+    for (const id of ids) {
+      const f = this.figuren.get(id);
+      // Eine Figur, die es nicht mehr gibt, steht nicht in der Liste. In der
+      // Datenbank erledigt das der Fremdschlüssel; hier steht es ausdrücklich.
+      if (f) zeilen.push({ id, name: f.character.name, level: f.character.level });
+    }
+    return zeilen.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  }
+
+  async addFriend(a: number, b: number): Promise<void> {
+    if (a === b) return;
+    for (const [von, zu] of [
+      [a, b],
+      [b, a],
+    ] as const) {
+      const menge = this.freunde.get(von) ?? new Set<number>();
+      menge.add(zu);
+      this.freunde.set(von, menge);
+    }
+  }
+
+  async removeFriend(a: number, b: number): Promise<void> {
+    this.freunde.get(a)?.delete(b);
+    this.freunde.get(b)?.delete(a);
   }
 }

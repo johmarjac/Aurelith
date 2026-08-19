@@ -243,6 +243,7 @@ interface RawWorld {
   heightAt(x: number, z: number): number;
   slopeAt(x: number, z: number): number;
   begehbar(x: number, z: number): boolean;
+  imKampf(id: number): boolean;
   bodenUnter(x: number, z: number, vonY: number): number;
   sampleHeightGrid(
     originX: number,
@@ -584,6 +585,17 @@ export class CoreWorld {
    */
   begehbar(x: number, z: number): boolean {
     return this.raw.begehbar(x, z);
+  }
+
+  /**
+   * Steckt dieses Wesen in einem Kampf?
+   *
+   * Für eine Figur heisst das: irgendein Monster jagt sie. Die Regel steht im
+   * Kern und **nur** dort — der Server fragt sie, wenn er entscheidet, ob eine
+   * Freundschaftsanfrage gerade zumutbar ist.
+   */
+  imKampf(id: number): boolean {
+    return this.raw.imKampf(id);
   }
 
   /**

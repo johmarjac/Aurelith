@@ -27,6 +27,8 @@ import {
   decodeInventory,
   decodeKick,
   decodeMapChange,
+  decodeFreunde,
+  decodeFreundAnfrage,
   decodeNpcDialog,
   decodePong,
   decodeQuestLog,
@@ -51,6 +53,7 @@ import {
   encodePing,
   encodeRespawn,
   encodeEquipItem,
+  encodeFreund,
   encodeInteract,
   encodeLogin,
   encodeDestroyItem,
@@ -78,6 +81,7 @@ import {
   type InventoryRow,
   type LobbyMsg,
   type MapChangeMsg,
+  type FreundZeile,
   type NpcDialogMsg,
   type QuestLogRow,
   type RealmsMsg,
@@ -100,6 +104,10 @@ export interface ConnectionHandlers {
   onInventory?: (rows: InventoryRow[]) => void;
   onNpcDialog?: (msg: NpcDialogMsg) => void;
   onQuestLog?: (rows: QuestLogRow[]) => void;
+  /** Die vollständige Freundesliste — sortiert, wie der Server sie schickt. */
+  onFreunde?: (zeilen: FreundZeile[]) => void;
+  /** Jemand möchte befreundet sein. Die Frist gehört dem Server. */
+  onFreundAnfrage?: (msg: { vonName: string; fristMs: number }) => void;
   onKick?: (reason: number, message: string) => void;
   /** Antwort auf `sendVersionRequest`. */
   onVersion?: (stamp: BuildStamp) => void;
@@ -363,6 +371,12 @@ export class Connection {
         case ServerOp.QuestLog:
           this.handlers.onQuestLog?.(decodeQuestLog(reader));
           break;
+        case ServerOp.Freunde:
+          this.handlers.onFreunde?.(decodeFreunde(reader));
+          break;
+        case ServerOp.FreundAnfrage:
+          this.handlers.onFreundAnfrage?.(decodeFreundAnfrage(reader));
+          break;
         case ServerOp.Pong: {
           const { clientTime } = decodePong(reader);
           const rtt = performance.now() - clientTime;
@@ -521,6 +535,18 @@ export class Connection {
 
   sendInteract(entityId: number): void {
     this.send(encodeInteract(entityId));
+    this.flush();
+  }
+
+  /**
+   * Etwas mit der Freundesliste tun — `aktion` ist eine `FreundAktion`.
+   *
+   * Sofort raus (`flush`): das hier ist ein Knopfdruck und keine Eingabe, die
+   * mit dem nächsten Tick mitfährt. Wer auf „Anfragen" drückt und erst beim
+   * nächsten Schritt etwas hört, drückt noch einmal.
+   */
+  sendFreund(aktion: number, name: string): void {
+    this.send(encodeFreund(aktion, name));
     this.flush();
   }
 

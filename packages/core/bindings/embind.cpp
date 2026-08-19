@@ -243,6 +243,7 @@ EMSCRIPTEN_BINDINGS(aurelith_core) {
       .function("heightAt", &aur::World::heightAt)
       .function("slopeAt", &aur::World::slopeAt)
       .function("begehbar", &aur::World::begehbar)
+      .function("imKampf", &aur::World::imKampf)
       .function("bodenUnter", &aur::World::bodenUnter)
       .function("sampleHeightGrid", &sampleHeightGrid);
 

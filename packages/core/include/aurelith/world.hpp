@@ -327,6 +327,26 @@ class World {
   void sampleHeightGrid(float originX, float originZ, float step, int countX, int countZ,
                         float* out) const;
 
+  /**
+   * Steckt dieses Wesen gerade in einem Kampf?
+   *
+   * Über die Brücke, damit der Server dieselbe Antwort bekommt wie der Kern.
+   * Er braucht sie für die Freundschaftsanfrage: wer gerade angegriffen wird,
+   * soll keine Ja-Nein-Frage über den Bildschirm gelegt bekommen.
+   *
+   * Die Regel selbst steht bei `inCombat` in `step.cpp` und **nur** dort. Sie
+   * im Server nachzubauen — „irgendein Monster zielt auf mich" — wäre dieselbe
+   * Aussage an zwei Stellen, und die zweite wäre nach der nächsten Änderung
+   * die falsche.
+   *
+   * Ein Wesen, das es nicht gibt, ist nicht im Kampf. Das ist keine Auskunft
+   * über die Welt, sondern die einzige, die sich geben lässt.
+   */
+  bool imKampf(uint32_t id) const {
+    const Entity* e = find(id);
+    return e != nullptr && inCombat(*e);
+  }
+
   const TerrainDef& terrain() const { return terrain_; }
   Rng& rng() { return rng_; }
 

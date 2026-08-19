@@ -254,6 +254,7 @@ npm run test:karten      # Eintrittskarten: Frist, Lebenszeichen, Wiedereinstieg
 npm run test:karte       # Lichtmoor: Rechteck, dichter Rand, Stufen nach Norden
 npm run test:vorgang     # Aufsteigen dauert, und eine Absage kostet keine Abklingzeit
 npm run test:hoehe       # wer oben abmeldet, erscheint oben wieder
+npm run test:freunde     # Freundschaften: anfragen, ablehnen, annehmen, lösen, /pm
 npm run test:haustier    # Begleiter: Sorten, Leine, Werte
 npm run test:loot-ui     # Beute im Bild: Schild, Antippen, Aufheben
 npm run test:skills      # Fertigkeitenbaum: Taste, Beruf, Zug auf die Leiste, Sperre im Flug
@@ -262,6 +263,7 @@ npm run test:prediction  # springt die eigene Figur beim Laufen zurück?
 npm run test:portal      # Tore: hineinlaufen, stehen, F drücken, zurück
 npm run test:flug        # Fliegen: aufsteigen, Schub, Nase, anhalten, absteigen
 npm run test:umriss      # steht der schwarze Strich um die Figur — und nur dort?
+npm run test:freunde-ui  # Freundefenster im Browser: E, Anfrage, Liste, Kontextmenü
 npm run test:background  # überlebt die Verbindung einen Tab im Hintergrund?
 npm run test:editor      # Editor: Werkzeuge, Pinsel, Tore, Speichern
 npm run test:pages       # der Pages-Bau unter einem Unterpfad, samt Modellschau
