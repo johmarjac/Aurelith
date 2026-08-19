@@ -624,6 +624,11 @@ export class Game {
       this.quality.lanternLights,
     );
     this.scene.scene.add(this.view.root);
+    // Und der Szene sagen, wo die Wesen hängen: der Umriss zeichnet genau
+    // diesen Ast ein zweites Mal. Hier und nicht in der Weltansicht, weil hier
+    // beide Seiten zusammenkommen — die Ansicht weiss, was ein Wesen ist, die
+    // Szene weiss, wie man zeichnet.
+    this.scene.setzeUmrissQuelle(this.view.wesen);
     // Die Funken zeichnen wir selbst — der erste Pass ohne three.js. Er läuft
     // nach der Szene, im selben Kontext und gegen denselben Tiefenpuffer.
     this.scene.fuegePassHinzu((gfx, sicht, projektion) => {
@@ -820,18 +825,19 @@ export class Game {
     };
 
     /*
-     * Die Grafikeinstellungen wirken sofort — bis auf den Umriss.
+     * Die Grafikeinstellungen wirken sofort — alle drei.
      *
-     * Sichtweite und Schatten sind Schalter am Zeichner: der nächste Rahmen
-     * sieht anders aus. Der Umriss hängt an den Netzen der Figuren, und die
-     * mitten in einer Animation umzubauen wäre Aufwand für zwei Sekunden
-     * Ungeduld — er gilt ab der nächsten Figur, und das sagt der Text daneben.
+     * Sichtweite, Schatten und Umriss sind Schalter am Zeichner: der nächste
+     * Rahmen sieht anders aus. Beim Umriss war das nicht immer so — solange er
+     * als umgestülpte Hülle an jedem Netz hing, galt ein Häkchen erst für die
+     * nächste Figur, die erschien. Seit er aus dem fertigen Bild entsteht,
+     * gibt es nichts mehr umzubauen.
      */
     const grafikAnwenden = (werte: GrafikEinstellungen): void => {
       this.view.setzeSichtweite(werte.sichtweite);
       this.view.pruefeSicht(this.scene.camera.position.x, this.scene.camera.position.z, true);
       this.scene.setzeSchatten(werte.schatten);
-      this.registry.setzeUmriss(werte.umriss);
+      this.scene.setzeUmriss(werte.umriss);
     };
     this.ui.onGrafikChange = grafikAnwenden;
     // Und einmal beim Start: was im Speicher des Browsers steht, gilt ab dem

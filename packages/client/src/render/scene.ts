@@ -52,6 +52,7 @@ function clamp(v: number, lo: number, hi: number): number {
 }
 
 import { SkyBodies } from './skyBodies.ts';
+import { Umriss } from './umriss.ts';
 
 export class Scene3D {
   readonly renderer: THREE.WebGLRenderer;
@@ -296,6 +297,48 @@ export class Scene3D {
     });
   }
 
+  /**
+   * Der Ast mit den Wesen — die Vorlage für den Umriss.
+   *
+   * Von aussen gesetzt und nicht hier gebaut: die Szene weiss, wie man
+   * zeichnet, und die Weltansicht weiss, was ein Wesen ist. Ohne Vorlage
+   * bleibt der Umriss aus, und das ist der richtige Zustand für jeden Moment,
+   * in dem noch keine Welt steht.
+   */
+  private umrissQuelle?: THREE.Scene;
+  private umriss?: Umriss;
+
+  setzeUmrissQuelle(wesen: THREE.Scene | undefined): void {
+    this.umrissQuelle = wesen;
+  }
+
+  /**
+   * Schaltet den schwarzen Strich um Figuren und Wesen.
+   *
+   * Wirkt im nächsten Bild: der Strich hängt an keinem Netz, sondern entsteht
+   * in zwei Durchgängen aus dem fertigen Bild. Genau deshalb wurde er von der
+   * umgestülpten Hülle darauf umgestellt — siehe `umriss.ts`.
+   *
+   * Das Ziel entsteht erst beim Einschalten. Wer den Strich nie anmacht,
+   * bezahlt keinen Bildpunkt Speicher dafür.
+   */
+  setzeUmriss(an: boolean): void {
+    if (an && !this.umriss) {
+      this.umriss = new Umriss();
+      this.passeUmrissGroesseAn();
+    } else if (!an && this.umriss) {
+      this.umriss.dispose();
+      this.umriss = undefined;
+    }
+  }
+
+  private passeUmrissGroesseAn(): void {
+    if (!this.umriss) return;
+    const breite = this.canvas.clientWidth || window.innerWidth;
+    const hoehe = this.canvas.clientHeight || window.innerHeight;
+    this.umriss.setzeGroesse(breite, hoehe, this.renderer.getPixelRatio());
+  }
+
   setQuality(quality: QualitySettings): void {
     this.quality = quality;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.maxPixelRatio));
@@ -460,6 +503,10 @@ export class Scene3D {
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / Math.max(1, height);
     this.camera.updateProjectionMatrix();
+    // Das Ziel des Umrisses hat dieselbe Grösse wie das Bild. Bliebe es
+    // stehen, läge jeder Strich nach dem Drehen des Telefons um den Unterschied
+    // daneben — und zwar weiter aussen, je grösser der Unterschied.
+    this.passeUmrissGroesseAn();
   }
 
   /**
@@ -478,7 +525,19 @@ export class Scene3D {
   }
 
   render(): void {
+    /*
+     * Die Maske **vor** dem Bild, die Striche **danach**.
+     *
+     * Vorher, weil der erste Durchgang in ein eigenes Ziel geht und das Bild
+     * dabei nicht anfassen darf. Danach, weil der zweite Durchgang gegen den
+     * Tiefenpuffer des fertigen Bildes läuft — daher kommt die Verdeckung.
+     */
+    const umriss = this.umriss;
+    const wesen = this.umrissQuelle;
+    if (umriss && wesen) umriss.zeichneMaske(this.renderer, wesen, this.camera);
     this.renderer.render(this.scene, this.camera);
+    if (umriss && wesen) umriss.zeichneLinien(this.renderer);
+
     if (this.paesse.length === 0) return;
 
     // Der Zustandsspeicher beider Seiten weiss nichts vom jeweils anderen:
@@ -495,6 +554,7 @@ export class Scene3D {
 
   dispose(): void {
     this.bodies.dispose();
+    this.umriss?.dispose();
 
     this.skyGeometry.dispose();
     this.skyMaterial.dispose();

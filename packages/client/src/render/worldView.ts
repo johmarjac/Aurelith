@@ -299,6 +299,28 @@ export function rigLage(flug: string, tot: boolean): 'flug' | 'gerade' | 'rig' {
 
 export class WorldView {
   readonly root = new THREE.Group();
+  /**
+   * Alles, was lebt — Figuren, Monster, NPCs, Begleiter.
+   *
+   * Ein eigener Ast und nicht alles nebeneinander unter `root`: der Umriss
+   * zeichnet die Wesen ein zweites Mal in ein eigenes Ziel, und er braucht
+   * dafür **eine** Sache, die er zeichnen kann. Eine Liste von Rigs, die er
+   * sich selbst zusammensucht, wäre eine zweite Buchführung neben `entities`
+   * — und Waffe, Fluggerät und Aura hängen ohnehin schon unter dem Rig, also
+   * kommen sie hier von selbst mit.
+   *
+   * Eine `Scene` und keine `Group`: der Umriss setzt für seinen Durchgang ein
+   * `overrideMaterial`, und das gibt es nur an einer Szene. Verschachtelt
+   * gezeichnet verhält sie sich wie jede andere Gruppe; ihr eigener Nebel und
+   * Hintergrund bleiben leer und gelten nur, wenn sie allein gezeichnet wird —
+   * genau dann, wenn der Umriss sie zeichnet, und dort ist beides erwünscht.
+   *
+   * Ohne Verschiebung: `root` steht im Ursprung, und diese Szene auch. Der
+   * Umriss zeichnet sie für sich, und dabei kennt three.js ihr Elternteil
+   * nicht — stünde hier eine Verschiebung, säße der Strich woanders als die
+   * Figur.
+   */
+  readonly wesen = new THREE.Scene();
   readonly entities = new Map<number, EntityVisual>();
 
   private terrain?: TerrainMesh;
@@ -386,6 +408,9 @@ export class WorldView {
     this.loot = new LootView(registry.material);
     this.root.add(this.loot.root);
     this.root.add(this.laufmarke.root);
+    // Der Ast mit den Wesen. Bleibt über Kartenwechsel hinweg bestehen — was
+    // darunter hängt, räumt `clear` weg, der Ast selbst nicht.
+    this.root.add(this.wesen);
   }
 
   get mapId(): string {
@@ -691,7 +716,7 @@ export class WorldView {
     const rig = this.registry.createRig(key, row.weapon, row.outfit);
     rig.root.position.set(row.x, row.y, row.z);
     rig.root.rotation.y = row.yaw;
-    this.root.add(rig.root);
+    this.wesen.add(rig.root);
 
     const visual: EntityVisual = {
       id: row.id,
@@ -805,7 +830,7 @@ export class WorldView {
    * grober als nötig, aber es passiert selten und hält den Aufbau einfach.
    */
   private replaceRig(visual: EntityVisual, row: SpawnRow): void {
-    this.root.remove(visual.rig.root);
+    this.wesen.remove(visual.rig.root);
     this.registry.releaseRig(visual.rig);
     visual.aura?.dispose();
     visual.aura = undefined;
@@ -816,7 +841,7 @@ export class WorldView {
     const rig = this.registry.createRig(modelKeyFor(row.type, row.defId), row.weapon, row.outfit);
     rig.root.position.set(visual.x, visual.y, visual.z);
     rig.root.rotation.y = visual.yaw;
-    this.root.add(rig.root);
+    this.wesen.add(rig.root);
 
     visual.flugMesh = undefined;
     if (row.flug !== '') this.setzeFluggeraet(visual, row.flug);
@@ -878,7 +903,7 @@ export class WorldView {
   despawn(id: number): void {
     const e = this.entities.get(id);
     if (!e) return;
-    this.root.remove(e.rig.root);
+    this.wesen.remove(e.rig.root);
     this.registry.releaseRig(e.rig);
     e.aura?.dispose();
     e.satzAura?.dispose();
@@ -1352,7 +1377,7 @@ export class WorldView {
     this.flugspur.reset();
 
     for (const e of this.entities.values()) {
-      this.root.remove(e.rig.root);
+      this.wesen.remove(e.rig.root);
       this.registry.releaseRig(e.rig);
     e.rig.dispose();
     }
@@ -1371,7 +1396,7 @@ export class WorldView {
     this.loot.clear();
 
     for (const e of this.entities.values()) {
-      this.root.remove(e.rig.root);
+      this.wesen.remove(e.rig.root);
       this.registry.releaseRig(e.rig);
       e.aura?.dispose();
       e.rig.dispose();

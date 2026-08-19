@@ -191,6 +191,18 @@ export class WeaponAura {
   private level = 0;
 
   constructor(span: WeaponSpan) {
+    /*
+     * Kein Umriss um den Schein.
+     *
+     * Der Umriss zeichnet die Wesen ein zweites Mal mit einem Normalenmaterial,
+     * und dabei zählt allein die Form: aus einer durchsichtigen Scheibe wird
+     * eine undurchsichtige, und um den Schein läge ein schwarzer Ring.
+     *
+     * Über `userData` und nicht über eine Zeichenebene: eine Ebene versteckte
+     * den Schein auch vor jeder anderen Kamera, und die Puppe im Inventar hat
+     * eine eigene. Ein Merkmal am Objekt fragt nur, wer danach fragt.
+     */
+    this.object.userData.keinUmriss = true;
     const laenge = Math.max(0.3, span.length);
     const unten = span.bottom;
     // Eng an der Klinge. Der erste Anlauf lag bei einem Zehntel der Länge, und

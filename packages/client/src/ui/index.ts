@@ -1472,8 +1472,9 @@ export class UI {
       el(
         'p',
         'settings-note',
-        'Der schwarze Strich um Figuren und Wesen. Er gilt ab der nächsten ' +
-          'Figur, die erscheint — wer sofort etwas sehen will, wechselt die Karte.',
+        'Der schwarze Strich um Figuren und Wesen — auch an den Kanten ' +
+          'innen, wo ein Arm vor dem Bauch liegt. Kostet einen zusätzlichen ' +
+          'Durchgang über die Wesen im Bild.',
       ),
     );
 

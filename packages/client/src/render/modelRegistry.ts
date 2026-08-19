@@ -35,7 +35,6 @@ import {
   type WeaponKey,
 } from './rigs.ts';
 import { disposeModel, loadModel } from './gltf.ts';
-import { baueUmriss } from './umriss.ts';
 
 /** Woher die Bytes eines Modells kommen. Im Client der Streamer. */
 export type ByteSource = (path: string) => Promise<ArrayBuffer>;
@@ -58,9 +57,6 @@ export class ModelRegistry {
 
   /** Und eines für Fels. Ebenso erst beim ersten Stein angelegt. */
   private felsMaterial?: THREE.MeshLambertMaterial;
-
-  /** Bekommen frische Figuren einen schwarzen Rand? Siehe `setzeUmriss`. */
-  private umrissAn = true;
 
   /**
    * Womit dieses Prop gezeichnet wird.
@@ -180,39 +176,7 @@ export class ModelRegistry {
       this.armedRigs.add(rig);
     }
 
-    /*
-     * Der schwarze Umriss — hier und nicht in `rigs.ts`.
-     *
-     * Dort steht, wie ein Wesen gebaut ist; der Rand ist kein Körperteil,
-     * sondern eine Frage der Darstellung, und er soll für **jedes** Rig
-     * gelten, ohne dass ihn zehn Baufunktionen einzeln anhängen. Eine Stelle,
-     * und die neunte Figur bekommt ihn geschenkt.
-     *
-     * `dispose` wird umschlossen statt ersetzt: die Hülle bringt eigene
-     * Geometrien mit, und die gehören freigegeben, wenn die Figur verschwindet.
-     * Ohne das sammelt eine volle Wiese über eine Stunde Spiel ein paar
-     * hundert verwaiste Puffer auf der Grafikkarte an.
-     */
-    if (this.umrissAn) {
-      const huellen = baueUmriss(rig.root);
-      const vorher = rig.dispose.bind(rig);
-      rig.dispose = () => {
-        for (const geo of huellen) geo.dispose();
-        vorher();
-      };
-    }
     return rig;
-  }
-
-  /**
-   * Schaltet den Umriss für **neue** Figuren.
-   *
-   * Bestehende behalten ihren Stand: eine Figur nachträglich umzubauen hiesse,
-   * mitten in einer Animation ihre Netze umzuhängen, und der Gewinn wäre, dass
-   * ein Häkchen zwei Sekunden früher wirkt.
-   */
-  setzeUmriss(an: boolean): void {
-    this.umrissAn = an;
   }
 
   /** Welche Waffenmodelle bereits geladen sind. Für Prüfungen von aussen. */

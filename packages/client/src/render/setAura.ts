@@ -159,6 +159,18 @@ export class SetAura {
    * @param radius Halber Abstand der Silhouette von der Mitte.
    */
   constructor(hoehe: number, radius = 0.42) {
+    /*
+     * Kein Umriss um den Schein.
+     *
+     * Der Umriss zeichnet die Wesen ein zweites Mal mit einem Normalenmaterial,
+     * und dabei zählt allein die Form: aus einer durchsichtigen Scheibe wird
+     * eine undurchsichtige, und um den Schein läge ein schwarzer Ring.
+     *
+     * Über `userData` und nicht über eine Zeichenebene: eine Ebene versteckte
+     * den Schein auch vor jeder anderen Kamera, und die Puppe im Inventar hat
+     * eine eigene. Ein Merkmal am Objekt fragt nur, wer danach fragt.
+     */
+    this.object.userData.keinUmriss = true;
     const h = Math.max(0.4, hoehe);
     const r = Math.max(0.15, radius);
 
