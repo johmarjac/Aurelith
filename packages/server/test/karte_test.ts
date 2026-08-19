@@ -27,8 +27,11 @@ import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  decodePaintField,
   decodeSculptField,
   parseMapDocument,
+  MAX_GROUND_LAYERS,
+  sampleField,
   SCULPT_UNIT,
   standardKollision,
   type MapDocument,
@@ -699,6 +702,96 @@ check(
   traegt(doc.spawn.x, doc.spawn.z),
   'und der Startpunkt trägt',
   `${startHoehe.toFixed(1)} m, ${grad(neigungAn(doc.spawn.x, doc.spawn.z)).toFixed(0)}°`,
+);
+
+/*
+ * --- Der Weg liegt im Boden ------------------------------------------------
+ *
+ * Die Laternen standen schon immer an einer Linie, aber darunter war Wiese wie
+ * überall: eine Reihe Lichter über Gras, und wo der Weg langgeht, sah man erst
+ * an der nächsten Laterne. Die Bodentexturen entscheiden nach **Neigung** —
+ * Erde ab vierundzwanzig Grad —, und ein Weg ist flach. Deshalb ist er
+ * gemalt, und deshalb steht hier, dass er es ist.
+ */
+console.log('\nDer Weg liegt im Boden');
+
+const malfeld = decodePaintField(doc.terrain.paint);
+check(malfeld !== undefined, 'die Karte bringt ein Malfeld mit');
+const malWerte = malfeld ?? new Uint8Array(0);
+const malAufloesung = doc.terrain.paint?.resolution ?? 0;
+/** Der Index der Erdebene — aus der Ebenenliste und nicht abgezählt. */
+const erdeEbene = doc.terrain.layers.findIndex((l) => l.id === 'erde');
+const grasEbene = doc.terrain.layers.findIndex((l) => l.id === 'gras');
+check(erdeEbene >= 0 && grasEbene >= 0, 'die Karte kennt Gras und Erde', `${grasEbene} / ${erdeEbene}`);
+
+/** Die gemalten Gewichte an einer Stelle, 0 bis 255. */
+const gemalt = (x: number, z: number): number[] => {
+  const werteHier: number[] = [0, 0, 0, 0];
+  if (malAufloesung >= 2) {
+    sampleField(malWerte, malAufloesung, doc.terrain.size, x, z, MAX_GROUND_LAYERS, werteHier);
+  }
+  return werteHier;
+};
+
+/*
+ * Auf der Strasse: Erde, und zwar überwiegend — von der Stadt bis zum Tor.
+ * Zehn Stellen über zwölfhundert Meter; eine einzelne sagte nur, dass
+ * irgendwo ein Fleck liegt.
+ */
+let aufDemWeg = 0;
+let schwaechste = 255;
+for (let i = 0; i <= 10; i++) {
+  const z = doc.spawn.z + ((tor.position[1] - doc.spawn.z) * i) / 10;
+  const w = gemalt(0, z);
+  if (w[erdeEbene]! > w[grasEbene]!) aufDemWeg++;
+  schwaechste = Math.min(schwaechste, w[erdeEbene]!);
+}
+check(
+  aufDemWeg === 11,
+  'auf der ganzen Strecke liegt Erde statt Gras',
+  `${aufDemWeg} von 11 Stellen, schwächste ${schwaechste}`,
+);
+
+/*
+ * Gegenprobe, und ohne sie wäre die Zeile darüber wertlos: **daneben** ist
+ * nichts gemalt. Ein Malfeld, das überall Erde sagt, machte aus der Insel
+ * einen Acker — und die Prüfung oben wäre trotzdem grün.
+ */
+let danebenGemalt = 0;
+for (let i = 0; i <= 10; i++) {
+  const z = doc.spawn.z + ((tor.position[1] - doc.spawn.z) * i) / 10;
+  for (const x of [-40, 40, -200, 200]) {
+    const w = gemalt(x, z);
+    if (w.reduce((a, b) => a + b, 0) > 0) danebenGemalt++;
+  }
+}
+check(danebenGemalt === 0, 'vierzig Meter daneben ist nichts gemalt', `${danebenGemalt} von 44 Stellen`);
+
+// Und der Weg hört auf, wo er aufhört: hinter der Stadt und jenseits des Tores
+// führt keiner weiter.
+const hinterDerStadt = gemalt(0, laengsachse.von + 60).reduce((a, b) => a + b, 0);
+const hinterDemTor = gemalt(0, tor.position[1] + 40).reduce((a, b) => a + b, 0);
+check(
+  hinterDerStadt === 0 && hinterDemTor === 0,
+  'und südlich der Stadt wie nördlich des Tores hört er auf',
+  `${hinterDerStadt} / ${hinterDemTor}`,
+);
+
+/*
+ * Und er bleibt ein Weg: gemalt ist ein schmales Band, keine Fläche. Über die
+ * ganze Karte gerechnet dürfen es nicht mehr als zwei Prozent sein.
+ */
+let gemalteStuetzpunkte = 0;
+for (let i = 0; i < malAufloesung * malAufloesung; i++) {
+  let summe = 0;
+  for (let l = 0; l < MAX_GROUND_LAYERS; l++) summe += malWerte[i * MAX_GROUND_LAYERS + l]!;
+  if (summe > 0) gemalteStuetzpunkte++;
+}
+const anteilGemalt = gemalteStuetzpunkte / (malAufloesung * malAufloesung);
+check(
+  anteilGemalt > 0.002 && anteilGemalt < 0.02,
+  'gemalt ist ein Band und keine Fläche',
+  `${(anteilGemalt * 100).toFixed(1)} % der Stützpunkte`,
 );
 
 console.log('\nJedes Prop steht so im Weg, wie die Tabelle es sagt');

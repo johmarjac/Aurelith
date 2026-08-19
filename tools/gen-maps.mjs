@@ -18,7 +18,13 @@ import { fileURLToPath } from 'node:url';
 // nachgebaut: die Schrittweite (`SCULPT_UNIT`) ist dieselbe Zahl, die der Kern
 // beim Lesen benutzt, und eine zweite Fassung davon liefe beim ersten Drehen
 // daran auseinander. Deshalb läuft dieses Werkzeug über `tsx`.
-import { encodeSculptField, SCULPT_UNIT, standardKollision } from '@aurelith/shared';
+import {
+  encodePaintField,
+  encodeSculptField,
+  MAX_GROUND_LAYERS,
+  SCULPT_UNIT,
+  standardKollision,
+} from '@aurelith/shared';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = join(root, 'assets', 'maps');
@@ -200,6 +206,41 @@ function baueSculpt(size, fn, { schrittweite = 2 } = {}) {
     }
   }
   return encodeSculptField(werte, resolution);
+}
+
+/**
+ * Baut ein Malfeld aus einer Funktion.
+ *
+ * Die Funktion bekommt Weltkoordinaten und liefert je Bodenebene ein Gewicht
+ * von 0 bis 1 — oder nichts, wo nicht gemalt werden soll. Der Unterschied ist
+ * der Punkt: ein Stützpunkt mit lauter Nullen heisst „hier hat niemand
+ * gemalt", und dort entscheiden weiter die Regeln aus Neigung und Höhe. Nur
+ * wo etwas steht, treten sie zurück (siehe `buildTerrain`).
+ *
+ * Sechs Meter Schrittweite: das Geländenetz selbst hat vier bis acht, und ein
+ * feineres Malfeld könnte man gar nicht sehen — die Splatgewichte sitzen an
+ * den Vertizes des Netzes. Feiner wäre nur teurer: das Feld trägt vier Bytes
+ * je Stützpunkt, bei drei Metern wären das anderthalb Megabyte für einen Weg.
+ */
+function baueMalfeld(size, fn, { schrittweite = 6 } = {}) {
+  const resolution = Math.max(2, Math.round(size / schrittweite) + 1);
+  const werte = new Uint8Array(resolution * resolution * MAX_GROUND_LAYERS);
+  const half = size * 0.5;
+  const schritt = size / (resolution - 1);
+
+  for (let iz = 0; iz < resolution; iz++) {
+    const z = -half + iz * schritt;
+    for (let ix = 0; ix < resolution; ix++) {
+      const x = -half + ix * schritt;
+      const gewichte = fn(x, z);
+      if (!gewichte) continue;
+      const basis = (iz * resolution + ix) * MAX_GROUND_LAYERS;
+      for (let l = 0; l < MAX_GROUND_LAYERS; l++) {
+        werte[basis + l] = Math.max(0, Math.min(255, Math.round((gewichte[l] ?? 0) * 255)));
+      }
+    }
+  }
+  return encodePaintField(werte, resolution);
 }
 
 // --------------------------------------------------------------------------
@@ -386,20 +427,24 @@ function groundLayers(waterLevel, { grassTint = 0xffffff, dirtTint = 0xffffff, s
 // --------------------------------------------------------------------------
 // Lichtmoor — die Heimatkarte. Hauptstadt im Süden, Stufengebiete nach Norden.
 //
-// Die Karte ist **rechteckig**, obwohl das Gelände quadratisch ist: begehbar
-// ist ein Streifen von 200 auf 375 Einheiten, alles darum herum ist Gebirge
-// und durch Sperrzonen dicht. Damit sieht man nie einen Kartenrand, sondern
-// immer einen Horizont aus Bergen — und der Weg führt in genau eine Richtung,
-// nach Norden, wo die Monster mit jedem Abschnitt eine Stufe höher stehen.
+// Die Karte ist eine **Insel** in einem quadratischen Gelände: begehbar sind
+// zwölfhundert auf achtzehnhundertvierzig Einheiten, rundherum fällt das Land
+// über eine Klippe ins Meer, und weit draussen über dem Wasser stehen die
+// Sperrzonen. Damit sieht man nie einen Kartenrand, sondern einen Horizont —
+// und der Weg führt in genau eine Richtung, nach Norden, wo die Monster mit
+// jedem Abschnitt eine Stufe höher stehen.
 //
-// Der Aufbau von unten nach oben:
+// Der Aufbau von unten nach oben (die Zonentabelle `LM_ZONEN` sagt dasselbe
+// noch einmal in Zahlen, und sie ist die Quelle — hier steht der Überblick):
 //
-//   z −170 … −72   Silberfurt, die Hauptstadt. Mauer, Markt, alle Hauptquests.
-//   z  −72 …  −10  Stufe 1–3. Irrlichter auf der Wiese.
-//   z  −10 …   60  Stufe 4–7. Grabwelpen in den Gruben.
-//   z   60 …  120  Stufe 8–11. Distelkeiler am Fluss.
-//   z  120 …  170  Stufe 12–15. Banditen im Geröll.
-//   z  170 …  204  Stufe 16–20. Höhlenkriecher und Gruftwärter vor dem Tor.
+//   z −880 … −440  Silberfurt bei −488, die Hauptstadt. Mauer, Markt,
+//                  alle Hauptquests. Dahinter die ersten Irrlichter.
+//   z −440 …  −80  Stufe 1–3. Die Weiden vor der Stadt.
+//   z  −80 …  220  Stufe 4–7. Grabwelpen in den Gruben.
+//   z  220 …  500  Stufe 8–11. Distelkeiler an den Uferwiesen.
+//   z  500 …  720  Stufe 12–15. Banditen im Geröllfeld.
+//   z  720 …  960  Stufe 16–20. Höhlenkriecher und Gruftwärter im Dornsaum,
+//                  das Tor nach Dornwald bei 784.
 //
 // Quer durch alles fliesst die Silberader. Ihre Ufer sind zu steil zum
 // Begehen — das ist Absicht: der Fluss teilt die Wiese, und die Brücke ist
@@ -957,6 +1002,43 @@ const LM_ZONEN = [
  * das eine, das man übersieht, steht danach im Nichts.
  */
 const LM_TOR = 784;
+
+/**
+ * Wo der Weg den Boden freigelegt hat — 0 heisst Wiese, 1 heisst nackte Erde.
+ *
+ * Die Laternen stehen seit jeher an einer Linie, aber der Boden darunter war
+ * Gras wie überall: eine Reihe Lichter über einer Wiese, und **wo der Weg
+ * langgeht**, sah man erst, wenn man die nächste Laterne fand. Die
+ * Bodentexturen entscheiden sonst nach Neigung — Erde ab vierundzwanzig Grad
+ * —, und ein Weg ist flach. Etwas, das eine Absicht hat und keine Neigung,
+ * muss deshalb **gemalt** werden.
+ *
+ * Er beginnt am Marktplatz, läuft durch das Stadttor und endet am Bannkreis
+ * im Norden. An beiden Enden blendet er über zwanzig Meter aus: ein Weg, der
+ * mit einer Kante aufhört, sieht aus wie ein abgeschnittenes Band.
+ *
+ * Die Breite atmet — zwischen gut vier und sieben Metern —, denn ein Pfad mit
+ * überall demselben Abstand zur Mitte ist kein Pfad, sondern ein Lineal.
+ */
+function lichtmoorWeg(x, z) {
+  const von = LM.stadtZ - 14;
+  /*
+   * Sechzehn Meter **über** das Tor hinaus, nicht bis dorthin.
+   *
+   * Das Ausblenden über zwanzig Meter fängt sonst schon vor dem Bannkreis an,
+   * und der Weg wäre genau dort am schwächsten, wo jeder steht: im Tor. So
+   * liegt am Kreis noch volle Erde, und was verblasst, liegt dahinter.
+   */
+  const bis = LM_TOR + 16;
+  if (z < von || z > bis) return 0;
+  const enden = Math.min(1, (z - von) / 20, (bis - z) / 20);
+  const halb = 5.4 + Math.sin(z * 0.05) * 0.7 + Math.sin(z * 0.013) * 1.1;
+  // Aussen über vier Meter auslaufen: dort mischt sich Gras dazu, und der
+  // Rand liest sich als ausgetreten statt als geschnitten.
+  const quer = 1 - glatt((Math.abs(x) - halb) / 4);
+  return Math.max(0, Math.min(1, quer * enden));
+}
+
 const LM_LAGER = {
   kraeuter: -184,
   hirte: 56,
@@ -1940,6 +2022,20 @@ function lichtmoor() {
        * beides eine Rampe, und der Fluss keine Grenze mehr.
        */
       sculpt: baueSculpt(size, lichtmoorHoehe, { schrittweite: 3 }),
+      /*
+       * Der Weg als gemalte Erde.
+       *
+       * Gemalt wird **beides** — Erde und Gras —, nicht nur die Erde: wo
+       * etwas gemalt ist, treten die Regeln aus Neigung und Höhe ganz zurück.
+       * Stünde am Rand nur eine halbe Portion Erde, läge dort ein halb
+       * durchsichtiger Streifen statt einer Wiese. So geht der Rand in reines
+       * Gras über, und das ist genau das, was die Regel daneben ohnehin sagt:
+       * die Naht ist unsichtbar.
+       */
+      paint: baueMalfeld(size, (x, z) => {
+        const weg = lichtmoorWeg(x, z);
+        return weg > 0.02 ? [1 - weg, weg, 0, 0] : undefined;
+      }),
     },
     spawn: { x: 0, z: cz + 16, yaw: 0 },
     props,

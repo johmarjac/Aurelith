@@ -84,6 +84,11 @@ bewussten Abweichung, die weiter unten begründet ist.
   zerfallen. Am Weg steht der Bewuchs dicht wie bisher, auf den Flanken
   jenseits von dreihundert Metern halb so dicht — draussen soll es weiter
   wirken, nicht voller.
+- **Der Weg ist ein Weg**: von Silberfurts Marktplatz durch das Stadttor bis
+  zum Bannkreis im Norden liegt Erde statt Gras — gemalt im Kartendokument, mit
+  atmender Breite und weichem Rand. Die Bodentexturen wählen sonst nach
+  Neigung, und ein Weg ist flach: eine Reihe Laternen über einer Wiese sagte
+  nur, wo Laternen stehen.
 - **Fünf Zonen**, und man sieht sie: Silberfurter Weiden, Die Gruben, Die
   Uferwiesen, Das Geröllfeld, Der Dornsaum. Jede hat ihren eigenen Bewuchs
   (Blüten nur im Süden, Heidekraut nur im Norden), ihre eigene Bodenfarbe und
