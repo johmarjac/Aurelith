@@ -1,13 +1,21 @@
 /**
  * Virtueller Joystick.
  *
- * Er hat keinen festen Platz: er erscheint dort, wo der Daumen die linke
- * Bildschirmhälfte berührt. Das ist der Unterschied zwischen „geht" und „geht
- * gut" — bei einem festen Kreis muss man hinsehen, bei einem mitwandernden
- * nicht.
+ * Er hat keinen festen Platz: er erscheint dort, wo der Daumen die untere linke
+ * Ecke berührt. Das ist der Unterschied zwischen „geht" und „geht gut" — bei
+ * einem festen Kreis muss man hinsehen, bei einem mitwandernden nicht.
  *
- * Die Mitte zieht dem Daumen nach, sobald er den Rand erreicht. Ohne das
- * bleibt man bei jedem längeren Wischer am Anschlag hängen.
+ * Aber er erscheint **einmal** und bleibt dann liegen, wo er erschienen ist.
+ *
+ * Vorher zog die Mitte dem Daumen nach, sobald er den Rand erreichte — „damit
+ * er nicht am Anschlag klebt". Das Kleben war aber gar kein Schaden: am
+ * Anschlag ist volle Geschwindigkeit, und weiter geht es nicht. Der Schaden
+ * war das Nachziehen. Wer eine Weile in eine Richtung hielt, schob den ganzen
+ * Joystick vor sich her — quer über das Bild, unter die Aktionsleiste, aus der
+ * Daumenecke heraus. Und weil die Mitte mitgewandert war, lag sie danach nicht
+ * mehr dort, wo der Daumen sie angefasst hatte: Zurückziehen tat erst nichts,
+ * bis der Daumen die gewanderte Strecke wieder aufgeholt hatte, und die Figur
+ * lief unterdessen weiter geradeaus.
  */
 
 export interface JoystickOutput {
@@ -129,12 +137,16 @@ export class VirtualJoystick {
     const dist = Math.hypot(dx, dy);
 
     if (dist > RADIUS) {
-      // Mitte nachziehen, damit der Daumen nicht am Anschlag klebt.
-      this.originX += (dx / dist) * (dist - RADIUS);
-      this.originY += (dy / dist) * (dist - RADIUS);
+      /*
+       * Nur der Knopf wird gedeckelt, die Mitte bleibt stehen.
+       *
+       * Wer weiter zieht, als der Ausschlag reicht, bekommt weiterhin vollen
+       * Ausschlag in diese Richtung — mehr gibt es nicht, und die Mitte
+       * hinterherzuschieben brächte nichts ausser einem Joystick, der nach
+       * einem langen Wischer woanders liegt als der Daumen ihn hingelegt hat.
+       */
       dx = (dx / dist) * RADIUS;
       dy = (dy / dist) * RADIUS;
-      this.place(this.originX, this.originY);
     }
 
     const magnitude = Math.min(1, Math.hypot(dx, dy) / RADIUS);

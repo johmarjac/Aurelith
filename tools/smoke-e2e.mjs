@@ -1069,15 +1069,36 @@ if (mobileMode.hasJoystick && mobileReady) {
     const ticksBefore = window.aurelith.ticks;
     send(canvas, 'pointerdown', 1, 90, 640);
     await new Promise((r) => setTimeout(r, 80));
+    const mitteAmAnfang = document.querySelector('.joystick-base').style.transform;
     send(canvas, 'pointermove', 1, 90, 560);
     await new Promise((r) => setTimeout(r, 2500));
     const visible = !document.querySelector('.joystick').hidden;
-    send(window, 'pointerup', 1, 90, 560);
+    // Ein langer Wischer weit ueber den Ausschlag hinaus. Frueher schob der
+    // den ganzen Joystick vor sich her.
+    for (let y = 540; y >= 240; y -= 20) {
+      send(canvas, 'pointermove', 1, 90, y);
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    const mitteDanach = document.querySelector('.joystick-base').style.transform;
+    // Ein Bild abwarten, bevor die Eingabe gelesen wird: sie entsteht in der
+    // Spielschleife, und die laeuft hier nur etwa einmal je Sekunde.
+    {
+      const ziel = window.aurelith.frames + 2;
+      const frist = Date.now() + 15000;
+      while (window.aurelith.frames < ziel && Date.now() < frist) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    }
+    const vollerAusschlag = Math.hypot(window.aurelith.input.moveX, window.aurelith.input.moveZ);
+    send(window, 'pointerup', 1, 90, 240);
     await new Promise((r) => setTimeout(r, 200));
 
     const end = { ...window.aurelith.playerSim };
     return {
       visible,
+      mitteAmAnfang,
+      mitteDanach,
+      vollerAusschlag,
       moved: Math.hypot(end.x - start.x, end.z - start.z),
       frames: window.aurelith.frames - framesBefore,
       ticks: window.aurelith.ticks - ticksBefore,
@@ -1090,6 +1111,26 @@ if (mobileMode.hasJoystick && mobileReady) {
   });
 
   check(joystickResult.visible, 'Mobil: Joystick erscheint unter dem Daumen');
+
+  /*
+   * Und bleibt liegen, wo er erschienen ist.
+   *
+   * Vorher zog die Mitte dem Daumen nach, sobald er den Rand erreichte. Nach
+   * einem langen Wischer lag der Joystick dadurch woanders als der Daumen ihn
+   * hingelegt hatte — quer über dem Bild, unter der Aktionsleiste —, und der
+   * Weg zurück begann mit einer Strecke, auf der nichts passierte.
+   */
+  check(
+    joystickResult.mitteDanach === joystickResult.mitteAmAnfang,
+    'Mobil: der Joystick wandert beim Ziehen nicht mit',
+    `${joystickResult.mitteAmAnfang} → ${joystickResult.mitteDanach}`,
+  );
+  // Gegenprobe: das Stillhalten kommt nicht davon, dass gar nichts ankam.
+  check(
+    joystickResult.vollerAusschlag > 0.9,
+    'Mobil: und steht dabei auf vollem Ausschlag',
+    joystickResult.vollerAusschlag.toFixed(2),
+  );
 
   // Und **nur** dort. Vorher galt die ganze linke Bildhälfte, und damit liess
   // sich links von der Mitte nichts anklicken — kein Monster, kein NPC, kein
@@ -1108,11 +1149,29 @@ if (mobileMode.hasJoystick && mobileReady) {
         }),
       );
 
+    /*
+     * Gewartet wird auf **Bilder** und nicht auf die Uhr.
+     *
+     * `window.aurelith.input` entsteht in der Spielschleife; loslassen wirkt
+     * erst, wenn die einmal gelaufen ist. In SwiftShader sind das drei Bilder
+     * in zweieinhalb Sekunden — nach dreihundert Millisekunden steht dort noch
+     * die Eingabe vom vorigen Wischer, und die Pruefung darunter meldete einen
+     * Fehler, den es nicht gab.
+     */
+    const warteBilder = async (n) => {
+      const ziel = window.aurelith.frames + n;
+      const frist = Date.now() + 15000;
+      while (window.aurelith.frames < ziel && Date.now() < frist) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    };
+
+    await warteBilder(2);
     const vorher = { ...window.aurelith.input };
     send(canvas, 'pointerdown', 7, 90, 200);
-    await new Promise((r) => setTimeout(r, 120));
+    await warteBilder(1);
     send(canvas, 'pointermove', 7, 90, 120);
-    await new Promise((r) => setTimeout(r, 300));
+    await warteBilder(2);
     const sichtbar = !document.querySelector('.joystick').hidden;
     const eingabe = { ...window.aurelith.input };
     send(window, 'pointerup', 7, 90, 120);
@@ -1120,6 +1179,14 @@ if (mobileMode.hasJoystick && mobileReady) {
   });
 
   check(!obenLinks.sichtbar, 'Mobil: oben links greift der Joystick nicht');
+  // Die Vorbedingung zuerst: nach dem Loslassen steht die Figur wieder. Ohne
+  // sie sagte die Pruefung darunter nichts — eine haengengebliebene Eingabe
+  // vom vorigen Wischer saehe genauso aus wie eine, die oben links entstand.
+  check(
+    obenLinks.vorher.moveX === 0 && obenLinks.vorher.moveZ === 0,
+    'Mobil: Loslassen beendet die Bewegung',
+    `${obenLinks.vorher.moveX} / ${obenLinks.vorher.moveZ}`,
+  );
   check(
     obenLinks.eingabe.moveX === 0 && obenLinks.eingabe.moveZ === 0,
     'Mobil: und die Figur bleibt dabei stehen',

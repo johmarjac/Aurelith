@@ -31,7 +31,9 @@ bewussten Abweichung, die weiter unten begründet ist.
   (`propsFlora.ts`), Stein (`propsFels.ts`), Siedlung und Handwerk
   (`propsSiedlung.ts`), Lager und Ruine (`propsRuine.ts`).
 - **Desktop und Mobil**: WASD und Maus am Rechner, virtueller Joystick und
-  Angriffsknopf am Telefon.
+  Angriffsknopf am Telefon. Der Joystick erscheint dort, wo der Daumen die
+  untere linke Ecke berührt — und **bleibt dort liegen**: wer weiter zieht, als
+  der Ausschlag reicht, bekommt vollen Ausschlag und keinen wandernden Kreis.
 - **Kampf mit Zielauswahl**: ein Klick visiert an, der zweite greift an — die
   Figur läuft von selbst in Reichweite und schlägt weiter, bis man sie mit
   einem Klick in die Welt oder einem Schritt zur Seite wieder herausholt.
@@ -255,6 +257,7 @@ npm run test:kompass     # Kompass: acht Richtungen, Wechsel bei 22,5°, Osten i
 npm run test:grafik      # Grafikeinstellungen: kaputte Daten im Speicher kippen nichts um
 npm run test:schwebfels  # Schwebende Felsen: wer oben steht, gilt dem Zeichner als am Boden
 npm run test:bannkreis   # Der Kreis am Tor: folgt dem Hang, so gross wie der Auslöser, dreht sich
+npm run test:joystick    # Joystick: bleibt liegen, wo der Daumen ihn anfasst
 npm run test:tag         # Tag- und Nachtwechsel: Licht, Farben, Uhr
 npm run test:quests      # das Auftragsbuch — ohne Server
 npm run test:content     # die Inhaltsdateien: Format und Verweise
