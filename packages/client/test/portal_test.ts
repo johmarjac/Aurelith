@@ -14,7 +14,7 @@
  *   2. Sie ist so gross wie der **Auslöser** und nicht so gross wie eine
  *      Konstante im Zeichner.
  *   3. Sie **bewegt** sich, und zwar nur, wenn jemand die Uhr weiterstellt.
- *   4. Die Runentextur entsteht **einmal** für alle Tore.
+ *   4. Die Funken steigen aus dem Teich und nicht aus dem Erdmittelpunkt.
  *   5. In den Karten steht kein Torbogen mehr herum.
  *
  *   npx tsx packages/client/test/portal_test.ts
@@ -35,76 +35,28 @@ function check(ok: boolean, was: string, detail = ''): void {
 
 console.log('Aurelith — Tore\n');
 
-/*
- * Eine Leinwand aus Pappe.
- *
- * Der Runenring wird im Code auf ein `<canvas>` gemalt, und das gibt es hier
- * nicht. Statt die Zeichnung im Test auszusparen — dann prüfte niemand, ob sie
- * überhaupt stattfindet — zählt diese Attrappe mit, was der Stift tut. Sie muss
- * vor dem Import von `portal.ts` stehen: die Textur entsteht beim ersten Tor,
- * und wer danach shimmt, kommt zu spät.
- */
-const stiftzug = { striche: 0, drehungen: 0, kreise: 0 };
-const pappstift = {
-  lineCap: '',
-  lineJoin: '',
-  strokeStyle: '',
-  fillStyle: '',
-  lineWidth: 0,
-  shadowColor: '',
-  shadowBlur: 0,
-  clearRect(): void {},
-  beginPath(): void {},
-  moveTo(): void {},
-  lineTo(): void {},
-  arc(): void {
-    stiftzug.kreise++;
-  },
-  stroke(): void {
-    stiftzug.striche++;
-  },
-  fill(): void {},
-  save(): void {},
-  restore(): void {},
-  translate(): void {},
-  rotate(): void {
-    stiftzug.drehungen++;
-  },
-};
-let leinwaende = 0;
-(globalThis as unknown as { document: unknown }).document = {
-  createElement(art: string) {
-    if (art !== 'canvas') throw new Error(`unerwartetes Element: ${art}`);
-    leinwaende++;
-    return { width: 0, height: 0, getContext: () => pappstift };
-  },
-};
-
-// Erst jetzt, mit der Attrappe im Rücken. Die Typen kommen von oben — ein
-// `import type` steht nur im Typechecker und stört die Reihenfolge nicht.
 const { PortalRing } = await import('../src/render/portal.ts');
 
-/** Die drei Lagen eines Tores, an ihrer Form auseinandergehalten. */
+/** Die drei Lagen eines Tores: Bodenschein, Teich, Funken. */
 function lagen(ring: InstanceType<typeof PortalRing>): {
-  wirbel: THREE.Mesh;
-  runen: THREE.Mesh;
-  saeule: THREE.Mesh;
+  schein: THREE.Mesh;
+  teich: THREE.Mesh;
+  funken: THREE.Points;
 } {
   const scheiben: THREE.Mesh[] = [];
-  let saeule: THREE.Mesh | undefined;
+  let funken: THREE.Points | undefined;
   for (const kind of ring.root.children) {
-    const mesh = kind as THREE.Mesh;
-    if (mesh.geometry.type === 'CylinderGeometry') saeule = mesh;
-    else scheiben.push(mesh);
+    if ((kind as THREE.Points).isPoints) funken = kind as THREE.Points;
+    else scheiben.push(kind as THREE.Mesh);
   }
-  if (scheiben.length !== 2 || !saeule) throw new Error('Tor hat nicht drei Lagen');
-  // Die kleinere ist der Wirbel, die grössere der Runenring.
+  if (scheiben.length !== 2 || !funken) throw new Error('Tor hat nicht drei Lagen');
+  // Die kleinere ist der Teich, die grössere der Bodenschein.
   scheiben.sort((a, b) => weite(a) - weite(b));
-  return { wirbel: scheiben[0]!, runen: scheiben[1]!, saeule };
+  return { teich: scheiben[0]!, schein: scheiben[1]!, funken };
 }
 
 /** Der grösste Abstand einer Ecke von der Mitte, in der Waagerechten. */
-function weite(mesh: THREE.Mesh): number {
+function weite(mesh: THREE.Mesh | THREE.Points): number {
   const pos = mesh.geometry.attributes.position as THREE.BufferAttribute;
   let max = 0;
   for (let i = 0; i < pos.count; i++) max = Math.max(max, Math.hypot(pos.getX(i), pos.getZ(i)));
@@ -119,10 +71,10 @@ const hang = (x: number, _z: number): number => x * 0.25;
 const flach = (): number => 3;
 
 const amHang = new PortalRing({ x: 10, y: hang(10, 0), z: -4 }, 4, hang);
-const wirbelHang = lagen(amHang).wirbel;
+const teichHang = lagen(amHang).teich;
 
 {
-  const pos = wirbelHang.geometry.attributes.position as THREE.BufferAttribute;
+  const pos = teichHang.geometry.attributes.position as THREE.BufferAttribute;
   let groesserFehler = 0;
   let tiefste = Infinity;
   let hoechste = -Infinity;
@@ -130,7 +82,7 @@ const wirbelHang = lagen(amHang).wirbel;
     const wx = amHang.root.position.x + pos.getX(i);
     const wz = amHang.root.position.z + pos.getZ(i);
     const wy = amHang.root.position.y + pos.getY(i);
-    groesserFehler = Math.max(groesserFehler, Math.abs(wy - (hang(wx, wz) + 0.06)));
+    groesserFehler = Math.max(groesserFehler, Math.abs(wy - (hang(wx, wz) + 0.08)));
     tiefste = Math.min(tiefste, pos.getY(i));
     hoechste = Math.max(hoechste, pos.getY(i));
   }
@@ -158,7 +110,7 @@ const wirbelHang = lagen(amHang).wirbel;
   // Und die Gegenprobe zur Gegenprobe: auf ebenem Grund ist sie eben. Sonst
   // stünde hier eine Schüssel, die zufällig am Hang richtig aussieht.
   const eben = new PortalRing({ x: 0, y: flach(), z: 0 }, 4, flach);
-  const pos = lagen(eben).wirbel.geometry.attributes.position as THREE.BufferAttribute;
+  const pos = lagen(eben).teich.geometry.attributes.position as THREE.BufferAttribute;
   let tiefste = Infinity;
   let hoechste = -Infinity;
   for (let i = 0; i < pos.count; i++) {
@@ -166,7 +118,7 @@ const wirbelHang = lagen(amHang).wirbel;
     hoechste = Math.max(hoechste, pos.getY(i));
   }
   check(
-    hoechste - tiefste < 1e-4 && Math.abs(hoechste - 0.06) < 1e-4,
+    hoechste - tiefste < 1e-4 && Math.abs(hoechste - 0.08) < 1e-4,
     'auf ebenem Grund liegt sie flach und einen Fingerbreit hoch',
     `${tiefste.toFixed(3)} bis ${hoechste.toFixed(3)} m über der Mitte`,
   );
@@ -178,22 +130,30 @@ console.log('Der Kreis ist so gross wie der Auslöser');
 
 for (const radius of [4, 4.5, 7.5]) {
   const tor = new PortalRing({ x: 0, y: 0, z: 0 }, radius, flach);
-  const { wirbel, runen, saeule } = lagen(tor);
+  const { teich, schein, funken } = lagen(tor);
   check(
-    Math.abs(weite(wirbel) - radius) < 1e-3,
-    `Radius ${radius} im Dokument, Radius ${weite(wirbel).toFixed(2)} im Bild`,
+    Math.abs(weite(teich) - radius) < 1e-3,
+    `Radius ${radius} im Dokument, Radius ${weite(teich).toFixed(2)} im Bild`,
   );
   /*
-   * Der Runenring liegt **aussen herum** und nicht darauf.
+   * Der Bodenschein liegt **aussen herum** und deutlich weiter.
    *
-   * Läge er innen, verdeckte er den Wirbel; läge er weit draussen, stünde ein
-   * zweiter Kreis in der Wiese, und niemand wüsste, welcher der Auslöser ist.
+   * Er ist der Übergang vom Licht zum Gras; wäre er nur wenig grösser, hätte
+   * der Teich wieder eine harte Kante, nur eine hellere. Und wäre er
+   * riesengross, läge ein Scheinwerfer auf der Wiese, dessen Mitte niemand
+   * mehr findet.
    */
-  const band = weite(runen) / weite(wirbel);
-  check(band > 1.05 && band < 1.3, 'der Runenring fasst ihn knapp ein', `Faktor ${band.toFixed(2)}`);
-  // Die Säule steht **in** dem Kreis und ragt nicht darüber hinaus: sie ist
-  // ein Hinweis aus der Ferne und keine Mauer, die den Blick nimmt.
-  check(weite(saeule) < weite(wirbel), 'die Lichtsäule bleibt innerhalb des Kreises');
+  const band = weite(schein) / weite(teich);
+  check(band > 1.6 && band < 2.6, 'der Bodenschein greift weit darüber hinaus', `Faktor ${band.toFixed(2)}`);
+  /*
+   * Und die Funken steigen **aus dem Teich**: ihre Fusspunkte liegen innerhalb
+   * des Kreises. Vorher hätte auch eine Wolke über der halben Wiese bestanden.
+   */
+  check(
+    weite(funken) < weite(teich),
+    'die Funken stehen im Kreis',
+    `${weite(funken).toFixed(2)} von ${weite(teich).toFixed(2)} m`,
+  );
   tor.dispose();
 }
 
@@ -202,78 +162,108 @@ console.log('Es bewegt sich');
 
 {
   const tor = new PortalRing({ x: 0, y: 0, z: 0 }, 4, flach);
-  const { runen, wirbel, saeule } = lagen(tor);
-  const zeit = (m: THREE.Mesh): number =>
+  const { teich, schein, funken } = lagen(tor);
+  const zeit = (m: THREE.Mesh | THREE.Points): number =>
     (m.material as THREE.ShaderMaterial).uniforms.zeit!.value as number;
 
-  const vorher = { wirbel: zeit(wirbel), saeule: zeit(saeule), drehung: runen.rotation.y };
+  const vorher = { teich: zeit(teich), schein: zeit(schein), funken: zeit(funken) };
 
   /*
    * Gegenprobe zuerst: **ohne** verstrichene Zeit steht alles still.
    *
-   * Ein Tor, das sich schon beim blossen Aufruf dreht, dreht sich im
+   * Ein Tor, das sich schon beim blossen Aufruf bewegt, läuft im
    * Hintergrundtab mit der Bildrate statt mit der Uhr — und zuckt beim
    * Zurückkommen um alles, was es nachzuholen glaubt.
    */
   tor.update(0);
   check(
-    zeit(wirbel) === vorher.wirbel && runen.rotation.y === vorher.drehung,
+    zeit(teich) === vorher.teich && zeit(funken) === vorher.funken,
     'ohne verstrichene Zeit bewegt sich nichts',
   );
 
   tor.update(0.5);
   tor.update(0.5);
   check(
-    Math.abs(zeit(wirbel) - (vorher.wirbel + 1)) < 1e-6,
-    'der Wirbel folgt der verstrichenen Zeit',
-    `${zeit(wirbel).toFixed(2)} s`,
+    Math.abs(zeit(teich) - (vorher.teich + 1)) < 1e-6,
+    'der Teich folgt der verstrichenen Zeit',
+    `${zeit(teich).toFixed(2)} s`,
   );
   check(
-    Math.abs(zeit(saeule) - (vorher.saeule + 1)) < 1e-6,
-    'die Lichtsäule ebenso',
-    `${zeit(saeule).toFixed(2)} s`,
+    Math.abs(zeit(schein) - (vorher.schein + 1)) < 1e-6,
+    'der Bodenschein ebenso',
+    `${zeit(schein).toFixed(2)} s`,
   );
   check(
-    runen.rotation.y > vorher.drehung + 0.05,
-    'und der Runenring dreht sich dabei',
-    `${runen.rotation.y.toFixed(3)} rad nach einer Sekunde`,
+    Math.abs(zeit(funken) - (vorher.funken + 1)) < 1e-6,
+    'und die Funken auch',
+    `${zeit(funken).toFixed(2)} s`,
   );
   tor.dispose();
 }
 
 // ---------------------------------------------------------------------------
-console.log('Die Runen entstehen einmal');
+console.log('Die Funken steigen aus dem Teich');
 
 {
-  const striche = stiftzug.striche;
-  const leinwandZuvor = leinwaende;
-  check(
-    stiftzug.drehungen === 16,
-    'sechzehn Zeichen stehen im Kreis',
-    `${stiftzug.drehungen} Drehungen des Stifts`,
-  );
-  check(stiftzug.kreise === 2, 'dazu zwei Kreise als Fassung', `${stiftzug.kreise}`);
-  check(striche >= 18, 'und der Stift hat sie auch gezogen', `${striche} Züge`);
+  const tor = new PortalRing({ x: 6, y: 2, z: -3 }, 5, hang);
+  const { funken } = lagen(tor);
+  const pos = funken.geometry.attributes.position as THREE.BufferAttribute;
+  check(pos.count > 20, 'es sind genug Funken für eine Wolke', `${pos.count}`);
 
   /*
-   * Gegenprobe: das nächste Tor malt **nichts** mehr.
-   *
-   * Auf Lichtmoor steht nur ein Tor, in einer Stadt könnten es zehn sein.
-   * Zehnmal eine halbe Megapixel-Leinwand zu malen und zehnmal dieselbe Textur
-   * hochzuladen, wäre für sechzehn Striche eine teure Angewohnheit.
+   * Sie stehen auf dem **Gelände** und nicht auf einer Ebene: am Hang liegt
+   * der eine Fusspunkt höher als der andere. Sonst schwebte die halbe Wolke
+   * unter dem Boden — an einer Klippe wäre das ein Schwarm im Fels.
    */
-  const weiteres = new PortalRing({ x: 0, y: 0, z: 0 }, 4, flach);
-  check(
-    stiftzug.striche === striche && leinwaende === leinwandZuvor,
-    'ein zweites Tor teilt sich die Textur, statt sie neu zu malen',
-    `${leinwaende} Leinwand(en) insgesamt`,
-  );
-  const a = lagen(amHang).runen.material as THREE.MeshBasicMaterial;
-  const b = lagen(weiteres).runen.material as THREE.MeshBasicMaterial;
-  check(a.map === b.map && a.map !== null, 'und es ist dieselbe Textur');
-  weiteres.dispose();
+  let tiefste = Infinity;
+  let hoechste = -Infinity;
+  let fehler = 0;
+  for (let i = 0; i < pos.count; i++) {
+    const wx = tor.root.position.x + pos.getX(i);
+    const wz = tor.root.position.z + pos.getZ(i);
+    const wy = tor.root.position.y + pos.getY(i);
+    fehler = Math.max(fehler, Math.abs(wy - (hang(wx, wz) + 0.1)));
+    tiefste = Math.min(tiefste, pos.getY(i));
+    hoechste = Math.max(hoechste, pos.getY(i));
+  }
+  check(fehler < 1e-4, 'jeder steht auf dem Boden', `grösste Abweichung ${fehler.toFixed(5)} m`);
+  check(hoechste - tiefste > 0.5, 'und am Hang auf verschiedenen Höhen', `${(hoechste - tiefste).toFixed(2)} m`);
+
+  /*
+   * Jeder hat seine eigene Phase und sein eigenes Tempo. Ohne beides stiegen
+   * alle im Gleichschritt, und aus einer Wolke würde eine Reihe.
+   */
+  const phasen = funken.geometry.attributes.phase as THREE.BufferAttribute;
+  const tempi = funken.geometry.attributes.tempo as THREE.BufferAttribute;
+  let phasenSpanne = 0;
+  let tempoSpanne = 0;
+  let minP = Infinity;
+  let maxP = -Infinity;
+  let minT = Infinity;
+  let maxT = -Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    minP = Math.min(minP, phasen.getX(i));
+    maxP = Math.max(maxP, phasen.getX(i));
+    minT = Math.min(minT, tempi.getX(i));
+    maxT = Math.max(maxT, tempi.getX(i));
+  }
+  phasenSpanne = maxP - minP;
+  tempoSpanne = maxT - minT;
+  check(phasenSpanne > 0.6, 'sie fangen zu verschiedenen Zeiten an', `Spanne ${phasenSpanne.toFixed(2)}`);
+  check(tempoSpanne > 0.05, 'und steigen verschieden schnell', `Spanne ${tempoSpanne.toFixed(3)}`);
+  /*
+   * Und die Gegenprobe zum Tempo: keiner steht. Ein Funke mit Tempo null
+   * hinge für immer an derselben Stelle, und das sähe aus wie ein Fehler im
+   * Bild.
+   */
+  check(minT > 0.01, 'und keiner steht still', `langsamster ${minT.toFixed(3)}`);
+
+  // Ohne Sichtprüfung des Zeichners: die Wolke wandert im Shader nach oben,
+  // und three.js wüsste davon nichts. Ohne dieses Merkmal verschwindet sie,
+  // sobald ihre gerechnete Hülle aus dem Bild läuft.
+  check(funken.frustumCulled === false, 'und die Wolke wird nicht weggeschnitten');
+  tor.dispose();
 }
-amHang.dispose();
 
 // ---------------------------------------------------------------------------
 console.log('In den Karten steht kein Torbogen mehr');
