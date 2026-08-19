@@ -26,7 +26,6 @@ import {
   materialArt,
   PROP_BUILDERS,
   buildArrow,
-  buildGateArch,
   type MaterialArt,
 } from '@aurelith/client/render/props.ts';
 import { ITEM_BUILDERS } from '@aurelith/client/render/itemModels.ts';
@@ -176,7 +175,6 @@ export function baueKatalog(): Eintrag[] {
     out.push(ausGeometrie(key, 'Gegenstände', () => ITEM_BUILDERS[key]!()));
   }
 
-  out.push(ausGeometrie('gate_arch', 'Sonstiges', buildGateArch));
   out.push(ausGeometrie('arrow', 'Sonstiges', buildArrow));
 
   for (const key of Object.keys(CHARACTER_CONFIGS).sort()) {

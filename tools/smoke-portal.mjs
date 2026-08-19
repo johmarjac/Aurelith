@@ -20,6 +20,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import sharp from 'sharp';
 import { anmeldenUndBetreten } from './lib/spielstart.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -79,6 +80,14 @@ const server = launch('npx tsx packages/server/src/index.ts', {
   // Abweisung saehe genauso aus wie ein Fehler. Eine fruehere Fassung dieses
   // Tests ist genau darauf hereingefallen.
   AURELITH_START_MAP: 'dornwald',
+  // Mittag. Der Bannkreis wird weiter unten aus zwei Bildschirmfotos gemessen,
+  // zwischen denen Sekunden liegen; in der Dämmerung ändert sich die Helligkeit
+  // in diesen Sekunden mehr als durch alles, was sich dreht.
+  AURELITH_TIME_OFFSET_MS: String(
+    (((0.5 * 24 * 60 * 1000 - (Date.now() % (24 * 60 * 1000))) % (24 * 60 * 1000)) +
+      24 * 60 * 1000) %
+      (24 * 60 * 1000),
+  ),
   // Knapp ausserhalb des Tores statt am Startpunkt der Karte: nah genug, dass
   // der Anlauf kurz ist, weit genug, dass die erste Pruefung — „abseits eines
   // Tores kein Hinweis" — noch etwas zu pruefen hat. Der Radius betraegt vier.
@@ -224,6 +233,64 @@ check(
 );
 check(stillThere.prompt.includes('Lichtmoor'), 'der Hinweis bleibt stehen, solange man drinsteht');
 
+// --- Der Bannkreis ---------------------------------------------------------
+//
+// Ein Tor ist kein Prop mehr, sondern ein Kreis, der sich dreht. Davon steht
+// nichts im Zustand: entweder es bewegt sich etwas im Bild, oder es bewegt
+// sich nichts. Also wird gezählt, wie viele Bildpunkte sich zwischen zwei
+// Aufnahmen ändern — einmal dort, wo der Kreis liegt, und einmal auf einem
+// Stück Wiese daneben. Die zweite Zahl ist die Gegenprobe: ohne sie wäre auch
+// ein flackerndes Bild grün.
+
+const roh = async (png) => {
+  const { data, info } = await sharp(png).raw().toBuffer({ resolveWithObject: true });
+  return { data, info };
+};
+const geaendert = (a, b, bereich) => {
+  const { width, channels } = a.info;
+  let n = 0;
+  for (let y = bereich.y; y < bereich.y + bereich.height; y++) {
+    for (let x = bereich.x; x < bereich.x + bereich.width; x++) {
+      const i = (y * width + x) * channels;
+      const d = Math.max(
+        Math.abs(a.data[i] - b.data[i]),
+        Math.abs(a.data[i + 1] - b.data[i + 1]),
+        Math.abs(a.data[i + 2] - b.data[i + 2]),
+      );
+      // Vierundzwanzig Stufen: das Rauschen von SwiftShader liegt darunter, der
+      // Wechsel von dunklem Grund auf einen hellen Arm weit darüber.
+      if (d > 24) n++;
+    }
+  }
+  return n / (bereich.width * bereich.height);
+};
+
+const bildA = await roh(await page.screenshot());
+await page.waitForTimeout(1400);
+const bildB = await roh(await page.screenshot());
+
+/**
+ * Der Kreis: er liegt am Boden um die Figur, also in der unteren Bildmitte.
+ *
+ * Unten abgeschnitten bei 445, damit Hinweiszeile, Chat und Aktionsleiste
+ * draussen bleiben. Die ändern sich von selbst — der Chat blendet sich aus,
+ * die Laufzeit zählt hoch —, und das hätte hier wie ein Wirbel ausgesehen.
+ */
+const KREIS = { x: 300, y: 330, width: 300, height: 115 };
+/** Und ein Stück Wiese, auf dem kein Tor liegt. */
+const WIESE = { x: 10, y: 120, width: 200, height: 120 };
+
+const imKreis = geaendert(bildA, bildB, KREIS);
+const aufWiese = geaendert(bildA, bildB, WIESE);
+check(
+  imKreis > 0.05,
+  `im Tor bewegt sich etwas (${(imKreis * 100).toFixed(1)} % der Bildpunkte)`,
+);
+check(
+  aufWiese < imKreis / 4,
+  `daneben bleibt die Wiese ruhig (${(aufWiese * 100).toFixed(1)} % gegen ${(imKreis * 100).toFixed(1)} %)`,
+);
+
 // Noch vor dem Tor festhalten, was dasteht — danach ist es zu spät.
 const schilderVorTor = await schilder();
 
@@ -271,10 +338,34 @@ if (arrived) {
   );
   check(after.prompt === '', `nach der Ankunft kein Hinweis ("${after.prompt}")`);
 
-  // Gegentor bei (0, 196), also zwölf Einheiten in Richtung +Z. Der Weg bleibt:
-  // hier geht es gerade darum, dass die Figur sich nach einem Wechsel noch
-  // bewegen laesst und der Server das mitbekommt.
-  await walk('KeyW', 27);
+  /*
+   * Gegentor bei (0, 196), also zwoelf Einheiten in Richtung +Z. Der Weg
+   * bleibt: hier geht es gerade darum, dass die Figur sich nach einem Wechsel
+   * noch bewegen laesst und der Server das mitbekommt.
+   *
+   * Gelaufen wird **bis zu einer Lage** und nicht eine Zahl von Schritten.
+   * `waitTicks` zaehlt Bilder, und wie weit ein Bild traegt, haengt daran, wie
+   * lange es gebraucht hat — der Client deckelt `dt` bei 0,1 s. Bei drei
+   * Bildern je Sekunde kamen aus siebenundzwanzig Schritten 8,8 Einheiten, bei
+   * fuenf aus vierunddreissig nur 5,8. Die Figur blieb dann kurz vor dem
+   * Ausloeser stehen, und der Test war rot, ohne dass etwas kaputt war.
+   */
+  await page.keyboard.down('KeyW');
+  const amGegentor = await waitUntil(
+    async () => (await page.evaluate(() => window.aurelith.playerSim.z)) >= 194.5,
+    40000,
+  );
+  await page.keyboard.up('KeyW');
+  await waitTicks(4);
+  check(amGegentor, 'die Figur laeuft die zwoelf Einheiten bis zum Gegentor');
+  /*
+   * Und dann warten, bis der **Server** dort ist.
+   *
+   * Er entscheidet ueber den Hinweis, und er hinkt der Vorhersage um bis zu
+   * einer Einheit hinterher — genug, um am Rand eines Ausloesers mit Radius
+   * vier noch draussen zu stehen.
+   */
+  await waitUntil(async () => (await page.evaluate(() => window.aurelith.serverDistance)) < 0.6, 6000);
 
   const back = await state();
   const moved = Math.hypot(back.x - after.x, back.z - after.z);

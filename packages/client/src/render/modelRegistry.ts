@@ -27,7 +27,7 @@ import {
 } from './geometry.ts';
 import { gesteinsTextur } from './gestein.ts';
 import { laubAtlas } from './laub.ts';
-import { materialArt, PROP_BUILDERS, buildArrow, buildGateArch, fallbackProp } from './props.ts';
+import { materialArt, PROP_BUILDERS, buildArrow, fallbackProp } from './props.ts';
 import {
   createRig,
   weaponModelSpecs,
@@ -39,8 +39,6 @@ import { disposeModel, loadModel } from './gltf.ts';
 /** Woher die Bytes eines Modells kommen. Im Client der Streamer. */
 export type ByteSource = (path: string) => Promise<ArrayBuffer>;
 
-/** Interner Schlüssel des Torbogens im Geometrie-Zwischenspeicher. */
-const GATE_KEY = '\0gate';
 /** Interner Schlüssel des Pfeils im Geometrie-Zwischenspeicher. */
 const ARROW_KEY = '\0arrow';
 
@@ -120,17 +118,6 @@ export class ModelRegistry {
     return key in PROP_BUILDERS;
   }
 
-  /**
-   * Geometrie eines Tores. Es gibt genau eine — ein Tor unterscheidet sich von
-   * einem anderen durch sein Ziel, nicht durch seine Bauart.
-   */
-  gateGeometry(): THREE.BufferGeometry {
-    const cached = this.propGeometries.get(GATE_KEY);
-    if (cached) return cached;
-    const geometry = buildGateArch();
-    this.propGeometries.set(GATE_KEY, geometry);
-    return geometry;
-  }
 
   /**
    * Geometrie eines Pfeils.

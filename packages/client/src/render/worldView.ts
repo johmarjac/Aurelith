@@ -36,6 +36,7 @@ import { stepAuras } from './auraClock.ts';
 import { ParticleField } from './particles.ts';
 import { Bandspur, BRETTBAND, KLINGENBAND } from './bandspur.ts';
 import { Laufmarke } from './laufmarke.ts';
+import { PortalRing } from './portal.ts';
 import { buildTerrain, type TerrainMesh } from './terrain.ts';
 import type { TextureLoader } from './textures.ts';
 import type { CharacterRig } from './rigs.ts';
@@ -322,6 +323,14 @@ export class WorldView {
    */
   readonly wesen = new THREE.Scene();
   readonly entities = new Map<number, EntityVisual>();
+
+  /**
+   * Die Tore dieser Karte. Sie müssen getaktet werden — siehe `step`.
+   *
+   * Eine eigene Liste und nicht ein Ast im Szenengraph: der Takt braucht die
+   * Objekte selbst und keinen Knoten, unter dem sie hängen.
+   */
+  private portale: PortalRing[] = [];
 
   private terrain?: TerrainMesh;
   private propMeshes: THREE.InstancedMesh[] = [];
@@ -640,43 +649,43 @@ export class WorldView {
   }
 
   /**
-   * Zeichnet die Tore.
+   * Setzt die Tore — je ein Bannkreis auf dem Boden.
    *
-   * Das Tor ist der Torbogen — nicht mehr ein Prop, das zufällig neben einer
+   * Das Tor ist der Kreis, nicht ein Prop, das zufällig neben einer
    * unsichtbaren Zone steht. Vorher konnte man beides unabhängig verschieben,
    * und man lief durch eine leere Wiese, in der es dann plötzlich klickte.
    *
-   * Die Position kommt aus `doc.portals`, also aus derselben Zeile, die auch
-   * den Server auslösen lässt. Auseinanderlaufen können sie damit nicht mehr.
+   * Position **und Radius** kommen aus `doc.portals`, also aus derselben
+   * Zeile, die auch den Server auslösen lässt. Auseinanderlaufen können sie
+   * damit nicht mehr — und was man sieht, ist genau das, was auslöst.
+   *
+   * Nicht in `propMeshes`: die Sichtweite räumt Bäume weg, ein Tor nie. Wer
+   * ein Tor sucht, sucht es aus der Ferne.
    */
   private buildGates(world: CoreWorld, doc: MapDocument): void {
-    if (doc.portals.length === 0) return;
-
-    const geometry = this.registry.gateGeometry();
-    const mesh = new THREE.InstancedMesh(geometry, this.registry.material, doc.portals.length);
-    mesh.name = 'gates';
-    mesh.frustumCulled = false;
-    mesh.receiveShadow = true;
-
-    const matrix = new THREE.Matrix4();
-    const quaternion = new THREE.Quaternion();
-    const position = new THREE.Vector3();
-    const scale = new THREE.Vector3(1, 1, 1);
-    const euler = new THREE.Euler();
-
-    for (let i = 0; i < doc.portals.length; i++) {
-      const portal = doc.portals[i]!;
+    for (const portal of doc.portals) {
       const [x, z] = portal.position;
-      position.set(x, world.heightAt(x, z), z);
-      euler.set(0, portal.yaw, 0);
-      quaternion.setFromEuler(euler);
-      matrix.compose(position, quaternion, scale);
-      mesh.setMatrixAt(i, matrix);
+      /*
+       * `terrain.hoeheAn` und **nicht** `world.heightAt`.
+       *
+       * Der Kern rechnet eine stetige Funktion, gezeichnet wird ein
+       * Dreiecksgitter mit vier bis acht Metern Maschenweite — dazwischen
+       * liegt das Dreieck als Sehne unter dem Bogen, stellenweise um einen
+       * halben Meter. Eine Scheibe, die der Funktion folgt, verschwindet dort
+       * im gezeichneten Hang, und man sieht einen angeknabberten Kreis.
+       *
+       * Genau dafür gibt es die Funktion am Netz: sie sagt, wo die Fläche
+       * **liegt**, und nicht, wo sie rechnerisch läge.
+       */
+      const boden = this.terrain;
+      const ring = new PortalRing(
+        { x, y: boden ? boden.hoeheAn(x, z) : world.heightAt(x, z), z },
+        portal.radius,
+        (px, pz) => (boden ? boden.hoeheAn(px, pz) : world.heightAt(px, pz)),
+      );
+      this.root.add(ring.root);
+      this.portale.push(ring);
     }
-    mesh.instanceMatrix.needsUpdate = true;
-
-    this.root.add(mesh);
-    this.propMeshes.push(mesh);
   }
 
   // -------------------------------------------------------------------------
@@ -1047,6 +1056,10 @@ export class WorldView {
     this.particles.step(dt);
     this.loot.step(dt);
     this.laufmarke.step(dt);
+    // Die Tore drehen sich. Über `dt` und nicht über die Wanduhr: ein Tor in
+    // einem Hintergrundtab holte sonst beim Zurückkommen die ganze verlorene
+    // Zeit in einem Bild nach und zuckte.
+    for (const p of this.portale) p.update(dt);
     // Eine Uhr für alle Auren: sie pulsieren im Shader, und der braucht nur
     // die Zeit. Je Aura eine Schleife wäre dieselbe Zahl fünfzigmal.
     stepAuras(dt);
@@ -1408,6 +1421,15 @@ export class WorldView {
       mesh.dispose();
     }
     this.propMeshes = [];
+
+    // Die Tore gehören zur alten Karte. Ohne diese Zeilen drehte sich hinter
+    // dem Tor ein zweiter Kreis an der Stelle, an der auf der **vorigen**
+    // Karte einer stand.
+    for (const ring of this.portale) {
+      this.root.remove(ring.root);
+      ring.dispose();
+    }
+    this.portale = [];
 
     if (this.terrain) {
       this.root.remove(this.terrain.object);

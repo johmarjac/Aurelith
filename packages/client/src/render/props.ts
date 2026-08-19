@@ -324,15 +324,6 @@ function banner(): THREE.BufferGeometry {
   ]);
 }
 
-function archway(stoneColor: number, accent: number): THREE.BufferGeometry {
-  return assemble([
-    { geometry: box(0.7, 4.4, 0.7), color: stoneColor, position: [-2.0, 2.2, 0] },
-    { geometry: box(0.7, 4.4, 0.7), color: stoneColor, position: [2.0, 2.2, 0] },
-    { geometry: box(4.8, 0.7, 0.8), color: stoneColor, position: [0, 4.6, 0] },
-    { geometry: box(1.2, 0.5, 0.3), color: accent, position: [0, 4.6, 0.4] },
-  ]);
-}
-
 /**
  * Welche Props aus Laubkarten bestehen.
  *
@@ -585,18 +576,6 @@ export function buildArrow(): THREE.BufferGeometry {
     { geometry: box(0.008, 0.09, 0.12), color: 0xe8e0cc, position: [0, 0, -0.26] },
     { geometry: box(0.09, 0.008, 0.12), color: 0xe8e0cc, position: [0, 0, -0.26] },
   ]);
-}
-
-/**
- * Der Torbogen.
- *
- * Bewusst nicht im Prop-Katalog: ein Tor ist kein Dekostück, das man neben
- * eine unsichtbare Zone stellt, sondern das sichtbare Teil der Zone selbst.
- * Gezeichnet wird er aus `doc.portals` — derselben Zeile, die den Server
- * auslösen lässt.
- */
-export function buildGateArch(): THREE.BufferGeometry {
-  return archway(0x8a8478, 0x4cc9bf);
 }
 
 /** Ersatzteil für unbekannte Schlüssel — sichtbar falsch, aber nie ein Absturz. */

@@ -52,6 +52,12 @@ bewussten Abweichung, die weiter unten begründet ist.
 - **Eine Hinweiszeile** unten in der Mitte, in der **jede** Absage steht: warum
   eine Aktion nicht ging, klein und für ein paar Sekunden. Alles, was der Server
   als Systemnachricht schickt, landet dort von selbst.
+- **Tore sind Bannkreise**: kein Torbogen mehr, der als Prop neben einer
+  unsichtbaren Zone steht, sondern ein leuchtender Kreis auf dem Boden — ein
+  Wirbel aus zwei gegenläufigen Spiralen, ein Runenring darum, eine Lichtsäule
+  darüber. Er hat die Mitte und den Radius des Auslösers, also genau die Zeile
+  aus dem Kartendokument, die auch den Server reisen lässt, und er folgt dem
+  Gelände: am Hang liegt er schief statt zur Hälfte im Boden.
 - **Sperrzonen und schwebende Felsen**: Rechtecke, in die man zu Fuss, in der
   Luft oder gar nicht hineinkommt, und Felsen, die in der Luft stehen und oben
   begehbar sind — wer ein Fluggerät hat, landet darauf. Beides entscheidet der
@@ -248,6 +254,7 @@ npm run test:props       # Prop-Katalog: Tabelle deckt sich, alles steht am Bode
 npm run test:kompass     # Kompass: acht Richtungen, Wechsel bei 22,5°, Osten ist rechts von Norden
 npm run test:grafik      # Grafikeinstellungen: kaputte Daten im Speicher kippen nichts um
 npm run test:schwebfels  # Schwebende Felsen: wer oben steht, gilt dem Zeichner als am Boden
+npm run test:bannkreis   # Der Kreis am Tor: folgt dem Hang, so gross wie der Auslöser, dreht sich
 npm run test:tag         # Tag- und Nachtwechsel: Licht, Farben, Uhr
 npm run test:quests      # das Auftragsbuch — ohne Server
 npm run test:content     # die Inhaltsdateien: Format und Verweise
@@ -267,7 +274,7 @@ npm run test:loot-ui     # Beute im Bild: Schild, Antippen, Aufheben
 npm run test:skills      # Fertigkeitenbaum: Taste, Beruf, Zug auf die Leiste, Sperre im Flug
 npm run test:e2e         # Spiel im Browser, Desktop und Berührung
 npm run test:prediction  # springt die eigene Figur beim Laufen zurück?
-npm run test:portal      # Tore: hineinlaufen, stehen, F drücken, zurück
+npm run test:portal      # Tore: hineinlaufen, stehen, F drücken, zurück, und der Kreis dreht sich
 npm run test:flug        # Fliegen: aufsteigen, Schub, Nase, anhalten, absteigen
 npm run test:umriss      # steht der schwarze Strich um die Figur — und nur dort?
 npm run test:freunde-ui  # Freundefenster im Browser: E, Anfrage, Liste, Kontextmenü

@@ -40,7 +40,8 @@ import {
 } from '@aurelith/client/render/geometry.ts';
 import { gesteinsTextur } from '@aurelith/client/render/gestein.ts';
 import { laubAtlas } from '@aurelith/client/render/laub.ts';
-import { materialArt, PROP_BUILDERS, buildGateArch } from '@aurelith/client/render/props.ts';
+import { materialArt, PROP_BUILDERS } from '@aurelith/client/render/props.ts';
+import { PortalRing } from '@aurelith/client/render/portal.ts';
 import { buildTerrain, type TerrainMesh } from '@aurelith/client/render/terrain.ts';
 import { TextureLoader } from '@aurelith/client/render/textures.ts';
 import {
@@ -217,7 +218,14 @@ let doc: MapDocument | undefined;
 let world: CoreWorld | undefined;
 let terrain: TerrainMesh | undefined;
 let propMeshes: THREE.InstancedMesh[] = [];
-let gateMesh: THREE.InstancedMesh | undefined;
+/**
+ * Die Tore — je ein Bannkreis und eine Scheibe zum Anklicken.
+ *
+ * Der Kreis ist derselbe wie im Spiel (`PortalRing`), damit der Editor zeigt,
+ * was man später sieht. Die Scheibe darüber ist der Griff: der Kreis besteht
+ * aus durchsichtigen Lagen, und darauf zu zielen wäre Glückssache.
+ */
+let gateRinge: Array<{ ring: PortalRing; griff: THREE.Mesh }> = [];
 let selectedModel = Object.keys(PROP_BUILDERS)[0]!;
 let nextPropId = 1;
 
@@ -271,12 +279,6 @@ let zonenMeshes: THREE.Mesh[] = [];
 let nextZoneId = 1;
 /** Zuletzt getroffener Geländepunkt. Nur für die Auskunft nach aussen. */
 let lastGroundPoint: THREE.Vector3 | undefined;
-
-let gateGeometryCache: THREE.BufferGeometry | undefined;
-function gateGeometry(): THREE.BufferGeometry {
-  gateGeometryCache ??= buildGateArch();
-  return gateGeometryCache;
-}
 
 const geometryCache = new Map<string, THREE.BufferGeometry>();
 function propGeometry(key: string): THREE.BufferGeometry {
@@ -400,37 +402,49 @@ async function loadGroundTextures(document_: MapDocument, mesh: TerrainMesh): Pr
  * gemeint ist.
  */
 function rebuildGates(): void {
-  if (gateMesh) {
-    root.remove(gateMesh);
-    gateMesh.dispose();
-    gateMesh = undefined;
+  for (const { ring, griff } of gateRinge) {
+    root.remove(ring.root);
+    ring.dispose();
+    griff.geometry.dispose();
+    (griff.material as THREE.Material).dispose();
   }
+  gateRinge = [];
   if (!doc || !world || doc.portals.length === 0) return;
+  const welt = world;
 
-  const mesh = new THREE.InstancedMesh(gateGeometry(), material, doc.portals.length);
-  mesh.frustumCulled = false;
-
-  const matrix = new THREE.Matrix4();
-  const quat = new THREE.Quaternion();
-  const pos = new THREE.Vector3();
-  const scale = new THREE.Vector3(1, 1, 1);
-  const color = new THREE.Color();
-
-  for (let i = 0; i < doc.portals.length; i++) {
-    const portal = doc.portals[i]!;
+  for (const portal of doc.portals) {
     const [x, z] = portal.position;
-    pos.set(x, world.heightAt(x, z), z);
-    quat.setFromEuler(new THREE.Euler(0, portal.yaw, 0));
-    matrix.compose(pos, quat, scale);
-    mesh.setMatrixAt(i, matrix);
-    color.setHex(portal.id === selectedGateId ? 0xffd479 : 0xffffff);
-    mesh.setColorAt(i, color);
-  }
-  mesh.instanceMatrix.needsUpdate = true;
-  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    const y = welt.heightAt(x, z);
 
-  root.add(mesh);
-  gateMesh = mesh;
+    const ring = new PortalRing({ x, y, z }, portal.radius, (px, pz) => welt.heightAt(px, pz));
+    root.add(ring.root);
+
+    /*
+     * Die Scheibe zum Anklicken.
+     *
+     * Sichtbar, aber fast durchsichtig — ein unsichtbares Objekt trifft der
+     * Strahlenwerfer gar nicht erst, und ein Tor, das sich nicht anklicken
+     * lässt, lässt sich auch nicht verschieben. Das gewählte leuchtet
+     * bernsteinfarben; das ist zugleich die Anzeige, welches gemeint ist.
+     */
+    const gewaehlt = portal.id === selectedGateId;
+    const griff = new THREE.Mesh(
+      new THREE.CircleGeometry(portal.radius * 1.2, 32),
+      new THREE.MeshBasicMaterial({
+        color: gewaehlt ? 0xffd479 : 0xffffff,
+        transparent: true,
+        opacity: gewaehlt ? 0.22 : 0.04,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    );
+    griff.rotation.x = -Math.PI / 2;
+    griff.position.set(x, y + 0.12, z);
+    griff.userData.portalId = portal.id;
+    root.add(griff);
+
+    gateRinge.push({ ring, griff });
+  }
 }
 
 /**
@@ -484,11 +498,14 @@ function zoneUnterZeiger(): string | undefined {
 
 /** Das Tor unter dem Zeiger, falls eines getroffen wird. */
 function gateUnderPointer(): PortalDef | undefined {
-  if (!doc || !gateMesh) return undefined;
+  if (!doc || gateRinge.length === 0) return undefined;
   raycaster.setFromCamera(pointer, camera);
-  const hit = raycaster.intersectObject(gateMesh, false)[0];
-  if (!hit || hit.instanceId === undefined) return undefined;
-  return doc.portals[hit.instanceId];
+  const hit = raycaster.intersectObjects(
+    gateRinge.map((g) => g.griff),
+    false,
+  )[0];
+  const id = hit?.object.userData.portalId as string | undefined;
+  return id === undefined ? undefined : doc.portals.find((p) => p.id === id);
 }
 
 function rebuildProps(): void {
@@ -1742,6 +1759,10 @@ function frame(now = performance.now()): void {
 
   // Verschieben mit WASD. Die Geschwindigkeit hängt am Abstand, damit sich das
   // Tempo in der Übersicht und dicht am Boden gleich anfühlt.
+  // Die Tore drehen sich auch im Editor: was hier steht, soll aussehen wie
+  // das, was später im Spiel steht.
+  for (const { ring } of gateRinge) ring.update(dt);
+
   const step = camDistance * 1.2 * dt;
   let right = 0;
   let forward = 0;
