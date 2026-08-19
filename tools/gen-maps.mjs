@@ -356,6 +356,33 @@ function lanternRoad(from, to, { abstand = 30, seite = 6, scale = 1 } = {}) {
   return out;
 }
 
+/**
+ * Laternen entlang einer **Kurve** statt einer Strecke.
+ *
+ * `mitte(z)` sagt, wo die Strasse auf dieser Höhe liegt. Gestellt wird
+ * senkrecht zu ihrer Richtung — bei sechzig Metern Ausschlag steht eine
+ * Laterne sonst in der Kurve mitten auf der Fahrbahn, während die
+ * gegenüberliegende zwanzig Meter im Gras steht.
+ *
+ * Abwechselnd links und rechts: eine Allee mit Paaren wäre ein Torbogen alle
+ * sechsundzwanzig Meter, und das ist eine Prachtstrasse und kein Landweg.
+ */
+function laternenWeg(zVon, zBis, mitte, { abstand = 26, seite = 6.5, scale = 1 } = {}) {
+  const out = [];
+  const n = Math.max(1, Math.round((zBis - zVon) / abstand));
+  for (let i = 0; i <= n; i++) {
+    const z = zVon + ((zBis - zVon) * i) / n;
+    const steigung = (mitte(z + 2) - mitte(z - 2)) / 4;
+    // Senkrechte zur Richtung (1, steigung) in der xz-Ebene, normiert.
+    const laenge = Math.sqrt(1 + steigung * steigung);
+    const nx = 1 / laenge;
+    const nz = -steigung / laenge;
+    const s = i % 2 === 0 ? seite : -seite;
+    out.push(place('lantern_post', mitte(z) + nx * s, z + nz * s, { scale }));
+  }
+  return out;
+}
+
 /** Sperrzonen aus gesetzten Props, damit der Streuer keine Bäume hineinstellt. */
 function keepOutOf(props, r) {
   return props.map((p) => ({ x: p.position[0], z: p.position[2], r }));
@@ -507,6 +534,81 @@ function ausserhalb(x, z) {
 }
 
 /**
+ * Der Lauf der Strasse, als Stützpunkte (z, x).
+ *
+ * **Sie war eine Gerade.** Achtzehnhundert Meter schnurgerade von der Stadt
+ * zum Tor: man sah das Ziel von der Mitte aus, und was links und rechts lag,
+ * kam nie in den Blick, weil es keinen Grund gab hinzusehen. Ein Weg, der eine
+ * Kurve macht, zeigt bei jeder etwas Neues — und was hinter der Kurve liegt,
+ * ist erst dann da.
+ *
+ * Sie schwingt um bis zu sechzig Meter aus und beginnt wie sie endet: bei
+ * x = 0, denn dort stehen das Stadttor und der Bannkreis.
+ *
+ * Von Hand gesetzt und nicht aus einer Sinuskurve: eine Sinuskurve ist wieder
+ * eine Gerade, nur eine gewellte — sie hat überall dieselbe Krümmung. Hier
+ * folgt jede Biegung etwas: die erste dem Ufer, die zweite umgeht die Gruben,
+ * die dritte sucht die Furt, die letzte legt sich um den Fuss der Terrasse.
+ */
+const WEG = [
+  [-440, 0],
+  [-360, 40],
+  [-250, 30],
+  [-150, 10],
+  [-40, -34],
+  [80, -80],
+  [200, 10],
+  [320, 40],
+  [440, 58],
+  [560, 34],
+  [660, -40],
+  [740, -12],
+  [784, 0],
+];
+
+/**
+ * Wo die Strasse zu dieser Höhe liegt.
+ *
+ * Dieselbe Glättung wie beim Fluss — zwischen den Stützpunkten eine
+ * Kosinuskurve statt einer Geraden, sonst hätte der Weg an jedem Stützpunkt
+ * einen Knick, und ein Knick in einer Strasse sieht aus wie ein Fehler im
+ * Generator.
+ */
+function stuetzstellen(punkte, z) {
+  if (z <= punkte[0][0]) return punkte[0][1];
+  const letzte = punkte[punkte.length - 1];
+  if (z >= letzte[0]) return letzte[1];
+  for (let i = 0; i + 1 < punkte.length; i++) {
+    const [z0, x0] = punkte[i];
+    const [z1, x1] = punkte[i + 1];
+    if (z > z1) continue;
+    const t = (z - z0) / (z1 - z0);
+    const w = 0.5 - 0.5 * Math.cos(t * Math.PI);
+    return x0 + (x1 - x0) * w;
+  }
+  return letzte[1];
+}
+
+/** Die Mitte der Strasse auf dieser Höhe. */
+const wegMitte = (z) => stuetzstellen(WEG, z);
+
+/**
+ * Abstand zur Strassenmitte — quer gemessen und nicht waagerecht.
+ *
+ * In einer Kurve läuft die Strasse schräg; der waagerechte Abstand `|x − Mitte|`
+ * wäre dort um den Kosinus des Winkels zu gross, und der Weg würde in jeder
+ * Biegung breiter. Bei sechzig Metern Ausschlag auf hundert Meter Länge sind
+ * das gut zwanzig Prozent — sichtbar.
+ */
+function wegAbstand(x, z) {
+  const mitte = wegMitte(z);
+  // Steigung der Mittellinie, aus zwei nahen Abtastungen. Analytisch wäre
+  // hübscher, aber die Kurve ist stückweise definiert.
+  const steigung = (wegMitte(z + 2) - wegMitte(z - 2)) / 4;
+  return Math.abs(x - mitte) / Math.sqrt(1 + steigung * steigung);
+}
+
+/**
  * Der Lauf der Silberader, als Stützpunkte (z, x).
  *
  * Von Hand gesetzt statt aus einer Sinuskurve: die Kurve traf zweimal die
@@ -534,20 +636,7 @@ const FLUSS = [
  * eine lineare Kette hätte an jedem Stützpunkt einen Knick, und ein Knick im
  * Flussbett sieht aus wie ein Kanal.
  */
-function silberader(z) {
-  if (z <= FLUSS[0][0]) return FLUSS[0][1];
-  const letzte = FLUSS[FLUSS.length - 1];
-  if (z >= letzte[0]) return letzte[1];
-  for (let i = 0; i + 1 < FLUSS.length; i++) {
-    const [z0, x0] = FLUSS[i];
-    const [z1, x1] = FLUSS[i + 1];
-    if (z > z1) continue;
-    const t = (z - z0) / (z1 - z0);
-    const w = 0.5 - 0.5 * Math.cos(t * Math.PI);
-    return x0 + (x1 - x0) * w;
-  }
-  return letzte[1];
-}
+const silberader = (z) => stuetzstellen(FLUSS, z);
 
 /** Abstand zur Flussmitte. */
 function flussAbstand(x, z) {
@@ -563,14 +652,48 @@ function flussAbstand(x, z) {
  */
 function brueckenStellen(zVon, zBis) {
   const stellen = [];
-  let vorher = silberader(zVon);
+  // Der Abstand zwischen Strasse und Fluss, vorzeichenbehaftet: wechselt er
+  // das Vorzeichen, kreuzen sie sich. Vorher stand hier `silberader(z)` gegen
+  // null — das galt, solange die Strasse eine Gerade bei x = 0 war. Seit sie
+  // schwingt, lagen die Brücken irgendwo in der Wiese und die Furt blieb ohne.
+  let vorher = silberader(zVon) - wegMitte(zVon);
   for (let z = zVon + 1; z <= zBis; z++) {
-    const jetzt = silberader(z);
+    const jetzt = silberader(z) - wegMitte(z);
     if ((vorher <= 0 && jetzt > 0) || (vorher >= 0 && jetzt < 0)) stellen.push(z);
     vorher = jetzt;
   }
   return stellen;
 }
+
+/**
+ * Die Terrassen — wo die Insel eine Stufe höher steigt.
+ *
+ * `z` ist die Mitte der Kante, `hoehe` ihr Sprung, `rampen` sind die x-Lagen,
+ * an denen man hinaufkommt. Die Strasse bekommt ihre Rampe von selbst; diese
+ * hier sind die abseitigen, für alle, die nicht auf dem Weg bleiben.
+ *
+ * Zusammen dreissig Meter über achtzehnhundert. Das Tor im Norden liegt damit
+ * hoch über der Südküste, und wer oben an der Kante steht, sieht die ganze
+ * Strecke zurück, die er gelaufen ist.
+ */
+const TERRASSEN = [
+  { z: -300, hoehe: 9, rampen: [-330, 240] },
+  { z: 250, hoehe: 11, rampen: [-480, 120, 430] },
+  { z: 480, hoehe: 10, rampen: [-250, 330] },
+];
+
+/**
+ * Die Teiche — Mulden, die unter den Wasserspiegel reichen.
+ *
+ * Der Spiegel liegt bei −4 und die Wasserfläche über der ganzen Karte; ein
+ * Teich ist deshalb nichts weiter als ein Loch, das tief genug ist. Beide
+ * liegen **neben** der Strasse: etwas, das man sieht und für das man einen
+ * Umweg macht, ist mehr wert als etwas, an dem man vorbeikommt.
+ */
+const TEICHE = [
+  { x: 250, z: -560, r: 78, tiefe: 13 },
+  { x: -210, z: 330, r: 66, tiefe: 12 },
+];
 
 /**
  * Das Gelände von Lichtmoor als Differenz auf das Rauschen.
@@ -621,11 +744,54 @@ function lichtmoorHoehe(x, z) {
    * der ganze Sinn eines Fluggeräts ist.
    */
   const drauss = ausserhalb(x, z);
-  if (drauss > 0) {
-    // Ein bisschen Unruhe in der Kantenhöhe: eine Klippe, die überall gleich
-    // tief fällt, sieht aus wie eine Tischkante.
-    const kerbe = Math.sin(x * 0.043) * 1.6 + Math.sin(z * 0.037) * 1.4;
-    h -= glatt(drauss / 12) * (26 + kerbe);
+
+  /*
+   * --- 1b. Die Terrassen ---------------------------------------------------
+   *
+   * Die Insel steigt nach Norden in **Stufen** und nicht als Rampe. Der
+   * Unterschied ist der ganze Punkt: eine gleichmässige Steigung merkt beim
+   * Laufen niemand, eine Kante schon. Von der Kante oben sieht man zurück, wo
+   * man herkam; von unten sieht man, dass es weitergeht und wo.
+   *
+   * Jede Kante ist **acht Meter** tief auf voller Höhe — bei zehn Metern Stufe
+   * sind das über fünfzig Grad, und damit ist sie zu, denn der Kern lässt bis
+   * zweiundfünfzig gehen. Hinauf kommt man nur über eine **Rampe**: dort wird
+   * dieselbe Stufe über achtzig Meter verteilt, also acht Grad.
+   *
+   * Eine der Rampen liegt immer auf der Strasse — gerechnet aus `wegMitte` und
+   * nicht danebengeschrieben, sonst führt der Weg gegen eine Wand, sobald
+   * jemand an der Kurve dreht. Die anderen liegen so, dass man sie sucht.
+   *
+   * Die Kante selbst verläuft nicht schnurgerade: zwei Wellen verschieben sie
+   * um bis zu achtzehn Meter, damit sie wie ein Geländesprung aussieht und
+   * nicht wie eine Stufe im Treppenhaus.
+   */
+  for (const stufe of TERRASSEN) {
+    const kante = stufe.z + Math.sin(x * 0.006) * 18 + Math.sin(x * 0.017 + 1.2) * 7;
+    // Die Rampen: die Strasse und zwei gesetzte Stellen. Wie breit die Kante
+    // an dieser Stelle ist, entscheidet die nächstgelegene.
+    let rampe = 0;
+    for (const rx of [wegMitte(stufe.z), ...stufe.rampen]) {
+      rampe = Math.max(rampe, glatt(1 - Math.abs(x - rx) / 110));
+    }
+    const tiefe = 8 + rampe * 72;
+    h += stufe.hoehe * glatt((z - kante) / tiefe + 0.5);
+  }
+
+  /*
+   * --- 1c. Die Teiche ------------------------------------------------------
+   *
+   * Zwei Mulden unter dem Wasserspiegel. Mehr braucht es nicht: die
+   * Wasserfläche liegt ohnehin über der ganzen Karte, sie zeigt sich nur dort,
+   * wo der Boden unter sie sinkt. Ein Teich ist also ein Loch, und das ist die
+   * billigste Landschaft, die es gibt.
+   *
+   * Der Rand fällt flach genug ab, dass man hineinwaten kann — ein Tümpel mit
+   * Klippe wäre ein Brunnen.
+   */
+  for (const teich of TEICHE) {
+    const d = Math.hypot(x - teich.x, z - teich.z) / teich.r;
+    if (d < 1) h -= glatt(1 - d) * teich.tiefe;
   }
 
   // --- 2. Hügel innen -----------------------------------------------------
@@ -658,11 +824,11 @@ function lichtmoorHoehe(x, z) {
     { x: -95, z: 704, r: 36, h: 15 },
     { x: 27, z: 760, r: 32, h: 11 },
     // Der Westen und der Osten.
-    { x: -218, z: -320, r: 52, h: 16 },
+    { x: -218, z: -320, r: 52, h: 16, flach: 0.45 },
     { x: -238, z: 240, r: 46, h: 13 },
     { x: -190, z: 640, r: 42, h: 11 },
     { x: 211, z: -480, r: 48, h: 14 },
-    { x: 234, z: 40, r: 50, h: 18 },
+    { x: 234, z: 40, r: 50, h: 18, flach: 0.5 },
     { x: 197, z: 472, r: 44, h: 12 },
     { x: 229, z: 820, r: 38, h: 10 },
     { x: -204, z: -720, r: 44, h: 12 },
@@ -680,7 +846,7 @@ function lichtmoorHoehe(x, z) {
     { x: 205, z: -160, r: 46, h: 14 },
     { x: -75, z: 0, r: 40, h: 11 },
     { x: 160, z: 200, r: 44, h: 13 },
-    { x: -215, z: 400, r: 48, h: 16 },
+    { x: -215, z: 400, r: 48, h: 16, flach: 0.45 },
     { x: 45, z: 300, r: 36, h: 9 },
     { x: 120, z: 660, r: 40, h: 12 },
     { x: -140, z: 500, r: 38, h: 10 },
@@ -696,22 +862,34 @@ function lichtmoorHoehe(x, z) {
      */
     { x: -380, z: -760, r: 50, h: 14 },
     { x: 420, z: -680, r: 46, h: 12 },
-    { x: -460, z: -520, r: 52, h: 16 },
+    { x: -460, z: -520, r: 52, h: 16, flach: 0.5 },
     { x: 380, z: -360, r: 44, h: 11 },
     { x: -520, z: -200, r: 48, h: 15 },
     { x: 440, z: -120, r: 50, h: 13 },
     { x: -360, z: 60, r: 46, h: 12 },
-    { x: 500, z: 180, r: 52, h: 17 },
+    { x: 500, z: 180, r: 52, h: 17, flach: 0.5 },
     { x: -440, z: 320, r: 44, h: 10 },
     { x: 360, z: 460, r: 48, h: 14 },
     { x: -500, z: 560, r: 50, h: 12 },
     { x: 420, z: 700, r: 46, h: 13 },
     { x: -380, z: 820, r: 44, h: 11 },
-    { x: 520, z: 860, r: 48, h: 15 },
+    { x: 520, z: 860, r: 48, h: 15, flach: 0.45 },
   ];
   for (const k of kuppen) {
     const d = Math.hypot(x - k.x, z - k.z) / k.r;
-    if (d < 1) h += glatt(1 - d) * k.h;
+    if (d >= 1) continue;
+    /*
+     * `flach` macht aus der Kuppe eine **Ebene auf einer Ebene**: bis dorthin
+     * ist der Scheitel eben, erst danach fällt der Hang. Eine Kuppe ist etwas,
+     * über das man läuft; ein Plateau ist ein Ort, an dem man steht — und der
+     * Unterschied ist eine Zahl.
+     *
+     * Der Hang bleibt begehbar: vierzehn Meter auf sechzig Radius sind
+     * dreizehn Grad, auch wenn der ebene Teil die Hälfte davon frisst.
+     */
+    const rand = k.flach ?? 0;
+    const t = rand > 0 ? Math.min(1, (1 - d) / (1 - rand)) : 1 - d;
+    h += glatt(t) * k.h;
   }
 
   /*
@@ -783,7 +961,10 @@ function lichtmoorHoehe(x, z) {
      * Brücke, durch die man hindurchfällt. Zehn Einheiten breit, an den
      * Rändern weich, damit die Böschung daneben stehenbleibt.
      */
-    const aufDerStrasse = Math.max(0, 1 - Math.max(0, Math.abs(x) - 7) / 5);
+    // Der Damm liegt unter der **Strasse** und nicht bei x = 0: die schwingt
+    // um bis zu sechzig Meter, und ein Damm daneben ist ein Wall in der Wiese
+    // mit einer Brücke ohne Auffahrt daneben.
+    const aufDerStrasse = Math.max(0, 1 - Math.max(0, wegAbstand(x, z) - 7) / 5);
     h -= 14 * tiefe * (1 - aufDerStrasse);
   }
 
@@ -797,6 +978,30 @@ function lichtmoorHoehe(x, z) {
    */
   const dStadt = Math.hypot(x, z - LM.stadtZ) / (LM.stadtR + 18);
   if (dStadt < 1) h += glatt(1 - dStadt) * 5;
+
+  /*
+   * --- 5. Die Klippe, zum Schluss ------------------------------------------
+   *
+   * **Nach** den Terrassen und nicht davor, und als Überblendung auf den
+   * Meeresgrund statt als fester Abzug. Vorher stand hier „minus sechsundzwanzig
+   * Meter": das reichte, solange das Land überall vier Meter hoch lag. Mit
+   * dreissig Metern Terrasse im Norden hätte die Klippe dort auf vierzehn
+   * Meter geendet — trockener Boden jenseits der Küste, mit einer Aussicht auf
+   * das Meer von unten.
+   *
+   * So endet jede Höhe an derselben Tiefe. Die Kante fällt auf zwölf Metern,
+   * das sind bei der niedrigsten Stufe fünfundsechzig Grad und weiter oben
+   * mehr — immer über den zweiundfünfzig, bis zu denen der Kern einen gehen
+   * lässt. Man kommt bis an die Kante und keinen Schritt weiter, auch nicht
+   * im Sprung.
+   */
+  if (drauss > 0) {
+    // Ein bisschen Unruhe im Meeresgrund: eine Kante, die überall gleich tief
+    // fällt, sieht aus wie eine Tischkante.
+    const kerbe = Math.sin(x * 0.043) * 1.6 + Math.sin(z * 0.037) * 1.4;
+    const grund = -22 + kerbe;
+    h += (grund - h) * glatt(drauss / 12);
+  }
 
   return h;
 }
@@ -1035,7 +1240,7 @@ function lichtmoorWeg(x, z) {
   const halb = 5.4 + Math.sin(z * 0.05) * 0.7 + Math.sin(z * 0.013) * 1.1;
   // Aussen über vier Meter auslaufen: dort mischt sich Gras dazu, und der
   // Rand liest sich als ausgetreten statt als geschnitten.
-  const quer = 1 - glatt((Math.abs(x) - halb) / 4);
+  const quer = 1 - glatt((wegAbstand(x, z) - halb) / 4);
   return Math.max(0, Math.min(1, quer * enden));
 }
 
@@ -1385,16 +1590,21 @@ function lichtmoor() {
   // Wo der Fluss die Strasse kreuzt, steht eine Brücke — gefunden und nicht
   // festgelegt, siehe `brueckenStellen`.
   const bruecken = brueckenStellen(cz + LM.stadtR, LM.zNord - 12);
-  const brueckenbau = bruecken.flatMap((b) => [
-    ...fenceRun('fence_stone', [-8, b - 7], [-8, b + 7]),
-    ...fenceRun('fence_stone', [8, b - 7], [8, b + 7]),
-    place('pillar', -9, b - 8, { scale: 0.8 }),
-    place('pillar', 9, b - 8, { scale: 0.8 }),
-    place('pillar', -9, b + 8, { scale: 0.8 }),
-    place('pillar', 9, b + 8, { scale: 0.8 }),
-    place('lantern_post', -9, b),
-    place('lantern_post', 9, b),
-  ]);
+  const brueckenbau = bruecken.flatMap((b) => {
+    // Geländer und Pfeiler stehen relativ zur **Strassenmitte** an dieser
+    // Stelle. Die Brücke ist ein Bauwerk auf dem Weg, kein Bauwerk bei x = 0.
+    const m = wegMitte(b);
+    return [
+      ...fenceRun('fence_stone', [m - 8, b - 7], [m - 8, b + 7]),
+      ...fenceRun('fence_stone', [m + 8, b - 7], [m + 8, b + 7]),
+      place('pillar', m - 9, b - 8, { scale: 0.8 }),
+      place('pillar', m + 9, b - 8, { scale: 0.8 }),
+      place('pillar', m - 9, b + 8, { scale: 0.8 }),
+      place('pillar', m + 9, b + 8, { scale: 0.8 }),
+      place('lantern_post', m - 9, b),
+      place('lantern_post', m + 9, b),
+    ];
+  });
 
   /*
    * Die Zeichen am Weg — gerechnet und nicht abgeschrieben.
@@ -1416,21 +1626,26 @@ function lichtmoor() {
   for (let i = 0, z = wegVon; z <= wegBis; z += 80, i++) {
     const rechts = i % 2 === 0;
     const seite = rechts ? 1 : -1;
-    const yaw = rechts ? 0.3 : 2.9;
     // Vier Sorten im Wechsel: Meilenstein, Bank, Bildstock, Wegweiser. Der
     // Wegweiser ist der seltenste — er markiert, und was ständig markiert,
     // markiert nichts.
     const was = ['meilenstein', 'bank', 'bildstock', 'meilenstein', 'signpost', 'bank'][i % 6];
-    wegZeichen.push(place(was, seite * (was === 'signpost' ? 5.5 : 4.8), round(z), { yaw }));
+    // Am Rand der **Kurve** und nicht bei x = 0: seit die Strasse schwingt,
+    // stünden die Zeichen sonst reihum sechzig Meter neben ihr im Gras.
+    const steigung = (wegMitte(z + 2) - wegMitte(z - 2)) / 4;
+    const yaw = round((rechts ? 0.3 : 2.9) + Math.atan(steigung));
+    wegZeichen.push(
+      place(was, wegMitte(z) + seite * (was === 'signpost' ? 5.5 : 4.8), round(z), { yaw }),
+    );
   }
 
   const strasse = [
-    ...lanternRoad([0, cz + mauerHalb + 6], [0, LM_TOR - 10], { abstand: 26, seite: 6.5 }),
+    ...laternenWeg(cz + mauerHalb + 6, LM_TOR - 10, wegMitte, { abstand: 26, seite: 6.5 }),
     ...wegZeichen,
 
     // Ein liegen gebliebener Karren am Wegrand, halb im Gras.
-    place('handkarre', -8.5, 48, { yaw: 2.2 }),
-    place('planwagen', 9.5, 288, { yaw: 1.4 }),
+    place('handkarre', wegMitte(48) - 8.5, 48, { yaw: 2.2 }),
+    place('planwagen', wegMitte(288) + 9.5, 288, { yaw: 1.4 }),
 
     // Die Brücken über die Silberader. Zwei Geländer und vier Pfeiler je
     // Übergang — mehr braucht es nicht, damit man sieht, wo man hinüberkommt.
@@ -1610,11 +1825,10 @@ function lichtmoor() {
      * hörte der Schutz nach einem Viertel des Weges auf, und der Rest der
      * Strecke wäre zugewachsen.
      */
-    ...Array.from({ length: Math.ceil((LM_TOR - (cz + LM.stadtR)) / 7) + 1 }, (_, i) => ({
-      x: 0,
-      z: cz + LM.stadtR + i * 7,
-      r: 7,
-    })),
+    ...Array.from({ length: Math.ceil((LM_TOR - (cz + LM.stadtR)) / 7) + 1 }, (_, i) => {
+      const z = cz + LM.stadtR + i * 7;
+      return { x: wegMitte(z), z, r: 7 };
+    }),
   ];
 
   /**

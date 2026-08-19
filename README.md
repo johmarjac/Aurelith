@@ -88,7 +88,16 @@ bewussten Abweichung, die weiter unten begründet ist.
   zum Bannkreis im Norden liegt Erde statt Gras — gemalt im Kartendokument, mit
   atmender Breite und weichem Rand. Die Bodentexturen wählen sonst nach
   Neigung, und ein Weg ist flach: eine Reihe Laternen über einer Wiese sagte
-  nur, wo Laternen stehen.
+  nur, wo Laternen stehen. Und er **schwingt**: hundertvierzig Meter quer,
+  zweimal über die Silberader, mit Laternen und Wegzeichen, die der Kurve
+  folgen statt einer Geraden bei x = 0.
+- **Das Land steigt in Stufen**: drei Terrassen von der Südküste bis zum Tor,
+  zusammen dreissig Meter. Jede Kante ist acht Meter tief und damit zu — hinauf
+  kommt man über **Rampen**, und eine davon liegt immer auf der Strasse
+  (gerechnet aus deren Verlauf, nicht danebengeschrieben). Dazu Kuppen mit
+  ebenem Scheitel, auf denen man steht statt darüberzulaufen, und zwei Teiche:
+  Mulden unter dem Wasserspiegel, denn die Wasserfläche liegt ohnehin über der
+  ganzen Karte.
 - **Fünf Zonen**, und man sieht sie: Silberfurter Weiden, Die Gruben, Die
   Uferwiesen, Das Geröllfeld, Der Dornsaum. Jede hat ihren eigenen Bewuchs
   (Blüten nur im Süden, Heidekraut nur im Norden), ihre eigene Bodenfarbe und

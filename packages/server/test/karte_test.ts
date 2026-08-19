@@ -394,13 +394,32 @@ for (let iz = 1; iz < aufloesung - 1; iz++) {
     );
     // Vierzig Meter Saum um die Insel bleiben aussen vor: dort steht die
     // Klippe, und die gehört weder zum Land noch zum Meer.
+    /*
+     * Wie weit ein Punkt jenseits des Inselrechtecks liegt.
+     *
+     * Vorher stand hier ein um vierzehn Prozent geschrumpftes Rechteck, und
+     * das hiess bei einer Insel von zwölfhundert Metern Breite: „erst
+     * fünfundachtzig Meter draussen". Die Klippe ist zwölf Meter breit — sie
+     * lag also **komplett** ausserhalb des Prüfbereichs, und gemessen wurde
+     * der flache Meeresgrund dahinter. Fünf Grad, und der Test hatte recht:
+     * dort ist es flach.
+     */
+    const raus = Math.hypot(
+      Math.max(0, Math.abs(x) - halbBreite),
+      Math.max(0, Math.abs(z - mitteZ) - halbLaenge),
+    );
     if (drinnen(x, z)) {
       punkteDrinnen++;
       if (h > doc.terrain.waterLevel) landDrinnen++;
-    } else if (!drinnen(x * 0.86, mitteZ + (z - mitteZ) * 0.95)) {
-      punkteDraussen++;
-      if (h > doc.terrain.waterLevel) landDraussen++;
-      steilsteKlippe = Math.max(steilsteKlippe, neigung);
+    } else {
+      // Der Saum ist die Klippe: sie fällt auf zwölf Metern, die Küste
+      // schwankt um fünfundzwanzig. Sechzig Meter fassen beides.
+      if (raus < 60) steilsteKlippe = Math.max(steilsteKlippe, neigung);
+      // Und weit draussen ist Meer und sonst nichts.
+      if (raus > 100) {
+        punkteDraussen++;
+        if (h > doc.terrain.waterLevel) landDraussen++;
+      }
     }
     // Innen das Plateau. Der Fluss liegt innen und ist absichtlich steil —
     // deshalb bleibt sein Graben hier aussen vor.
@@ -491,6 +510,38 @@ function neigungenIn(z0: number, z1: number): number[] {
   return werteHier.sort((p, q) => p - q);
 }
 
+/**
+ * Die **Welligkeit** eines Streifens: wie stark ein Punkt von seinen Nachbarn
+ * abweicht, in Metern.
+ *
+ * Und nicht die Neigung. Die Neigung misst auch die grossen Formen mit — eine
+ * Terrassenkante, den Rand eines Teichs, den Fuss eines Hügels —, und seit es
+ * die gibt, kam im Süden derselbe Wert heraus wie im Norden: vier Prozent
+ * gegen drei, und die Aussage „im Norden bricht der Boden auf" war damit
+ * widerlegt, obwohl sie stimmt. Gemeint ist die **kleine** Unruhe mit
+ * siebzehn bis dreissig Metern Wellenlänge, und die sieht man erst, wenn man
+ * die grossen Formen abzieht: eine Kante ist über drei Stützpunkte gerade,
+ * eine Welle nicht.
+ */
+function welligkeitIn(z0: number, z1: number): number {
+  let summe = 0;
+  let zahl = 0;
+  for (let iz = 1; iz < aufloesung - 1; iz++) {
+    const z = -halb + iz * gitter;
+    if (z < z0 || z > z1) continue;
+    for (let ix = 1; ix < aufloesung - 1; ix++) {
+      const x = -halb + ix * gitter;
+      if (Math.abs(x) > halbBreite * 0.85 || Math.abs(x) < halbBreite * 0.5) continue;
+      const mittel =
+        (hoeheBei(ix + 1, iz) + hoeheBei(ix - 1, iz) + hoeheBei(ix, iz + 1) + hoeheBei(ix, iz - 1)) /
+        4;
+      summe += Math.abs(hoeheBei(ix, iz) - mittel);
+      zahl++;
+    }
+  }
+  return zahl > 0 ? summe / zahl : 0;
+}
+
 /** Ab hier zeigt der Boden Erde statt Gras — siehe `groundLayers`. */
 const ERDE_AB = 24;
 const anteilErde = (n: number[]): number => n.filter((g) => g > ERDE_AB).length / n.length;
@@ -501,11 +552,24 @@ const anteilErde = (n: number[]): number => n.filter((g) => g > ERDE_AB).length 
  * beide Fenster in derselben Zone. Der Test verglich die Weiden mit sich
  * selbst und meldete, es gebe keinen Unterschied.
  */
-const weiden = neigungenIn(laengsachse.von + laenge * 0.1, laengsachse.von + laenge * 0.3);
-const norden = neigungenIn(laengsachse.von + laenge * 0.78, laengsachse.von + laenge * 0.95);
+const suedVon = laengsachse.von + laenge * 0.1;
+const suedBis = laengsachse.von + laenge * 0.3;
+const nordVon = laengsachse.von + laenge * 0.78;
+const nordBis = laengsachse.von + laenge * 0.95;
+const weiden = neigungenIn(suedVon, suedBis);
+const norden = neigungenIn(nordVon, nordBis);
+const welligSued = welligkeitIn(suedVon, suedBis);
+const welligNord = welligkeitIn(nordVon, nordBis);
 check(
-  anteilErde(norden) > anteilErde(weiden) * 2,
+  welligNord > welligSued * 2,
   'im Norden bricht der Boden auf, im Süden nicht',
+  `${welligSued.toFixed(2)} m gegen ${welligNord.toFixed(2)} m Welligkeit`,
+);
+// Und die Erde kommt tatsächlich durch: der Anteil über der Schwelle, ab der
+// die Bodentextur wechselt, ist im Norden höher.
+check(
+  anteilErde(norden) > anteilErde(weiden),
+  'und die Erdtextur kommt dort durch',
   `${(anteilErde(weiden) * 100).toFixed(0)} % gegen ${(anteilErde(norden) * 100).toFixed(0)} % über ${ERDE_AB}°`,
 );
 /*
@@ -733,6 +797,27 @@ const gemalt = (x: number, z: number): number[] => {
   return werteHier;
 };
 
+/**
+ * Die Mitte der Strasse auf dieser Höhe — aus dem Malfeld gelesen.
+ *
+ * Nicht bei x = 0 gesucht und schon gar nicht aus einer zweiten Kopie der
+ * Stützpunkte: gemalt ist der Weg, den man sieht. Läge der woanders als der,
+ * den der Generator meint, wäre genau das der Fehler. Seit die Strasse
+ * schwingt, ist das keine Feinheit mehr — sie steht stellenweise achtzig
+ * Meter neben der Mitte der Karte.
+ */
+function wegMitteBei(z: number): number | undefined {
+  let summe = 0;
+  let gewicht = 0;
+  for (let x = -halbBreite; x <= halbBreite; x += 2) {
+    const w = gemalt(x, z)[erdeEbene]!;
+    if (w <= 8) continue;
+    summe += x * w;
+    gewicht += w;
+  }
+  return gewicht > 0 ? summe / gewicht : undefined;
+}
+
 /*
  * Auf der Strasse: Erde, und zwar überwiegend — von der Stadt bis zum Tor.
  * Zehn Stellen über zwölfhundert Meter; eine einzelne sagte nur, dass
@@ -742,7 +827,7 @@ let aufDemWeg = 0;
 let schwaechste = 255;
 for (let i = 0; i <= 10; i++) {
   const z = doc.spawn.z + ((tor.position[1] - doc.spawn.z) * i) / 10;
-  const w = gemalt(0, z);
+  const w = gemalt(wegMitteBei(z) ?? 0, z);
   if (w[erdeEbene]! > w[grasEbene]!) aufDemWeg++;
   schwaechste = Math.min(schwaechste, w[erdeEbene]!);
 }
@@ -760,8 +845,11 @@ check(
 let danebenGemalt = 0;
 for (let i = 0; i <= 10; i++) {
   const z = doc.spawn.z + ((tor.position[1] - doc.spawn.z) * i) / 10;
-  for (const x of [-40, 40, -200, 200]) {
-    const w = gemalt(x, z);
+  const mitte = wegMitteBei(z) ?? 0;
+  // Abstände zur **Strassenmitte**, nicht zur Kartenmitte: die Kurve läuft
+  // sonst durch die Stelle, an der nichts sein soll.
+  for (const abstand of [-40, 40, -200, 200]) {
+    const w = gemalt(mitte + abstand, z);
     if (w.reduce((a, b) => a + b, 0) > 0) danebenGemalt++;
   }
 }
@@ -769,7 +857,10 @@ check(danebenGemalt === 0, 'vierzig Meter daneben ist nichts gemalt', `${daneben
 
 // Und der Weg hört auf, wo er aufhört: hinter der Stadt und jenseits des Tores
 // führt keiner weiter.
-const hinterDerStadt = gemalt(0, laengsachse.von + 60).reduce((a, b) => a + b, 0);
+const hinterDerStadt = gemalt(wegMitteBei(doc.spawn.z + 40) ?? 0, laengsachse.von + 60).reduce(
+  (a, b) => a + b,
+  0,
+);
 const hinterDemTor = gemalt(0, tor.position[1] + 40).reduce((a, b) => a + b, 0);
 check(
   hinterDerStadt === 0 && hinterDemTor === 0,
@@ -793,6 +884,109 @@ check(
   'gemalt ist ein Band und keine Fläche',
   `${(anteilGemalt * 100).toFixed(1)} % der Stützpunkte`,
 );
+
+/*
+ * --- Der Weg macht Kurven, und das Land steigt in Stufen -------------------
+ *
+ * Beides war einmal nicht so: die Strasse lief achtzehnhundert Meter schnurgerade
+ * bei x = 0, und das Land lag von der Südküste bis zum Tor auf derselben Höhe.
+ * Man sah das Ziel von der Mitte aus, und links und rechts kam nie in den
+ * Blick, weil es keinen Grund gab hinzusehen.
+ *
+ * Eine Kurve ist aber nur dann besser, wenn man sie auch **gehen** kann —
+ * deshalb steht hier beides: dass der Weg schwingt, und dass er dabei nirgends
+ * steiler wird, als der Kern einen Schritt annimmt.
+ */
+console.log('\nDer Weg macht Kurven, und das Land steigt in Stufen');
+
+const wegPunkte: Array<{ z: number; x: number }> = [];
+for (let z = doc.spawn.z + 40; z <= tor.position[1] - 10; z += 10) {
+  const x = wegMitteBei(z);
+  if (x !== undefined) wegPunkte.push({ z, x });
+}
+check(wegPunkte.length > 100, 'der Weg ist über die ganze Strecke zu finden', `${wegPunkte.length} Stellen`);
+
+const wegXs = wegPunkte.map((p) => p.x);
+const ausschlag = Math.max(...wegXs) - Math.min(...wegXs);
+check(ausschlag > 80, 'und er schwingt aus, statt gerade zu laufen', `${ausschlag.toFixed(0)} m quer`);
+/*
+ * Gegenprobe: er schwingt **und kommt an**. Ein Weg, der irgendwohin mäandert,
+ * wäre auch krumm — Anfang und Ende liegen aber am Stadttor und am Bannkreis,
+ * und beide stehen bei x = 0.
+ */
+check(
+  Math.abs(wegPunkte[0]!.x) < 25 && Math.abs(wegPunkte[wegPunkte.length - 1]!.x) < 25,
+  'und fängt am Tor an und hört am Tor auf',
+  `${wegPunkte[0]!.x.toFixed(0)} → ${wegPunkte[wegPunkte.length - 1]!.x.toFixed(0)}`,
+);
+
+/*
+ * **Begehbar von der Stadt bis zum Tor.** Zweiundfünfzig Grad ist die Schwelle
+ * im Kern; wo die Strasse eine Terrassenkante nimmt, muss dort eine Rampe
+ * liegen. Ohne diese Prüfung fiele erst beim Laufen auf, dass der Weg gegen
+ * eine Wand führt — nach drei Minuten Fussmarsch.
+ */
+let steilsteAmWeg = 0;
+let steilsteStelle = 0;
+for (const p of wegPunkte) {
+  const g = grad(neigungAn(p.x, p.z));
+  if (g > steilsteAmWeg) {
+    steilsteAmWeg = g;
+    steilsteStelle = p.z;
+  }
+}
+check(
+  steilsteAmWeg < 45,
+  'und man kommt ihn hinauf, ohne zu klettern',
+  `steilste Stelle ${steilsteAmWeg.toFixed(0)}° bei z = ${steilsteStelle.toFixed(0)}`,
+);
+
+/*
+ * Und die Gegenprobe dazu, ohne die alles davon nichts sagte: **daneben** ist
+ * es sehr wohl steil. Läge die ganze Insel flach, wäre der Weg trivial
+ * begehbar und die Terrassen gäbe es nur im Kommentar.
+ */
+let steileFlecken = 0;
+for (let z = laengsachse.von + 40; z <= laengsachse.bis - 40; z += 6) {
+  for (let x = -halbBreite + 40; x <= halbBreite - 40; x += 6) {
+    if (grad(neigungAn(x, z)) > 52) steileFlecken++;
+  }
+}
+check(
+  steileFlecken > 200,
+  'abseits davon steht das Land in Kanten',
+  `${steileFlecken} Stellen über 52° im Inneren`,
+);
+
+/*
+ * Die Stufen selbst: von der Südküste bis zum Tor geht es hinauf, und zwar
+ * **in Absätzen**. Gemessen wird an der Strasse, in Schritten von zwanzig
+ * Metern: ein Absatz ist ein Schritt, der mehr als anderthalb Meter steigt.
+ */
+const hoehenAmWeg: number[] = [];
+for (let z = doc.spawn.z; z <= tor.position[1]; z += 20) {
+  hoehenAmWeg.push(hoeheAn(wegMitteBei(z) ?? 0, z));
+}
+const anstieg = hoehenAmWeg[hoehenAmWeg.length - 1]! - hoehenAmWeg[0]!;
+let absaetze = 0;
+for (let i = 1; i < hoehenAmWeg.length; i++) {
+  if (hoehenAmWeg[i]! - hoehenAmWeg[i - 1]! > 1.5) absaetze++;
+}
+check(anstieg > 18, 'das Tor liegt hoch über der Stadt', `${anstieg.toFixed(0)} m höher`);
+check(absaetze >= 3 && absaetze < hoehenAmWeg.length / 3, 'und dazwischen liegen Absätze', `${absaetze} von ${hoehenAmWeg.length - 1} Schritten steigen`);
+
+/*
+ * Und die Teiche: zwei Mulden im Land, in denen Wasser steht. Sie liegen weit
+ * genug von der Küste, dass es nicht das Meer ist — sonst wäre die Prüfung
+ * mit jeder Bucht zufrieden.
+ */
+let teichPunkte = 0;
+for (let z = laengsachse.von + 60; z <= laengsachse.bis - 60; z += 6) {
+  for (let x = -halbBreite + 60; x <= halbBreite - 60; x += 6) {
+    if (hoeheAn(x, z) < doc.terrain.waterLevel) teichPunkte++;
+  }
+}
+check(teichPunkte > 40, 'im Land stehen Teiche', `${teichPunkte} Stützpunkte unter dem Spiegel`);
 
 console.log('\nJedes Prop steht so im Weg, wie die Tabelle es sagt');
 
