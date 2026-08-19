@@ -74,13 +74,16 @@ bewussten Abweichung, die weiter unten begründet ist.
   die Hauptstadt Silberfurt mit den Hauptquests, nach Norden Stufengebiete von
   1 bis 20, dazwischen Nebenquests, ein Fluss mit Brücken und schwebende Felsen
   über der Wiese.
-- **Karten werden in Minuten gemessen.** Sechshundert auf achtzehnhundert Meter
-  sind fünf Minuten von der Südküste bis zum Tor im Norden und dreieinhalb von
-  der Stadt aus; im Dornwald sind es drei zwischen den beiden Toren. Vorher war
-  Lichtmoor in fünfundsiebzig Sekunden durchquert — man kam an, bevor die
-  Gegend anfing, eine zu sein. `test:karte` rechnet die Zeit aus der Länge der
-  Insel und dem Tempo aus `tuning.json` nach, damit sie nicht beim nächsten
-  Verschieben unbemerkt zerfällt.
+- **Karten werden in Minuten gemessen.** Zwölfhundert auf achtzehnhundert Meter
+  sind fünf Minuten von der Südküste bis zum Tor im Norden, dreieinhalb von der
+  Stadt aus und gut drei quer von Küste zu Küste; im Dornwald sind es drei
+  zwischen den beiden Toren. Vorher war Lichtmoor in fünfundsiebzig Sekunden
+  durchquert — man kam an, bevor die Gegend anfing, eine zu sein. `test:karte`
+  rechnet alle drei Zeiten aus den gemessenen Enden der Insel und dem Tempo aus
+  `tuning.json` nach, damit sie nicht beim nächsten Verschieben unbemerkt
+  zerfallen. Am Weg steht der Bewuchs dicht wie bisher, auf den Flanken
+  jenseits von dreihundert Metern halb so dicht — draussen soll es weiter
+  wirken, nicht voller.
 - **Fünf Zonen**, und man sieht sie: Silberfurter Weiden, Die Gruben, Die
   Uferwiesen, Das Geröllfeld, Der Dornsaum. Jede hat ihren eigenen Bewuchs
   (Blüten nur im Süden, Heidekraut nur im Norden), ihre eigene Bodenfarbe und

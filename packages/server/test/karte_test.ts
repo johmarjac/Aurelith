@@ -117,7 +117,6 @@ const tempo = tuning.progression.moveSpeed;
 const minuten = (meter: number): number => meter / tempo / 60;
 
 check(tempo > 0.5 && tempo < 30, 'die Abstimmung nennt ein brauchbares Tempo', `${tempo} Einheiten/s`);
-check(breite > 540, 'die Insel ist breit genug', `${breite.toFixed(0)} m`);
 
 /*
  * **Die eigentliche Zusage: eine Wanderung dauert.**
@@ -135,6 +134,18 @@ check(
   minuten(laenge) >= 3 && minuten(laenge) <= 6,
   'von Süden nach Norden läuft man drei bis fünf Minuten',
   `${laenge.toFixed(0)} m = ${minuten(laenge).toFixed(1)} min`,
+);
+
+/*
+ * Und quer genauso. Die Insel war ein Schlauch: sechshundert Meter breit auf
+ * achtzehnhundert Länge, und von der Strasse aus stand man in anderthalb
+ * Minuten am Wasser. Wer ausweichen will, braucht Platz zum Ausweichen —
+ * sonst ist die Breite eine Zahl im Dokument und keine Landschaft.
+ */
+check(
+  minuten(breite) >= 3 && minuten(breite) <= 6,
+  'und quer von Küste zu Küste ebenfalls drei bis fünf',
+  `${breite.toFixed(0)} m = ${minuten(breite).toFixed(1)} min`,
 );
 
 const tor = doc.portals[0]!;

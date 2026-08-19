@@ -976,11 +976,35 @@ const abgemeldet = await page
   .then(() => true)
   .catch(() => false);
 check(abgemeldet, 'Abmelden führt zurück in die Figurenauswahl');
+/*
+ * Und die Verbindung bleibt dabei stehen.
+ *
+ * Beobachtet statt einmal abgefragt. Der Zustand stand hier eine Zeile später
+ * schon wieder auf „verbunden", im Augenblick der Abfrage aber auf
+ * „verbindet": beim Verlassen der Welt raeumt der Client sechzehntausend
+ * Props ab, und der naechste Pong kommt erst danach. Ein einzelner Blick
+ * traf mal das eine, mal das andere — je nachdem, wie gross die Karte war.
+ *
+ * Gefragt ist ohnehin nicht „welcher Text steht in dieser Millisekunde da",
+ * sondern „ist die Verbindung weg". Deshalb: bis zu sechs Sekunden lang
+ * zusehen, „getrennt" gilt sofort als Fehler.
+ */
+let verbindungStand = '';
+let getrenntGesehen = false;
+for (let i = 0; i < 60; i++) {
+  verbindungStand = await page.evaluate(
+    () => document.querySelector('.status')?.getAttribute('data-state') ?? '(keiner)',
+  );
+  if (verbindungStand === 'getrennt') {
+    getrenntGesehen = true;
+    break;
+  }
+  if (verbindungStand === 'verbunden') break;
+  await page.waitForTimeout(100);
+}
 check(
-  await page.evaluate(
-    () => document.querySelector('.status')?.getAttribute('data-state') === 'verbunden',
-  ),
-  'und die Verbindung bleibt dabei stehen',
+  verbindungStand === 'verbunden' && !getrenntGesehen,
+  `und die Verbindung bleibt dabei stehen (${verbindungStand})`,
 );
 
 await page.close();

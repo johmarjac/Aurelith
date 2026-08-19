@@ -418,15 +418,17 @@ const LM = {
    * zum Tor waren es fünfzig. Das ist keine Reise, das ist ein Vorgarten:
    * man kam an, bevor die Gegend anfing, eine zu sein.
    *
-   * Jetzt sechshundert auf **eintausendachthundertvierzig**. Das sind knapp
-   * fünf Minuten von der Südküste bis zum Tor im Norden und dreieinhalb von
-   * der Stadt aus — lang genug, dass ein Weg ein Weg ist, und kurz genug,
-   * dass niemand ihn zweimal am Tag verflucht. `karte_test.ts` rechnet beides
-   * nach, damit die Zahl nicht beim nächsten Verschieben unbemerkt zerfällt.
+   * Jetzt **zwölfhundert auf eintausendachthundertvierzig**. Das sind knapp
+   * fünf Minuten von der Südküste bis zum Tor im Norden, dreieinhalb von der
+   * Stadt aus und gut drei quer von Küste zu Küste — lang genug, dass ein Weg
+   * ein Weg ist, und kurz genug, dass niemand ihn zweimal am Tag verflucht.
+   * `karte_test.ts` rechnet alle drei nach, damit die Zahlen nicht beim
+   * nächsten Verschieben unbemerkt zerfallen.
    *
-   * Gestreckt wurde die **Länge** und nur wenig die Breite: Lichtmoor ist
-   * eine Strecke von Stufe eins bis zwanzig. Eine Insel, die in alle
-   * Richtungen gleich weit reicht, hätte dieselbe Fläche, aber keinen Weg.
+   * Die **Länge** trägt weiter den Aufbau: Lichtmoor ist eine Strecke von
+   * Stufe eins bis zwanzig, und die Stufe folgt dem Norden und nicht dem
+   * Abstand zur Mitte. Die Breite ist Landschaft — Platz, um auszuweichen,
+   * einen Umweg zu fliegen und etwas zu finden, das nicht am Weg liegt.
    *
    * Und keine vier Wände, sondern eine **Insel**: rundherum fällt das Land
    * über eine Klippe ins Meer. Die Klippe ist steiler als die zweiundfünfzig
@@ -434,7 +436,7 @@ const LM = {
    * Schritt weiter, auch nicht im Sprung.
    */
   size: 2048,
-  x: 300,
+  x: 600,
   zSued: -880,
   zNord: 960,
   /** Mitte der Hauptstadt. */
@@ -639,6 +641,28 @@ function lichtmoorHoehe(x, z) {
     { x: -140, z: 500, r: 38, h: 10 },
     { x: 240, z: 640, r: 42, h: 14 },
     { x: -60, z: 860, r: 40, h: 12 },
+    /*
+     * Und die Kuppen der neuen Breite.
+     *
+     * Die Insel ist doppelt so breit geworden; ohne diese hier wäre alles
+     * jenseits von dreihundert Metern eine Ebene. Sie stehen weiter
+     * auseinander als die am Weg — draussen soll es weiter wirken, nicht
+     * voller.
+     */
+    { x: -380, z: -760, r: 50, h: 14 },
+    { x: 420, z: -680, r: 46, h: 12 },
+    { x: -460, z: -520, r: 52, h: 16 },
+    { x: 380, z: -360, r: 44, h: 11 },
+    { x: -520, z: -200, r: 48, h: 15 },
+    { x: 440, z: -120, r: 50, h: 13 },
+    { x: -360, z: 60, r: 46, h: 12 },
+    { x: 500, z: 180, r: 52, h: 17 },
+    { x: -440, z: 320, r: 44, h: 10 },
+    { x: 360, z: 460, r: 48, h: 14 },
+    { x: -500, z: 560, r: 50, h: 12 },
+    { x: 420, z: 700, r: 46, h: 13 },
+    { x: -380, z: 820, r: 44, h: 11 },
+    { x: 520, z: 860, r: 48, h: 15 },
   ];
   for (const k of kuppen) {
     const d = Math.hypot(x - k.x, z - k.z) / k.r;
@@ -1088,6 +1112,25 @@ function lichtmoor() {
     { id: 's_crawl_f', mob: 'cave_crawler', position: [-100, 620], radius: 28, count: 5, respawnMs: 85000, level: 15 },
     { id: 's_warden_d', mob: 'dungeon_warden', position: [170, 740], radius: 24, count: 4, respawnMs: 95000, level: 18 },
     { id: 's_warden_e', mob: 'dungeon_warden', position: [-190, 860], radius: 24, count: 4, respawnMs: 95000, level: 19 },
+
+    /*
+     * --- Die Felder der neuen Breite ---------------------------------------
+     *
+     * Jenseits von dreihundert Metern lag sonst nichts als Gras. Die Stufe
+     * folgt weiter dem **Norden**: wer nach Westen ausweicht, trifft dieselben
+     * Gegner wie auf gleicher Höhe in der Mitte — sonst wäre die Breite eine
+     * zweite Schwierigkeitsachse, und man müsste sie kennen, um zu überleben.
+     */
+    { id: 's_mote_wf', mob: 'mote', position: [-420, -720], radius: 30, count: 6, respawnMs: 60000, level: 1 },
+    { id: 's_mote_of', mob: 'mote', position: [440, -600], radius: 30, count: 6, respawnMs: 60000, level: 1 },
+    { id: 's_pup_wf', mob: 'burrow_pup', position: [-480, -360], radius: 30, count: 6, respawnMs: 70000, level: 3 },
+    { id: 's_pup_of', mob: 'burrow_pup', position: [420, -200], radius: 30, count: 6, respawnMs: 70000, level: 4 },
+    { id: 's_boar_wf', mob: 'thistle_boar', position: [-380, 40], radius: 30, count: 5, respawnMs: 75000, level: 6 },
+    { id: 's_boar_of', mob: 'thistle_boar', position: [460, 160], radius: 30, count: 5, respawnMs: 75000, level: 7 },
+    { id: 's_bandit_wf', mob: 'bandit_scout', position: [-500, 340], radius: 30, count: 5, respawnMs: 80000, level: 9 },
+    { id: 's_bandit_of', mob: 'bandit_scout', position: [400, 480], radius: 30, count: 5, respawnMs: 80000, level: 11 },
+    { id: 's_crawl_wf', mob: 'cave_crawler', position: [-420, 620], radius: 28, count: 5, respawnMs: 85000, level: 15 },
+    { id: 's_warden_of', mob: 'dungeon_warden', position: [480, 800], radius: 24, count: 4, respawnMs: 95000, level: 19 },
   ];
 
   /*
@@ -1456,10 +1499,14 @@ function lichtmoor() {
     schwebfels(140, 28, -560, false),
     schwebfels(118, 40, -300),
     schwebfels(-150, 36, -240, false),
-    // Und je einer weit draussen an den Flanken, als Ziel für einen Umweg.
+    // Und welche weit draussen an den Flanken, als Ziel für einen Umweg.
     schwebfels(-230, 44, 240),
     schwebfels(238, 50, 480, false),
     schwebfels(-210, 56, 820),
+    schwebfels(-470, 40, -400),
+    schwebfels(450, 48, -80, false),
+    schwebfels(-520, 54, 380),
+    schwebfels(500, 60, 700, false),
   ];
 
   const gesetzt = [...stadt, ...strasse, ...lager];
@@ -1509,21 +1556,42 @@ function lichtmoor() {
    * aufhört, entscheidet `frei` und damit die Küste. Ein Rechteck wüsste
    * nichts von den Buchten.
    */
+  /**
+   * Der Bewuchs einer Zone — Bäume, Boden, Streu, Akzent.
+   *
+   * In **zwei Bändern** und nicht in einem: die Insel ist zwölfhundert Meter
+   * breit, und die Strasse läuft in der Mitte. Am Weg soll es aussehen wie
+   * bisher; draussen an den Flanken, wo niemand vorbeikommt, ohne es zu
+   * wollen, steht die Hälfte.
+   *
+   * Das ist nicht nur Sparsamkeit, sondern Landschaft: ein Wald, der über
+   * einen Kilometer gleich dicht steht, sieht gemalt aus. Und es ist eine
+   * Rechnung — mit der Dichte des Weges über die ganze Breite stünden
+   * zweiundzwanzigtausend Props auf der Karte, achttausend davon mit
+   * Kollisionskreis, durch die der Server in jedem Schritt für jedes Monster
+   * hindurchrechnet.
+   *
+   * Der Streifen läuft über die **ganze** Breite der Insel; wo genau er
+   * aufhört, entscheidet `frei` und damit die Küste. Ein Rechteck wüsste
+   * nichts von den Buchten.
+   */
+  /** Halbe Breite des Bandes am Weg. Draussen gilt `FLANKE_DICHTE`. */
+  const KORRIDOR = 300;
+  const FLANKE_DICHTE = 0.5;
   const zonenBewuchs = (zone, z0) => {
-    const bereich = { x0: -LM.x, x1: LM.x, z0, z1: zone.z1 };
     /*
-     * Die Fläche des Streifens, in tausend Quadratmetern.
+     * Die Fläche eines Bandes, in tausend Quadratmetern.
      *
      * Roh gerechnet, ohne Abzug für Fluss, Stadt und Küste: was dort
      * hineinfiele, verwirft `frei` ohnehin. Ein genauer Flächeninhalt wäre ein
      * Integral über eine Küstenlinie aus vier Sinuskurven — für eine Zahl, die
      * am Ende „so viel Gras ungefähr" bedeutet.
      */
-    const flaeche = ((zone.z1 - z0) * (LM.x * 2)) / 1000;
-    const teil = (satz, extra = {}) =>
+    const flaeche = (breite) => ((zone.z1 - z0) * breite) / 1000;
+    const streuung = (satz, bereich, dichte, extra = {}) =>
       satz
         ? scatter(rng, {
-            count: Math.round(satz.dichte * flaeche),
+            count: Math.round(satz.dichte * dichte),
             size,
             bereich,
             erlaubt: frei,
@@ -1535,6 +1603,15 @@ function lichtmoor() {
             ...extra,
           })
         : [];
+    const mitte = { x0: -KORRIDOR, x1: KORRIDOR, z0, z1: zone.z1 };
+    const west = { x0: -LM.x, x1: -KORRIDOR, z0, z1: zone.z1 };
+    const ost = { x0: KORRIDOR, x1: LM.x, z0, z1: zone.z1 };
+    const flankenFlaeche = flaeche(LM.x - KORRIDOR) * FLANKE_DICHTE;
+    const teil = (satz, extra = {}) => [
+      ...streuung(satz, mitte, flaeche(KORRIDOR * 2), extra),
+      ...streuung(satz, west, flankenFlaeche, extra),
+      ...streuung(satz, ost, flankenFlaeche, extra),
+    ];
     const nah = { keepOut: keepOut.map((k) => ({ ...k, r: k.r * 0.5 })) };
     return [
       ...teil(zone.baeume),
