@@ -62,10 +62,17 @@ bewussten Abweichung, die weiter unten begründet ist.
   zoomen und schieben. Sie zeigt auf Wunsch den **Kollisionskörper** unter dem
   Modell und misst in einem **festen Massstab**, damit ein Baum im Bild so viel
   grösser ist als ein Busch, wie er es im Spiel ist.
-- **Lichtmoor** ist die Heimatkarte: ein rechteckiger Streifen, rundum von
-  Gebirge verdeckt und gesperrt. Unten die Hauptstadt Silberfurt mit den
-  Hauptquests, nach Norden Stufengebiete von 1 bis 20, dazwischen Nebenquests,
-  ein Fluss mit Brücken und schwebende Felsen über der Wiese.
+- **Lichtmoor** ist die Heimatkarte: eine Insel mit einer Klippe ringsum, unten
+  die Hauptstadt Silberfurt mit den Hauptquests, nach Norden Stufengebiete von
+  1 bis 20, dazwischen Nebenquests, ein Fluss mit Brücken und schwebende Felsen
+  über der Wiese.
+- **Fünf Zonen**, und man sieht sie: Silberfurter Weiden, Die Gruben, Die
+  Uferwiesen, Das Geröllfeld, Der Dornsaum. Jede hat ihren eigenen Bewuchs
+  (Blüten nur im Süden, Heidekraut nur im Norden), ihre eigene Bodenfarbe und
+  ihr eigenes Relief — nach Norden wird das Gelände unruhiger, und weil die
+  Bodentexturen nach Neigung wählen, bricht dort von selbst Erde durch das
+  Gras. An jeder Grenze steht eine Reihe Steine quer über die Insel, mit einem
+  Wegweiser am Weg. Die Grenzen liegen dort, wo auch die Stufen springen.
 
 ---
 

@@ -258,6 +258,146 @@ check(neunzig < 30, 'das Plateau selbst läuft sich flach', `${neunzig.toFixed(0
 check(hoechster < 60, 'und kein Gipfel ragt heraus', `${hoechster.toFixed(0)} m`);
 
 /*
+ * --- Die Zonen -------------------------------------------------------------
+ *
+ * Lichtmoor ist in fünf Abschnitte geteilt, und die Teilung soll man **sehen**
+ * — sonst ist sie keine. Drei Dinge tragen sie, und alle drei stehen hier:
+ *
+ *   1. Der Boden wird nach Norden unruhiger. Das ist nicht Geschmack, sondern
+ *      der Hebel: die Bodentexturen wählen nach Neigung, und welliges Gelände
+ *      zeigt darum Erde zwischen dem Gras.
+ *   2. Der Bewuchs wechselt. Blüten gibt es nur im Süden, Heidekraut nur im
+ *      Norden — und wer beides überall streute, hätte einen Verlauf und keine
+ *      Zonen.
+ *   3. An jeder Grenze steht eine Reihe Steine quer über die Insel.
+ */
+console.log('\nDie Zonen');
+
+/**
+ * Die Neigungen eines Streifens, in Grad — ohne Fluss und ohne Küste.
+ *
+ * Gemessen wird nicht der Mittelwert, sondern der **Anteil über
+ * vierundzwanzig Grad**: genau dort fängt die Erdtextur an. Der Mittelwert
+ * wäre die falsche Zahl — er hängt an den grossen Hügeln, die überall stehen,
+ * und die kleine Welligkeit, um die es hier geht, verschwindet darin.
+ */
+function neigungenIn(z0: number, z1: number): number[] {
+  const werteHier: number[] = [];
+  for (let iz = 1; iz < aufloesung - 1; iz++) {
+    const z = -halb + iz * gitter;
+    if (z < z0 || z > z1) continue;
+    for (let ix = 1; ix < aufloesung - 1; ix++) {
+      const x = -halb + ix * gitter;
+      // Nur die offene Fläche: der Flussgraben ist absichtlich steil, und die
+      // Küste erst recht. Beide würden die Aussage über die Zone erschlagen.
+      if (Math.abs(x) > 150 || Math.abs(x) < 30) continue;
+      werteHier.push(
+        grad(
+          Math.hypot(
+            (hoeheBei(ix + 1, iz) - hoeheBei(ix - 1, iz)) / (2 * gitter),
+            (hoeheBei(ix, iz + 1) - hoeheBei(ix, iz - 1)) / (2 * gitter),
+          ),
+        ),
+      );
+    }
+  }
+  return werteHier.sort((p, q) => p - q);
+}
+
+/** Ab hier zeigt der Boden Erde statt Gras — siehe `groundLayers`. */
+const ERDE_AB = 24;
+const anteilErde = (n: number[]): number => n.filter((g) => g > ERDE_AB).length / n.length;
+
+const weiden = neigungenIn(-180, -40);
+const norden = neigungenIn(130, 220);
+check(
+  anteilErde(norden) > anteilErde(weiden) * 2,
+  'im Norden bricht der Boden auf, im Süden nicht',
+  `${(anteilErde(weiden) * 100).toFixed(0)} % gegen ${(anteilErde(norden) * 100).toFixed(0)} % über ${ERDE_AB}°`,
+);
+/*
+ * Und die Gegenprobe: aufgebrochen heisst nicht unbegehbar. Zweiundfünfzig
+ * Grad ist die Schwelle im Kern; auch die steilsten fünf Prozent des Nordens
+ * müssen darunter bleiben, sonst ist die Zone hübsch und nicht zu betreten.
+ */
+const nordP95 = norden[Math.floor(norden.length * 0.95)] ?? 0;
+check(nordP95 < 45, 'und man kommt trotzdem überall hin', `${nordP95.toFixed(0)}° in den steilsten fünf Prozent`);
+
+/** Die Props einer Sorte, nach `z` sortiert. */
+const propsMit = (model: string) =>
+  doc.props.filter((p) => p.model === model).map((p) => p.position[2]);
+
+const blumen = [
+  ...propsMit('blume_weiss'),
+  ...propsMit('blume_gelb'),
+  ...propsMit('blume_blau'),
+];
+const heide = propsMit('heidekraut');
+check(blumen.length > 100 && heide.length > 100, 'es gibt Blüten und Heidekraut', `${blumen.length} / ${heide.length}`);
+/*
+ * Die Stückzahl steht in **jeder** dieser Zeilen noch einmal mit drin, obwohl
+ * sie darüber schon geprüft ist. Der Grund ist banal und war einmal ein
+ * Fehler: `Math.min()` einer leeren Liste ist `Infinity`, und „Infinity > 100"
+ * ist wahr. Eine Karte ganz ohne Heidekraut hätte die Zeile bestanden.
+ */
+check(
+  blumen.length > 100 && Math.max(...blumen) < 0,
+  'Blüten stehen nur auf der warmen Hälfte',
+  `nördlichste bei z = ${Math.max(...blumen).toFixed(0)}`,
+);
+check(
+  heide.length > 100 && Math.min(...heide) > 100,
+  'und Heidekraut nur im kargen Norden',
+  `südlichstes bei z = ${Math.min(...heide).toFixed(0)}`,
+);
+/*
+ * Gegenprobe zu den beiden Zeilen darüber: **nicht** jede Sorte gehört genau
+ * einer Zone. Gras wächst überall, und ohne diese Zeile bestünde die Prüfung
+ * auch eine Karte, auf der jede Pflanze ihren eigenen Streifen hat — das wäre
+ * kein Land mehr, sondern ein Balkendiagramm.
+ */
+const gras = propsMit('grass_tuft');
+check(
+  Math.min(...gras) < -100 && Math.max(...gras) > 150,
+  'Gras dagegen wächst über die ganze Insel',
+  `z von ${Math.min(...gras).toFixed(0)} bis ${Math.max(...gras).toFixed(0)}`,
+);
+
+/*
+ * Die Grenzsteine. Eine Reihe ist eine Reihe, wenn sie **quer** über die Insel
+ * geht — acht Steine auf einem Haufen wären keine.
+ */
+const GRENZEN = [-20, 55, 125, 180];
+for (const z of GRENZEN) {
+  const reihe = doc.props.filter(
+    (p) =>
+      (p.model === 'hinkelstein' ||
+        p.model === 'meilenstein' ||
+        p.model === 'steinmann' ||
+        p.model === 'bildstock' ||
+        p.model === 'runenstein') &&
+      Math.abs(p.position[2] - z) < 6,
+  );
+  const xs = reihe.map((p) => p.position[0]);
+  check(
+    reihe.length >= 8 && Math.max(...xs) - Math.min(...xs) > 250,
+    `die Grenze bei z = ${z} ist als Reihe gesetzt`,
+    `${reihe.length} Steine über ${(Math.max(...xs) - Math.min(...xs)).toFixed(0)} m`,
+  );
+}
+/*
+ * Gegenprobe: mitten in einer Zone steht keine solche Reihe. Ohne sie wäre
+ * auch ein Generator grün, der die ganze Karte mit Hinkelsteinen zupflastert
+ * — und dann wäre jede Stelle eine Grenze und damit keine.
+ */
+const mitten = doc.props.filter(
+  (p) =>
+    (p.model === 'hinkelstein' || p.model === 'meilenstein' || p.model === 'steinmann') &&
+    Math.abs(p.position[2] - 90) < 6,
+);
+check(mitten.length < 6, 'mitten in einer Zone steht keine', `${mitten.length} bei z = 90`);
+
+/*
  * --- Draussen trägt der Boden niemanden ------------------------------------
  *
  * Bis an den Rand fliegen zu dürfen heisst, dort auch absteigen zu **wollen**

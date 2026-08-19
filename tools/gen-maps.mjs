@@ -553,6 +553,57 @@ function lichtmoorHoehe(x, z) {
     if (d < 1) h += glatt(1 - d) * k.h;
   }
 
+  /*
+   * --- 2b. Das Relief der Zonen -------------------------------------------
+   *
+   * **Das ist der Hebel, mit dem sich der Boden umfärbt.** Die Bodentexturen
+   * wählen nach *Neigung*: Gras bis dreissig Grad, Erde ab vierundzwanzig.
+   * Eine Zone, die welliger ist als ihre Nachbarin, zeigt darum von selbst
+   * braune Flecken zwischen dem Grün — ohne eine zweite Textur, ohne ein
+   * zweites Feld, ohne dass irgendetwas am Shader zu ändern wäre.
+   *
+   * Nach Norden wird es unruhiger: die Weiden sind ein Tisch, die Gruben
+   * bekommen ihre Namensmulden, die Uferwiesen bleiben weich, das Geröllfeld
+   * und der Dornsaum werden ruppig. Alle bleiben weit unter den
+   * zweiundfünfzig Grad, bis zu denen der Kern einen Schritt annimmt — es ist
+   * eine Färbung und kein Hindernis.
+   *
+   * **Weich überblendet und nicht gestuft.** Ein Sprung in der Amplitude an
+   * der Zonengrenze wäre ein Absatz im Gelände, und der wäre je nach Höhe
+   * eine Wand. Die Grenze soll man an den Steinen erkennen, nicht daran, dass
+   * man nicht weiterkommt.
+   */
+  const RELIEF = [
+    { bis: -20, amp: 0.35, len: 30 },
+    { bis: 55, amp: 1.5, len: 20 },
+    { bis: 125, amp: 0.8, len: 26 },
+    { bis: 180, amp: 1.5, len: 19 },
+    { bis: 1e9, amp: 1.7, len: 17 },
+  ];
+  let amp = RELIEF[RELIEF.length - 1].amp;
+  let len = RELIEF[RELIEF.length - 1].len;
+  for (let i = 0; i < RELIEF.length; i++) {
+    if (z > RELIEF[i].bis) continue;
+    const hier = RELIEF[i];
+    const vor = RELIEF[i - 1];
+    amp = hier.amp;
+    len = hier.len;
+    // Vierzig Meter Überblendung nach Süden hin: lang genug, dass niemand
+    // eine Kante sieht, kurz genug, dass die Zone in ihrer Mitte ihr eigenes
+    // Gesicht behält.
+    if (vor) {
+      const t = glatt(Math.min(1, (z - vor.bis) / 40));
+      amp = vor.amp + (hier.amp - vor.amp) * t;
+      len = vor.len + (hier.len - vor.len) * t;
+    }
+    break;
+  }
+  const k = (2 * Math.PI) / len;
+  h +=
+    amp *
+    (Math.sin(x * k) * Math.sin(z * k) * 0.65 +
+      Math.sin(x * k * 2.1 + 1.3) * Math.sin(z * k * 1.9 + 0.9) * 0.35);
+
   // --- 3. Die Silberader --------------------------------------------------
   //
   // Neun Meter Einschnitt auf fünf Meter Böschung sind gut sechzig Grad —
@@ -588,6 +639,187 @@ function lichtmoorHoehe(x, z) {
 
   return h;
 }
+
+/**
+ * Die Zonen von Lichtmoor — der Aufbau der Karte, als Tabelle.
+ *
+ * Die Karte war eine Strecke mit einem **Verlauf**: Blumen im Süden, Heide im
+ * Norden, und dazwischen zweihundert Meter, in denen sich langsam etwas
+ * änderte. Beim Laufen merkte man davon nichts. Was man merkt, sind Kanten:
+ * hier hört das eine auf, hier fängt das andere an.
+ *
+ * Fünf Zonen, und ihre Grenzen liegen dort, wo auch die Stufen springen —
+ * die Spawner weiter unten teilen dieselbe Strecke in dieselben Abschnitte.
+ * Das ist kein Zufall, sondern der Zweck: wer sieht, dass der Boden wechselt,
+ * weiss, dass die Gegner härter werden, bevor ihn einer davon anfällt.
+ *
+ * Je Zone drei Sorten Bewuchs, und jede beantwortet eine andere Frage:
+ *
+ *   `baeume`  — was man aus der Ferne sieht. Die Silhouette am Horizont.
+ *   `boden`   — was man beim Laufen sieht. Entscheidet die Farbe der Fläche.
+ *   `streu`   — Kleinkram am Boden: Steine, Pilze, Knochen.
+ *   `akzent`  — was es **nur hier** gibt. Selten, gross genug zum Wiedererkennen.
+ *
+ * Nur `boden` bekommt einen Farbton, und das ist der Grund für die Trennung
+ * von `streu`: der Ton färbt **alles** einer Streuung ein, und ein grüner
+ * Fliegenpilz oder ein olivfarbener Schädel sähe aus wie ein Fehler. Gefärbt
+ * wird, was Pflanze ist.
+ *
+ * `dichte` ist die Zahl je tausend Quadratmeter und **keine** Stückzahl. Der
+ * Unterschied ist der Punkt: die Weiden sind zweihundert Meter lang, der
+ * Dornsaum sechzig, und mit festen Stückzahlen stünde in der einen Zone ein
+ * Baum je dreissig Metern und in der anderen ein Wald. Wie dicht es wirkt,
+ * soll die Tabelle sagen, nicht die Länge des Abschnitts.
+ *
+ * Die Grenzen der Zonen sind Zahlen in `z` und keine Sperren: man läuft
+ * hindurch, ohne aufgehalten zu werden. Eine Zone, die man betreten muss,
+ * wäre ein Tor — und Tore hat diese Karte genau eines, im Norden.
+ */
+const LM_ZONEN = [
+  {
+    id: 'weiden',
+    name: 'Silberfurter Weiden',
+    z1: -20,
+    /*
+     * Vor der Stadt, wo man anfängt: hell, offen, freundlich.
+     *
+     * Laubbäume statt Nadeln und die hellsten Grüntöne der Karte. Der Süden
+     * ist der einzige Abschnitt, in dem Blüten den Boden bestimmen — weiter
+     * nördlich kommen sie gar nicht mehr vor, und genau daran erkennt man
+     * beim Zurücklaufen, dass man wieder zuhause ist.
+     */
+    baeume: {
+      dichte: 4.4,
+      minGap: 9,
+      scale: [0.9, 1.6],
+      models: ['tree_broad', 'tree_broad', 'tree_pine'],
+      tints: [0x6aa855, 0x74b45e, 0x7fbf66],
+    },
+    boden: {
+      dichte: 13,
+      minGap: 3.4,
+      models: ['blume_weiss', 'blume_gelb', 'blume_blau', 'klee', 'klee', 'grass_tuft', 'hochgras'],
+      // Warm und hell: Gelbgrün, wie eine Wiese im Juni.
+      tints: [0x8fc46a, 0x9ed07a, 0x7fbf66, 0xa8d488],
+    },
+    streu: { dichte: 2.5, minGap: 5, models: ['kiesel', 'moosstein', 'baumpilz'] },
+    akzent: { dichte: 0.22, minGap: 24, models: ['bienenkorb', 'setzling', 'beerenbusch'] },
+  },
+  {
+    id: 'gruben',
+    name: 'Die Gruben',
+    z1: 55,
+    /*
+     * Wald, und darin liegt Totholz. Dunkler als die Weiden, aber noch grün.
+     *
+     * Die Pilze stehen hier und nirgendwo sonst: sie brauchen Schatten, und
+     * der Abschnitt ist der einzige mit dichtem Bestand.
+     */
+    baeume: {
+      dichte: 6.5,
+      minGap: 8,
+      scale: [0.8, 1.5],
+      models: ['tree_pine', 'tree_broad', 'tree_fir'],
+      tints: [0x5f9a4a, 0x4f8a3e, 0x437a36],
+    },
+    boden: {
+      dichte: 11,
+      minGap: 3.6,
+      models: ['farn', 'farn', 'bush', 'grass_tuft', 'hochgras'],
+      // Satt und dunkel: Waldboden im Schatten.
+      tints: [0x4f8a3e, 0x5f9a4a, 0x437a36],
+    },
+    streu: {
+      dichte: 4,
+      minGap: 4.5,
+      models: ['stump', 'mushroom_large', 'mushroom_large', 'baumpilz', 'moosstein'],
+    },
+    akzent: { dichte: 0.3, minGap: 26, models: ['wurzelstock', 'hohler_stumpf', 'pilzring'] },
+  },
+  {
+    id: 'ufer',
+    name: 'Die Uferwiesen',
+    z1: 125,
+    /*
+     * Hier quert die Silberader die Insel. Der Boden ist feucht, das Gras
+     * hoch, und die Bäume stehen weiter auseinander.
+     *
+     * Der Uferstreifen am Fluss selbst wird gesondert bestreut (Schilf,
+     * Rohrkolben) — das gilt über die ganze Karte und gehört deshalb nicht in
+     * diese Zone, sondern zum Fluss.
+     */
+    baeume: {
+      dichte: 4.0,
+      minGap: 10,
+      scale: [0.8, 1.4],
+      models: ['tree_broad', 'tree_fir', 'tree_pine'],
+      tints: [0x4d8f57, 0x59a066, 0x3f7d4c],
+    },
+    boden: {
+      dichte: 12,
+      minGap: 3.6,
+      models: ['hochgras', 'hochgras', 'schilf', 'grass_tuft', 'klee', 'bush'],
+      // Kühl ins Blaugrüne: nass, und das sieht man der Farbe an.
+      tints: [0x4d8f6a, 0x59a077, 0x3f7d5c, 0x66a882],
+    },
+    streu: { dichte: 3, minGap: 5, models: ['brombeere', 'distel', 'moosstein', 'kiesel'] },
+    akzent: { dichte: 0.3, minGap: 28, models: ['bildstock', 'moosstein', 'baumstamm_liegend'] },
+  },
+  {
+    id: 'geroell',
+    name: 'Das Geröllfeld',
+    z1: 180,
+    /*
+     * Der Bruch: ab hier steht nichts Grünes mehr aufrecht.
+     *
+     * Totholz und Fels, Heidekraut am Boden. Die Bäume behalten ihre Farbe
+     * nicht — `tree_dead` bringt seine eigene mit, und ein eingefärbter toter
+     * Baum sähe aus wie ein kranker lebender.
+     */
+    baeume: {
+      dichte: 5.5,
+      minGap: 8,
+      scale: [0.8, 1.4],
+      models: ['tree_dead', 'tree_dead', 'tree_fir'],
+    },
+    boden: {
+      dichte: 10,
+      minGap: 4,
+      models: ['heidekraut', 'heidekraut', 'dornbusch', 'grass_tuft'],
+      // Ausgebleicht ins Braungraue. Hier wächst nichts mehr gern.
+      tints: [0x8a8466, 0x9a9070, 0x7a7358, 0x6f6b55],
+    },
+    streu: { dichte: 6, minGap: 4, models: ['geroell', 'felsblock', 'steinmann', 'kiesel'] },
+    akzent: { dichte: 0.5, minGap: 24, models: ['erzader', 'crystal', 'kristallgruppe'] },
+  },
+  {
+    id: 'dornsaum',
+    name: 'Der Dornsaum',
+    z1: LM.zNord,
+    /*
+     * Vor dem Tor. Kahl, dunkel, und es liegen Knochen herum.
+     *
+     * Der letzte Abschnitt ist bewusst der ärmste: wer hier steht, soll
+     * sehen, dass der Weg zu Ende ist und dahinter etwas anderes anfängt.
+     */
+    baeume: {
+      dichte: 5.0,
+      minGap: 7,
+      scale: [0.7, 1.2],
+      models: ['tree_dead', 'tree_pine'],
+      tints: [0x2f4a35, 0x38553c],
+    },
+    boden: {
+      dichte: 8,
+      minGap: 4,
+      models: ['dornbusch', 'dornbusch', 'heidekraut', 'distel'],
+      // Fast ohne Farbe. Der letzte Abschnitt vor dem Tor.
+      tints: [0x5c5a4a, 0x4a4a3e, 0x6a6552],
+    },
+    streu: { dichte: 5, minGap: 4.5, models: ['geroell', 'schaedel', 'knochenhaufen', 'kiesel'] },
+    akzent: { dichte: 0.5, minGap: 22, models: ['runenstein', 'feuerschale', 'knochenhaufen'] },
+  },
+];
 
 function lichtmoor() {
   const rng = mulberry32(0x4c49_4d00);
@@ -1075,6 +1307,94 @@ function lichtmoor() {
     flussAbstand(x, z) > 15 &&
     Math.hypot(x, z - cz) > LM.stadtR + 10;
 
+  /**
+   * Der Bewuchs einer Zone — Bäume, Boden, Akzent.
+   *
+   * Der Streifen läuft über die **ganze** Breite der Insel; wo genau er
+   * aufhört, entscheidet `frei` und damit die Küste. Ein Rechteck wüsste
+   * nichts von den Buchten.
+   */
+  const zonenBewuchs = (zone, z0) => {
+    const bereich = { x0: -LM.x, x1: LM.x, z0, z1: zone.z1 };
+    /*
+     * Die Fläche des Streifens, in tausend Quadratmetern.
+     *
+     * Roh gerechnet, ohne Abzug für Fluss, Stadt und Küste: was dort
+     * hineinfiele, verwirft `frei` ohnehin. Ein genauer Flächeninhalt wäre ein
+     * Integral über eine Küstenlinie aus vier Sinuskurven — für eine Zahl, die
+     * am Ende „so viel Gras ungefähr" bedeutet.
+     */
+    const flaeche = ((zone.z1 - z0) * (LM.x * 2)) / 1000;
+    const teil = (satz, extra = {}) =>
+      satz
+        ? scatter(rng, {
+            count: Math.round(satz.dichte * flaeche),
+            size,
+            bereich,
+            erlaubt: frei,
+            minGap: satz.minGap,
+            scaleRange: satz.scale ?? [0.7, 1.4],
+            models: satz.models.map((key) => ({ key })),
+            tints: satz.tints,
+            keepOut,
+            ...extra,
+          })
+        : [];
+    const nah = { keepOut: keepOut.map((k) => ({ ...k, r: k.r * 0.5 })) };
+    return [
+      ...teil(zone.baeume),
+      // Der Boden hält weniger Abstand zu NPCs und Spawnern als ein Baum: ein
+      // Grasbüschel neben einem Händler stört niemanden, eine Fichte schon.
+      ...teil(zone.boden, nah),
+      ...teil(zone.streu, nah),
+      ...teil(zone.akzent),
+    ];
+  };
+
+  /**
+   * Eine sichtbare Grenze quer über die Insel.
+   *
+   * Steine im Abstand von gut zwanzig Metern — weit genug, dass man mühelos
+   * hindurchgeht, dicht genug, dass man die Reihe als Reihe liest. Das ist
+   * der Unterschied zwischen einer Grenze und einer Mauer, und er ist hier
+   * Absicht: die Zonen sind eine Auskunft und keine Sperre.
+   *
+   * Am Weg bei x = 0 steht ein Wegweiser mit zwei Fackeln. Wer der Strasse
+   * folgt — und das tun die meisten —, kommt genau dort vorbei.
+   */
+  const zonenGrenze = (z, akzent) => {
+    const stuecke = [];
+    let i = 0;
+    for (let x = -LM.x + 10; x <= LM.x - 10; x += 18, i++) {
+      // Ein Versatz in `z`, damit die Reihe nicht wie mit dem Lineal gezogen
+      // aussieht. Drei Meter reichen: die Reihe bleibt lesbar, die gerade
+      // Linie ist weg.
+      const zz = z + Math.sin(x * 0.07) * 3;
+      if (!frei(x, zz)) continue;
+      /*
+       * Jeder zweite ein Hinkelstein — der ist über drei Meter hoch und damit
+       * das, was man von weitem sieht. Gezählt und nicht gerechnet: hier stand
+       * einmal `x % 42 === 0`, und weil `x` in Schritten von einundzwanzig
+       * läuft und bei einer krummen Zahl anfängt, war die Bedingung fast nie
+       * wahr. Aus der Reihe wurden lauter kniehohe Steine, die niemand sah.
+       */
+      const hoch = i % 2 === 0;
+      stuecke.push(
+        place(hoch ? 'hinkelstein' : akzent, x, zz, {
+          yaw: round(rng() * Math.PI * 2),
+          scale: round((hoch ? 1.1 : 0.9) + rng() * 0.4),
+        }),
+      );
+    }
+    // Und am Weg: der Wegweiser steht neben der Strasse, nicht darauf.
+    stuecke.push(
+      place('signpost', 6, z, { yaw: 3.14 }),
+      place('fackel', -6, z - 2, {}),
+      place('fackel', -6, z + 2, {}),
+    );
+    return stuecke;
+  };
+
   const wiese = { x0: -LM.x, x1: LM.x, z0: -74, z1: LM.zNord };
   const sueden = { x0: -LM.x, x1: LM.x, z0: LM.zSued, z1: -70 };
   /** Die ganze Insel — für alles, was überall vorkommt. */
@@ -1084,52 +1404,30 @@ function lichtmoor() {
     ...gesetzt,
     ...schweber,
 
-    // --- Wald: dicht im Süden, licht und tot im Norden --------------------
-    ...scatter(rng, {
-      count: 576,
-      size,
-      bereich: wiese,
-      erlaubt: frei,
-      minGap: 8,
-      scaleRange: [0.8, 1.5],
-      models: [
-        { key: 'tree_pine' },
-        { key: 'tree_broad' },
-        // Die Tanne ist höher und schmaler als die Fichte. Ein Wald aus einer
-        // Sorte sieht aus wie ein Wald aus Kopien; erst die zweite Nadelform
-        // gibt der Ferne eine unruhige Kante.
-        { key: 'tree_fir' },
-      ],
-      keepOut,
-      tints: [0x4f8a3e, 0x5f9a4a, 0x437a36, 0x6aa855],
-    }),
-    ...scatter(rng, {
-      count: 288,
-      size,
-      bereich: sueden,
-      erlaubt: frei,
-      minGap: 9,
-      scaleRange: [0.9, 1.6],
-      models: [
-        { key: 'tree_broad' },
-        { key: 'tree_pine' },
-        { key: 'tree_fir' },
-      ],
-      keepOut,
-      tints: [0x5f9a4a, 0x6aa855, 0x74b45e],
-    }),
-    // Totholz nur im Norden: ab hier wird es unwirtlich, und das soll man
-    // sehen, bevor man das erste Monster trifft.
-    ...scatter(rng, {
-      count: 216,
-      size,
-      bereich: { x0: -LM.x, x1: LM.x, z0: 118, z1: LM.zNord },
-      erlaubt: frei,
-      minGap: 7,
-      scaleRange: [0.8, 1.4],
-      models: [{ key: 'tree_dead' }],
-      keepOut,
-    }),
+    /*
+     * --- Bewuchs, Zone für Zone ------------------------------------------
+     *
+     * Vorher standen hier drei Streuungen mit weichen Übergängen: Wald über
+     * die halbe Karte, Süden etwas heller, Totholz ab z = 118. Das ergab
+     * einen **Verlauf**, und einen Verlauf sieht man beim Laufen nicht.
+     *
+     * Jetzt entscheidet die Zonentabelle (`LM_ZONEN`), was wo wächst — und
+     * die Grenzen dazwischen sind sichtbar gemacht. Der Unterschied ist
+     * nicht die Zahl der Bäume, sondern dass die Änderung eine Kante hat.
+     */
+    ...LM_ZONEN.flatMap((zone, i) =>
+      zonenBewuchs(zone, i === 0 ? LM.zSued : LM_ZONEN[i - 1].z1),
+    ),
+
+    /*
+     * Und die Grenzen selbst — je eine Reihe Steine mit einem Wegweiser.
+     *
+     * Die letzte Zone bekommt keine: ihre Nordgrenze ist die Küste, und
+     * dahinter liegt nur noch das Tor. Deshalb `slice(0, -1)`.
+     */
+    ...LM_ZONEN.slice(0, -1).flatMap((zone, i) =>
+      zonenGrenze(zone.z1, ['meilenstein', 'steinmann', 'bildstock', 'runenstein'][i] ?? 'meilenstein'),
+    ),
 
     // --- Fels und Geröll --------------------------------------------------
     ...scatter(rng, {
@@ -1175,47 +1473,6 @@ function lichtmoor() {
       keepOut,
     }),
 
-    // --- Unterholz --------------------------------------------------------
-    //
-    // Dreimal so viele Sorten wie vorher: aus „Busch, Gras, Stumpf" wird ein
-    // Waldboden. Die Mischung entscheidet mehr als die Zahl — vierhundert
-    // gleiche Büschel sind eine Textur, vierhundert gemischte sind Bewuchs.
-    ...scatter(rng, {
-      count: 1104,
-      size,
-      bereich: { x0: -LM.x, x1: LM.x, z0: LM.zSued, z1: LM.zNord },
-      erlaubt: (x, z) => flussAbstand(x, z) > 13 && Math.hypot(x, z - cz) > LM.stadtR + 4,
-      minGap: 4,
-      scaleRange: [0.7, 1.4],
-      models: [
-        { key: 'bush' },
-        { key: 'grass_tuft' },
-        { key: 'grass_tuft' },
-        { key: 'hochgras' },
-        { key: 'farn' },
-        { key: 'farn' },
-        { key: 'klee' },
-        { key: 'stump' },
-      ],
-      keepOut: keepOut.map((k) => ({ ...k, r: k.r * 0.5 })),
-    }),
-    // Blumen nur auf der warmen Hälfte, und dichter als alles andere: eine
-    // Wiese ohne Blüten ist ein Rasen.
-    ...scatter(rng, {
-      count: 624,
-      size,
-      bereich: { x0: -LM.x, x1: LM.x, z0: LM.zSued, z1: 90 },
-      erlaubt: frei,
-      minGap: 3,
-      scaleRange: [0.7, 1.3],
-      models: [
-        { key: 'blume_weiss' },
-        { key: 'blume_gelb' },
-        { key: 'blume_blau' },
-        { key: 'klee' },
-      ],
-      keepOut: keepOut.map((k) => ({ ...k, r: k.r * 0.4 })),
-    }),
     // Totholz und Waldboden: umgestürzte Stämme, Wurzelstöcke, Astbruch.
     // Sie liegen dort, wo auch die Bäume stehen, und geben dem Boden Relief.
     ...scatter(rng, {
@@ -1251,63 +1508,6 @@ function lichtmoor() {
         { key: 'distel' },
       ],
       keepOut: keepOut.map((k) => ({ ...k, r: k.r * 0.6 })),
-    }),
-    // Pilze im feuchten Süden, Kristalle im kalten Norden. Zwei Sorten
-    // Kleinkram, die dem Auge sagen, wo es gerade steht.
-    ...scatter(rng, {
-      count: 168,
-      size,
-      bereich: { x0: -LM.x, x1: LM.x, z0: LM.zSued, z1: 40 },
-      erlaubt: frei,
-      minGap: 5,
-      scaleRange: [0.7, 1.5],
-      models: [{ key: 'mushroom_large' }],
-      keepOut: keepOut.map((k) => ({ ...k, r: k.r * 0.6 })),
-    }),
-    ...scatter(rng, {
-      count: 108,
-      size,
-      bereich: { x0: -LM.x, x1: LM.x, z0: 140, z1: LM.zNord },
-      erlaubt: frei,
-      minGap: 7,
-      scaleRange: [0.8, 1.6],
-      models: [{ key: 'crystal' }, { key: 'kristallgruppe' }],
-      keepOut: keepOut.map((k) => ({ ...k, r: k.r * 0.6 })),
-    }),
-    /*
-     * Der karge Norden.
-     *
-     * Ab hier wächst nichts Freundliches mehr: Heidekraut statt Blumen,
-     * Felsblöcke statt Findlinge, Erzadern im Geröll. Das ist dieselbe
-     * Aussage, die auch das Totholz macht — nur am Boden, wo man sie beim
-     * Laufen sieht und nicht erst beim Aufschauen.
-     */
-    ...scatter(rng, {
-      count: 432,
-      size,
-      bereich: { x0: -LM.x, x1: LM.x, z0: 110, z1: LM.zNord },
-      erlaubt: frei,
-      minGap: 5,
-      scaleRange: [0.8, 1.5],
-      models: [
-        { key: 'heidekraut' },
-        { key: 'heidekraut' },
-        { key: 'dornbusch' },
-        { key: 'geroell' },
-        { key: 'felsblock' },
-        { key: 'steinmann' },
-      ],
-      keepOut: keepOut.map((k) => ({ ...k, r: k.r * 0.6 })),
-    }),
-    ...scatter(rng, {
-      count: 34,
-      size,
-      bereich: { x0: -LM.x, x1: LM.x, z0: 132, z1: LM.zNord },
-      erlaubt: frei,
-      minGap: 26,
-      scaleRange: [0.9, 1.3],
-      models: [{ key: 'erzader' }],
-      keepOut,
     }),
     // Und ein Saum aus Schilf und Büschen entlang der Ufer: der Fluss soll
     // eine Kante haben und nicht wie ein Schnitt in der Wiese aussehen.
