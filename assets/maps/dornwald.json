@@ -4,9 +4,9 @@
   "id": "dornwald",
   "name": "Dornwald",
   "environment": {
-    "skyColor": 6061974,
-    "horizonColor": 10335421,
-    "fogColor": 8361890,
+    "skyColor": 4884152,
+    "horizonColor": 12179170,
+    "fogColor": 10469067,
     "fogNear": 60,
     "fogFar": 240,
     "sunDirection": [
@@ -16,8 +16,8 @@
     ],
     "sunColor": 15262930,
     "sunIntensity": 1.45,
-    "ambientColor": 9672318,
-    "ambientIntensity": 1.35
+    "ambientColor": 9416340,
+    "ambientIntensity": 1.7
   },
   "terrain": {
     "size": 1280,
@@ -26,10 +26,10 @@
     "heightScale": 19,
     "featureScale": 0.014,
     "waterLevel": -6,
-    "grassColor": 4877116,
-    "grassColorAlt": 3625518,
-    "rockColor": 7236194,
-    "sandColor": 10260336,
+    "grassColor": 6132800,
+    "grassColorAlt": 4684336,
+    "rockColor": 11049600,
+    "sandColor": 12627338,
     "layers": [
       {
         "id": "gras",
@@ -38,7 +38,7 @@
         "tileSize": 11,
         "slope": [
           0,
-          30
+          38
         ],
         "height": [
           -5.5,
@@ -47,7 +47,7 @@
         "slopeBlend": 8,
         "heightBlend": 1.5,
         "strength": 1,
-        "tint": 11057312,
+        "tint": 10471560,
         "roughness": 0.91,
         "normalScale": 1
       },
@@ -57,8 +57,8 @@
         "normal": "textures/ground_dirt/normal.webp",
         "tileSize": 9,
         "slope": [
-          24,
-          62
+          34,
+          52
         ],
         "height": [
           -10000,
@@ -67,9 +67,29 @@
         "slopeBlend": 8,
         "heightBlend": 3,
         "strength": 1,
-        "tint": 11577496,
+        "tint": 12101258,
         "roughness": 0.78,
         "normalScale": 1
+      },
+      {
+        "id": "fels",
+        "texture": "textures/ground_sand/albedo.webp",
+        "normal": "textures/ground_sand/normal.webp",
+        "tileSize": 13,
+        "slope": [
+          46,
+          90
+        ],
+        "height": [
+          -10000,
+          10000
+        ],
+        "slopeBlend": 10,
+        "heightBlend": 3,
+        "strength": 1,
+        "tint": 11969672,
+        "roughness": 0.86,
+        "normalScale": 0.7
       },
       {
         "id": "sand",
@@ -87,7 +107,7 @@
         "slopeBlend": 6,
         "heightBlend": 1.2,
         "strength": 1,
-        "tint": 11049088,
+        "tint": 11575428,
         "roughness": 0.75,
         "normalScale": 0.8
       }

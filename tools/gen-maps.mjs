@@ -399,7 +399,10 @@ function keepOutOf(props, r) {
  *
  * Die Rauheitswerte sind gemessen, siehe tools/prepare-textures.mjs.
  */
-function groundLayers(waterLevel, { grassTint = 0xffffff, dirtTint = 0xffffff, sandTint = 0xffffff } = {}) {
+function groundLayers(
+  waterLevel,
+  { grassTint = 0xffffff, dirtTint = 0xffffff, sandTint = 0xffffff, rockTint = 0xffffff } = {},
+) {
   return [
     {
       id: 'gras',
@@ -409,7 +412,15 @@ function groundLayers(waterLevel, { grassTint = 0xffffff, dirtTint = 0xffffff, s
       // sichtbare Struktur: bei sechs Einheiten mittelt das Mipmapping die
       // Textur auf ihren Durchschnitt weg, und der ist ein flaches Oliv.
       tileSize: 11,
-      slope: [0, 30],
+      /*
+       * Gras bis achtunddreissig Grad statt bis dreissig.
+       *
+       * Ein Hügel ist eine Wiese und kein Acker: bei dreissig Grad brach schon
+       * an jeder Kuppe die Erde durch, und die Insel bestand aus grünen
+       * Flächen mit braunen Rändern. Erde soll heissen, dass der Boden offen
+       * ist, und nicht, dass es leicht schräg ist.
+       */
+      slope: [0, 38],
       height: [waterLevel + 0.5, 10000],
       slopeBlend: 8,
       heightBlend: 1.5,
@@ -423,7 +434,11 @@ function groundLayers(waterLevel, { grassTint = 0xffffff, dirtTint = 0xffffff, s
       texture: 'textures/ground_dirt/albedo.webp',
       normal: 'textures/ground_dirt/normal.webp',
       tileSize: 9,
-      slope: [24, 62],
+      // Von vierunddreissig bis zweiundfünfzig Grad, darüber übernimmt der
+      // Fels. Vorher ging die Erde von vierundzwanzig bis zweiundsechzig —
+      // also über jede Kuppe und jede Terrassenkante, und die Insel bestand
+      // aus grünen Flächen zwischen braunen Wänden.
+      slope: [34, 52],
       height: [-10000, 10000],
       slopeBlend: 8,
       heightBlend: 3,
@@ -431,6 +446,33 @@ function groundLayers(waterLevel, { grassTint = 0xffffff, dirtTint = 0xffffff, s
       tint: dirtTint,
       roughness: 0.78,
       normalScale: 1,
+    },
+    {
+      /*
+       * Der **Fels** — die senkrechten Flächen.
+       *
+       * Er kam dazu, als die Insel Terrassen bekam: deren Kanten sind über
+       * fünfzig Grad steil, und dort lag bis dahin die Erdebene. Eine
+       * zwölf Meter hohe Wand aus Ackerkrume sieht aus wie ein Erdrutsch;
+       * gemeint ist Sandstein, also die Farbe, die auch der Fels in den
+       * Vertexfarben trägt.
+       *
+       * Die Kachel ist die des Sandes, nur grösser und anders getönt: eine
+       * eigene Textur wäre ein weiterer Download für eine Fläche, die man
+       * fast immer von der Seite und aus der Ferne sieht.
+       */
+      id: 'fels',
+      texture: 'textures/ground_sand/albedo.webp',
+      normal: 'textures/ground_sand/normal.webp',
+      tileSize: 13,
+      slope: [46, 90],
+      height: [-10000, 10000],
+      slopeBlend: 10,
+      heightBlend: 3,
+      strength: 1,
+      tint: rockTint,
+      roughness: 0.86,
+      normalScale: 0.7,
     },
     {
       id: 'sand',
@@ -1026,6 +1068,13 @@ function lichtmoorHoehe(x, z) {
  *   `streu`   — Kleinkram am Boden: Steine, Pilze, Knochen.
  *   `akzent`  — was es **nur hier** gibt. Selten, gross genug zum Wiedererkennen.
  *
+ * **Die Töne sind kräftig.** Vorher standen hier gedeckte Grüntöne, und über
+ * eine ganze Zone gelegt ergaben sie eine Fläche, die sich von der Nachbarzone
+ * nur um eine Nuance unterschied — beim Laufen sah man den Wechsel nicht. Eine
+ * Zone erkennt man an ihrer Farbe oder gar nicht; die Farben liegen deshalb
+ * weit auseinander, und die Bäume stehen jeweils **dunkler** als der Boden, auf
+ * dem sie wachsen, sonst verschwindet ihre Silhouette darin.
+ *
  * Nur `boden` bekommt einen Farbton, und das ist der Grund für die Trennung
  * von `streu`: der Ton färbt **alles** einer Streuung ein, und ein grüner
  * Fliegenpilz oder ein olivfarbener Schädel sähe aus wie ein Fehler. Gefärbt
@@ -1069,14 +1118,14 @@ const LM_ZONEN = [
       minGap: 9,
       scale: [0.9, 1.6],
       models: ['tree_broad', 'tree_broad', 'tree_pine'],
-      tints: [0x6aa855, 0x74b45e, 0x7fbf66],
+      tints: [0x4faa38, 0x5fb93f, 0x43a02f],
     },
     boden: {
       dichte: 4.0,
       minGap: 3.4,
       models: ['blume_weiss', 'blume_gelb', 'blume_blau', 'klee', 'klee', 'grass_tuft', 'hochgras'],
       // Warm und hell: Gelbgrün, wie eine Wiese im Juni.
-      tints: [0x8fc46a, 0x9ed07a, 0x7fbf66, 0xa8d488],
+      tints: [0xa2dc5c, 0xb4e770, 0x8fd44a, 0xc2ef86],
     },
     streu: { dichte: 1.0, minGap: 5, models: ['kiesel', 'moosstein', 'baumpilz'] },
     akzent: { dichte: 0.15, minGap: 24, models: ['bienenkorb', 'setzling', 'beerenbusch'] },
@@ -1096,14 +1145,14 @@ const LM_ZONEN = [
       minGap: 8,
       scale: [0.8, 1.5],
       models: ['tree_pine', 'tree_broad', 'tree_fir'],
-      tints: [0x5f9a4a, 0x4f8a3e, 0x437a36],
+      tints: [0x2f8f34, 0x268030, 0x37a03c],
     },
     boden: {
       dichte: 3.4,
       minGap: 3.6,
       models: ['farn', 'farn', 'bush', 'grass_tuft', 'hochgras'],
       // Satt und dunkel: Waldboden im Schatten.
-      tints: [0x4f8a3e, 0x5f9a4a, 0x437a36],
+      tints: [0x4fae3a, 0x3f9b30, 0x5cbb44],
     },
     streu: {
       dichte: 1.6,
@@ -1129,14 +1178,14 @@ const LM_ZONEN = [
       minGap: 10,
       scale: [0.8, 1.4],
       models: ['tree_broad', 'tree_fir', 'tree_pine'],
-      tints: [0x4d8f57, 0x59a066, 0x3f7d4c],
+      tints: [0x35a05c, 0x2c8f52, 0x40b06a],
     },
     boden: {
       dichte: 3.6,
       minGap: 3.6,
       models: ['hochgras', 'hochgras', 'schilf', 'grass_tuft', 'klee', 'bush'],
       // Kühl ins Blaugrüne: nass, und das sieht man der Farbe an.
-      tints: [0x4d8f6a, 0x59a077, 0x3f7d5c, 0x66a882],
+      tints: [0x54c07a, 0x46b06c, 0x68cf8c, 0x3fa464],
     },
     streu: { dichte: 1.2, minGap: 5, models: ['brombeere', 'distel', 'moosstein', 'kiesel'] },
     akzent: { dichte: 0.2, minGap: 28, models: ['bildstock', 'moosstein', 'baumstamm_liegend'] },
@@ -1163,7 +1212,7 @@ const LM_ZONEN = [
       minGap: 4,
       models: ['heidekraut', 'heidekraut', 'dornbusch', 'grass_tuft'],
       // Ausgebleicht ins Braungraue. Hier wächst nichts mehr gern.
-      tints: [0x8a8466, 0x9a9070, 0x7a7358, 0x6f6b55],
+      tints: [0xc8b184, 0xd8c294, 0xb6a074, 0xa89468],
     },
     streu: { dichte: 2.4, minGap: 4, models: ['geroell', 'felsblock', 'steinmann', 'kiesel'] },
     akzent: { dichte: 0.35, minGap: 24, models: ['erzader', 'crystal', 'kristallgruppe'] },
@@ -1183,14 +1232,14 @@ const LM_ZONEN = [
       minGap: 7,
       scale: [0.7, 1.2],
       models: ['tree_dead', 'tree_pine'],
-      tints: [0x2f4a35, 0x38553c],
+      tints: [0x2c5a3a, 0x35704a],
     },
     boden: {
       dichte: 2.4,
       minGap: 4,
       models: ['dornbusch', 'dornbusch', 'heidekraut', 'distel'],
       // Fast ohne Farbe. Der letzte Abschnitt vor dem Tor.
-      tints: [0x5c5a4a, 0x4a4a3e, 0x6a6552],
+      tints: [0x8a7f5e, 0x7a7050, 0x9c9068],
     },
     streu: { dichte: 2.0, minGap: 4.5, models: ['geroell', 'schaedel', 'knochenhaufen', 'kiesel'] },
     akzent: { dichte: 0.35, minGap: 22, models: ['runenstein', 'feuerschale', 'knochenhaufen'] },
@@ -2175,34 +2224,55 @@ function lichtmoor() {
     id: 'lichtmoor',
     name: 'Lichtmoor',
     environment: {
-      skyColor: 0x8ec3ee,
-      horizonColor: 0xdcecf9,
-      fogColor: 0xc4dcf0,
-      fogNear: 130,
-      fogFar: 400,
+      /*
+       * --- Die Palette ------------------------------------------------------
+       *
+       * Kräftig, hell und **wenige Farben**. Vorher stand hier ein
+       * zurückhaltender Sommertag: entsättigtes Oliv am Boden, milchiger
+       * Himmel, graubrauner Fels. Das ist nicht falsch, aber es ist beliebig —
+       * aus zwanzig Metern Entfernung sah alles gleich aus, weil nichts
+       * gegeneinander stand.
+       *
+       * Der Hebel ist der **Kontrast zwischen Bodenarten**, nicht die Menge
+       * an Details: gelbgrünes Gras gegen sandbeigen Fels gegen sattes
+       * Baumgrün, darüber ein Himmel, der wirklich blau ist. Drei Farben, die
+       * man auch bei drei Bildern je Sekunde noch auseinanderhält.
+       */
+      skyColor: 0x3aa0e6,
+      horizonColor: 0xd9f2ff,
+      fogColor: 0xcbe9fb,
+      /*
+       * Näher und blasser als vorher.
+       *
+       * Der Nebel ist hier kein Wetter, sondern das **Tiefenmass**: er legt
+       * eine helle Schicht zwischen die Hügelketten, und erst dadurch liest
+       * man, welche vorn liegt. Bei hundertdreissig bis vierhundert Metern
+       * begann er so spät, dass die halbe Insel in derselben Ebene klebte.
+       */
+      fogNear: 110,
+      fogFar: 350,
       sunDirection: [0.42, 0.82, 0.38],
       sunColor: 0xfff4de,
-      sunIntensity: 1.9,
       /*
-       * Der Boden strahlt zurück, und zwar warm.
+       * Sonne etwas zurück, Umgebungslicht deutlich hoch.
        *
+       * Das ist der ganze Unterschied zwischen „Mittagssonne" und „heller
+       * Tag": die Schattenseite eines Baums soll nicht schwarz sein, sondern
+       * die Farbe des Bodens tragen, von dem das Licht zurückkommt. Mit
+       * starker Sonne und schwachem Umgebungslicht bekommt jede Kugel eine
+       * dunkle Hälfte, und die Landschaft sieht aus wie ein Rendering.
+       */
+      sunIntensity: 1.7,
+      /*
        * `ambientColor` ist die **untere** Farbe des Halbkugellichts — das,
-       * womit der Boden von unten aufhellt. Hier stand ein kühles Blau, und
-       * damit bekam jede nach unten gerichtete Fläche einen kalten Stich:
-       * Baumkronen von unten, Gesichter im Gegenlicht, die Unterseite der
-       * schwebenden Felsen. Über einer Sommerwiese ist das reflektierte Licht
-       * grünlich-warm.
+       * womit der Boden von unten aufhellt. Über einer gelbgrünen Wiese ist
+       * das reflektierte Licht grünlich-warm; hier stand einmal ein kühles
+       * Blau, und damit bekam jede nach unten gerichtete Fläche einen kalten
+       * Stich: Baumkronen von unten, Gesichter im Gegenlicht, die Unterseite
+       * der schwebenden Felsen.
        */
-      ambientColor: 0xd6d8bc,
-      /*
-       * Von 1,2 auf 1,6 angehoben, zusammen mit der Tonwertkurve im Renderer.
-       *
-       * Die beiden gehören zusammen: mehr Umgebungslicht **ohne** Kurve hätte
-       * nur die Schattenseiten angehoben und die Sonnenseiten endgültig
-       * weissgebrannt. Mit Kurve hebt es die Schattenseiten und lässt die
-       * hellen Flächen ihre Farbe behalten.
-       */
-      ambientIntensity: 1.6,
+      ambientColor: 0xc6e6cc,
+      ambientIntensity: 2.0,
     },
     terrain: {
       size,
@@ -2214,11 +2284,28 @@ function lichtmoor() {
       heightScale: 6,
       featureScale: 0.009,
       waterLevel: -4,
-      grassColor: 0x6aa855,
-      grassColorAlt: 0x4f8a3e,
-      rockColor: 0x8a8478,
-      sandColor: 0xd2c294,
-      layers: groundLayers(-4),
+      /*
+       * Gras gelbgrün, Fels sandbeige — und beides deutlich gesättigter als
+       * die Textur darunter. Die Vertexfarbe trägt dort, wo keine Bodenebene
+       * greift, und sie ist es, die man aus der Ferne sieht: eine Insel ist
+       * auf zweihundert Meter ein Farbfleck und kein Bodenbelag.
+       */
+      grassColor: 0x8ccf42,
+      grassColorAlt: 0x69ba32,
+      rockColor: 0xc9b78e,
+      sandColor: 0xe8d9a8,
+      /*
+       * Und dieselbe Verschiebung noch einmal für die Texturen: der Ton
+       * multipliziert die Kachel. Ohne ihn bleibt der Boden das gedeckte
+       * Braungrün der Textur, während die Vertexfarbe daneben leuchtet — und
+       * genau an der Naht zwischen beiden sähe man, wo eine Ebene aufhört.
+       */
+      layers: groundLayers(-4, {
+        grassTint: 0xb4e07a,
+        dirtTint: 0xdcc79a,
+        sandTint: 0xf0e2b4,
+        rockTint: 0xdcc79c,
+      }),
       /*
        * Drei Meter Schrittweite und nicht zwei.
        *
@@ -2549,9 +2636,9 @@ function dornwald() {
     id: 'dornwald',
     name: 'Dornwald',
     environment: {
-      skyColor: 0x5c7f96,
-      horizonColor: 0x9db4bd,
-      fogColor: 0x7f97a2,
+      skyColor: 0x4a86b8,
+      horizonColor: 0xb9d6e2,
+      fogColor: 0x9fbecb,
       fogNear: 60,
       fogFar: 240,
       sunDirection: [-0.3, 0.68, 0.55],
@@ -2559,8 +2646,8 @@ function dornwald() {
       sunIntensity: 1.45,
       // Auch hier wärmer und heller — der Dornwald soll düster sein, aber
       // düster heisst finstere Farben und nicht „man sieht nichts".
-      ambientColor: 0x93967e,
-      ambientIntensity: 1.35,
+      ambientColor: 0x8fae94,
+      ambientIntensity: 1.7,
     },
     terrain: {
       size,
@@ -2569,13 +2656,18 @@ function dornwald() {
       heightScale: 19,
       featureScale: 0.014,
       waterLevel: -6,
-      grassColor: 0x4a6b3c,
-      grassColorAlt: 0x37522e,
-      rockColor: 0x6e6a62,
-      sandColor: 0x9c8f70,
+      grassColor: 0x5d9440,
+      grassColorAlt: 0x477a30,
+      rockColor: 0xa89a80,
+      sandColor: 0xc0ad8a,
       // Dornwald ist duesterer als Lichtmoor — dieselben Texturen, dunkler
       // getoent, statt eines zweiten Satzes fuer denselben Boden.
-      layers: groundLayers(-6, { grassTint: 0xa8b8a0, dirtTint: 0xb0a898, sandTint: 0xa89880 }),
+      layers: groundLayers(-6, {
+        grassTint: 0x9fc888,
+        dirtTint: 0xb8a68a,
+        sandTint: 0xb0a084,
+        rockTint: 0xb6a488,
+      }),
     },
     // Nicht auf dem Rueckportal: wer dort gespeichert hat, wuerde beim
     // Anmelden sofort weiterbefoerdert.

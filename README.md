@@ -99,6 +99,13 @@ bewussten Abweichung, die weiter unten begründet ist.
   ebenem Scheitel, auf denen man steht statt darüberzulaufen, und zwei Teiche:
   Mulden unter dem Wasserspiegel, denn die Wasserfläche liegt ohnehin über der
   ganzen Karte.
+- **Eine Palette statt einer Stimmung**: gelbgrünes Gras, sandbeiger Fels,
+  sattes Baumgrün, kräftig blauer Himmel — wenige Farben, die weit
+  auseinanderliegen, dazu viel Umgebungslicht und wenig Sonne, damit
+  Schattenseiten die Farbe des Bodens tragen statt schwarz zu werden. Der Nebel
+  ist dabei kein Wetter, sondern das Tiefenmass zwischen den Hügelketten. Für
+  die senkrechten Flächen gibt es eine eigene Bodenebene: eine zwölf Meter hohe
+  Wand aus Ackerkrume sah aus wie ein Erdrutsch, gemeint war Sandstein.
 - **Fünf Zonen**, und man sieht sie: Silberfurter Weiden, Die Gruben, Die
   Uferwiesen, Das Geröllfeld, Der Dornsaum. Jede hat ihren eigenen Bewuchs
   (Blüten nur im Süden, Heidekraut nur im Norden), ihre eigene Bodenfarbe und
