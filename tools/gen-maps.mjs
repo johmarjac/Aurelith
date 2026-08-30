@@ -175,6 +175,40 @@ const glatt = (t) => {
 };
 
 /**
+ * Derselbe Anstieg von 0 auf 1 — aber in Absätzen statt als Rampe.
+ *
+ * `t` läuft von 0 bis 1 und kommt genauso wieder heraus; dazwischen liegt die
+ * Strecke aber nicht gleichmässig, sondern in `stufen` Schultern mit je einem
+ * Sprung davor. `kante` sagt, welcher Anteil einer Schulter auf den Sprung
+ * entfällt: bei 0,42 steigt es auf zwei Fünfteln und liegt auf dreien flach.
+ *
+ * **Die Steilheit hängt nur an `kante`, nicht an der Zahl der Stufen.** Ein
+ * Anstieg von H über die Breite B ergibt je Sprung `H/n` auf `B·kante/n` — das
+ * `n` kürzt sich weg. Mehr Stufen machen die Wand also nicht flacher, sondern
+ * nur kleinteiliger, und das ist genau der Hebel, den man beim Formen möchte.
+ *
+ * Was dabei zu beachten ist, und zwar auf beiden Seiten:
+ *
+ *   - Ein Sprung darf nicht schmaler sein als das Höhenfeld, das ihn tragen
+ *     soll. Lichtmoor rastert auf drei Meter; alles darunter wird beim
+ *     Abtasten ohnehin wieder zu einer Schräge, und man hätte eine Kante
+ *     gerechnet, die niemand bekommt.
+ *   - Und nicht schmaler als eine Masche des Geländenetzes (vier bis acht
+ *     Meter, je nach Einstellung), sonst sieht man eine sanfte Böschung und
+ *     läuft trotzdem gegen eine Wand.
+ *
+ * Fünf Meter je Sprung ist deshalb die untere Grenze, mit der hier gearbeitet
+ * wird.
+ */
+function stufenprofil(t, stufen, kante = 0.42) {
+  const u = Math.max(0, Math.min(1, t)) * stufen;
+  // Am oberen Ende liegt `u` genau auf `stufen`; ohne das Deckeln landete man
+  // in einer Schulter, die es nicht gibt, und das Ergebnis wäre 0 statt 1.
+  const i = Math.min(stufen - 1, Math.floor(u));
+  return (i + glatt((u - i) / kante)) / stufen;
+}
+
+/**
  * Baut ein Höhenfeld aus einer Funktion.
  *
  * Die Funktion bekommt Weltkoordinaten und liefert die **Differenz** auf das
@@ -714,15 +748,36 @@ function brueckenStellen(zVon, zBis) {
  * an denen man hinaufkommt. Die Strasse bekommt ihre Rampe von selbst; diese
  * hier sind die abseitigen, für alle, die nicht auf dem Weg bleiben.
  *
- * Zusammen dreissig Meter über achtzehnhundert. Das Tor im Norden liegt damit
- * hoch über der Südküste, und wer oben an der Kante steht, sieht die ganze
- * Strecke zurück, die er gelaufen ist.
+ * Zusammen vierundvierzig Meter über achtzehnhundert. Das Tor im Norden liegt
+ * damit hoch über der Südküste, und wer oben an der Kante steht, sieht die
+ * ganze Strecke zurück, die er gelaufen ist.
+ *
+ * Es waren dreissig, und die Höhe ist nicht aus Geschmack gestiegen, sondern
+ * aus Arithmetik: eine Kante mit zwei Absätzen braucht doppelt so viel Höhe
+ * wie eine mit einem, um genauso steil zu bleiben. Wer Absätze will, muss
+ * steigen — siehe `stufenprofil`.
  */
 const TERRASSEN = [
-  { z: -300, hoehe: 9, rampen: [-330, 240] },
-  { z: 250, hoehe: 11, rampen: [-480, 120, 430] },
-  { z: 480, hoehe: 10, rampen: [-250, 330] },
+  { z: -300, hoehe: 14, rampen: [-330, 240] },
+  { z: 250, hoehe: 16, rampen: [-480, 120, 430] },
+  { z: 480, hoehe: 14, rampen: [-250, 330] },
 ];
+
+/**
+ * Wie eine Terrassenkante gebaut ist: zwei Absätze auf vierundzwanzig Metern.
+ *
+ * Die Zahlen hängen zusammen und dürfen nicht einzeln gedreht werden. Ein
+ * Sprung ist `KANTE_TIEFE · KANTE_ANTEIL / KANTE_STUFEN` = 5 m breit — die
+ * untere Grenze aus `stufenprofil` — und hebt die halbe Stufenhöhe. Bei
+ * vierzehn Metern sind das sieben auf fünf, also vierundfünfzig Grad; der Kern
+ * lässt bis zweiundfünfzig gehen, und damit ist die Kante zu.
+ *
+ * Wer die Höhe senkt, macht die Kante begehbar, ohne dass es irgendwo knallt —
+ * man merkt es erst, wenn jemand die Terrasse abseits der Rampe hinaufläuft.
+ */
+const KANTE_TIEFE = 24;
+const KANTE_STUFEN = 2;
+const KANTE_ANTEIL = 0.42;
 
 /**
  * Die Teiche — Mulden, die unter den Wasserspiegel reichen.
@@ -775,11 +830,12 @@ function lichtmoorHoehe(x, z) {
    *
    * Jetzt ist Lichtmoor eine **Insel**. Das Land hört an einer Klippe auf,
    * darunter liegt das Meer, und darüber sieht man bis an den Horizont. Die
-   * Klippe fällt sechsundzwanzig Meter auf zwölf — das sind fünfundsechzig
-   * Grad, deutlich über den zweiundfünfzig, bis zu denen der Kern einen gehen
-   * lässt. Man kommt also bis an die Kante und keinen Schritt weiter, **auch
-   * nicht im Sprung**: die Neigungsprüfung greift unabhängig davon, ob die
-   * Füsse gerade den Boden berühren.
+   * Klippe fällt in drei Absätzen auf dreissig Metern; der flachste Sprung
+   * nimmt neun Meter auf gut vier — das sind fünfundsechzig Grad, deutlich
+   * über den zweiundfünfzig, bis zu denen der Kern einen gehen lässt. Man
+   * kommt also bis an die Kante und keinen Schritt weiter, **auch nicht im
+   * Sprung**: die Neigungsprüfung greift unabhängig davon, ob die Füsse
+   * gerade den Boden berühren.
    *
    * Die Sperrzonen liegen erst dreissig Meter jenseits der Küste. Wer fliegt,
    * kommt damit über die Kante hinaus und sieht die Insel von aussen — was
@@ -795,10 +851,19 @@ function lichtmoorHoehe(x, z) {
    * Laufen niemand, eine Kante schon. Von der Kante oben sieht man zurück, wo
    * man herkam; von unten sieht man, dass es weitergeht und wo.
    *
-   * Jede Kante ist **acht Meter** tief auf voller Höhe — bei zehn Metern Stufe
-   * sind das über fünfzig Grad, und damit ist sie zu, denn der Kern lässt bis
-   * zweiundfünfzig gehen. Hinauf kommt man nur über eine **Rampe**: dort wird
-   * dieselbe Stufe über achtzig Meter verteilt, also acht Grad.
+   * Jede Kante ist eine **Treppe aus zwei Absätzen** auf vierundzwanzig
+   * Metern: fünf Meter Sprung, sieben Meter Schulter, wieder fünf Meter
+   * Sprung. Ein Sprung hebt sieben Meter auf fünf — vierundfünfzig Grad, und
+   * damit ist er zu, denn der Kern lässt bis zweiundfünfzig gehen.
+   *
+   * Vorher war die Kante eine einzige weiche Böschung von acht Metern. Steil
+   * genug war sie auch, aber sie sah aus wie eine Wiese, die man aufgestellt
+   * hat — es fehlte das, was eine Stufe zur Stufe macht: die waagerechte
+   * Fläche zwischen zwei Sprüngen, an der man die Höhe abliest.
+   *
+   * Hinauf kommt man nur über eine **Rampe**: dort wird dieselbe Stufe über
+   * hundertvierundzwanzig Meter verteilt und die Treppe zur Schräge geglättet,
+   * also gut sechs Grad.
    *
    * Eine der Rampen liegt immer auf der Strasse — gerechnet aus `wegMitte` und
    * nicht danebengeschrieben, sonst führt der Weg gegen eine Wand, sobald
@@ -816,8 +881,23 @@ function lichtmoorHoehe(x, z) {
     for (const rx of [wegMitte(stufe.z), ...stufe.rampen]) {
       rampe = Math.max(rampe, glatt(1 - Math.abs(x - rx) / 110));
     }
-    const tiefe = 8 + rampe * 72;
-    h += stufe.hoehe * glatt((z - kante) / tiefe + 0.5);
+    const tiefe = KANTE_TIEFE + rampe * 100;
+    const t = (z - kante) / tiefe + 0.5;
+    /*
+     * Zwei Profile über derselben Kante, und `rampe` blendet zwischen ihnen:
+     * abseits die Treppe, auf der Rampe die Schräge.
+     *
+     * Nur die Kante breiter zu machen hätte nicht gereicht. Die Rampe ist mit
+     * hundertvierundzwanzig Metern fünfmal so lang wie die Kante; dieselbe
+     * Treppe zöge sich dort auf Sprünge von sechsundzwanzig und Schultern von
+     * sechsunddreissig Metern auseinander. Begehbar wäre das — fünfzehn Grad —,
+     * aber die Strasse liefe in zwei Schüben mit zwei langen Ebenen dazwischen,
+     * und die Absätze lägen als sichtbare Kanten quer über den Weg. Eine
+     * Strasse steigt gleichmässig; das ist der Unterschied zwischen einer
+     * Rampe und einer Treppe, und man merkt ihn beim Gehen.
+     */
+    const stufig = stufenprofil(t, KANTE_STUFEN, KANTE_ANTEIL);
+    h += stufe.hoehe * (stufig + (glatt(t) - stufig) * glatt(rampe));
   }
 
   /*
@@ -931,7 +1011,20 @@ function lichtmoorHoehe(x, z) {
      */
     const rand = k.flach ?? 0;
     const t = rand > 0 ? Math.min(1, (1 - d) / (1 - rand)) : 1 - d;
-    h += glatt(t) * k.h;
+    /*
+     * Die Plateaus steigen in Absätzen, die runden Kuppen nicht.
+     *
+     * Und die Absätze hier sind **Treppen und keine Wände**: mit dem Anteil
+     * 0,58 auf einer Flanke von gut fünfundzwanzig Metern ist ein Sprung
+     * siebeneinhalb Meter breit und hebt achteinhalb — knapp fünfzig Grad, und
+     * damit läuft man hinauf. Absicht: eine Terrassenkante ist eine Grenze, ein
+     * Plateau ist ein Ort. Wer oben stehen und über die Wiese sehen will, soll
+     * nicht erst ein Fluggerät brauchen.
+     *
+     * Die runden Kuppen bleiben rund. Alles zu stufen hiesse, dass nichts mehr
+     * gestuft wirkt — die Treppe fällt nur auf, wo daneben etwas fliesst.
+     */
+    h += (rand > 0 ? stufenprofil(t, 2, 0.58) : glatt(t)) * k.h;
   }
 
   /*
@@ -1027,12 +1120,13 @@ function lichtmoorHoehe(x, z) {
    * **Nach** den Terrassen und nicht davor, und als Überblendung auf den
    * Meeresgrund statt als fester Abzug. Vorher stand hier „minus sechsundzwanzig
    * Meter": das reichte, solange das Land überall vier Meter hoch lag. Mit
-   * dreissig Metern Terrasse im Norden hätte die Klippe dort auf vierzehn
-   * Meter geendet — trockener Boden jenseits der Küste, mit einer Aussicht auf
-   * das Meer von unten.
+   * vierundvierzig Metern Terrasse im Norden hätte die Klippe dort auf
+   * achtzehn Meter geendet — trockener Boden jenseits der Küste, mit einer
+   * Aussicht auf das Meer von unten.
    *
-   * So endet jede Höhe an derselben Tiefe. Die Kante fällt auf zwölf Metern,
-   * das sind bei der niedrigsten Stufe fünfundsechzig Grad und weiter oben
+   * So endet jede Höhe an derselben Tiefe. Die Kante fällt auf dreissig
+   * Metern, und sie fällt in drei Absätzen: der niedrigste Sprung nimmt neun
+   * Meter auf gut vier, das sind fünfundsechzig Grad, und weiter oben ist es
    * mehr — immer über den zweiundfünfzig, bis zu denen der Kern einen gehen
    * lässt. Man kommt bis an die Kante und keinen Schritt weiter, auch nicht
    * im Sprung.
@@ -1042,7 +1136,21 @@ function lichtmoorHoehe(x, z) {
     // fällt, sieht aus wie eine Tischkante.
     const kerbe = Math.sin(x * 0.043) * 1.6 + Math.sin(z * 0.037) * 1.4;
     const grund = -22 + kerbe;
-    h += (grund - h) * glatt(drauss / 12);
+    /*
+     * Und sie fällt in **drei Absätzen** statt in einem Zug.
+     *
+     * Das ist die Form, die man von der Insel am meisten sieht: aus der Luft,
+     * vom Wasser, vom Rand des Plateaus aus. Eine glatte Böschung liest sich
+     * dabei als Hügel, der zufällig im Meer endet; drei Bänder übereinander
+     * lesen sich als Klippe, und dazu braucht es nichts weiter als dieselbe
+     * Treppe, die auch die Terrassen tragen.
+     *
+     * Dreissig Meter statt zwölf: bei drei Stufen und dem Anteil von 0,42 ist
+     * ein Sprung damit gut vier Meter breit. Die Klippe wächst dabei nach
+     * **aussen** — `ausserhalb` ist innerhalb der Insel null, das Land verliert
+     * also keinen Meter.
+     */
+    h += (grund - h) * stufenprofil(drauss / 30, 3, 0.42);
   }
 
   return h;
@@ -1808,10 +1916,17 @@ function lichtmoor() {
    * `position[1]` genau deren Höhe, `snapToGround` ist aus, und der Radius der
    * Scheibe steht in `collisionRadius` — dieselbe Zahl, mit der das Modell
    * gebaut wird.
+   *
+   * **`ueber` ist die Höhe über dem Boden, nicht über dem Meer.** Vorher stand
+   * hier die fertige Höhe, und sie stimmte genau so lange, wie das Land flach
+   * blieb: mit vierundvierzig Metern Terrasse steckten die nördlichen Steine
+   * im Hang. Zwei Wahrheiten über dieselbe Sache — die Höhe des Steins und die
+   * Höhe des Bodens darunter —, und sie sind auseinandergelaufen, sobald es
+   * darauf ankam.
    */
-  const schwebfels = (x, y, z, gross = true) => ({
+  const schwebfels = (x, ueber, z, gross = true) => ({
     model: gross ? 'fels_schwebend' : 'fels_schwebend_klein',
-    position: [round(x), round(y), round(z)],
+    position: [round(x), round(lichtmoorHoehe(x, z) + ueber), round(z)],
     rotation: [0, round(rng() * Math.PI * 2), 0],
     scale: 1,
     snapToGround: false,
@@ -1821,16 +1936,16 @@ function lichtmoor() {
   const schweber = [
     // Eine Treppe aus Steinen über der Wiese: von niedrig nach hoch, damit man
     // sie auch mit dem langsamen Besen erreicht.
-    schwebfels(-46, 26, -32, false),
-    schwebfels(-58, 34, 72),
-    schwebfels(-40, 42, 176, false),
+    schwebfels(-46, 16, -32, false),
+    schwebfels(-58, 22, 72),
+    schwebfels(-40, 28, 176, false),
     // Ein Paar über dem Fluss — von dort sieht man die Silberader entlang.
-    schwebfels(24, 30, 296),
-    schwebfels(44, 38, 384, false),
+    schwebfels(24, 20, 296),
+    schwebfels(44, 26, 384, false),
     // Und drei hohe im Norden, über dem Geröll.
-    schwebfels(-24, 46, 552),
-    schwebfels(52, 52, 632, false),
-    schwebfels(6, 58, 728),
+    schwebfels(-24, 24, 552),
+    schwebfels(52, 30, 632, false),
+    schwebfels(6, 36, 728),
     /*
      * Und eine zweite Treppe im Süden.
      *
@@ -1840,19 +1955,19 @@ function lichtmoor() {
      * soll nicht erst eine Minute nach Norden fliegen, um etwas zum Landen zu
      * finden.
      */
-    schwebfels(-120, 24, -700, false),
-    schwebfels(-96, 32, -620),
-    schwebfels(140, 28, -560, false),
-    schwebfels(118, 40, -300),
-    schwebfels(-150, 36, -240, false),
+    schwebfels(-120, 16, -700, false),
+    schwebfels(-96, 22, -620),
+    schwebfels(140, 18, -560, false),
+    schwebfels(118, 28, -300),
+    schwebfels(-150, 24, -240, false),
     // Und welche weit draussen an den Flanken, als Ziel für einen Umweg.
-    schwebfels(-230, 44, 240),
-    schwebfels(238, 50, 480, false),
-    schwebfels(-210, 56, 820),
-    schwebfels(-470, 40, -400),
-    schwebfels(450, 48, -80, false),
-    schwebfels(-520, 54, 380),
-    schwebfels(500, 60, 700, false),
+    schwebfels(-230, 26, 240),
+    schwebfels(238, 32, 480, false),
+    schwebfels(-210, 36, 820),
+    schwebfels(-470, 22, -400),
+    schwebfels(450, 28, -80, false),
+    schwebfels(-520, 30, 380),
+    schwebfels(500, 34, 700, false),
   ];
 
   const gesetzt = [...stadt, ...strasse, ...lager];
@@ -2314,13 +2429,19 @@ function lichtmoor() {
        * zwei Megabyte allein für das Gelände — für eine Insel, die nur ein
        * Drittel davon bedeckt. Der Rest ist Meer.
        *
-       * Bei drei Metern bleibt die Kante trotzdem eine Kante: die Klippe
-       * fällt sechsundzwanzig Meter auf zwölf, über die Stützpunkte
-       * verschliffen sind es sechsundzwanzig auf fünfzehn — sechzig Grad und
+       * Bei drei Metern bleibt die Kante trotzdem eine Kante. Die Klippe
+       * fällt in Absätzen von neun Metern auf gut vier; über die Stützpunkte
+       * verschliffen bleiben davon rund neun auf sechs — sechzig Grad und
        * damit weiter über den zweiundfünfzig, bis zu denen der Kern einen
        * gehen lässt. Dasselbe für die Flussböschung: vierzehn Meter auf
        * fünf, verschliffen auf acht, sind sechzig Grad. Bei vier Metern wäre
        * beides eine Rampe, und der Fluss keine Grenze mehr.
+       *
+       * **Und diese drei Meter sind die untere Grenze für jeden Sprung einer
+       * Treppe** (siehe `stufenprofil`). Ein Sprung, der schmaler ist als
+       * eine Masche, kommt hier gar nicht erst an: er wird beim Abtasten zu
+       * einer Schräge, und man hätte eine Kante gerechnet, die niemand
+       * bekommt. Deshalb sind alle Sprünge mindestens fünf Meter breit.
        */
       sculpt: baueSculpt(size, lichtmoorHoehe, { schrittweite: 3 }),
       /*

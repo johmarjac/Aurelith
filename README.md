@@ -93,12 +93,24 @@ bewussten Abweichung, die weiter unten begründet ist.
   zweimal über die Silberader, mit Laternen und Wegzeichen, die der Kurve
   folgen statt einer Geraden bei x = 0.
 - **Das Land steigt in Stufen**: drei Terrassen von der Südküste bis zum Tor,
-  zusammen dreissig Meter. Jede Kante ist acht Meter tief und damit zu — hinauf
-  kommt man über **Rampen**, und eine davon liegt immer auf der Strasse
-  (gerechnet aus deren Verlauf, nicht danebengeschrieben). Dazu Kuppen mit
-  ebenem Scheitel, auf denen man steht statt darüberzulaufen, und zwei Teiche:
-  Mulden unter dem Wasserspiegel, denn die Wasserfläche liegt ohnehin über der
-  ganzen Karte.
+  zusammen vierundvierzig Meter. Jede Kante ist eine **Treppe aus zwei
+  Absätzen** auf vierundzwanzig Metern — fünf Meter Sprung, sieben Meter
+  Schulter, wieder fünf Meter Sprung. Ein Sprung hebt sieben Meter auf fünf,
+  also vierundfünfzig Grad, und damit ist die Kante zu; hinauf kommt man über
+  **Rampen**, wo dieselbe Stufe über hundertvierundzwanzig Meter gezogen und
+  die Treppe zur Schräge geglättet wird. Eine Rampe liegt immer auf der Strasse
+  (gerechnet aus deren Verlauf, nicht danebengeschrieben). Dieselbe Treppe
+  trägt die **Klippe** ringsum — drei Bänder statt einer Böschung, und das ist
+  die Form, die man von der Insel am meisten sieht — und die Ränder der
+  Plateaus, dort aber flach genug, dass man hinaufläuft: eine Terrassenkante
+  ist eine Grenze, ein Plateau ist ein Ort. Dazu zwei Teiche: Mulden unter dem
+  Wasserspiegel, denn die Wasserfläche liegt ohnehin über der ganzen Karte.
+
+  Wie steil eine Treppe wird, hängt dabei **nur** am Anteil, den der Sprung an
+  einer Schulter hat — die Zahl der Stufen kürzt sich heraus. Und ein Sprung
+  darf nie schmaler sein als das Höhenfeld (drei Meter) und die Maschen des
+  Geländenetzes (vier bis acht), sonst rechnet man eine Kante, die niemand
+  bekommt: man sähe eine sanfte Böschung und liefe trotzdem gegen eine Wand.
 - **Haufenwolken statt Dunst**: der Himmel trägt wenige grosse Ballen mit
   hellem Kern und weichem Rand, zwischen denen Blau steht — gebaut wie eine
   Zellenfunktion mit Kegeln statt Abständen, mit einem Rauschen am Rand, damit
@@ -306,7 +318,7 @@ npm run test:npcflow     # ansprechen, annehmen, erlegen, aufheben, abgeben
 npm run test:npc         # NPC-Fenster und Inventar im Browser
 npm run test:identitaet  # ein Mensch, zwei Anbieter, ein Konto
 npm run test:karten      # Eintrittskarten: Frist, Lebenszeichen, Wiedereinstieg
-npm run test:karte       # Lichtmoor: Laufzeit in Minuten, dichter Rand, Stufen nach Norden
+npm run test:karte       # Lichtmoor: Laufzeit in Minuten, dichter Rand, Treppen statt Böschungen
 npm run test:vorgang     # Aufsteigen dauert, und eine Absage kostet keine Abklingzeit
 npm run test:hoehe       # wer oben abmeldet, erscheint oben wieder
 npm run test:freunde     # Freundschaften: anfragen, ablehnen, annehmen, lösen, /pm

@@ -329,10 +329,23 @@ check(
   plattformen.every((p) => !p.snapToGround),
   'und keiner davon setzt auf dem Gelände auf',
 );
+/*
+ * Und sie schweben **über dem Boden** und nicht über dem Meeresspiegel.
+ *
+ * Hier stand „höher als fünfzehn", und die Zahl galt, solange das Land flach
+ * war. Mit vierundvierzig Metern Terrasse steckten die nördlichen Steine im
+ * Hang und die Prüfung war trotzdem grün: fünfzig ist mehr als fünfzehn, auch
+ * wenn der Berg darunter sechzig hoch ist. Gemeint ist der Abstand nach unten,
+ * und der ist eine Differenz.
+ */
+let tiefstesSchweben = Infinity;
+for (const p of plattformen) {
+  tiefstesSchweben = Math.min(tiefstesSchweben, p.position[1] - hoeheAn(p.position[0], p.position[2]));
+}
 check(
-  plattformen.every((p) => p.position[1] > 15),
+  tiefstesSchweben > 8,
   'sie schweben wirklich',
-  `tiefster ${Math.min(...plattformen.map((p) => p.position[1])).toFixed(0)}`,
+  `tiefster ${tiefstesSchweben.toFixed(0)} m über dem Boden`,
 );
 // Ohne Radius keine Fläche: der Kern liest `collisionRadius` als Radius der
 // begehbaren Scheibe, und null hiesse „nicht da".
@@ -378,7 +391,10 @@ let punkteDrinnen = 0;
 let landDraussen = 0;
 let punkteDraussen = 0;
 let hoechster = -1e9;
+let hoechsterOrt = { x: 0, z: 0 };
 let tiefster = 1e9;
+/** Die Landhöhen im obersten Fünftel der Insel — das Niveau der letzten Stufe. */
+const nordHoehen: number[] = [];
 const plateauNeigungen: number[] = [];
 let steilsteKlippe = 0;
 for (let iz = 1; iz < aufloesung - 1; iz++) {
@@ -386,7 +402,10 @@ for (let iz = 1; iz < aufloesung - 1; iz++) {
     const x = -halb + ix * gitter;
     const z = -halb + iz * gitter;
     const h = hoeheBei(ix, iz);
-    hoechster = Math.max(hoechster, h);
+    if (h > hoechster) {
+      hoechster = h;
+      hoechsterOrt = { x, z };
+    }
     tiefster = Math.min(tiefster, h);
     const neigung = Math.hypot(
       (hoeheBei(ix + 1, iz) - hoeheBei(ix - 1, iz)) / (2 * gitter),
@@ -411,6 +430,7 @@ for (let iz = 1; iz < aufloesung - 1; iz++) {
     if (drinnen(x, z)) {
       punkteDrinnen++;
       if (h > doc.terrain.waterLevel) landDrinnen++;
+      if (z > mitteZ + halbLaenge * 0.6) nordHoehen.push(h);
     } else {
       // Der Saum ist die Klippe: sie fällt auf zwölf Metern, die Küste
       // schwankt um fünfundzwanzig. Sechzig Meter fassen beides.
@@ -457,7 +477,23 @@ check(grad(steilsteKlippe) > 60, 'die Klippe ist unbegehbar steil', `${grad(stei
 plateauNeigungen.sort((a, b) => a - b);
 const neunzig = grad(plateauNeigungen[Math.floor(plateauNeigungen.length * 0.9)]!);
 check(neunzig < 30, 'das Plateau selbst läuft sich flach', `${neunzig.toFixed(0)}° im obersten Zehntel`);
-check(hoechster < 60, 'und kein Gipfel ragt heraus', `${hoechster.toFixed(0)} m`);
+/*
+ * Und kein Gipfel ragt heraus.
+ *
+ * Gemessen **über der obersten Terrasse** und nicht über dem Meer. Hier stand
+ * „unter sechzig Metern", und die Zahl war eine Aussage über den Wasserstand:
+ * solange die Insel dreissig Meter stieg, hiess sie „ein Hügel von dreissig",
+ * und mit vierundvierzig Metern Stufen hiesse sie „gar kein Hügel". Gemeint
+ * ist aber, dass nichts aus der Landschaft heraussticht — und das ist ein
+ * Abstand und keine Höhe.
+ */
+nordHoehen.sort((a, b) => a - b);
+const nordNiveau = nordHoehen[Math.floor(nordHoehen.length * 0.5)]!;
+check(
+  hoechster - nordNiveau < 25,
+  'und kein Gipfel ragt heraus',
+  `${(hoechster - nordNiveau).toFixed(0)} m über dem Nordplateau (${nordNiveau.toFixed(0)} m), höchster Punkt ${hoechster.toFixed(0)} m bei ${hoechsterOrt.x.toFixed(0)}/${hoechsterOrt.z.toFixed(0)}`,
+);
 
 /*
  * --- Die Zonen -------------------------------------------------------------
@@ -956,6 +992,102 @@ check(
   steileFlecken > 200,
   'abseits davon steht das Land in Kanten',
   `${steileFlecken} Stellen über 52° im Inneren`,
+);
+
+/*
+ * Und die Kanten stehen in **Absätzen** — das ist der Unterschied zwischen
+ * einer Böschung und einer Stufe.
+ *
+ * Steil allein sagt darüber nichts: eine glatte Wiese, die man aufstellt, ist
+ * auch steil. Was eine Treppe ausmacht, ist die waagerechte Fläche
+ * **zwischen** zwei Sprüngen — an ihr liest man die Höhe ab, und ohne sie
+ * sieht ein Geländesprung aus wie ein Hügel, der zufällig hoch ist.
+ *
+ * Gesucht wird deshalb das Muster selbst: Sprung, Schulter, Sprung, alles in
+ * dieselbe Richtung und innerhalb von achtzehn Metern. Ein Sprung steigt über
+ * eine Masche des Höhenfeldes um mehr als deren Breite (also über
+ * fünfundvierzig Grad), eine Schulter liegt auf ein bis vier Maschen fast
+ * eben.
+ */
+const MASCHE = gitter;
+function treppenIn(spalte: (i: number) => number, laenge: number): number {
+  let gefunden = 0;
+  for (let i = 0; i < laenge - 8; i++) {
+    const ersterSprung = spalte(i + 1) - spalte(i);
+    if (Math.abs(ersterSprung) < MASCHE) continue;
+    // Die Schulter: ein bis vier fast ebene Maschen. Weniger als eine wäre eine
+    // durchgehende Böschung, mehr als vier ist keine Stufe mehr, sondern die
+    // nächste Ebene.
+    for (let schulter = 1; schulter <= 4; schulter++) {
+      let eben = true;
+      for (let k = 1; k <= schulter; k++) {
+        if (Math.abs(spalte(i + 1 + k) - spalte(i + k)) > 0.8) eben = false;
+      }
+      if (!eben) continue;
+      const zweiterSprung = spalte(i + 2 + schulter) - spalte(i + 1 + schulter);
+      // Dasselbe Vorzeichen: hinauf, Schulter, weiter hinauf. Ein Sprung
+      // hinauf und einer hinunter ist ein Grat und keine Treppe.
+      if (Math.abs(zweiterSprung) < MASCHE) continue;
+      if (Math.sign(zweiterSprung) !== Math.sign(ersterSprung)) continue;
+      gefunden++;
+      i += 2 + schulter;
+      break;
+    }
+  }
+  return gefunden;
+}
+
+/*
+ * Abgetastet wird in **beide** Richtungen und bis über die Küste hinaus.
+ *
+ * Die Terrassenkanten liegen quer zur Insel — die findet man in einer Spalte
+ * von Süden nach Norden. Die Klippe liegt an allen vier Seiten, und ihre
+ * längsten Stücke sind die im Osten und Westen — die findet man nur in einer
+ * Reihe. Wer nur Spalten abtastet, prüft ein Viertel des Randes und hält das
+ * Ergebnis für die ganze Insel.
+ */
+let linienMitTreppe = 0;
+let linien = 0;
+let treppenGesamt = 0;
+const zVon = beiX(laengsachse.von - 40);
+const zBis = beiX(laengsachse.bis + 40);
+const xVon = beiX(-halbBreite - 40);
+const xBis = beiX(halbBreite + 40);
+for (let x = -halbBreite; x <= halbBreite; x += 10) {
+  const ix = beiX(x);
+  linien++;
+  const n = treppenIn((i) => hoeheBei(ix, zVon + i), zBis - zVon);
+  if (n > 0) linienMitTreppe++;
+  treppenGesamt += n;
+}
+for (let z = laengsachse.von; z <= laengsachse.bis; z += 10) {
+  const iz = beiX(z);
+  linien++;
+  const n = treppenIn((i) => hoeheBei(xVon + i, iz), xBis - xVon);
+  if (n > 0) linienMitTreppe++;
+  treppenGesamt += n;
+}
+check(
+  linienMitTreppe > linien * 0.5 && treppenGesamt > 200,
+  'und die Kanten sind Treppen, keine Böschungen',
+  `${treppenGesamt} Treppen auf ${linienMitTreppe} von ${linien} Schnitten`,
+);
+/*
+ * Die Gegenprobe, und sie ist der Grund, warum die Terrassen überhaupt Rampen
+ * haben: **auf der Strasse steht keine einzige.** Dort ist dieselbe Stufe über
+ * hundertvierundzwanzig Meter gezogen, und eine gezogene Stufe ist eine
+ * Schräge. Fände der Sucher hier etwas, führte der Weg über eine Treppe — und
+ * über die käme man mit dem Kern nicht hinauf.
+ */
+const wegSpalte: number[] = [];
+for (let z = laengsachse.von + 40; z <= laengsachse.bis - 40; z += MASCHE) {
+  wegSpalte.push(hoeheAn(wegMitteBei(z) ?? 0, z));
+}
+const treppenAmWeg = treppenIn((i) => wegSpalte[i] ?? 0, wegSpalte.length);
+check(
+  treppenAmWeg === 0,
+  'auf der Strasse dagegen keine',
+  `${treppenAmWeg} von ${wegSpalte.length} Schritten`,
 );
 
 /*
