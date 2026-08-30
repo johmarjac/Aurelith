@@ -299,6 +299,15 @@ export interface Diagnostics {
   /** Simulationsschritte seit dem Start. */
   ticks: number;
   /**
+   * Der Grasteppich: wie viele Büschel er hält und wie viele davon stehen.
+   *
+   * Von aussen sonst gar nicht zu sehen. Die Halme sind ein paar Pixel gross,
+   * und ob sie fehlen, weil die Grafikstufe sie abschaltet, weil der Boden zu
+   * steil ist oder weil der Teppich gar nicht erst gebaut wurde, sieht auf
+   * einem Bildschirmfoto identisch aus — nämlich nach Wiese.
+   */
+  gras: { bueschel: number; stehend: number };
+  /**
    * Die Aktionsleiste, wie der Server sie zuletzt gemeldet hat.
    *
    * Von aussen sonst nur mit dem Auge zu prüfen — und zwei der Regeln daran
@@ -581,6 +590,7 @@ export class Game {
     input: { moveX: 0, moveZ: 0, yaw: 0, buttons: 0 },
     auftrag: { art: 'nichts', zielId: 0, angriff: false },
     ticks: 0,
+    gras: { bueschel: 0, stehend: 0 },
     laufmarke: { sichtbar: false, mitte: 0, punkte: [] },
     aktionsleiste: [],
     inventar: [],
@@ -3361,6 +3371,8 @@ export class Game {
       kern: this.prediction?.heightAt(p.x, p.z) ?? 0,
     }));
     this.diagnostics.laufmarke.mitte = this.view.laufmarke.mittelpunkt();
+
+    this.diagnostics.gras = this.view.grasStand();
 
     /*
      * In der Luft geht der Knüppel **roh** hinein.

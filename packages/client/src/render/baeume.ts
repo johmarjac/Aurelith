@@ -16,7 +16,8 @@
  *
  * Drei Sorten, und sie unterscheiden sich in mehr als der Grösse:
  *
- * - **Laubbaum** — kurzer Stamm, Äste, eine breite Krone aus Kronenkarten.
+ * - **Laubbaum** — langer, dünner Stamm und darauf eine flache **Schirmkrone**
+ *   aus zwei Lagen mit hängendem Rand.
  * - **Fichte** — durchgehender Stamm, waagerechte Zweigkränze, nach oben
  *   schmaler. Die Kränze hängen leicht herab.
  * - **Tanne** — schlanker und höher als die Fichte, mit mehr und kürzeren
@@ -90,8 +91,12 @@ function ast(laenge: number, dicke: number): THREE.BufferGeometry {
  * einmal richtig im Ursprung, genügen Gieren und ein Kippen um Z — und beides
  * ist dann eine Drehung um die eigene Achse des Zweiges.
  */
-function zweigKarte(laenge: number, breite: number): THREE.BufferGeometry {
-  const geo = laubKarte('nadel', laenge, breite);
+function zweigKarte(
+  laenge: number,
+  breite: number,
+  kachel: 'nadel' | 'krone' = 'nadel',
+): THREE.BufferGeometry {
+  const geo = laubKarte(kachel, laenge, breite);
   // Flach legen: die Karte steht in der XY-Ebene, sie soll in der XZ-Ebene
   // liegen.
   geo.rotateX(-Math.PI * 0.5);
@@ -101,61 +106,129 @@ function zweigKarte(laenge: number, breite: number): THREE.BufferGeometry {
 }
 
 /**
- * Ein Laubbaum.
+ * Ein Laubbaum — eine **Schirmkrone** auf einem schlanken Stamm.
  *
- * Die Krone ist ein Haufen Karten in einer Kugelschale — nicht in einem
- * Kranz: acht Karten im Kreis sähen von oben aus wie ein Rad. Verteilt werden
- * sie über den goldenen Winkel, dieselbe Verteilung, mit der eine Sonnenblume
- * ihre Kerne setzt; sie legt Punkte gleichmässig auf eine Kugel, ohne dass ein
- * Muster entsteht.
+ * Vorher lag die Krone als Haufen Karten in einer Kugelschale, verteilt über
+ * den goldenen Winkel. Die Verteilung war richtig und das Ergebnis trotzdem
+ * immer dasselbe: ein Ball auf einem Stiel, und zwar egal, wie viele Karten
+ * darin steckten. Eine Kugel hat keine Richtung — sie sieht von jeder Seite
+ * gleich aus, und ein Wald aus Kugeln ist eine Fläche aus Punkten.
+ *
+ * Gemeint ist ein **Schirm**: ein langer, dünner Stamm, und darauf eine breite,
+ * flache Scheibe aus zwei Lagen, deren Rand nach unten hängt. Das ist die Form,
+ * die man aus jeder Entfernung wiedererkennt, weil sie eine Waagerechte hat —
+ * eine Linie im Bild, die weder Boden noch Himmel ist.
+ *
+ * Drei Dinge halten sie zusammen, und jedes verhindert einen eigenen Fehler:
+ *
+ *   1. **Zwei Lagen, gegeneinander verdreht.** Eine einzige Lage aus sechs
+ *      Karten sieht von oben aus wie ein Mühlrad; die zweite Lage füllt die
+ *      Lücken der ersten, weil ihre Karten zwischen deren Speichen sitzen.
+ *   2. **Ein hängender Rand.** Eine waagerechte Karte verschwindet, sobald die
+ *      Kamera auf ihrer Höhe steht — sie ist dann eine Linie. Die Randkarten
+ *      stehen deshalb steiler, und damit bleibt in jeder Augenhöhe etwas übrig,
+ *      das Fläche hat.
+ *   3. **Ein Deckel in der Mitte.** Der Schirm wird von seinem Ansatz nach
+ *      aussen gebaut, und der Ansatz ist ein Punkt — ohne zwei flache Karten
+ *      quer darüber sähe man von oben durch das Loch auf den Stamm.
  */
 export function baueLaubbaum(seed: number): THREE.BufferGeometry {
   const rand = wuerfel(seed);
   const parts: Part[] = [];
 
-  const stammHoehe = 2.6;
-  parts.push({ geometry: stamm(stammHoehe, 0.3, 0.17), color: 0x6b4f34 });
+  /*
+   * Der Stamm ist lang und dünn geworden: vier Meter statt zwei Komma sechs,
+   * und oben halb so dick. Ein Schirm auf einem kurzen Stamm ist ein Pilz —
+   * was die Form trägt, ist der Abstand zwischen Boden und Krone, und unter
+   * dem Schirm soll Platz sein, in dem man steht.
+   */
+  const stammHoehe = 4;
+  parts.push({ geometry: stamm(stammHoehe, 0.28, 0.14), color: 0x6b4f34 });
 
-  // Drei Äste, damit die Krone nicht auf einem Stab schwebt.
+  /*
+   * Drei Äste, und sie stehen **steiler** als früher (nicht mehr um 0,75
+   * gekippt, sondern um 0,45): sie tragen die Krone nicht zur Seite, sondern
+   * hoch. Flach abstehende Äste unter einem flachen Schirm ergeben zwei
+   * Waagerechte übereinander, und die zweite nimmt der ersten die Wirkung.
+   */
   for (let i = 0; i < 3; i++) {
     const winkel = (i / 3) * Math.PI * 2 + rand() * 0.7;
-    const laenge = 1.1 + rand() * 0.5;
+    const laenge = 1.2 + rand() * 0.5;
     parts.push({
       geometry: ast(laenge, 0.1),
       color: 0x6b4f34,
-      position: [0, stammHoehe * 0.72, 0],
-      rotation: [Math.cos(winkel) * 0.75, winkel, -Math.sin(winkel) * 0.75],
+      position: [0, stammHoehe * 0.66, 0],
+      rotation: [Math.cos(winkel) * 0.45, winkel, -Math.sin(winkel) * 0.45],
     });
   }
 
-  const kronenMitte = stammHoehe + 1.1;
-  const kronenRadius = 1.5;
-  const karten = 9;
-  // Der goldene Winkel. Zwei aufeinanderfolgende Karten liegen damit nie
-  // nebeneinander, und keine Zahl von Karten ergibt ein Muster.
-  const gold = Math.PI * (3 - Math.sqrt(5));
-  for (let i = 0; i < karten; i++) {
-    const t = (i + 0.5) / karten;
-    // Gleichmässig über die Kugel: `acos(1 - 2t)` und nicht ein linearer
-    // Winkel — sonst häufen sich die Karten an den Polen.
-    const phi = Math.acos(1 - 2 * t) * 0.82;
-    const theta = i * gold;
-    const gross = 2.5 * (0.7 + rand() * 0.5);
+  const GRUEN = [0x5f9a4a, 0x6cab52, 0x54903f, 0x74b45e];
+  const kronenMitte = stammHoehe - 0.15;
 
+  /*
+   * Die beiden Lagen. `neigung` ist die Kippung um die eigene Ansatzachse der
+   * Karte — dasselbe Z-Kippen wie beim Nadelbaum, nur viel schwächer: bei 0,2
+   * senkt sich die Spitze einer Karte von zwei Metern um vierzig Zentimeter.
+   * Das ist die Wölbung eines Schirms und noch keine Glocke.
+   */
+  const lagen = [
+    { y: kronenMitte, karten: 7, laenge: 2.5, neigung: 0.2, dreh: 0 },
+    { y: kronenMitte + 0.62, karten: 5, laenge: 1.95, neigung: 0.28, dreh: Math.PI / 7 },
+  ];
+  for (const lage of lagen) {
+    for (let i = 0; i < lage.karten; i++) {
+      const winkel = (i / lage.karten) * Math.PI * 2 + lage.dreh + rand() * 0.22;
+      const laenge = lage.laenge * (0.85 + rand() * 0.3);
+      parts.push({
+        geometry: zweigKarte(laenge, laenge * 0.92, 'krone'),
+        color: GRUEN[(i + lage.karten) % 4]!,
+        position: [0, lage.y, 0],
+        rotation: [0, winkel, -lage.neigung - rand() * 0.1],
+      });
+    }
+  }
+
+  /*
+   * Der hängende Rand: vier Karten, die aussen ansetzen und deutlich steiler
+   * stehen. Sie sind der Grund, warum der Schirm auf Augenhöhe nicht zu einem
+   * Strich wird.
+   */
+  for (let i = 0; i < 4; i++) {
+    const winkel = (i / 4) * Math.PI * 2 + 0.4 + rand() * 0.3;
+    const laenge = 1.25 + rand() * 0.35;
     parts.push({
-      geometry: laubKarte('krone', gross, gross * 0.85),
-      color: [0x5f9a4a, 0x6cab52, 0x54903f, 0x74b45e][i % 4]!,
+      geometry: zweigKarte(laenge, laenge * 1.05, 'krone'),
+      color: GRUEN[i % 4]!,
       position: [
-        Math.sin(phi) * Math.cos(theta) * kronenRadius * 0.55,
-        kronenMitte + Math.cos(phi) * kronenRadius * 0.5 - gross * 0.42,
-        Math.sin(phi) * Math.sin(theta) * kronenRadius * 0.55,
+        Math.cos(winkel) * 1.55,
+        kronenMitte + 0.18,
+        Math.sin(winkel) * 1.55,
       ],
-      rotation: [(rand() - 0.5) * 1.1, theta, (rand() - 0.5) * 0.6],
+      rotation: [0, winkel, -0.85 - rand() * 0.25],
+    });
+  }
+
+  // Und der Deckel: zwei flache Karten quer über den Ansatz.
+  for (let i = 0; i < 2; i++) {
+    const gross = 2.1;
+    const geo = laubKarte('krone', gross, gross);
+    geo.rotateX(-Math.PI * 0.5);
+    parts.push({
+      geometry: geo,
+      color: GRUEN[(i + 2) % 4]!,
+      position: [0, kronenMitte + 0.9, 0],
+      rotation: [0, i * 1.1 + rand(), 0],
     });
   }
 
   const geo = assemble(parts);
-  laubNormalen(geo, kronenMitte);
+  /*
+   * Die Normalen ziehen von einem Punkt **unter** der Krone nach aussen und
+   * nicht von ihrer Mitte. Bei einer Kugel war die Mitte richtig; bei einer
+   * Scheibe zeigten die Normalen dann waagerecht nach aussen, und der Schirm
+   * wurde von oben schwarz, obwohl die Sonne genau darauf steht.
+   */
+  laubNormalen(geo, kronenMitte - 1.6);
   return geo;
 }
 

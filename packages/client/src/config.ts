@@ -271,22 +271,32 @@ export interface QualitySettings {
    * sieht man als Ruckler.
    */
   lanternLights: number;
+  /**
+   * Wie viele Grasbüschel im Kreis um die Figur stehen.
+   *
+   * Null schaltet den Teppich ab, und auf schwachen Geräten ist das die
+   * richtige Antwort: Halme sind durchsichtige Karten, und durchsichtige
+   * Karten kosten Füllrate — jeder Bildpunkt wird mehrfach angefasst, auch
+   * dort, wo am Ende nichts steht. Auf einem Telefon frisst genau das die
+   * Bildrate, und der Boden trägt seine Grastextur ohnehin.
+   */
+  grasBueschel: number;
 }
 
 export const QUALITY: Record<QualityLevel, QualitySettings> = {
   niedrig: {
     viewDistance: 160, terrainCell: 8, shadows: false, maxPixelRatio: 1,
     propDistance: 110, groundNormalMaps: false, particleBudget: 24,
-    lanternLights: 2,
+    lanternLights: 2, grasBueschel: 0,
   },
   mittel: {
     viewDistance: 240, terrainCell: 6, shadows: false, maxPixelRatio: 1.5,
     propDistance: 170, groundNormalMaps: true, particleBudget: 48,
-    lanternLights: 4,
+    lanternLights: 4, grasBueschel: 900,
   },
   hoch: {
     viewDistance: 340, terrainCell: 4, shadows: true, maxPixelRatio: 2,
     propDistance: 260, groundNormalMaps: true, particleBudget: 80,
-    lanternLights: 6,
+    lanternLights: 6, grasBueschel: 2000,
   },
 };

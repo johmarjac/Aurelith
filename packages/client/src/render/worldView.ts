@@ -38,6 +38,7 @@ import { Bandspur, BRETTBAND, KLINGENBAND } from './bandspur.ts';
 import { Laufmarke } from './laufmarke.ts';
 import { PortalRing } from './portal.ts';
 import { buildTerrain, type TerrainMesh } from './terrain.ts';
+import { Grasteppich } from './gras.ts';
 import type { TextureLoader } from './textures.ts';
 import type { CharacterRig } from './rigs.ts';
 import { SICHTWEITEN, type SichtweiteStufe } from '../ui/grafik.ts';
@@ -335,6 +336,11 @@ export class WorldView {
   private terrain?: TerrainMesh;
   private propMeshes: THREE.InstancedMesh[] = [];
   /**
+   * Der Grasteppich um die Figur. Fehlt, solange keine Karte steht — und auf
+   * der niedrigsten Stufe dauerhaft, dort ist `grasBueschel` null.
+   */
+  private gras: Grasteppich | undefined;
+  /**
    * Die Props je Modell, vollständig — auch die gerade nicht gezeichneten.
    *
    * Die `InstancedMesh` bekommt je Nachschau nur so viele Einträge, wie in
@@ -426,6 +432,17 @@ export class WorldView {
     return this.doc?.id ?? '';
   }
 
+  /**
+   * Wie viele Grasbüschel der Teppich hält und wie viele davon stehen.
+   *
+   * Für die Diagnose: ob Halme fehlen, weil die Grafikstufe sie abschaltet,
+   * weil der Boden sie ablehnt oder weil der Teppich gar nicht gebaut wurde,
+   * ist von aussen sonst nicht zu unterscheiden.
+   */
+  grasStand(): { bueschel: number; stehend: number } {
+    return this.gras?.stand() ?? { bueschel: 0, stehend: 0 };
+  }
+
   /** Baut Boden und Props einer Map neu auf. Alte Entities fallen dabei weg. */
   setMap(world: CoreWorld, doc: MapDocument, quality: QualitySettings): void {
     this.clear();
@@ -440,6 +457,24 @@ export class WorldView {
       useNormalMaps: quality.groundNormalMaps,
     });
     this.root.add(this.terrain.object);
+
+    /*
+     * Der Grasteppich, und er kommt **nach** dem Gelände: er braucht dessen
+     * gezeichnete Fläche, um seine Halme daraufzustellen.
+     */
+    if (quality.grasBueschel > 0) {
+      this.gras = new Grasteppich(this.registry.propMaterial('grass_tuft'), {
+        anzahl: quality.grasBueschel,
+        // Der Kreis wächst mit der Sichtweite, aber lange nicht so schnell:
+        // Halme jenseits von dreissig Metern sind ein paar Pixel und kosten
+        // trotzdem ihre Füllrate.
+        radius: Math.min(30, quality.propDistance * 0.13),
+        farbe: doc.terrain.grassColor,
+        farbeAlt: doc.terrain.grassColorAlt,
+      });
+      this.gras.setBoden(this.terrain, doc.terrain.waterLevel);
+      this.root.add(this.gras.mesh);
+    }
 
     this.buildProps(world, doc);
     this.buildGates(world, doc);
@@ -1185,6 +1220,16 @@ export class WorldView {
 
     this.spur.step(dt);
     this.flugspur.step(dt);
+
+    /*
+     * Und der Grasteppich zieht der eigenen Figur nach.
+     *
+     * Der Figur und nicht der Kamera: die Kamera schwenkt und zoomt, die Figur
+     * steht in der Mitte des Bildes. Ein Teppich, der der Kamera folgt, rückt
+     * bei jedem Blick über die Schulter nach — sichtbar, und ohne Gewinn.
+     */
+    const ich = this.entities.get(localId);
+    if (ich) this.gras?.folge(ich.x, ich.z);
   }
 
   /**
@@ -1430,6 +1475,18 @@ export class WorldView {
       ring.dispose();
     }
     this.portale = [];
+
+    /*
+     * Der Teppich gehört zur alten Karte: seine Halme stehen auf deren
+     * Gelände, und das ist gleich weg. Er wird deshalb abgeräumt und beim
+     * nächsten `setMap` neu gebaut — anders als Beute und Laternen, die ihre
+     * Grösse über Karten hinweg behalten.
+     */
+    if (this.gras) {
+      this.root.remove(this.gras.mesh);
+      this.gras.dispose();
+      this.gras = undefined;
+    }
 
     if (this.terrain) {
       this.root.remove(this.terrain.object);

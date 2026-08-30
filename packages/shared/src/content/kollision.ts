@@ -64,7 +64,7 @@ export const PROP_KOLLISION: Readonly<Record<string, PropKollision>> = {
   // --- Bäume: gemeint ist der Stamm, nicht die Krone ------------------------
   tree_pine: { form: 'circle', radius: 1.1, hoehe: 7.4 },
   tree_fir: { form: 'circle', radius: 1.0, hoehe: 8.8 },
-  tree_broad: { form: 'circle', radius: 1.4, hoehe: 5.55 },
+  tree_broad: { form: 'circle', radius: 1.4, hoehe: 4.75 },
   tree_dead: { form: 'circle', radius: 0.7, hoehe: 3.2 },
 
   // --- Fels -----------------------------------------------------------------

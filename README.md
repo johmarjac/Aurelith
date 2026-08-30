@@ -111,6 +111,16 @@ bewussten Abweichung, die weiter unten begründet ist.
   darf nie schmaler sein als das Höhenfeld (drei Meter) und die Maschen des
   Geländenetzes (vier bis acht), sonst rechnet man eine Kante, die niemand
   bekommt: man sähe eine sanfte Böschung und liefe trotzdem gegen eine Wand.
+- **Schirmkronen und Gras unter den Füssen**: der Laubbaum ist ein langer,
+  dünner Stamm mit einer flachen Krone aus zwei gegeneinander verdrehten Lagen
+  und hängendem Rand — eine Kugel auf einem Stiel sieht von jeder Seite gleich
+  aus, ein Schirm hat eine Waagerechte, an der man ihn wiedererkennt. Dazu ein
+  **Grasteppich**, der mit der Figur wandert: die Halme liegen auf festen
+  Punkten modulo der Seitenlänge des Quadrats, stehen damit fest in der Welt
+  und laufen am Rand um, wo sie ohnehin auf null geblendet sind. Über Wasser
+  und am Hang wächst nichts — beides abgetastet, nicht geraten. Auf der
+  niedrigsten Grafikstufe ist der Teppich aus: durchsichtige Karten kosten
+  Füllrate, und die fehlt auf dem Telefon zuerst.
 - **Haufenwolken statt Dunst**: der Himmel trägt wenige grosse Ballen mit
   hellem Kern und weichem Rand, zwischen denen Blau steht — gebaut wie eine
   Zellenfunktion mit Kegeln statt Abständen, mit einem Rauschen am Rand, damit
@@ -307,6 +317,7 @@ npm run test:grafik      # Grafikeinstellungen: kaputte Daten im Speicher kippen
 npm run test:schwebfels  # Schwebende Felsen: wer oben steht, gilt dem Zeichner als am Boden
 npm run test:bannkreis   # Der Lichtteich am Tor: folgt dem Hang, so gross wie der Auslöser, bewegt sich
 npm run test:himmel      # Wolkendecke: halbe Kugel, zieht mit der Uhr, Farbe des Horizonts
+npm run test:gras        # Grasteppich: wandert mit, klebt nicht, meidet Wasser und Hang
 npm run test:joystick    # Joystick: bleibt liegen, wo der Daumen ihn anfasst
 npm run test:tag         # Tag- und Nachtwechsel: Licht, Farben, Uhr
 npm run test:quests      # das Auftragsbuch — ohne Server
