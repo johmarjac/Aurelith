@@ -99,6 +99,11 @@ bewussten Abweichung, die weiter unten begründet ist.
   ebenem Scheitel, auf denen man steht statt darüberzulaufen, und zwei Teiche:
   Mulden unter dem Wasserspiegel, denn die Wasserfläche liegt ohnehin über der
   ganzen Karte.
+- **Haufenwolken statt Dunst**: der Himmel trägt wenige grosse Ballen mit
+  hellem Kern und weichem Rand, zwischen denen Blau steht — gebaut wie eine
+  Zellenfunktion mit Kegeln statt Abständen, mit einem Rauschen am Rand, damit
+  aus Kreisen Wolken werden. Sie ziehen mit der Uhr und färben sich mit der
+  Tageszeit.
 - **Eine Palette statt einer Stimmung**: gelbgrünes Gras, sandbeiger Fels,
   sattes Baumgrün, kräftig blauer Himmel — wenige Farben, die weit
   auseinanderliegen, dazu viel Umgebungslicht und wenig Sonne, damit
@@ -289,6 +294,7 @@ npm run test:kompass     # Kompass: acht Richtungen, Wechsel bei 22,5°, Osten i
 npm run test:grafik      # Grafikeinstellungen: kaputte Daten im Speicher kippen nichts um
 npm run test:schwebfels  # Schwebende Felsen: wer oben steht, gilt dem Zeichner als am Boden
 npm run test:bannkreis   # Der Lichtteich am Tor: folgt dem Hang, so gross wie der Auslöser, bewegt sich
+npm run test:himmel      # Wolkendecke: halbe Kugel, zieht mit der Uhr, Farbe des Horizonts
 npm run test:joystick    # Joystick: bleibt liegen, wo der Daumen ihn anfasst
 npm run test:tag         # Tag- und Nachtwechsel: Licht, Farben, Uhr
 npm run test:quests      # das Auftragsbuch — ohne Server

@@ -59,17 +59,25 @@ const SCHEIBE_FRAGMENT = /* glsl */ `
 `;
 
 /**
- * Wolken: mehrere Lagen Rauschen übereinander, langsam driftend.
+ * Wolken: einzelne Ballen, keine Schleier.
  *
- * Kein Rauschen aus einer Textur, sondern der übliche Hash aus dem
- * Bruchteil eines Sinus. Drei Oktaven reichen — es sind Wolken am Horizont
- * einer Spielwelt und keine Wetterkarte.
+ * Hier lag eine Lage Rauschen mit einem Schwellwert darauf. Das ergibt Dunst
+ * in Flecken — von unten sieht man ein gesprenkeltes Grau, und der Himmel hat
+ * keine Form. Gemeint sind **Haufenwolken**: wenige, grosse, klar umrissene
+ * Ballen mit hellem Kern und weichem Rand, zwischen denen viel Blau steht.
+ *
+ * Gebaut wie eine Zellenfunktion, nur mit Kegeln statt Abständen: auf einem
+ * Raster sitzt je Masche eine gehashte Mitte mit gehashtem Radius, und das
+ * Feld ist das Maximum über die neun umliegenden. Ein Maximum und keine Summe
+ * — Summen verschmelzen zu einer Decke, sobald zwei Ballen sich berühren.
+ *
+ * Der Rand wird mit einem Rauschen verzogen, damit aus den Kreisen Wolken
+ * werden. **Einmal** gerechnet und auf alle neun angewandt: neun Rauschabrufe
+ * je Bildpunkt wären auf einem Telefon der halbe Himmel.
  */
 const WOLKEN_VERTEX = /* glsl */ `
-  varying vec2 vUv;
   varying vec3 vLocal;
   void main() {
-    vUv = uv;
     vLocal = normalize(position);
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
@@ -79,11 +87,17 @@ const WOLKEN_FRAGMENT = /* glsl */ `
   uniform vec3 farbe;
   uniform float zeit;
   uniform float deckung;
-  varying vec2 vUv;
   varying vec3 vLocal;
 
   float hash(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+  }
+
+  vec2 hash2(vec2 p) {
+    return fract(vec2(
+      sin(dot(p, vec2(127.1, 311.7))) * 43758.5453,
+      sin(dot(p, vec2(269.5, 183.3))) * 43758.5453
+    ));
   }
 
   float noise(vec2 p) {
@@ -109,21 +123,66 @@ const WOLKEN_FRAGMENT = /* glsl */ `
   }
 
   void main() {
-    // Über den Kopf gelegt, damit die Kacheln am Zenit nicht zusammenlaufen:
+    // Über den Kopf gelegt, damit die Maschen am Zenit nicht zusammenlaufen:
     // gerechnet wird in der Ebene, nicht auf der Kugel.
-    vec2 p = vLocal.xz / max(vLocal.y, 0.12) * 1.4;
-    float n = fbm(p + vec2(zeit * 0.012, zeit * 0.008));
+    /*
+     * Der Nenner ist bei 0,38 gedeckelt und nicht bei 0,14.
+     *
+     * Die Ebene ueber dem Kopf waechst zum Horizont hin ins Unendliche: bei
+     * einem Zehntel Hoehe ist eine Masche zehnmal so lang wie breit, und aus
+     * runden Ballen werden waagerechte Schlieren. Mit dem frueheren Deckel
+     * bleiben sie rund; darunter staucht sich das Muster, aber dort blendet
+     * die Zeile weiter unten es ohnehin aus. Zu frueh gedeckelt — bei 0,38 —
+     * lief dafuer alles Untere zu einer Masse zusammen.
+     */
+    vec2 p = vLocal.xz / max(vLocal.y, 0.26) * 0.62;
+    p += vec2(zeit * 0.006, zeit * 0.004);
 
-    // Der Schwellwert entscheidet über die Deckung. Weicher Übergang, sonst
-    // haben die Wolken Papierkanten.
-    float a = smoothstep(0.52 - deckung * 0.22, 0.78, n);
+    // Der Verzug des Randes — einmal fuer alle Ballen.
+    float wellig = fbm(p * 1.9) - 0.5;
+
+    vec2 gitter = floor(p);
+    float feld = 0.0;
+    for (int dz = -1; dz <= 1; dz++) {
+      for (int dx = -1; dx <= 1; dx++) {
+        vec2 masche = gitter + vec2(float(dx), float(dz));
+        // Die Mitte bleibt vom Maschenrand weg, sonst kleben zwei Ballen
+        // benachbarter Maschen aneinander und ergeben eine Wurst.
+        /*
+         * Nicht jede Masche traegt eine Wolke.
+         *
+         * Mit einer je Masche stand der Himmel voller gleich grosser Ballen in
+         * gleichem Abstand — ein Muster, und ein Muster sieht man sofort.
+         * Ueber ein Drittel bleibt leer, und dazwischen steht Blau.
+         */
+        if (hash(masche + 3.71) < 0.42) continue;
+        vec2 mitte = masche + 0.22 + 0.56 * hash2(masche);
+        float radius = 0.20 + 0.30 * hash(masche + 7.13) + deckung * 0.12;
+        float d = length(p - mitte) * (1.0 + wellig * 0.5) / radius;
+        // Parabel statt Kegel: der Kern bleibt voll, und der Ballen wirkt
+        // rund statt spitz.
+        feld = max(feld, 1.0 - d * d);
+      }
+    }
+
+    // Weicher Rand, harte Mitte: unter dem Schwellwert ist Himmel.
+    float a = smoothstep(0.05, 0.46, feld);
 
     // Zum Horizont hin ausblenden. Ohne das enden die Wolken an einer Linie,
     // und die Kuppel bekommt einen sichtbaren Rand.
-    a *= smoothstep(0.02, 0.32, vLocal.y);
+    a *= smoothstep(0.03, 0.34, vLocal.y);
 
     if (a <= 0.003) discard;
-    gl_FragColor = vec4(farbe, a);
+
+    /*
+     * Der Kern ist heller als der Rand.
+     *
+     * Eine Wolke aus einer einzigen Farbe ist ein Fleck. Erst der Verlauf von
+     * innen nach aussen macht daraus etwas mit Volumen — und weil das Feld
+     * ohnehin die Dicke misst, kostet es nur eine Multiplikation.
+     */
+    vec3 c = farbe * mix(0.78, 1.16, smoothstep(0.05, 0.7, feld));
+    gl_FragColor = vec4(c, a);
   }
 `;
 
